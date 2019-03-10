@@ -3,6 +3,17 @@ import numpy
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import os
+import math
+#--------------------------------------------------------------------------------------------------------------------------
+import tools_IO
+#--------------------------------------------------------------------------------------------------------------------------
+def numerical_devisor(n):
+
+    for i in numpy.arange(int(math.sqrt(n))+1,1,-1):
+        if n%i==0:
+            return i
+
+    return n
 #--------------------------------------------------------------------------------------------------------------------------
 def canvas_extrapolate_gray(gray, new_height, new_width):
 
@@ -133,6 +144,9 @@ def capture_image_to_disk(out_filename):
     cv2.destroyAllWindows()
     return
 #--------------------------------------------------------------------------------------------------------------------------
+def rgb2bgr(image):
+    return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+# --------------------------------------------------------------------------------------------------------------------------
 def desaturate_2d(image):
     return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 #--------------------------------------------------------------------------------------------------------------------------
@@ -288,6 +302,8 @@ def blend_avg(img1, img2,background_color=(255,255,255),weight=0.5):
 
     res = cv2.add(im1*(1-weight), im2*(weight))
 
+
+
     return res.astype(numpy.uint8)
 #----------------------------------------------------------------------------------------------------------------------
 def batch_convert(path_in, path_out, format_in='.bmp', format_out='.png'):
@@ -306,4 +322,45 @@ def batch_convert(path_in, path_out, format_in='.bmp', format_out='.png'):
             cv2.imwrite(out_name,im)
 
     return
-    # --------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------
+def plot_images(path_input,mask):
+    images, labels, filenames = tools_IO.load_aligned_images_from_folder(path_input, 'x', mask=mask)
+
+    fig = plt.figure(figsize=(12, 6))
+    fig.subplots_adjust(hspace =0.01)
+
+    rows = numerical_devisor(images.shape[0])
+    cols = int(images.shape[0]/rows)
+    for i in range(0,images.shape[0]):
+        subplot = plt.subplot(rows, cols, i + 1)
+        subplot.imshow(cv2.cvtColor(images[i], cv2.COLOR_BGR2RGB), cmap=None)
+        subplot.axis('off')
+        subplot.set_title(filenames[i])
+
+    plt.tight_layout()
+    plt.show()
+
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+def capture_video(filename_out):
+    cap = cv2.VideoCapture(0)
+
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    out = cv2.VideoWriter(filename_out,fourcc, 20.0, (640,480))
+
+    while(cap.isOpened()):
+        ret, frame = cap.read()
+        if ret==True:
+            frame = cv2.flip(frame,1)
+            out.write(frame)
+            cv2.imshow('frame',frame)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+        else:
+            break
+
+    cap.release()
+    out.release()
+    cv2.destroyAllWindows()
+    return
+# ----------------------------------------------------------------------------------------------------------------------

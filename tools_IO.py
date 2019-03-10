@@ -8,10 +8,15 @@ import random
 from sklearn import metrics, datasets
 from sklearn.metrics import confusion_matrix, auc
 from scipy.misc import toimage
-from PIL import Image
+import cv2
 import math
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from sklearn.manifold import TSNE
+# ----------------------------------------------------------------------------------------------------------------------
+def find_nearest(array, value):
+    return array[(numpy.abs(array - value)).argmin()]
 # ----------------------------------------------------------------------------------------------------------------------
 def smart_index(array, value):
     return numpy.array([i for i, v in enumerate(array) if (v == value)])
@@ -269,39 +274,10 @@ def my_print_int(mat, rows=None, cols=None,file = None):
     return
 
 # ----------------------------------------------------------------------------------------------------------------------
-def resize_image(image, target_size,mode='L'):
-
-    w,h = image.size
-    ratio = w/h
-
-
-    xxx=image.resize((int(ratio*target_size[1]),target_size[1]))
-    w, h = xxx.size
-
-    offset = (int((-w + target_size[0]) / 2), int((-h + target_size[1]) / 2))
-    back = Image.new(mode, target_size, "white")
-    back.paste(xxx, offset)
-
-    return back
-# ----------------------------------------------------------------------------------------------------------------------
-def resize_image0(image, max_size):
-
-    im_aspect = float(image.size[0])/float(image.size[1])
-    out_aspect = float(max_size[0])/float(max_size[1])
-    if im_aspect >= out_aspect:
-        scaled = image.resize((max_size[0], int((float(max_size[0])/im_aspect) + 0.5)))
-    else:
-        scaled = image.resize((int((float(max_size[1])*im_aspect) + 0.5), max_size[1]))
-
-    offset = (  int((max_size[0] - scaled.size[0]) / 2), int((max_size[1] - scaled.size[1]) / 2))
-    back = Image.new("L", max_size, "white")
-    back.paste(scaled, offset)
-    return back
-# ----------------------------------------------------------------------------------------------------------------------
-
-# ----------------------------------------------------------------------------------------------------------------------
 def get_sub_folder_from_folder(path):
     subfolders = [f.path for f in os.scandir(path) if f.is_dir() ]
+    subfolders = [subfolders[i].split(path)[1] for i in range(0,len(subfolders))]
+
     return subfolders
 # ----------------------------------------------------------------------------------------------------------------------
 def count_images_from_folder(path, mask="*.bmp"):
@@ -311,15 +287,14 @@ def count_images_from_folder(path, mask="*.bmp"):
 
     for image_name in fnmatch.filter(listdir(path), mask) :
         try:
-            img = Image.open(path + image_name).convert('L')
+            img = cv2.imread(path + image_name)
             filenames.append(image_name)
         except OSError:
             i=i
-            #print("error")
 
     return len(filenames)
 # ----------------------------------------------------------------------------------------------------------------------
-def load_aligned_images_from_folder(path, label, mask="*.bmp", exclusion_folder=None, limit=None, resize_W=None,resize_H=None):
+def load_aligned_images_from_folder(path, label, mask="*.bmp", exclusion_folder=None, limit=None, resize_W=None,resize_H=None,grayscaled=False):
     exclusions = []
     if (exclusion_folder != None) and (os.path.exists(exclusion_folder)):
 
@@ -333,35 +308,22 @@ def load_aligned_images_from_folder(path, label, mask="*.bmp", exclusion_folder=
     for image_name in fnmatch.filter(listdir(path), mask) :
         if ((limit == None) or (i < limit)) and (image_name not in exclusions):
             try:
-                img = Image.open(path + image_name).convert('L')
-                if ((resize_W is not None) and (resize_H is not None) and((resize_W,resize_H) != img.size)):
-                    #img0 = img.resize((resize_W, resize_H))
-                    img = resize_image(img,(resize_W,resize_H))
-                vec = numpy.array(img).flatten()
+                img = cv2.imread(path + image_name) if grayscaled==False else cv2.imread(path + image_name,0)
+                if ((resize_W is not None) and (resize_H is not None)):
+                    img = cv2.resize(img,(resize_W,resize_H))
 
-                if len(images) == 0:
-                    images = vec
-                else:
-                    images = numpy.vstack((images, vec))
+                images.append(img)
                 filenames.append(image_name)
-                i = i + 1
+                i += 1
             except OSError:
                 i=i
-                #print("error")
-
 
     images = numpy.array(images)
     filenames = numpy.array(filenames)
 
     labels = numpy.full(images.shape[0], label)
-    DX = img.size[0]
-    DY = img.size[1]
 
-
-
-    return (images, labels, filenames, DX, DY)
-
-
+    return images, labels, filenames
 # ----------------------------------------------------------------------------------------------------------------------
 def preditions_to_mat(labels_fact, labels_pred,patterns):
     mat = confusion_matrix(numpy.array(labels_fact).astype(numpy.int), numpy.array(labels_pred).astype(numpy.int))
@@ -384,7 +346,8 @@ def preditions_to_mat(labels_fact, labels_pred,patterns):
     l = numpy.array([len(each) for each in descriptions]).max()
     descriptions = numpy.array([" " * (l - len(each)) + each for each in descriptions]).astype(numpy.chararray)
     descriptions = [ind[i] + ' | ' + descriptions[idx[i]] for i in range(0, idx.shape[0])]
-    return mat2,descriptions
+
+    return mat2,descriptions, patterns[idx]
 # ----------------------------------------------------------------------------------------------------------------------
 def print_accuracy(labels_fact, labels_pred,patterns,filename = None):
 
@@ -393,7 +356,7 @@ def print_accuracy(labels_fact, labels_pred,patterns,filename = None):
     else:
         file = None
 
-    mat,descriptions = preditions_to_mat(labels_fact, labels_pred,patterns)
+    mat,descriptions,sorted_labels = preditions_to_mat(labels_fact, labels_pred,patterns)
     ind = numpy.array([('%3d' % i) for i in range(0, mat.shape[0])])
     TP = float(numpy.trace(mat))
 
@@ -660,7 +623,7 @@ def plot_2D_samples_from_folder(foldername,caption='',add_noice=0):
     local_filenames = fnmatch.filter(listdir(foldername), '*.*')
     fig = plt.figure()
     fig.canvas.set_window_title(caption)
-    colors = ['blue','red','green','purple','black','orange']
+    colors_list = list(('red', 'blue', 'green', 'orange', 'cyan', 'purple', 'black', 'gray', 'pink', 'darkblue'))
 
     i=0
     for filename in local_filenames:
@@ -672,25 +635,30 @@ def plot_2D_samples_from_folder(foldername,caption='',add_noice=0):
             noice = 0.05-0.1*numpy.random.random_sample(X.shape)
             X+= noice
 
-        plt.plot(X[:, 0], X[:, 1], 'ro', color=colors[i], alpha=0.4)
+        plt.plot(X[:, 0], X[:, 1], 'ro', color=colors_list[i%len(colors_list)], alpha=0.4)
         i+=1
 
     plt.grid()
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def plot_2D_scores_multi_Y(plt,X,Y):
+def plot_2D_scores_multi_Y(plt,X,Y,labels=None):
 
     colors_list = list(('red', 'blue', 'green', 'orange', 'cyan', 'purple','black','gray','pink','darkblue'))
+    patches = []
 
     i=0
     for each in numpy.unique(Y):
         idx = numpy.where(Y==each)
         plt.plot(X[idx, 0], X[idx, 1], 'ro', color=colors_list[i%len(colors_list)], alpha=0.4)
+        if labels is not None:
+            patches.append(mpatches.Patch(color=colors_list[i%len(colors_list)],label=labels[i]))
         i+=1
 
     plt.grid()
 
+    if labels is not None:
+        plt.legend(handles=patches)
     return
 # ----------------------------------------------------------------------------------------------------------------------
 def plot_2D_scores(plt,fig,filename_data_pos,filename_data_neg,filename_data_grid,filename_scores_grid,th,noice_needed=0,caption=''):
@@ -914,6 +882,50 @@ def display_distributions(plt,fig,path_scores1, path_scores2,delim=' ',inverse_s
 
     #plt.show()
 #----------------------------------------------------------------------------------------------------------------------
+def plot_learning_rates1(plt,fig,filename_mat):
+    if not os.path.isfile(filename_mat):
+        return
+
+    mat = load_mat(filename_mat, dtype=numpy.chararray, delim='\t')
+    dsc1 = mat[0,0].decode("utf-8")
+
+    mat = mat[1:,:].astype(numpy.float32)
+    x = numpy.arange(0,mat.shape[0])
+
+    plt.plot(x, mat[:,0])
+    plt.plot(x, mat[:,1])
+    plt.grid(which='major', color='lightgray', linestyle='--')
+    ax = fig.gca()
+    ax.set_title(dsc1)
+
+
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+def plot_learning_rates2(plt,fig,filename_mat):
+    if not os.path.isfile(filename_mat):
+        return
+
+    mat = load_mat(filename_mat, dtype=numpy.chararray, delim='\t')
+    dsc = mat[0,2].decode("utf-8")
+
+    mat = mat[1:,:].astype(numpy.float32)
+    x = numpy.arange(0,mat.shape[0])
+
+    plt.plot(x, mat[:,2])
+    plt.plot(x, mat[:,3])
+    plt.grid(which='major', color='lightgray', linestyle='--')
+    ax = fig.gca()
+    ax.set_title(dsc)
+
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+def plot_features_PCA(plt,features,Y,patterns):
+
+    X_TSNE = TSNE(n_components=2).fit_transform(features)
+    plot_2D_scores_multi_Y(plt, X_TSNE, Y, labels=patterns)
+
+    return
+# ----------------------------------------------------------------------------------------------------------------------
 def plot_confusion_mat(plt,fig,filename_mat,caption=''):
 
     confusion_mat = load_mat(filename_mat,dtype=numpy.chararray,delim='\t')[:,:2]
@@ -923,7 +935,7 @@ def plot_confusion_mat(plt,fig,filename_mat,caption=''):
     labels_pred = numpy.array([smart_index(patterns, each) for each in confusion_mat[:, 1]])
 
 
-    mat, descriptions = preditions_to_mat(labels_fact, labels_pred, numpy.unique(confusion_mat[:,0]))
+    mat, descriptions,sorted_labels = preditions_to_mat(labels_fact, labels_pred, numpy.unique(confusion_mat[:,0]))
     ind = numpy.array([('%3d' % i) for i in range(0, mat.shape[0])])
     TP = float(numpy.trace(mat))
 
@@ -933,7 +945,8 @@ def plot_confusion_mat(plt,fig,filename_mat,caption=''):
     ax.set_xticks(numpy.arange(mat.shape[1]))
     ax.set_yticks(numpy.arange(mat.shape[0]))
 
-    ax.set_yticklabels(patterns[:].astype(numpy.str))
+
+    ax.set_yticklabels(sorted_labels.astype(numpy.str))
 
 
     for i in range(mat.shape[1]):
@@ -964,31 +977,31 @@ def to_categorical(Y):
     return Y_2d
 
 # --------------------------------------------------------------------------------------------------------------------
-def save_MNIST_digits(out_path):
+def save_MNIST_digits(out_path,limit=200):
+
     digits = datasets.load_digits()
-    n_samples = len(digits.images)
-    data = digits.images.reshape((n_samples, -1))
+    data = digits.images.reshape((len(digits.images), -1))
 
-    filenames=[]
-    cntr = numpy.zeros(10);
-
-    remove_files(out_path)
+    remove_files(out_path, create=True)
     remove_folders(out_path)
 
     for i in range(0, 10):
         os.makedirs(out_path + '/' + ('%d' % i))
 
+    idx = []
+    filenames=[]
+    cntr = numpy.zeros(10)
 
 
-    for i in range(0,n_samples):
+    for i in range(0,data.shape[0]):
         key = digits.target[i].astype(int)
-        cntr[key]+=1
-        name = key.astype(numpy.str) + '/' + key.astype(numpy.str)+ ('_%03d' % cntr[key]) + '.bmp'
-        filenames.append(name)
+        name = key.astype(numpy.str)
+        if cntr[key]<limit:
+            idx.append(i)
+            filenames.append(name + '/' + name + ('_%03d' % cntr[key]) + '.png')
+            cntr[key] += 1
 
-    #print(filenames)
-
-    save_flatarrays_as_images(out_path, 8, 8, data, labels=digits.target, filenames=filenames)
+    save_flatarrays_as_images(out_path, 8,8, data[idx], labels=digits.target[idx], filenames=filenames)
 
     return
 # ----------------------------------------------------------------------------------------------------------------------

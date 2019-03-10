@@ -187,7 +187,6 @@ def get_stitched_images_using_translation(img1, img2, translation,background_col
         result_img1 = result_img1[transform_dist[1]:transform_dist[1] + img1.shape[0],transform_dist[0]:transform_dist[0] + img1.shape[1]]
 
     return result_img1, result_img2
-
 # --------------------------------------------------------------------------------------------------------------------------
 def get_transform_by_keypoints_desc(points_source,des_source, points_destin,des_destin,matchtype='knn'):
 
@@ -222,8 +221,6 @@ def get_transform_by_keypoints(src,dst):
 
     return M
 #----------------------------------------------------------------------------------------------------------------------
-
-
 def get_homography_by_keypoints(src,dst):
     method = cv2.RANSAC
     #method = cv2.LMEDS
@@ -231,7 +228,6 @@ def get_homography_by_keypoints(src,dst):
     M, mask = cv2.findHomography(src, dst, method, 3.0)
 
     return M
-
 #----------------------------------------------------------------------------------------------------------------------
 def rotationMatrixToEulerAngles(R):
 
@@ -359,7 +355,6 @@ def align_two_images_translation(img1, img2,detector='SIFT',matchtype='knn',bord
     q = ((cv2.matchTemplate(result_image1,result_image2, method=cv2.TM_CCOEFF_NORMED)[0, 0])+1)*128
 
     return result_image1,result_image2,int(q)
-
 # ---------------------------------------------------------------------------------------------------------------------
 def align_two_images_homography(img1, img2,detector='SIFT',matchtype='knn'):
 
@@ -391,7 +386,6 @@ def align_two_images_homography(img1, img2,detector='SIFT',matchtype='knn'):
     q = int((1 + q) * 128)
 
     return result_image1,result_image2, q
-
 # ---------------------------------------------------------------------------------------------------------------------
 def align_two_images_ECC(im1, im2,mode = cv2.MOTION_AFFINE):
 

@@ -13,10 +13,18 @@ class classifier_Gauss_indep(object):
         self.D0 = []
         self.D1 = []
 # ----------------------------------------------------------------------------------------------------------------
-    def learn_on_arrays(self,data_train, target_train):
+    def maybe_reshape(self, X):
+        if numpy.ndim(X) == 2:
+            return X.astype(numpy.float32)
+        else:
+            return numpy.reshape(X, (X.shape[0], -1)).astype(numpy.float32)
+# ----------------------------------------------------------------------------------------------------------------------
+    def learn(self,data_train, target_train):
 
-        X0 = numpy.array(data_train[target_train <=0])
-        X1 = numpy.array(data_train[target_train  >0])
+        X = self.maybe_reshape(data_train)
+
+        X0 = numpy.array(X[target_train <=0])
+        X1 = numpy.array(X[target_train  >0])
 
         self.mean0 = numpy.average(X0, axis=0)
         self.mean1 = numpy.average(X1, axis=0)
@@ -30,27 +38,19 @@ class classifier_Gauss_indep(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def learn_on_features_file(self, file_train, delimeter='\t', path_models_detector=None):
-        X_train = (IO.load_mat(file_train, numpy.chararray,delimeter))
-        Y_train = X_train[:,0].astype('float32')
-        X_train = (X_train[:, 1:]).astype('float32')
-        self.learn_on_arrays(X_train, Y_train)
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def predict_proba(self,x_train):
-        pred_score_train=numpy.zeros((x_train.shape[0],2))
+    def predict(self, array):
+
+        X = self.maybe_reshape(array)
+
+        pred_score_train=numpy.zeros((X.shape[0], 2))
 
         for n in range(0,pred_score_train.shape[0]):
             for i in range (0,self.mean0.shape[0]):
                 if(self.D0[i]!=0):
-                    pred_score_train[n,1] -=  (x_train[n, i] - self.mean0[i]) * (x_train[n, i] - self.mean0[i])/self.D0[i]
+                    pred_score_train[n,1] -= (X[n, i] - self.mean0[i]) * (X[n, i] - self.mean0[i]) / self.D0[i]
 
                 if(self.D1[i] != 0):
-                    pred_score_train[n, 1] += (x_train[n, i] - self.mean1[i]) * (x_train[n, i] - self.mean1[i])/self.D1[i]
+                    pred_score_train[n, 1] += (X[n, i] - self.mean1[i]) * (X[n, i] - self.mean1[i]) / self.D1[i]
 
         return -pred_score_train
-# ----------------------------------------------------------------------------------------------------------------------
-    def predict_probability_of_array(self,array):
-        score = self.predict_proba(array)
-        return score
 # ----------------------------------------------------------------------------------------------------------------------

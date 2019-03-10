@@ -16,4 +16,14 @@ class generator_Other(object):
         tools_IO.save_data_to_feature_file_float(filename_neg, x[y <= 0], y[y <= 0])
 
         return
-# ----------------------------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
+
+    def create_multi_samples(self, folder_output, num_classes):
+
+        x,y = make_blobs(n_samples=200, n_features=self.dim, centers=num_classes)
+        for i in range(0,num_classes):
+            tools_IO.save_data_to_feature_file_float(folder_output+'%02d.txt'%i, x[y == i], y[y == i])
+
+
+        return
+# ---------------------------------------------------------------------------------------------------------------------

@@ -1,53 +1,26 @@
 # ----------------------------------------------------------------------------------------------------------------------
 import os.path
 from os import listdir
-import sys
-import tarfile
 import numpy
 import fnmatch
-import tensorflow as tf
-from tensorflow.python.platform import gfile
-import urllib
+import cv2
 # --------------------------------------------------------------------------------------------------------------------
+from keras.models import Model
+from keras.applications import MobileNet
+from keras.applications.xception import Xception
+from keras.applications.mobilenet import preprocess_input
 import tools_IO
 import tools_CNN_view
 # --------------------------------------------------------------------------------------------------------------------
-class CNN_Inception_TF(object):
+class CNN_App_Keras(object):
     def __init__(self):
-        self.name = 'CNN_Inception_TF'
-        self.input_shape = (299,299)
-        self.model = []
-        self.DATA_URL = 'http://download.tensorflow.org/models/image/imagenet/inception-2015-12-05.tgz'
-        self.dest_directory = '../_weights/inception_v3/'
+        self.name = 'CNN_App_Keras'
+        self.input_shape = (224,224)
+        #self.model = Xception()
+        self.model = MobileNet()
         self.class_names = tools_CNN_view.class_names
 
-        CNN_Inception_TF.maybe_download_and_extract(self)
-
-        with gfile.FastGFile(self.dest_directory+ 'classify_image_graph_def.pb', 'rb') as f:
-            self.graph_def = tf.GraphDef()
-            self.graph_def.ParseFromString(f.read())
-            self.tensor_bottleneck, self.tensor_jpeg_data, self.tensor_resized_input,self.tensor_classification  = (tf.import_graph_def(self.graph_def, name='', return_elements=['pool_3/_reshape:0', 'DecodeJpeg/contents:0', 'ResizeBilinear:0','softmax:0']))
         return
-# ----------------------------------------------------------------------------------------------------------------
-    def maybe_download_and_extract(self):
-
-        def _progress(count, block_size, total_size):
-            sys.stdout.write('\r>> Downloading %s %.1f%%' % (filename, float(count * block_size) / float(total_size) * 100.0))
-            sys.stdout.flush()
-            return
-
-        if not os.path.exists(self.dest_directory):
-            os.makedirs(self.dest_directory)
-
-        filename = self.DATA_URL.split('/')[-1]
-        filepath = self.dest_directory+filename
-        if not os.path.exists(filepath):
-            filepath, _ = urllib.request.urlretrieve(self.DATA_URL,filepath,_progress)
-            print()
-            print('Successfully downloaded', filename, os.stat(filepath).st_size, 'bytes.')
-        tarfile.open(filepath, 'r:gz').extractall(self.dest_directory)
-        return
-
 # ----------------------------------------------------------------------------------------------------------------------
     def generate_features(self, path_input, path_output,mask='*.png',limit=1000000):
 
@@ -59,10 +32,6 @@ class CNN_Inception_TF(object):
 
         patterns = numpy.sort(numpy.array([f.path[len(path_input):] for f in os.scandir(path_input) if f.is_dir()]))
 
-        init = tf.global_variables_initializer()
-        sess = tf.Session()
-        sess.run(init)
-
 
         for each in patterns:
             print(each)
@@ -72,8 +41,11 @@ class CNN_Inception_TF(object):
 
             if not os.path.isfile(feature_filename):
                 for i in range (0,local_filenames.shape[0]):
-                    image_data = gfile.FastGFile(path_input + each + '/' + local_filenames[i], 'rb').read()
-                    feature = sess.run(self.tensor_bottleneck, {self.tensor_jpeg_data: image_data})[0]
+                    img = cv2.imread(path_input + each + '/' + local_filenames[i])
+                    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                    img = cv2.resize(img, self.input_shape).astype(numpy.float32)
+                    model = Model(inputs=self.model.input, outputs=self.model.get_layer('global_average_pooling2d_1').output)
+                    feature = model.predict(preprocess_input(numpy.array([img])))[0]
                     features.append(feature)
 
                 features = numpy.array(features)
@@ -87,9 +59,6 @@ class CNN_Inception_TF(object):
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def predict_classes(self, path_input, filename_output, limit=1000000,mask='*.png'):
-        init = tf.global_variables_initializer()
-        sess = tf.Session()
-        sess.run(init)
 
         patterns = numpy.sort(numpy.array([f.path[len(path_input):] for f in os.scandir(path_input) if f.is_dir()]))
 
@@ -97,12 +66,16 @@ class CNN_Inception_TF(object):
             print(each)
             local_filenames = numpy.array(fnmatch.filter(listdir(path_input + each), mask))[:limit]
             for i in range(0, local_filenames.shape[0]):
-                image_data = gfile.FastGFile(path_input + each + '/' + local_filenames[i], 'rb').read()
-                prob = sess.run(self.tensor_classification, {self.tensor_jpeg_data: image_data})[0][:1000]
+                img = cv2.imread(path_input + each + '/' + local_filenames[i])
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                img = cv2.resize(img, self.input_shape).astype(numpy.float32)
+
+                model = Model(inputs=self.model.input, outputs=self.model.output)
+                prob = model.predict(preprocess_input(numpy.array([img])))[0]
+
                 idx = numpy.argsort(-prob)[0]
                 label = self.class_names[idx]
                 tools_IO.save_labels(path_input + each + '/' + filename_output, numpy.array([local_filenames[i]]),numpy.array([label]), append=i, delim=' ')
 
-        sess.close()
         return
 # ----------------------------------------------------------------------------------------------------------------------

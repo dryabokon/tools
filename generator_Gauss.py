@@ -9,7 +9,7 @@ class generator_Gauss(object):
         self.N1 = 100
 
         if (dim==2):
-            self.mean0 = [10, 20]
+            self.mean0 = [15, 20]
             self.cov0 = [[10, 5], [5, 10]]
             self.mean1 = [20, 20]
             self.cov1 = [[10, 00], [0, 10]]
@@ -36,13 +36,9 @@ class generator_Gauss(object):
         Y0 = numpy.full(self.N0, -1).astype('float32')
         Y1 = numpy.full(self.N1, +1).astype('float32')
 
-        #X0 = numpy.hstack((X0, Y0))
-        #X1 = numpy.hstack((X1, Y1))
-        #Y0 = numpy.full(self.N0, -1).astype('float32')
-        #Y1 = numpy.full(self.N1, +1).astype('float32')
-
         IO.save_data_to_feature_file_float(filename_pos,X1,Y1)
         IO.save_data_to_feature_file_float(filename_neg,X0,Y0)
 
         return
-# ----------------------------------------------------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------------------------------------------------

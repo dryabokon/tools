@@ -21,9 +21,18 @@ class classifier_Gauss(object):
         self.model = model
         return
 # ----------------------------------------------------------------------------------------------------------------
-    def learn_on_arrays(self,data_train, target_train):
-        X0 = numpy.array(data_train[target_train <=0])
-        X1 = data_train[target_train >0]
+    def maybe_reshape(self, X):
+        if numpy.ndim(X) == 2:
+            return X.astype(numpy.float32)
+        else:
+            return numpy.reshape(X, (X.shape[0], -1)).astype(numpy.float32)
+# ----------------------------------------------------------------------------------------------------------------
+    def learn(self,data_train, target_train):
+
+        X = self.maybe_reshape(data_train)
+
+        X0 = numpy.array(X[target_train <=0])
+        X1 = X[target_train >0]
 
         self.mean0 = numpy.average(X0, axis=0)
         self.mean1 = numpy.average(X1, axis=0)
@@ -36,58 +45,19 @@ class classifier_Gauss(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def learn_on_features_file(self, file_train, delimeter='\t', path_models_detector=None):
-        X_train = (IO.load_mat(file_train, numpy.chararray,delimeter))
+    def predict(self, array):
 
-        Y_train = X_train[:,0].astype('float32')
-        X_train = (X_train[:, 1:]).astype('float32')
+        X = self.maybe_reshape(array)
 
-        classifier_Gauss.learn_on_arrays(self, X_train, Y_train)
-
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def predict_proba(self,x_train):
-        pred_score_train=numpy.zeros((x_train.shape[0],2))
+        pred_score_train=numpy.zeros((X.shape[0], 2))
         for n in range(0,pred_score_train.shape[0]):
             for i in range (0,self.mean0.shape[0]):
                 for j in range(0, self.mean0.shape[0]):
 
-                    pred_score_train[n,1] -= self.iD0[i, j] * (x_train[n, i] - self.mean0[i]) * (x_train[n, j] - self.mean0[j]) -  \
-                                             self.iD1[i, j] * (x_train[n, i] - self.mean1[i]) * (x_train[n, j] - self.mean1[j])
+                    pred_score_train[n,1] -= self.iD0[i, j] * (X[n, i] - self.mean0[i]) * (X[n, j] - self.mean0[j]) -  \
+                                             self.iD1[i, j] * (X[n, i] - self.mean1[i]) * (X[n, j] - self.mean1[j])
 
-        #for n in range(0, pred_score_train.shape[0]):
-            #if(pred_score_train[n, 1]>0):
-                #pred_score_train[n, 1] = 1
-            #else:
-                #pred_score_train[n, 1] = 0
 
 
         return -pred_score_train
-# ----------------------------------------------------------------------------------------------------------------------
-    def score_feature_file(self, file_test, out_filename,delimeter='\t',append=0):
-
-        data_test = IO.load_mat(file_test,numpy.chararray,delimeter)
-        labels_test = (data_test[:, 0]).astype(numpy.str)
-        data_test = data_test[:, 1:]
-
-        if data_test[0,-1]==b'':
-            data_test =data_test[:,:-1]
-
-        data_test = data_test.astype('float32')
-
-        score = classifier_Gauss.predict_proba(self,data_test)
-
-        min = numpy.min(score[:, 1])
-        max = numpy.max(score[:, 1])
-
-        score = 100*((score[:, 1])-min)/(max-min).astype(int)
-
-        mat = numpy.concatenate((numpy.matrix(labels_test).T,numpy.matrix(score).T),axis=1).astype('float32')
-        IO.save_mat(mat,out_filename,delim=delimeter)
-
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def predict_probability_of_array(self,array):
-        score = classifier_Gauss.predict_proba(self,array)
-        return score
 # ----------------------------------------------------------------------------------------------------------------------

@@ -13,11 +13,20 @@ class classifier_Bayes(object):
         self.ctgr1 = []
         self.freq1 = []
 # ----------------------------------------------------------------------------------------------------------------
-    def learn_on_arrays(self,data_train, target_train):
-        X0 = numpy.array(data_train[target_train <=0]).astype(int)
-        X1 = numpy.array(data_train[target_train > 0]).astype(int)
+    def maybe_reshape(self,X):
+        if numpy.ndim(X) == 2:
+            return X
+        else:
+            return numpy.reshape(X,(X.shape[0],-1))
+# ----------------------------------------------------------------------------------------------------------------
+    def learn(self, X, Y):
 
-        for j in range(0,data_train.shape[1]):
+        XX= self.maybe_reshape(X)
+
+        X0 = numpy.array(XX[Y <= 0]).astype(int)
+        X1 = numpy.array(XX[Y > 0]).astype(int)
+
+        for j in range(0, XX.shape[1]):
             ct0 = numpy.unique(X0[:, j])
             ct1 = numpy.unique(X1[:, j])
             ct0 = numpy.hstack((ct0,1000000))
@@ -32,21 +41,16 @@ class classifier_Bayes(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def learn_on_features_file(self, file_train, delimeter='\t', path_models_detector=None):
-        X_train = (IO.load_mat(file_train, numpy.chararray,delimeter))
-        Y_train = X_train[:,0].astype('float32')
-        X_train = (X_train[:, 1:]).astype('float32')
-        self.learn_on_arrays(X_train, Y_train)
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def predict_proba(self,x_train):
+    def predict(self, array):
 
-        pred_score_train=numpy.zeros((x_train.shape[0],2))
+        X = self.maybe_reshape(array)
 
-        for j in range(0,x_train.shape[1]):
+        pred_score_train=numpy.zeros((X.shape[0], 2))
+
+        for j in range(0, X.shape[1]):
             for n in range(0,pred_score_train.shape[0]):
-                idx0 = IO.smart_index(self.ctgr0[j], int(x_train[n, j]))
-                idx1 = IO.smart_index(self.ctgr1[j], int(x_train[n, j]))
+                idx0 = IO.smart_index(self.ctgr0[j], int(X[n, j]))
+                idx1 = IO.smart_index(self.ctgr1[j], int(X[n, j]))
                 p0 = 0.0001
                 p1 = 0.0001
                 if idx0>=0:
@@ -58,8 +62,4 @@ class classifier_Bayes(object):
 
 
         return pred_score_train
-# ----------------------------------------------------------------------------------------------------------------------
-    def predict_probability_of_array(self, array):
-        score = self.predict_proba(array)
-        return score
 # ----------------------------------------------------------------------------------------------------------------------
