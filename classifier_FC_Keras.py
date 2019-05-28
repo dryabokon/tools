@@ -245,11 +245,12 @@ class classifier_FC_Keras(object):
         invmodel = tools_CNN_view.add_de_conv_layer(invmodel, orig_layers[1])
 
         outputs = Model(inputs=invmodel.input, outputs=[layer.output for layer in invmodel.layers]).predict(numpy.array([feature]))
+        names=[layer.name for layer in invmodel.layers]
 
         feature_image = tools_CNN_view.tensor_gray_3D_to_image(feature)
         cv2.imwrite(path_output + 'feature.png', feature_image*255.0/feature_image.max())
 
-        tools_CNN_view.stage_tensors(outputs,path_output)
+        tools_CNN_view.stage_tensors(outputs,path_output,names)
 
 
         return

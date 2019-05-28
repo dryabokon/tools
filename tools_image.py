@@ -31,6 +31,39 @@ def canvas_extrapolate_gray(gray, new_height, new_width):
 
     return newimage
 # ---------------------------------------------------------------------------------------------------------------------
+def smart_resize(img, target_image_height, target_image_width):
+    '''resize image with unchanged aspect ratio using padding'''
+    from PIL import Image
+
+    pillow_image = Image.fromarray(img)
+
+    original_image_width, original_image_height = pillow_image.size
+
+    scale = min(target_image_width / original_image_width, target_image_height / original_image_height)
+    nw = int(original_image_width * scale)
+    nh = int(original_image_height * scale)
+
+    pillow_image = pillow_image.resize((nw, nh), Image.BICUBIC)
+    new_image = Image.new('RGB', (target_image_width, target_image_height), (128, 128, 128))
+    new_image.paste(pillow_image, ((target_image_width - nw) // 2, (target_image_height - nh) // 2))
+    return numpy.array(new_image)
+# ---------------------------------------------------------------------------------------------------------------------
+def smart_resize_point(original_row,original_col, original_image_height,original_image_width,target_image_height,target_image_width):
+    scale_hor = target_image_width / original_image_width
+    scale_ver = target_image_height / original_image_height
+    if scale_hor<scale_ver:
+        scale = scale_hor
+        c = int(original_col * scale)
+        r = int(original_row * scale)
+        r+=int(0.5*(target_image_height-original_image_height*scale))
+    else:
+        scale = scale_ver
+        r = int(original_row * scale)
+        c = int(original_col * scale)
+        c+=int(0.5*(target_image_width-original_image_width*scale))
+
+    return r,c
+# ---------------------------------------------------------------------------------------------------------------------
 def canvas_extrapolate(img,new_height,new_width):
 
     newimage = numpy.zeros((new_height,new_width,3),numpy.uint8)
@@ -124,40 +157,24 @@ def put_layer_on_image(image_background,image_layer,background_color=(0,0,0)):
 
     return im_result
 #--------------------------------------------------------------------------------------------------------------------------
-def capture_image_to_disk(out_filename):
-
-    cap = cv2.VideoCapture(0)
-
-    while (True):
-
-        ret, frame = cap.read()
-        #gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        cv2.imshow('frame', frame)
-        if cv2.waitKey(1) & 0xFF == ord('s'):
-            cv2.imwrite(out_filename,frame)
-        if cv2.waitKey(1) & 0xFF == 27:
-            break
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
-    cap.release()
-    cv2.destroyAllWindows()
-    return
-#--------------------------------------------------------------------------------------------------------------------------
 def rgb2bgr(image):
     return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 # --------------------------------------------------------------------------------------------------------------------------
 def desaturate_2d(image):
     return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 #--------------------------------------------------------------------------------------------------------------------------
-def desaturate(image):
+def saturate(image):
+    return cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+#--------------------------------------------------------------------------------------------------------------------------
+def desaturate(image,level=1.0):
 
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+    hsv = hsv.astype(numpy.float)
+    hsv[:,:,1]*=(1-level)
+    hsv = hsv.astype(numpy.uint8)
 
-    result = numpy.zeros((image.shape[0], image.shape[1], 3)).astype(numpy.uint8)
-    result[:, :, 0] = gray[:, :]
-    result[:, :, 1] = gray[:, :]
-    result[:, :, 2] = gray[:, :]
+    result = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+
     return result
 #--------------------------------------------------------------------------------------------------------------------------
 def hitmap2d_to_jet(hitmap_2d):
@@ -167,6 +184,9 @@ def hitmap2d_to_jet(hitmap_2d):
 # ----------------------------------------------------------------------------------------------------------------------
 def hsv2bgr(hsv):
     return cv2.cvtColor(numpy.array([hsv[0], hsv[1], hsv[2]], dtype=numpy.uint8).reshape(1, 1, 3), cv2.COLOR_HSV2BGR)
+# ----------------------------------------------------------------------------------------------------------------------
+def bgr2hsv(brg):
+    return cv2.cvtColor(numpy.array([brg[0], brg[1], brg[2]], dtype=numpy.uint8).reshape(1, 1, 3), cv2.COLOR_BGR2HSV)
 # ----------------------------------------------------------------------------------------------------------------------
 def hitmap2d_to_viridis(hitmap_2d):
     colormap = (numpy.array(cm.cmaps_listed['viridis'].colors)*256).astype(int)
@@ -340,27 +360,5 @@ def plot_images(path_input,mask):
     plt.tight_layout()
     plt.show()
 
-    return
-# ----------------------------------------------------------------------------------------------------------------------
-def capture_video(filename_out):
-    cap = cv2.VideoCapture(0)
-
-    fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    out = cv2.VideoWriter(filename_out,fourcc, 20.0, (640,480))
-
-    while(cap.isOpened()):
-        ret, frame = cap.read()
-        if ret==True:
-            frame = cv2.flip(frame,1)
-            out.write(frame)
-            cv2.imshow('frame',frame)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-        else:
-            break
-
-    cap.release()
-    out.release()
-    cv2.destroyAllWindows()
     return
 # ----------------------------------------------------------------------------------------------------------------------

@@ -17,15 +17,33 @@ def inverce_weight(W,b_size):
         B = numpy.full(b_size,W[1].mean(),numpy.float32)
     return [F,B]
 # ----------------------------------------------------------------------------------------------------------------------
-def colorize_chess(image_gray,W,H):
+def apply_blue_shift(image,mode=0):
 
-    image_color = cv2.cvtColor(image_gray, cv2.COLOR_GRAY2RGB)
+    if (mode == 0):
+        red, green, blue = 0.95, 0.95, 1.05
+    else:
+        red, green, blue = 1.05, 1.05, 0.95
+
+    for r in range(0, image.shape[0]):
+        for c in range(0, image.shape[1]):
+            image[r,c, 0] = numpy.clip(image[r,c, 0] * blue, 0, 255)
+            image[r,c, 1] = numpy.clip(image[r,c, 1] * green, 0, 255)
+            image[r,c, 2] = numpy.clip(image[r,c, 2] * red, 0, 255)
+
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+def colorize_chess(image, W, H):
+
+    if len(image.shape)==2:
+        image_color = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+    else:
+        image_color = image
     r, c = numpy.meshgrid(numpy.linspace(0, H - 1, num=H), numpy.linspace(0, W - 1, num=W))
     r, c = r.astype(numpy.int), c.astype(numpy.int)
 
 
-    for R in numpy.arange(0, image_gray.shape[0], H):
-        for C in numpy.arange(0, image_gray.shape[1], W):
+    for R in numpy.arange(0, image.shape[0], H):
+        for C in numpy.arange(0, image.shape[1], W):
             if ((int(R/H)+int(C/W))%2 == 0):
                 red, green, blue = 0.95, 0.95, 1.05
             else:
@@ -49,10 +67,12 @@ def tensor_gray_1D_to_image(tensor,orientation = 'landscape'):
 
     return image
 # ----------------------------------------------------------------------------------------------------------------------
-def tensor_gray_3D_to_image(tensor, do_colorize = False):
+def tensor_gray_3D_to_image(tensor, do_colorize = False,do_scale = False,force_rows_dim2 = None):
 
-
-    rows = tools_image.numerical_devisor(tensor.shape[2])
+    if force_rows_dim2  is None:
+        rows = tools_image.numerical_devisor(tensor.shape[2])
+    else:
+        rows = force_rows_dim2
 
     h, w, R, C = tensor.shape[0], tensor.shape[1], rows, int(tensor.shape[2] / rows)
     image = numpy.zeros((h * R, w * C), dtype=numpy.float32)
@@ -63,7 +83,11 @@ def tensor_gray_3D_to_image(tensor, do_colorize = False):
     if do_colorize:
         image = colorize_chess(image,tensor.shape[0],tensor.shape[1])
 
-    return image
+    if do_scale==True:
+        image -= image.min()
+        image *= 255 / image.max()
+
+    return image.astype(dtype=numpy.uint8)
 # ---------------------------------------------------------------------------------------------------------------------
 def image_to_tensor_color_4D(image,shape):
     tensor = numpy.zeros(shape,numpy.float32)
@@ -92,13 +116,16 @@ def tensor_color_4D_to_image(tensor):
 
     return image
 # ---------------------------------------------------------------------------------------------------------------------
-def tensor_gray_4D_to_image(tensor,do_colorize = False):
+def tensor_gray_4D_to_image(tensor,do_colorize = False,do_scale=False,force_rows_dim3=None,force_rows_dim2=None):
 
-    sub_image = tensor_gray_3D_to_image(tensor[:, :, :, 0])
+    sub_image = tensor_gray_3D_to_image(tensor[:, :, :, 0],force_rows_dim2)
     h, w = sub_image.shape[0], sub_image.shape[1]
 
+    if force_rows_dim3 is None:
+        R = tools_image.numerical_devisor(tensor.shape[3])
+    else:
+        R = force_rows_dim3
 
-    R = tools_image.numerical_devisor(tensor.shape[3])
     C = int(tensor.shape[3]/R)
 
 
@@ -108,11 +135,20 @@ def tensor_gray_4D_to_image(tensor,do_colorize = False):
         image = numpy.zeros((h * R, w * C), dtype=numpy.float32)
     for i in range (0,tensor.shape[3]):
         col, row = i % C, int(i / C)
-        sub_image = tensor_gray_3D_to_image(tensor[:,:,:,i],do_colorize)
+        sub_image = tensor_gray_3D_to_image(tensor[:,:,:,i])
+
+        if do_colorize:
+            sub_image = tools_image.saturate(sub_image)
+            apply_blue_shift(sub_image,(col+row)%2)
+
         if do_colorize:
             image[h * row:h * row + h, w * col:w * col + w,:] = sub_image[:, :, :]
         else:
             image[h * row:h * row + h, w * col:w * col + w] = sub_image[:, :]
+
+    if do_scale==True:
+        image -= image.min()
+        image *= 255 / image.max()
 
     return image
 # ---------------------------------------------------------------------------------------------------------------------
@@ -132,7 +168,7 @@ def visualize_filters(keras_model, path_out):
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
-def stage_tensors(outputs,path_out):
+def stage_tensors(outputs,path_out,names):
 
     for i in range(0, len(outputs)):
         tensor = outputs[i][0]
@@ -140,9 +176,9 @@ def stage_tensors(outputs,path_out):
         tensor *= 255.0 / tensor.max()
 
         if len(tensor.shape) == 3:
-            if tensor.shape[2] == 3:  cv2.imwrite(path_out + 'layer_%03d.png' % i, tensor)
-            elif tensor.shape[2] != 3:cv2.imwrite(path_out + 'layer_%03d.png' % i, tensor_gray_3D_to_image(tensor, do_colorize=True))
-        elif len(tensor.shape) == 1:  cv2.imwrite(path_out + 'layer_%03d.png' % i, tools_image.hitmap2d_to_viridis(tensor_gray_1D_to_image(tensor)))
+            if tensor.shape[2] == 3:  cv2.imwrite(path_out + 'layer_%s.png' % (names[i]), tensor)
+            elif tensor.shape[2] != 3:cv2.imwrite(path_out + 'layer_%s.png' % (names[i]), tensor_gray_3D_to_image(tensor, do_colorize=True))
+        elif len(tensor.shape) == 1:  cv2.imwrite(path_out + 'layer_%s.png' % (names[i]), tools_image.hitmap2d_to_viridis(tensor_gray_1D_to_image(tensor)))
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
@@ -167,13 +203,18 @@ def visualize_layers(keras_model, filename_input, path_out,need_scale=False):
     if need_scale==True:
         image=normalize(image.astype(numpy.float32))
 
-    outputs = Model(inputs=keras_model.input, outputs=[layer.output for layer in keras_model.layers]).predict(numpy.array([image]))
+    #print(keras_model.summary())
+
+    layer_outputs = [layer.output for layer in keras_model.layers][1:]
+    I = range(len(keras_model.layers))
+    layer_names   = ['%02d_%s'%(i,layer.name) for i, layer in zip(I, keras_model.layers)]   [1:]
+    outputs = Model(inputs=keras_model.input, outputs=layer_outputs).predict(numpy.array([image]))
+
 
     #if need_scale==True:
     #    outputs = [scale(each) for each in outputs]
 
-    stage_tensors(outputs,path_out)
-
+    stage_tensors(outputs,path_out,layer_names)
 
     return
 # ---------------------------------------------------------------------------------------------------------------------

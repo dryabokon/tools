@@ -7,7 +7,6 @@ import shutil
 import random
 from sklearn import metrics, datasets
 from sklearn.metrics import confusion_matrix, auc
-from scipy.misc import toimage
 import cv2
 import math
 import matplotlib.cm as cm
@@ -94,8 +93,12 @@ def save_flatarrays_as_images(path, cols, rows, array, labels=None, filenames=No
                 short_name = "%s_%05d.bmp" % (labels, i)
 
 
-        img= toimage(arr.reshape(rows, cols).astype(int)).convert('RGB')
-        img.save(path + short_name)
+        #img= toimage(arr.reshape(rows, cols).astype(int)).convert('RGB')
+        #img.save(path + short_name)
+        arr = arr.reshape(rows, cols)
+        arr/=numpy.max(arr)/255.0
+        cv2.imwrite(path + short_name,arr)
+
 
         if descriptions is not None:
             f_handle.write("%s %s\n" % (short_name, description))
@@ -576,6 +579,116 @@ def plot_multiple_tp_fp(tpr,fpr,roc_auc,desc,caption=''):
 
 
 # ----------------------------------------------------------------------------------------------------------------------
+def smape(A, F):
+    v_norm = (numpy.abs(A) + numpy.abs(F))
+    v_diff = numpy.abs(F - A)
+    idx = numpy.where(v_norm!=0)
+    res = 2*100/A.shape[0]*numpy.sum(v_diff[idx]/v_norm[idx])
+    return res
+# ----------------------------------------------------------------------------------------------------------------------
+def calc_series_SMAPE(S):
+
+    if len(S.shape)==1:
+        return [0]
+    SMAPE = numpy.zeros(S.shape[1])
+    for i in range(1,S.shape[1]):
+        SMAPE[i] = smape(S[:,0], S[:,i])
+
+    return SMAPE
+# ----------------------------------------------------------------------------------------------------------------------
+def plot_hystogram(plt,H,label,SMAPE,xmin=None,xmax=None,ymax=None):
+
+    plt.hist(H, bins='auto')
+    plt.axis((xmin, xmax, 0, ymax))
+    plt.legend([label[0] + ' SMAPE = %1.2f%%'%SMAPE[0]])
+    plt.grid()
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+def plot_series(plt,S,labels,SMAPE):
+
+    colors_list = list(('blue','gray', 'red', 'purple', 'green', 'orange', 'cyan', 'black','pink','darkblue','darkred','darkgreen', 'darkcyan'))
+    patches = []
+
+    x=numpy.arange(0,S.shape[0],1)
+
+    for i in range(0,S.shape[1]):
+        color = colors_list[i%len(colors_list)]
+        plt.plot(x,S[:,i], lw=1, color=color, alpha=0.75)
+        if S.shape[1]==1:
+            patches.append(mpatches.Patch(color=color, label=labels[i]))
+        else:
+            patches.append(mpatches.Patch(color=color, label=labels[i]+' %1.2f%%'% SMAPE[i]))
+
+    plt.grid()
+
+    if labels is not None:
+        plt.legend(handles=patches[1:],loc='upper left')
+
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+def plot_two_series(filename1, filename2, caption=''):
+
+    mat1 = load_mat(filename1, dtype=numpy.float32, delim='\t')
+    mat2 = load_mat(filename2, dtype=numpy.float32, delim='\t')
+
+    if len(mat1.shape)==1:
+        SMAPE = calc_series_SMAPE(numpy.array([mat1, mat2]).T)
+        labels = [filename1.split('/')[-1], filename2.split('/')[-1]]
+        fig = plt.figure(figsize=(12, 6))
+        fig.subplots_adjust(hspace=0.01)
+        fig.canvas.set_window_title(caption)
+        plot_series(plt.subplot(1, 1, 1), numpy.vstack((mat1,mat2)).T, labels=labels,SMAPE=SMAPE)
+        plt.tight_layout()
+    else:
+        fig = plt.figure(figsize=(12, 6))
+        fig.subplots_adjust(hspace=0.01)
+        fig.canvas.set_window_title(caption)
+        labels = [filename1.split('/')[-1], filename2.split('/')[-1]]
+        S = numpy.minimum(mat1.shape[1],5)
+        for i in range(0,S):
+            SMAPE = calc_series_SMAPE(numpy.array([mat1[:,i], mat2[:,i]]).T)
+            plot_series(plt.subplot(S, 1, i+1), numpy.vstack((mat1[:,i], mat2[:,i])).T, labels=labels, SMAPE=SMAPE)
+        plt.tight_layout()
+
+    return
+# ---------------------------------------------------------------------------------------------------------------------
+def plot_multiple_series(filename_fact, list_filenames, target_column=0,caption=''):
+
+    fig = plt.figure(figsize=(12, 6))
+    fig.subplots_adjust(hspace =0.01)
+    fig.canvas.set_window_title(caption)
+
+    S = 1+len(list_filenames)
+    Labels_train = numpy.array(['fact']+[each.split('/')[-1] for each in list_filenames])
+
+
+    Series = []
+    mat = load_mat(filename_fact, dtype=numpy.float32, delim='\t')
+    if len(mat.shape) == 1:
+        Series.append(mat)
+    else:
+        Series.append(mat[:, target_column])
+
+    for filename in list_filenames:
+        mat = load_mat(filename,dtype=numpy.float32,delim='\t')
+        if len(mat.shape)==1:
+            Series.append(mat)
+        else:
+            Series.append(mat[:, target_column])
+
+    Series=numpy.array(Series).T
+
+    SMAPE = calc_series_SMAPE(Series)
+
+    for i in range(1, S):
+        plot_series(plt.subplot(S-1,1,i), Series[:,[0,i]],labels=Labels_train[[0,i]],SMAPE=SMAPE[[0,i]])
+
+
+    plt.tight_layout()
+
+
+    return
+# ---------------------------------------------------------------------------------------------------------------------
 def get_roc_data_from_scores_file(path_scores):
 
     data = load_mat(path_scores, numpy.chararray, ' ')
@@ -893,7 +1006,7 @@ def plot_learning_rates1(plt,fig,filename_mat):
     x = numpy.arange(0,mat.shape[0])
 
     plt.plot(x, mat[:,0])
-    plt.plot(x, mat[:,1])
+    #plt.plot(x, mat[:,1])
     plt.grid(which='major', color='lightgray', linestyle='--')
     ax = fig.gca()
     ax.set_title(dsc1)
@@ -1005,3 +1118,11 @@ def save_MNIST_digits(out_path,limit=200):
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
+def numerical_devisor(n):
+
+    for i in numpy.arange(int(math.sqrt(n))+1,1,-1):
+        if n%i==0:
+            return i
+
+    return n
+#--------------------------------------------------------------------------------------------------------------------------

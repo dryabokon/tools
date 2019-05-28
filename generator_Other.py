@@ -17,13 +17,25 @@ class generator_Other(object):
 
         return
 # ---------------------------------------------------------------------------------------------------------------------
-
     def create_multi_samples(self, folder_output, num_classes):
 
         x,y = make_blobs(n_samples=200, n_features=self.dim, centers=num_classes)
         for i in range(0,num_classes):
             tools_IO.save_data_to_feature_file_float(folder_output+'%02d.txt'%i, x[y == i], y[y == i])
 
+
+        return
+# ---------------------------------------------------------------------------------------------------------------------
+    def create_time_series(self, filename_output):
+        seq_length = 100
+
+        X = [[i + j for j in range(self.dim)] for i in range(seq_length)]
+        X = numpy.array(X)
+
+        y = [i + (i - 1) * .5 + (i - 2) * .2 + (i - 3) * .1 for i in range(4, seq_length+4)]
+        y = numpy.array(y)
+
+        tools_IO.save_data_to_feature_file_float(filename_output, X,y)
 
         return
 # ---------------------------------------------------------------------------------------------------------------------

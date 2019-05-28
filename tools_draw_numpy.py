@@ -22,19 +22,22 @@ def draw_line(array_bgr, row1, col1, row2, col2, color_bgr, alpha_transp=0):
         if (rr[i] >= 0 and rr[i] < array_bgr.shape[0] and cc[i] >= 0 and cc[i] < array_bgr.shape[1]):
             clr = numpy.array(color_bgr) * vv[i] + array_bgr[rr[i], cc[i]] * (1 - vv[i])
             if alpha_transp > 0:
-                res_rgb[rr[i], cc[i]] = clr * (1 - alpha_transp) + array_bgr[rr[i], cc[i]] * alpha_transp
+                xxx = clr * (1 - alpha_transp)
+                base = array_bgr[rr[i], cc[i]]
+                xxx+= base * alpha_transp
+                res_rgb[rr[i], cc[i]] = xxx
             else:
                 res_rgb[rr[i], cc[i]] = clr
     return res_rgb
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_rect(array_bgr, row1, col1, row2, col2, color_bgr, alpha_transp=0):
+def draw_rect(array_bgr, row_up, col_left, row_down, col_right, color_bgr, alpha_transp=0):
     res_rgb = array_bgr.copy()
-    res_rgb = draw_line(res_rgb, row1, col1, row1, col2, color_bgr, alpha_transp)
-    res_rgb = draw_line(res_rgb, row1, col2, row2, col2, color_bgr, alpha_transp)
-    res_rgb = draw_line(res_rgb, row2, col2, row2, col1, color_bgr, alpha_transp)
-    res_rgb = draw_line(res_rgb, row2, col1, row1, col1, color_bgr, alpha_transp)
+    res_rgb = draw_line(res_rgb, row_up  , col_left , row_up  , col_right, color_bgr, alpha_transp)
+    res_rgb = draw_line(res_rgb, row_up  , col_right, row_down, col_right, color_bgr, alpha_transp)
+    res_rgb = draw_line(res_rgb, row_down, col_right, row_down, col_left , color_bgr, alpha_transp)
+    res_rgb = draw_line(res_rgb, row_down, col_left , row_up  , col_left , color_bgr, alpha_transp)
     return res_rgb
 
 # ----------------------------------------------------------------------------------------------------------------------
