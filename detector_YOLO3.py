@@ -340,7 +340,7 @@ class detector_YOLO3(object):
         with open(file_annotations) as f:lines = f.readlines()[1:limit]
         list_filenames = sorted(set([foldername+line.split(' ')[0] for line in lines]))
         true_boxes = tools_YOLO.get_true_boxes(foldername, file_annotations, delim =' ', smart_resized_target=(416, 416),limit=limit)
-        targets = detector_YOLO3_core.preprocess_true_boxes_wrapper(true_boxes, (416,416), self.anchors,self.anchor_mask, len(self.class_names))
+        targets = detector_YOLO3_core.save_targets(true_boxes, (416, 416), self.anchors, self.anchor_mask, len(self.class_names))
 
         self.anchors = tools_YOLO.annotation_boxes_to_ancors(true_boxes,len(self.anchors),delim=' ')
 

@@ -559,7 +559,7 @@ def preprocess_true_boxes(true_boxes, input_shape, anchors, anchor_mask,num_clas
 
     return y_true
 # ----------------------------------------------------------------------------------------------------------------------
-def preprocess_true_boxes_wrapper(list_of_boxes, input_shape, anchors,anchor_mask, num_classes):
+def save_targets(filename_out, list_of_boxes, input_shape, anchors, anchor_mask, num_classes):
     y_true=[[],[],[]]
 
     for k,boxes in enumerate(list_of_boxes):
@@ -578,7 +578,7 @@ def preprocess_true_boxes_wrapper(list_of_boxes, input_shape, anchors,anchor_mas
     else:
         y_true = y_true[:2]
 
-    return y_true
+    return
 # ----------------------------------------------------------------------------------------------------------------------
 def box_iou(b1, b2):
     '''Return iou tensor
