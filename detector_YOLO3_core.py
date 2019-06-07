@@ -560,12 +560,33 @@ def preprocess_true_boxes(true_boxes, input_shape, anchors, anchor_mask,num_clas
 
     return y_true
 # ----------------------------------------------------------------------------------------------------------------------
+def get_targets(list_of_boxes, input_shape, anchors,anchor_mask, num_classes):
+    y_true=[[],[],[]]
+
+    for k,boxes in enumerate(list_of_boxes):
+        if k%100==0:print('.',end='')
+        true_boxes = numpy.array([boxes])
+        y = preprocess_true_boxes(true_boxes, input_shape, anchors,anchor_mask, num_classes)
+        for i,each in enumerate(y):
+            y_true[i].append(each)
+
+    print()
+
+    y_true[0] = numpy.concatenate(y_true[0],axis=0)
+    y_true[1] = numpy.concatenate(y_true[1], axis=0)
+    if len(y_true[2])!=0:
+        numpy.concatenate(y_true[2], axis=0)
+    else:
+        y_true = y_true[:2]
+
+    return y_true
+# ----------------------------------------------------------------------------------------------------------------------
 def save_targets(folder_out, list_of_boxes, input_shape, anchors, anchor_mask, num_classes):
 
-    store0 = tools_HDF5.HDF5_store(filename=folder_out+'target_0.hdf5', object_shape=(13, 13, 3, 85),dtype=numpy.float32)
-    store1 = tools_HDF5.HDF5_store(filename=folder_out+'target_1.hdf5', object_shape=(26, 26, 3, 85),dtype=numpy.float32)
+    store0 = tools_HDF5.HDF5_store(filename=folder_out+'target_0.hdf5', object_shape=(13, 13, 3, 5+num_classes),dtype=numpy.float32)
+    store1 = tools_HDF5.HDF5_store(filename=folder_out+'target_1.hdf5', object_shape=(26, 26, 3, 5+num_classes),dtype=numpy.float32)
     if len(anchor_mask)>2:
-        store2 = tools_HDF5.HDF5_store(filename=folder_out + 'target_2.hdf5', object_shape=(52, 52, 3, 85), dtype=numpy.float32)
+        store2 = tools_HDF5.HDF5_store(filename=folder_out + 'target_2.hdf5', object_shape=(52, 52, 3, 5+num_classes), dtype=numpy.float32)
 
     for k,boxes in enumerate(list_of_boxes):
         true_boxes = numpy.array([boxes])
