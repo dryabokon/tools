@@ -136,7 +136,7 @@ class detector_YOLO3(object):
         print('Processing: %s sec in total - %f per image' % (total_time, int(total_time) / len(local_filenames)))
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def process_annotation(self, file_annotations, path_out, folder_annotation=None, markup_only=False):
+    def process_annotation(self, file_annotations, filename_markup_out_true,filename_markup_out_pred,folder_annotation=None, markup_only=False,limit=1000000):
 
         start_time = time.time()
         if folder_annotation is None:
@@ -144,25 +144,28 @@ class detector_YOLO3(object):
         else:
             foldername = folder_annotation
 
-        filename_markup_out = file_annotations.split('/')[-1].split('.')[0]+'_pred.txt'
-        filename_markup_copy = path_out+file_annotations.split('/')[-1]
-        if file_annotations!= filename_markup_copy:
-            tools_IO.copyfile(file_annotations,filename_markup_copy)
-
-        with open(file_annotations) as f:lines = f.readlines()[1:]
-        local_filenames = [line.split(' ')[0] for line in lines]
-        local_filenames = sorted(set(local_filenames))
-
         result = [('filename', 'x_right', 'y_top', 'x_left', 'y_bottom', 'class_ID', 'confidence')]
-        for local_filename in local_filenames:
-            filename_image_out = path_out + local_filename if not markup_only else None
-            for each in self.process_file(foldername+local_filename, filename_image_out):
+        fact   = [('filename', 'x_right', 'y_top', 'x_left', 'y_bottom', 'class_ID', 'confidence')]
+
+        with open(file_annotations) as f:lines = f.readlines()[1:limit]
+        list_filenames = sorted(set([foldername+line.split(' ')[0] for line in lines]))
+        for each in lines:
+            each = each.split('\n')[0]
+            fact.append(each.split(' '))
+
+        tools_IO.save_mat(fact, filename_markup_out_true, delim=' ')
+
+
+        for local_filename in list_filenames:
+            for each in self.process_file(local_filename, None):
                 result.append(each)
-            tools_IO.save_mat(result, path_out + filename_markup_out, delim=' ')
+            tools_IO.save_mat(result,filename_markup_out_pred, delim=' ')
+
+
+
 
         total_time = (time.time() - start_time)
-        print('Processing: %s sec in total - %f per image' % (total_time, int(total_time) / len(local_filenames)))
-
+        print('Processing: %s sec in total - %f per image' % (total_time, int(total_time) / len(list_filenames)))
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def get_bottleneck_features(self, filenames_list, dict_bottlenects):
@@ -425,11 +428,11 @@ class detector_YOLO3(object):
             bottlenecks = [store_bottlenecks0.get(),store_bottlenecks1.get()]
             targets = [store_target0.get(),store_target1.get()]
             if len(self.anchor_mask) > 2:targets.append(store_target2.get())
-            print('Gen learn ...')
+            print('Learn fit ...')
             model_loss.fit(x=[*bottlenecks,*targets],y=numpy.zeros((targets[0].shape[0],1)),validation_split=0.3,verbose=2,epochs=n_epochs,callbacks=[early_stopping_monitor])
         else:
-            print('Learning ...')
-            generator_train = self.data_generator([store_bottlenecks0,store_bottlenecks1] ,[store_target0,store_target1],  validation_split=0.3,batch_size=32,is_train=True)
+            print('Learn fit_generator ...')
+            generator_train = self.data_generator([store_bottlenecks0, store_bottlenecks1],[store_target0, store_target1], validation_split=0.3,batch_size=32,is_train=True)
             generator_val   = self.data_generator([store_bottlenecks0, store_bottlenecks1],[store_target0, store_target1], validation_split=0.3,batch_size=32,is_train=False)
             model_loss.fit_generator(generator_train,validation_data=generator_val, epochs=n_epochs,steps_per_epoch=8,validation_steps=1,verbose=2,callbacks=[early_stopping_monitor])
 
@@ -466,7 +469,7 @@ class detector_YOLO3(object):
         model_last_layers = Model(inputs=[*placeholder_btlncs], outputs=[*last_layers_outs])
         self.__fit_loss_model_gen(model_last_layers, placeholder_btlncs,folder_out)
         total_time = (time.time() - start_time)
-        print('Gen learn: %s sec in total' % (total_time))
+        print('Learn: %s sec in total' % (total_time))
 
         self.logs.time_train = total_time
         self.logs.data_source = folder_annotation
