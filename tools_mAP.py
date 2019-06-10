@@ -20,7 +20,7 @@ def iou(boxA, boxB):
 
     return iou
 # ----------------------------------------------------------------------------------------------------------------------
-def calc_hits_stats(lines_true,lines_pred,class_ID,delim,iuo_th=0.4):
+def calc_hits_stats(lines_true,lines_pred,class_ID,delim,iuo_th=0.5):
     file_true, file_pred = [], []
     coord_true, coord_pred, = [], []
     conf_true, conf_pred = [], []
@@ -63,7 +63,7 @@ def calc_hits_stats(lines_true,lines_pred,class_ID,delim,iuo_th=0.4):
 
     return file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred
 # ----------------------------------------------------------------------------------------------------------------------
-def get_precsion_recall_data_from_markups(file_markup_true, file_markup_pred,delim=' '):
+def get_precsion_recall_data_from_markups(file_markup_true, file_markup_pred,delim=' ',iuo_th=0.5):
 
     dict_classes={}
     with open(file_markup_true) as f:lines_true = f.readlines()[1:]
@@ -75,7 +75,7 @@ def get_precsion_recall_data_from_markups(file_markup_true, file_markup_pred,del
 
     for class_ID in sorted(set(dict_classes.keys())):
 
-        file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred = calc_hits_stats(lines_true,lines_pred,class_ID,delim)
+        file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred = calc_hits_stats(lines_true,lines_pred,class_ID,delim,iuo_th)
         if len(file_true)==0:
             continue
 
@@ -152,17 +152,24 @@ def analyze_markups_mAP(file_markup_true, file_markup_pred,filename_meta, folder
 
     input_image_size, class_names, anchors, anchor_mask,obj_threshold, nms_threshold = tools_YOLO.load_metadata(filename_meta)
     colors = tools_YOLO.generate_colors(len(class_names))
-    precisions,recalls,confidences,class_IDs = get_precsion_recall_data_from_markups(file_markup_true, file_markup_pred, delim=' ')
 
-    mAP = 0
+    iuo_ths = [0.9,0.5,0.3,0.1]
+    results = []
+    for iuo_th in iuo_ths:
 
-    for i,class_ID in enumerate(class_IDs):
-        if len(precisions[i])>1:
-            filename_out = folder_out + out_prefix + 'AP_%02d_%s.png' % (class_ID, class_names[class_ID])
-            AP = write_precision_recall(filename_out,precisions[i], recalls[i],caption=class_names[class_ID],color=(colors[class_ID][2]/255.0,colors[class_ID][1]/255.0,colors[class_ID][0]/255.0))
-            mAP +=AP
+        precisions,recalls,confidences,class_IDs = get_precsion_recall_data_from_markups(file_markup_true, file_markup_pred, delim=' ',iuo_th=iuo_th)
+        mAP = 0
 
-    return mAP/len(class_IDs)
+        for i,class_ID in enumerate(class_IDs):
+            if len(precisions[i])>1:
+                filename_out = folder_out + out_prefix + 'AP_%02d_%s_iou%d.png' % (class_ID, class_names[class_ID],int(100*iuo_th))
+                AP = write_precision_recall(filename_out,precisions[i], recalls[i],caption=class_names[class_ID],color=(colors[class_ID][2]/255.0,colors[class_ID][1]/255.0,colors[class_ID][0]/255.0))
+                mAP +=AP
+
+        results.append(mAP/len(class_IDs))
+        print(iuo_th,mAP/len(class_IDs))
+
+    return results[0]
 # ----------------------------------------------------------------------------------------------------------------------
 def analyze_markups_draw_boxes(class_ID,file_markup_true, file_markup_pred,path_out, delim=' ',metric='recall'):
 
@@ -172,7 +179,7 @@ def analyze_markups_draw_boxes(class_ID,file_markup_true, file_markup_pred,path_
     with open(file_markup_true) as f:lines_true = f.readlines()[1:]
     with open(file_markup_pred) as f:lines_pred = f.readlines()[1:]
 
-    file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred = calc_hits_stats(lines_true,lines_pred,class_ID,delim)
+    file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred = calc_hits_stats(lines_true,lines_pred,class_ID,delim,iuo_th=0.5)
 
     red=(0,32,255)
     amber=(0,192,255)

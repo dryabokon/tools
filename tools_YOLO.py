@@ -396,8 +396,9 @@ def annotation_boxes_to_ancors(list_of_boxes,num_clusters,delim=' '):
 
     for boxes in list_of_boxes:
         for box in boxes:
-            w.append(box[2] - box[0])
-            h.append(box[3] - box[1])
+            if (box[2] - box[0])*(box[3] - box[1])>0:
+                w.append(box[2] - box[0])
+                h.append(box[3] - box[1])
 
     wh = numpy.vstack((w,h)).T
 
