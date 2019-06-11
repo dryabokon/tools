@@ -438,7 +438,7 @@ class detector_YOLO3(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def learn_tiny(self, file_annotations, folder_out, folder_annotation=None, limit=1000000):
+    def learn(self, file_annotations, folder_out, folder_annotation=None, limit=1000000):
 
         if folder_annotation is not None:
             foldername = folder_annotation
@@ -461,7 +461,7 @@ class detector_YOLO3(object):
                                                                                                     score_threshold=self.obj_threshold,
                                                                                                     iou_threshold=self.nms_threshold)
 
-        dict_last_layers, dict_bottlenects = self.__last_layers4()
+        dict_last_layers, dict_bottlenects = self.__last_layers14()
 
         placeholder_btlncs,last_layers_outs = self.construct_last_layers_placeholders(len(self.model.layers), dict_last_layers, dict_bottlenects)
         self.save_bottleneck_features(folder_out,list_filenames, dict_bottlenects)

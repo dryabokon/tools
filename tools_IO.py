@@ -450,7 +450,28 @@ def print_top_fails(labels_fact, labels_pred, patterns,filename = None):
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
+def split_file(file_input,file_part1,file_part2, ratio=0.5,limit=1000000):
 
+
+    with open(file_input) as f: lines = f.readlines()
+    header = lines[0]
+    lines  = lines[1: limit]
+    part1, part2 = [],[]
+    part1.append(header.split('\n')[0])
+    part2.append(header.split('\n')[0])
+
+    for each in lines:
+
+        if (random.random() > ratio):
+            part1.append(each.split('\n')[0])
+        else:
+            part2.append(each.split('\n')[0])
+
+    save_mat(part1, file_part1, delim=' ')
+    save_mat(part2, file_part2, delim=' ')
+
+    return
+# ----------------------------------------------------------------------------------------------------------------------
 
 def split_samples(input_folder, folder_part1, folder_part2, ratio=0.5):
     print("Split samples..")

@@ -167,7 +167,9 @@ def analyze_markups_mAP(file_markup_true, file_markup_pred,filename_meta, folder
                 mAP +=AP
 
         results.append(mAP/len(class_IDs))
-        print(iuo_th,mAP/len(class_IDs))
+        print(out_prefix,iuo_th,mAP/len(class_IDs))
+
+    print()
 
     return results[0]
 # ----------------------------------------------------------------------------------------------------------------------
