@@ -7,6 +7,7 @@ import os
 from os import listdir
 import fnmatch
 import time
+import progressbar
 # ----------------------------------------------------------------------------------------------------------------------
 import detector_YOLO3_core
 import tools_YOLO
@@ -113,7 +114,13 @@ class detector_YOLO3(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def process_file(self, filename_in, filename_out):
 
+        if not os.path.isfile(filename_in):
+            return []
+
         image = cv2.imread(filename_in)
+        if image is None:
+            return []
+
         boxes_yxyx, classes, scores  = self.process_image(image)
 
         tools_YOLO.draw_and_save(filename_out, image, boxes_yxyx, scores, classes,self.colors, self.class_names)
@@ -147,7 +154,14 @@ class detector_YOLO3(object):
         result = [('filename', 'x_right', 'y_top', 'x_left', 'y_bottom', 'class_ID', 'confidence')]
         fact   = [('filename', 'x_right', 'y_top', 'x_left', 'y_bottom', 'class_ID', 'confidence')]
 
-        with open(file_annotations) as f:lines = f.readlines()[1:limit]
+        with open(file_annotations) as f:lines = f.readlines()
+        lines = lines[1:]
+        if limit>0:
+            lines = lines[:limit]
+        else:
+            limit*=-1
+            lines = lines[-limit:]
+
         list_filenames = sorted(set([foldername+line.split(' ')[0] for line in lines]))
         for each in lines:
             each = each.split('\n')[0]
@@ -191,13 +205,24 @@ class detector_YOLO3(object):
         bottlenecks = Model(self.model.input, outputs).predict(image_resized)
         store0 = tools_HDF5.HDF5_store(filename=folder_out+'bottlenecks_0.hdf5', object_shape=bottlenecks[0][0].shape,dtype=numpy.float32)
         store1 = tools_HDF5.HDF5_store(filename=folder_out+'bottlenecks_1.hdf5', object_shape=bottlenecks[1][0].shape,dtype=numpy.float32)
+        if len(bottlenecks)>2:
+            store2 = tools_HDF5.HDF5_store(filename=folder_out + 'bottlenecks_2.hdf5',object_shape=bottlenecks[2][0].shape, dtype=numpy.float32)
 
-        for filename in filenames_list:
-            image_resized = tools_image.smart_resize(cv2.imread(filename), self.input_image_size[0], self.input_image_size[1])
+        bar = progressbar.ProgressBar(max_value=len(filenames_list))
+
+        for i,filename in enumerate(filenames_list):
+            if not os.path.isfile(filename): continue
+            image = cv2.imread(filename)
+            if image is None: continue
+
+            bar.update(i)
+            image_resized = tools_image.smart_resize(image, self.input_image_size[0], self.input_image_size[1])
             image_resized = numpy.expand_dims(image_resized / 255.0, axis=0)
             bottlenecks = Model(self.model.input, outputs).predict(image_resized)
             store0.append(bottlenecks[0][0])
             store1.append(bottlenecks[1][0])
+            if len(bottlenecks) > 2:
+                store2.append(bottlenecks[2][0])
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -282,7 +307,7 @@ class detector_YOLO3(object):
 
         return loss
 # ----------------------------------------------------------------------------------------------------------------------
-    def __last_layers2(self):
+    def __last_tiny_layers2(self):
         dict_last_layers, dict_bottlenects = {}, {}
 
         dict_last_layers[0] = [-2, -1]
@@ -293,7 +318,7 @@ class detector_YOLO3(object):
         dict_bottlenects[1] = -5
         return dict_last_layers, dict_bottlenects
 # ----------------------------------------------------------------------------------------------------------------------
-    def __last_layers3(self):
+    def __last_tiny_layers3(self):
         dict_last_layers, dict_bottlenects = {}, {}
 
         dict_last_layers[0] = [-2, -1]
@@ -305,7 +330,7 @@ class detector_YOLO3(object):
         dict_bottlenects[1] = -7
         return dict_last_layers, dict_bottlenects
 # ----------------------------------------------------------------------------------------------------------------------
-    def __last_layers4(self):
+    def __last_tiny_layers4(self):
         dict_last_layers, dict_bottlenects = {}, {}
 
         dict_last_layers[0] = [-2, -1]
@@ -318,7 +343,7 @@ class detector_YOLO3(object):
         dict_bottlenects[1] = -9
         return dict_last_layers, dict_bottlenects
 # ----------------------------------------------------------------------------------------------------------------------
-    def __last_layers5(self):
+    def __last_tiny_layers5(self):
         dict_last_layers, dict_bottlenects = {}, {}
 
         dict_last_layers[0] = [-2, -1]
@@ -333,7 +358,7 @@ class detector_YOLO3(object):
         dict_bottlenects[2] = -25
         return dict_last_layers, dict_bottlenects
 # ----------------------------------------------------------------------------------------------------------------------
-    def __last_layers14(self):
+    def __last_tiny_layers14(self):
         dict_last_layers, dict_bottlenects = {}, {}
 
         dict_last_layers[0] = [-2, -1]
@@ -355,6 +380,20 @@ class detector_YOLO3(object):
         dict_bottlenects[0] = -24
         dict_bottlenects[1] = -34
 
+        return dict_last_layers, dict_bottlenects
+# ----------------------------------------------------------------------------------------------------------------------
+    def __last_full_layers4(self):
+        dict_last_layers, dict_bottlenects = {}, {}
+
+        dict_last_layers[0] = [-3, -2, -1]
+        dict_last_layers[-3], dict_last_layers[-2], dict_last_layers[-1] = [ -6], [ -5], [ -4]
+        dict_last_layers[-6], dict_last_layers[-5], dict_last_layers[-4] = [ -9], [ -8], [ -7]
+        dict_last_layers[-9], dict_last_layers[-8], dict_last_layers[-7] = [0], [1], [2]
+
+
+        dict_bottlenects[0] = -12
+        dict_bottlenects[1] = -11
+        dict_bottlenects[2] = -10
         return dict_last_layers, dict_bottlenects
 # ----------------------------------------------------------------------------------------------------------------------
     def data_generator(self,list_store_bottlenecks,list_store_targets,validation_split=0.3,batch_size=32,is_train=True):
@@ -403,7 +442,10 @@ class detector_YOLO3(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def __fit_loss_model_gen(self,model_last_layers,placeholder_btlncs,folder_in):
 
-        n_epochs = 100
+        n_epochs = 200
+        if len(self.anchor_mask) > 2:
+            n_epochs = 300
+
         lambda_object = Lambda(function=detector_YOLO3_core.yolo_loss, output_shape=(1,), name='yolo_loss',arguments={'anchors': self.anchors,'anchor_mask': self.anchor_mask, 'num_classes': len(self.class_names), 'ignore_thresh': 0.5})
         placeholder_yolo_features = [Input(shape=(13,13,3,5+len(self.class_names))),Input(shape=(2*13,2*13,3,5+len(self.class_names))) ]
         if len(model_last_layers.output)==3:placeholder_yolo_features.append(Input(shape=(52,52,3,5+len(self.class_names))))
@@ -427,7 +469,11 @@ class detector_YOLO3(object):
         if (store_target0.size<1000):
             bottlenecks = [store_bottlenecks0.get(),store_bottlenecks1.get()]
             targets = [store_target0.get(),store_target1.get()]
-            if len(self.anchor_mask) > 2:targets.append(store_target2.get())
+            if len(self.anchor_mask) > 2:
+                targets.append(store_target2.get())
+                store_bottlenecks2 = tools_HDF5.HDF5_store(filename=folder_in + 'bottlenecks_2.hdf5')
+                bottlenecks.append(store_bottlenecks2.get())
+
             print('Learn fit ...')
             model_loss.fit(x=[*bottlenecks,*targets],y=numpy.zeros((targets[0].shape[0],1)),validation_split=0.3,verbose=2,epochs=n_epochs,callbacks=[early_stopping_monitor])
         else:
@@ -448,7 +494,7 @@ class detector_YOLO3(object):
 
         with open(file_annotations) as f:lines = f.readlines()[1:limit]
         list_filenames = sorted(set([foldername+line.split(' ')[0] for line in lines]))
-        true_boxes = tools_YOLO.get_true_boxes(foldername, file_annotations, delim =' ', smart_resized_target=(416, 416),limit=limit)
+        true_boxes = tools_YOLO.get_true_boxes(foldername, file_annotations, (416, 416), delim =' ', limit=limit)
         detector_YOLO3_core.save_targets(folder_out, true_boxes, (416, 416), self.anchors, self.anchor_mask, len(self.class_names))
 
         if len(true_boxes)>6:
@@ -461,7 +507,10 @@ class detector_YOLO3(object):
                                                                                                     score_threshold=self.obj_threshold,
                                                                                                     iou_threshold=self.nms_threshold)
 
-        dict_last_layers, dict_bottlenects = self.__last_layers14()
+        if len(self.anchor_mask) > 2:
+            dict_last_layers, dict_bottlenects = self.__last_full_layers4()
+        else:
+            dict_last_layers, dict_bottlenects = self.__last_tiny_layers4()
 
         placeholder_btlncs,last_layers_outs = self.construct_last_layers_placeholders(len(self.model.layers), dict_last_layers, dict_bottlenects)
         self.save_bottleneck_features(folder_out,list_filenames, dict_bottlenects)

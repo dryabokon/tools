@@ -63,7 +63,7 @@ def calc_hits_stats(lines_true,lines_pred,class_ID,delim,iuo_th=0.5):
 
     return file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred
 # ----------------------------------------------------------------------------------------------------------------------
-def get_precsion_recall_data_from_markups(file_markup_true, file_markup_pred,delim=' ',iuo_th=0.5):
+def get_precsion_recall_data_from_markups(file_markup_true, file_markup_pred,iuo_th,delim=' ',):
 
     dict_classes={}
     with open(file_markup_true) as f:lines_true = f.readlines()[1:]
@@ -82,19 +82,22 @@ def get_precsion_recall_data_from_markups(file_markup_true, file_markup_pred,del
         relevant_file = numpy.array([each in file_true for each in file_pred])
 
         ths={}
-        for each in conf_pred: ths[each]=0
+        for each in sorted(conf_true):
+            if each>=iuo_th:ths[each]=0
         precision, recall, conf = [],[],[]
 
         for cnt,th in enumerate(ths):
-            TP = numpy.sum(hit_true[conf_true>=th])
-            FN = len(hit_true)-TP
-            recall.append(float(TP/(TP+FN)))
 
-            TP = numpy.sum(hit_pred[conf_pred>=th])
+            iii = numpy.where(conf_true>=th)
+            recall_TP = numpy.sum(hit_true[iii])
+            FN = len(hit_true)-recall_TP
+            recall.append(float(recall_TP/(recall_TP+FN)))
+
+            prec_TP = numpy.sum(hit_pred[conf_pred>=th])
             idx = numpy.where(relevant_file==True)
-            FP = len(hit_pred[idx][conf_pred[idx]>=th])-TP
-            if TP + FP>0:
-                precision.append(float(TP / (TP + FP)))
+            FP = len(hit_pred[idx][conf_pred[idx]>=th])-prec_TP
+            if prec_TP + FP>0:
+                precision.append(float(prec_TP / (prec_TP + FP)))
             else:
                 precision.append(0)
             conf.append(th)
@@ -153,16 +156,20 @@ def analyze_markups_mAP(file_markup_true, file_markup_pred,filename_meta, folder
     input_image_size, class_names, anchors, anchor_mask,obj_threshold, nms_threshold = tools_YOLO.load_metadata(filename_meta)
     colors = tools_YOLO.generate_colors(len(class_names))
 
-    iuo_ths = [0.9,0.5,0.3,0.1]
+    iuo_ths = [0.5,0.3,0.1,0.01]
     results = []
     for iuo_th in iuo_ths:
 
-        precisions,recalls,confidences,class_IDs = get_precsion_recall_data_from_markups(file_markup_true, file_markup_pred, delim=' ',iuo_th=iuo_th)
+        out_dir = folder_out + '%02d/' % int(iuo_th * 100)
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+
+        precisions,recalls,confidences,class_IDs = get_precsion_recall_data_from_markups(file_markup_true, file_markup_pred,iuo_th, delim=' ')
         mAP = 0
 
         for i,class_ID in enumerate(class_IDs):
             if len(precisions[i])>1:
-                filename_out = folder_out + out_prefix + 'AP_%02d_%s_iou%d.png' % (class_ID, class_names[class_ID],int(100*iuo_th))
+                filename_out = out_dir + out_prefix + 'AP_%02d_%s.png' % (class_ID, class_names[class_ID])
                 AP = write_precision_recall(filename_out,precisions[i], recalls[i],caption=class_names[class_ID],color=(colors[class_ID][2]/255.0,colors[class_ID][1]/255.0,colors[class_ID][0]/255.0))
                 mAP +=AP
 

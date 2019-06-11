@@ -1,6 +1,7 @@
 # ----------------------------------------------------------------------------------------------------------------------
 import numpy
 import cv2
+import os
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_draw_numpy
 import tools_image
@@ -65,15 +66,18 @@ def draw_objects_on_image(image, boxes_bound, scores, classes, colors, class_nam
         cv2.putText(image, '{0} {1:.2f}'.format(class_names[cl], score), (left+4, position), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 1, cv2.LINE_AA)
     return image
 # ----------------------------------------------------------------------------------------------------------------------
-def get_true_boxes(foldername, filename, delim=' ', smart_resized_target=None,limit=100):
+def get_true_boxes(foldername, filename, smart_resized_target, delim=' ',limit=100):
 
     with open(filename) as f:lines = f.readlines()[1:limit]
-    list_filenames = [line.split(' ')[0] for line in lines]
-    filenames_dict = sorted(set(list_filenames))
+    filenames_dict = sorted(set([line.split(' ')[0] for line in lines]))
 
     true_boxes = []
 
     for filename in filenames_dict:
+        if not os.path.isfile(foldername + filename):continue
+        image = cv2.imread(foldername + filename)
+        if image is None:continue
+
         local_boxes = []
         for line in lines:
             split = line.split(delim)
@@ -81,10 +85,8 @@ def get_true_boxes(foldername, filename, delim=' ', smart_resized_target=None,li
                 class_ID = int(split[5])
                 x_min, y_min, x_max, y_max = numpy.array(split[1:5]).astype(numpy.float)
 
-                if smart_resized_target is not None:
-                    image = cv2.imread(foldername + filename)
-                    x_min, y_min = tools_image.smart_resize_point(x_min, y_min, image.shape[1], image.shape[0],smart_resized_target[1], smart_resized_target[0])
-                    x_max, y_max = tools_image.smart_resize_point(x_max, y_max, image.shape[1], image.shape[0],smart_resized_target[1], smart_resized_target[0])
+                x_min, y_min = tools_image.smart_resize_point(x_min, y_min, image.shape[1], image.shape[0],smart_resized_target[1], smart_resized_target[0])
+                x_max, y_max = tools_image.smart_resize_point(x_max, y_max, image.shape[1], image.shape[0],smart_resized_target[1], smart_resized_target[0])
 
                 local_boxes.append([x_min, y_min, x_max, y_max, class_ID])
 
