@@ -4,6 +4,8 @@ import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import os
 import math
+import ctypes
+from PIL import ImageGrab
 #--------------------------------------------------------------------------------------------------------------------------
 import tools_IO
 #--------------------------------------------------------------------------------------------------------------------------
@@ -361,4 +363,15 @@ def plot_images(path_input,mask):
     plt.show()
 
     return
+# ----------------------------------------------------------------------------------------------------------------------
+def get_screenshot():
+
+    user32 = ctypes.windll.user32
+    user32.SetProcessDPIAware()
+    [w, h] = [user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)]
+
+    im = ImageGrab.grab((0, 0, w, h))
+    image = numpy.array(im)
+    image = rgb2bgr(image)
+    return image
 # ----------------------------------------------------------------------------------------------------------------------

@@ -5,6 +5,7 @@ import tools_IO
 import tools_image
 import cv2
 import tools_YOLO
+import progressbar
 # ----------------------------------------------------------------------------------------------------------------------
 def iou(boxA, boxB):
 
@@ -63,7 +64,7 @@ def calc_hits_stats(lines_true,lines_pred,class_ID,delim,iuo_th=0.5):
 
     return file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred
 # ----------------------------------------------------------------------------------------------------------------------
-def get_precsion_recall_data_from_markups(file_markup_true, file_markup_pred,iuo_th,delim=' ',):
+def get_precsion_recall_data_from_markups(file_markup_true, file_markup_pred,iuo_th,delim=' '):
 
     dict_classes={}
     with open(file_markup_true) as f:lines_true = f.readlines()[1:]
@@ -111,6 +112,25 @@ def get_precsion_recall_data_from_markups(file_markup_true, file_markup_pred,iuo
 
     return precisions,recalls,confidences,class_IDs
 #--------------------------------------------------------------------------------------------------------------------------
+def get_confidence_by_size(file_markup_true, file_markup_pred,iuo_th,delim=' '):
+
+    dict_classes = {}
+    with open(file_markup_true) as f:lines_true = f.readlines()[1:]
+    with open(file_markup_pred) as f:lines_pred = f.readlines()[1:]
+    for line in lines_true: dict_classes[int(line.split(delim)[5])] = 0
+    for line in lines_pred: dict_classes[int(line.split(delim)[5])] = 0
+
+    size, confidences, class_IDs = [], [], []
+
+    for class_ID in sorted(set(dict_classes.keys())):
+        file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred = calc_hits_stats(lines_true, lines_pred, class_ID, delim, iuo_th)
+
+        ths = {}
+        for each in sorted(conf_true):
+            if each >= iuo_th: ths[each] = 0
+
+    return
+# ----------------------------------------------------------------------------------------------------------------------
 def plot_precision_recall(plt,figure,precision,recall,caption=''):
 
     AP = numpy.trapz(precision, x=recall)
@@ -180,7 +200,7 @@ def analyze_markups_mAP(file_markup_true, file_markup_pred,filename_meta, folder
 
     return results[0]
 # ----------------------------------------------------------------------------------------------------------------------
-def analyze_markups_draw_boxes(class_ID,file_markup_true, file_markup_pred,path_out, delim=' ',metric='recall'):
+def analyze_markups_draw_boxes(class_ID,file_markup_true, file_markup_pred,path_out, delim=' ',metric='recall',iou_th=0.1):
 
     tools_IO.remove_files(path_out,create=True)
 
@@ -188,7 +208,7 @@ def analyze_markups_draw_boxes(class_ID,file_markup_true, file_markup_pred,path_
     with open(file_markup_true) as f:lines_true = f.readlines()[1:]
     with open(file_markup_pred) as f:lines_pred = f.readlines()[1:]
 
-    file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred = calc_hits_stats(lines_true,lines_pred,class_ID,delim,iuo_th=0.5)
+    file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred = calc_hits_stats(lines_true,lines_pred,class_ID,delim,iuo_th=iou_th)
 
     red=(0,32,255)
     amber=(0,192,255)
@@ -197,8 +217,15 @@ def analyze_markups_draw_boxes(class_ID,file_markup_true, file_markup_pred,path_
     hit_colors_true = [red  , green]
     hit_colors_pred = [amber, marine]
     descript_ion = []
-    for filename in set(file_true):
-        image = tools_image.desaturate(cv2.imread(foldername+filename))
+
+    bar = progressbar.ProgressBar(max_value=len(set(file_true)))
+
+    for b,filename in enumerate(set(file_true)):
+        bar.update(b)
+        image = cv2.imread(foldername + filename)
+        if image is None:
+            continue
+        image = tools_image.desaturate(image)
         is_hit=1
         is_FP=1
         idx = numpy.where(file_true==filename)

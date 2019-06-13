@@ -169,8 +169,9 @@ class detector_YOLO3(object):
 
         tools_IO.save_mat(fact, filename_markup_out_true, delim=' ')
 
-
-        for local_filename in list_filenames:
+        bar = progressbar.ProgressBar(max_value=len(list_filenames))
+        for b,local_filename in enumerate(list_filenames):
+            bar.update(b)
             for each in self.process_file(local_filename, None):
                 result.append(each)
             tools_IO.save_mat(result,filename_markup_out_pred, delim=' ')
@@ -210,12 +211,12 @@ class detector_YOLO3(object):
 
         bar = progressbar.ProgressBar(max_value=len(filenames_list))
 
-        for i,filename in enumerate(filenames_list):
+        for b,filename in enumerate(filenames_list):
             if not os.path.isfile(filename): continue
             image = cv2.imread(filename)
             if image is None: continue
 
-            bar.update(i)
+            bar.update(b)
             image_resized = tools_image.smart_resize(image, self.input_image_size[0], self.input_image_size[1])
             image_resized = numpy.expand_dims(image_resized / 255.0, axis=0)
             bottlenecks = Model(self.model.input, outputs).predict(image_resized)
