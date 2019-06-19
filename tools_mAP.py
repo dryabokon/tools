@@ -6,6 +6,7 @@ import tools_image
 import cv2
 import tools_YOLO
 import progressbar
+from PIL import Image
 # ----------------------------------------------------------------------------------------------------------------------
 def iou(boxA, boxB):
 
@@ -21,7 +22,7 @@ def iou(boxA, boxB):
 
     return iou
 # ----------------------------------------------------------------------------------------------------------------------
-def calc_hits_stats(lines_true,lines_pred,class_ID,delim,iuo_th=0.5):
+def calc_hits_stats(lines_true,lines_pred,class_ID,delim,folder_annotation=None,iuo_th=0.5):
     file_true, file_pred = [], []
     coord_true, coord_pred, = [], []
     conf_true, conf_pred = [], []
@@ -30,16 +31,33 @@ def calc_hits_stats(lines_true,lines_pred,class_ID,delim,iuo_th=0.5):
     for line in lines_true:
         split = line.split(delim)
         if int(split[5]) == class_ID:
+            x_min,y_min,x_max,y_max = int(split[1]),int(split[2]),int(split[3]),int(split[4])
+            if folder_annotation is not None:
+                if not os.path.isfile(folder_annotation + split[0]):continue
+                image = Image.open(folder_annotation + split[0])
+                if image is None: continue
+                width, height = image.size
+                x_min, y_min = tools_image.smart_resize_point(x_min, y_min, width,height, 416, 416)
+                x_max, y_max = tools_image.smart_resize_point(x_max, y_max, width,height, 416, 416)
+
             file_true.append(split[0].split('/')[-1])
-            coord_true.append([int(split[1]), int(split[2]), int(split[3]), int(split[4])])
+            coord_true.append([x_min,y_min,x_max,y_max])
             conf_true.append(float(0))
             hit_true.append(0)
 
     for line in lines_pred:
         split = line.split(delim)
         if int(split[5]) == class_ID:
+            x_min,y_min,x_max,y_max = int(split[1]),int(split[2]),int(split[3]),int(split[4])
+            if folder_annotation is not None:
+                if not os.path.isfile(folder_annotation + split[0]):continue
+                image = Image.open(folder_annotation + split[0])
+                if image is None: continue
+                width, height = image.size
+                x_min, y_min = tools_image.smart_resize_point(x_min, y_min, width, height,416, 416)
+                x_max, y_max = tools_image.smart_resize_point(x_max, y_max, width, height,416, 416)
             file_pred.append(split[0].split('/')[-1])
-            coord_pred.append([int(split[1]), int(split[2]), int(split[3]), int(split[4])])
+            coord_pred.append([x_min, y_min, x_max, y_max])
             conf_pred.append(float(split[6]))
             hit_pred.append(0)
 
@@ -171,6 +189,27 @@ def write_precision_recall(filename_out,precision,recall,caption='',color=(128,1
     plt.savefig(filename_out)
     return AP
 # ----------------------------------------------------------------------------------------------------------------------
+def write_boxes_distribution(filename_out,true_boxes):
+
+    figure = plt.figure()
+
+    w, h = [], []
+
+    for boxes in true_boxes:
+        for box in boxes:
+            if (box[2] - box[0]) * (box[3] - box[1]) > 0:
+                w.append(box[2] - box[0])
+                h.append(box[3] - box[1])
+
+    plt.scatter(w,h,alpha=0.5,s=10,lw = 0)
+    plt.grid(which='major', color='lightgray', linestyle='-')
+    ax = figure.gca()
+    ax.set_xlabel('width')
+    ax.set_ylabel('height')
+
+    plt.savefig(filename_out)
+    return
+# ----------------------------------------------------------------------------------------------------------------------
 def analyze_markups_mAP(file_markup_true, file_markup_pred,filename_meta, folder_out,out_prefix='',delim=' '):
 
     input_image_size, class_names, anchors, anchor_mask,obj_threshold, nms_threshold = tools_YOLO.load_metadata(filename_meta)
@@ -245,5 +284,24 @@ def analyze_markups_draw_boxes(class_ID,file_markup_true, file_markup_pred,path_
         cv2.imwrite(path_out+filename,image)
         tools_IO.save_mat(descript_ion,path_out+'descript.ion',delim=' ')
 
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+def analyze_hit_miss_sizes(class_ID,folder_annotation,file_markup_true, file_markup_pred,path_out, delim=' ',iou_th=0.1):
+
+
+    with open(file_markup_true) as f:lines_true = f.readlines()[1:]
+    with open(file_markup_pred) as f:lines_pred = f.readlines()[1:]
+
+    file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred = calc_hits_stats(lines_true,lines_pred,class_ID,delim,folder_annotation=folder_annotation,iuo_th=iou_th)
+
+    hit_boxes,miss_boxes = [[]],[[]]
+    for box,hit in zip(coord_true,hit_true):
+        if hit:
+            hit_boxes.append([box])
+        else:
+            miss_boxes.append([box])
+
+    write_boxes_distribution(path_out + 'boxes_hit.png', hit_boxes)
+    write_boxes_distribution(path_out + 'boxes_miss.png', miss_boxes)
     return
 # ----------------------------------------------------------------------------------------------------------------------

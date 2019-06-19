@@ -499,7 +499,7 @@ class detector_YOLO3(object):
         detector_YOLO3_core.save_targets(folder_out, true_boxes, (416, 416), self.anchors, self.anchor_mask, len(self.class_names))
 
         if len(true_boxes)>6:
-            self.anchors = tools_YOLO.annotation_boxes_to_ancors(true_boxes,len(self.anchors),delim=' ')
+            self.anchors = tools_YOLO.annotation_boxes_to_ancors(true_boxes,len(self.anchors))
             self.boxes, self.scores, self.classes = detector_YOLO3_core.get_tensors_box_score_class(self.model.output,
                                                                                                     self.anchors,
                                                                                                     self.anchor_mask,
@@ -519,7 +519,7 @@ class detector_YOLO3(object):
         model_last_layers = Model(inputs=[*placeholder_btlncs], outputs=[*last_layers_outs])
         self.__fit_loss_model_gen(model_last_layers, placeholder_btlncs,folder_out)
         total_time = (time.time() - start_time)
-        print('Learn: %s sec in total' % (total_time))
+        print('\nLearn: %s sec in total' % (total_time))
 
         self.logs.time_train = total_time
         self.logs.data_source = folder_annotation

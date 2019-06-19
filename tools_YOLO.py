@@ -2,6 +2,7 @@
 import numpy
 import cv2
 import os
+import progressbar
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_draw_numpy
 import tools_image
@@ -66,14 +67,17 @@ def draw_objects_on_image(image, boxes_bound, scores, classes, colors, class_nam
         cv2.putText(image, '{0} {1:.2f}'.format(class_names[cl], score), (left+4, position), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 1, cv2.LINE_AA)
     return image
 # ----------------------------------------------------------------------------------------------------------------------
-def get_true_boxes(foldername, filename, smart_resized_target, delim=' ',limit=100):
+def get_true_boxes(foldername, filename, smart_resized_target, delim=' ',limit=1000000):
 
     with open(filename) as f:lines = f.readlines()[1:limit]
     filenames_dict = sorted(set([line.split(' ')[0] for line in lines]))
 
     true_boxes = []
 
-    for filename in filenames_dict:
+    bar = progressbar.ProgressBar(max_value=len(filenames_dict))
+
+    for b,filename in enumerate(filenames_dict):
+        bar.update(b)
         if not os.path.isfile(foldername + filename):continue
         image = cv2.imread(foldername + filename)
         if image is None:continue
@@ -392,7 +396,7 @@ def plot_cluster_result(clusters,nearest_clusters,wh,k):
     #plt.savefig("./kmeans.jpg")
     plt.show()
 # ----------------------------------------------------------------------------------------------------------------------
-def annotation_boxes_to_ancors(list_of_boxes,num_clusters,delim=' '):
+def annotation_boxes_to_ancors(list_of_boxes,num_clusters):
 
     w,h=[],[]
 

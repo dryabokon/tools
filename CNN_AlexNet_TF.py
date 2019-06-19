@@ -9,7 +9,7 @@ import tools_IO
 import tools_image
 import tools_CNN_view
 # ----------------------------------------------------------------------------------------------------------------------
-net_data = numpy.load("../_weights/bvlc_alexnet.npy", encoding="latin1").item()
+net_data = numpy.load("../_weights/bvlc_alexnet.npy", encoding="latin1",allow_pickle=True).item()
 # ----------------------------------------------------------------------------------------------------------------------
 def conv(input, kernel, biases, k_h, k_w, c_o, s_h, s_w,  padding="VALID", group=1):
     c_i = input.get_shape()[-1]

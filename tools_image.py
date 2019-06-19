@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import os
 import math
 import ctypes
-from PIL import ImageGrab
+#from PIL import ImageGrab
 #--------------------------------------------------------------------------------------------------------------------------
 import tools_IO
 #--------------------------------------------------------------------------------------------------------------------------
@@ -50,21 +50,21 @@ def smart_resize(img, target_image_height, target_image_width):
     new_image.paste(pillow_image, ((target_image_width - nw) // 2, (target_image_height - nh) // 2))
     return numpy.array(new_image)
 # ---------------------------------------------------------------------------------------------------------------------
-def smart_resize_point(original_row,original_col, original_image_height,original_image_width,target_image_height,target_image_width):
-    scale_hor = target_image_width / original_image_width
-    scale_ver = target_image_height / original_image_height
+def smart_resize_point(original_x, original_y, original_w, original_h, target_w, target_h):
+    scale_hor = target_h / original_h
+    scale_ver = target_w / original_w
     if scale_hor<scale_ver:
         scale = scale_hor
-        c = int(original_col * scale)
-        r = int(original_row * scale)
-        r+=int(0.5*(target_image_height-original_image_height*scale))
+        y = int(original_y * scale)
+        x = int(original_x * scale)
+        x+=int(0.5 * (target_w - original_w * scale))
     else:
         scale = scale_ver
-        r = int(original_row * scale)
-        c = int(original_col * scale)
-        c+=int(0.5*(target_image_width-original_image_width*scale))
+        x = int(original_x * scale)
+        y = int(original_y * scale)
+        y+=int(0.5 * (target_h - original_h * scale))
 
-    return r,c
+    return x,y
 # ---------------------------------------------------------------------------------------------------------------------
 def canvas_extrapolate(img,new_height,new_width):
 
