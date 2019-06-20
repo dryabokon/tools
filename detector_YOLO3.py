@@ -169,6 +169,7 @@ class detector_YOLO3(object):
 
         tools_IO.save_mat(fact, filename_markup_out_true, delim=' ')
 
+        print('Processing annotation\n')
         bar = progressbar.ProgressBar(max_value=len(list_filenames))
         for b,local_filename in enumerate(list_filenames):
             bar.update(b)

@@ -22,7 +22,7 @@ def iou(boxA, boxB):
 
     return iou
 # ----------------------------------------------------------------------------------------------------------------------
-def calc_hits_stats(lines_true,lines_pred,class_ID,delim,folder_annotation=None,iuo_th=0.5):
+def calc_hits_stats(lines_true,lines_pred,class_ID,delim,folder_annotation,iuo_th=0.5):
     file_true, file_pred = [], []
     coord_true, coord_pred, = [], []
     conf_true, conf_pred = [], []
@@ -32,13 +32,13 @@ def calc_hits_stats(lines_true,lines_pred,class_ID,delim,folder_annotation=None,
         split = line.split(delim)
         if int(split[5]) == class_ID:
             x_min,y_min,x_max,y_max = int(split[1]),int(split[2]),int(split[3]),int(split[4])
-            if folder_annotation is not None:
-                if not os.path.isfile(folder_annotation + split[0]):continue
-                image = Image.open(folder_annotation + split[0])
-                if image is None: continue
-                width, height = image.size
-                x_min, y_min = tools_image.smart_resize_point(x_min, y_min, width,height, 416, 416)
-                x_max, y_max = tools_image.smart_resize_point(x_max, y_max, width,height, 416, 416)
+
+            if not os.path.isfile(folder_annotation + split[0]):continue
+            image = Image.open(folder_annotation + split[0])
+            if image is None: continue
+            width, height = image.size
+            x_min, y_min = tools_image.smart_resize_point(x_min, y_min, width,height, 416, 416)
+            x_max, y_max = tools_image.smart_resize_point(x_max, y_max, width,height, 416, 416)
 
             file_true.append(split[0].split('/')[-1])
             coord_true.append([x_min,y_min,x_max,y_max])
@@ -49,13 +49,13 @@ def calc_hits_stats(lines_true,lines_pred,class_ID,delim,folder_annotation=None,
         split = line.split(delim)
         if int(split[5]) == class_ID:
             x_min,y_min,x_max,y_max = int(split[1]),int(split[2]),int(split[3]),int(split[4])
-            if folder_annotation is not None:
-                if not os.path.isfile(folder_annotation + split[0]):continue
-                image = Image.open(folder_annotation + split[0])
-                if image is None: continue
-                width, height = image.size
-                x_min, y_min = tools_image.smart_resize_point(x_min, y_min, width, height,416, 416)
-                x_max, y_max = tools_image.smart_resize_point(x_max, y_max, width, height,416, 416)
+
+            if not os.path.isfile(folder_annotation + split[0]):continue
+            image = Image.open(folder_annotation + split[0])
+            if image is None: continue
+            width, height = image.size
+            x_min, y_min = tools_image.smart_resize_point(x_min, y_min, width, height,416, 416)
+            x_max, y_max = tools_image.smart_resize_point(x_max, y_max, width, height,416, 416)
             file_pred.append(split[0].split('/')[-1])
             coord_pred.append([x_min, y_min, x_max, y_max])
             conf_pred.append(float(split[6]))
@@ -82,7 +82,7 @@ def calc_hits_stats(lines_true,lines_pred,class_ID,delim,folder_annotation=None,
 
     return file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred
 # ----------------------------------------------------------------------------------------------------------------------
-def get_precsion_recall_data_from_markups(file_markup_true, file_markup_pred,iuo_th,delim=' '):
+def get_precsion_recall_data_from_markups(folder_annotation,file_markup_true, file_markup_pred,iuo_th,delim=' '):
 
     dict_classes={}
     with open(file_markup_true) as f:lines_true = f.readlines()[1:]
@@ -94,7 +94,7 @@ def get_precsion_recall_data_from_markups(file_markup_true, file_markup_pred,iuo
 
     for class_ID in sorted(set(dict_classes.keys())):
 
-        file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred = calc_hits_stats(lines_true,lines_pred,class_ID,delim,iuo_th)
+        file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred = calc_hits_stats(lines_true,lines_pred,class_ID,delim,folder_annotation,iuo_th)
         if len(file_true)==0:
             continue
 
@@ -210,7 +210,7 @@ def write_boxes_distribution(filename_out,true_boxes):
     plt.savefig(filename_out)
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def analyze_markups_mAP(file_markup_true, file_markup_pred,filename_meta, folder_out,out_prefix='',delim=' '):
+def analyze_markups_mAP(folder_annotation,file_markup_true, file_markup_pred,filename_meta, folder_out,out_prefix='',delim=' '):
 
     input_image_size, class_names, anchors, anchor_mask,obj_threshold, nms_threshold = tools_YOLO.load_metadata(filename_meta)
     colors = tools_YOLO.generate_colors(len(class_names))
@@ -223,7 +223,7 @@ def analyze_markups_mAP(file_markup_true, file_markup_pred,filename_meta, folder
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
 
-        precisions,recalls,confidences,class_IDs = get_precsion_recall_data_from_markups(file_markup_true, file_markup_pred,iuo_th, delim=' ')
+        precisions,recalls,confidences,class_IDs = get_precsion_recall_data_from_markups(folder_annotation,file_markup_true, file_markup_pred,iuo_th, delim=' ')
         mAP = 0
 
         for i,class_ID in enumerate(class_IDs):
@@ -239,7 +239,7 @@ def analyze_markups_mAP(file_markup_true, file_markup_pred,filename_meta, folder
 
     return results[0]
 # ----------------------------------------------------------------------------------------------------------------------
-def analyze_markups_draw_boxes(class_ID,file_markup_true, file_markup_pred,path_out, delim=' ',metric='recall',iou_th=0.1):
+def analyze_markups_draw_boxes(class_ID,folder_annotation,file_markup_true, file_markup_pred,path_out, delim=' ',metric='recall',iou_th=0.1):
 
     tools_IO.remove_files(path_out,create=True)
 
@@ -247,7 +247,7 @@ def analyze_markups_draw_boxes(class_ID,file_markup_true, file_markup_pred,path_
     with open(file_markup_true) as f:lines_true = f.readlines()[1:]
     with open(file_markup_pred) as f:lines_pred = f.readlines()[1:]
 
-    file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred = calc_hits_stats(lines_true,lines_pred,class_ID,delim,iuo_th=iou_th)
+    file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred = calc_hits_stats(lines_true,lines_pred,class_ID,delim,folder_annotation,iuo_th=iou_th)
 
     red=(0,32,255)
     amber=(0,192,255)
@@ -265,6 +265,7 @@ def analyze_markups_draw_boxes(class_ID,file_markup_true, file_markup_pred,path_
         if image is None:
             continue
         image = tools_image.desaturate(image)
+        image = tools_image.smart_resize(image, 416, 416)
         is_hit=1
         is_FP=1
         idx = numpy.where(file_true==filename)

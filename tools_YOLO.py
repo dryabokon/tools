@@ -10,6 +10,7 @@ import tools_IO
 import detector_YOLO3_core
 import xml.etree.cElementTree as ET
 import matplotlib.pyplot as plt
+from PIL import Image
 # ----------------------------------------------------------------------------------------------------------------------
 def get_COCO_class_names():
     return ['person','bicycle','car','motorbike',
@@ -74,13 +75,15 @@ def get_true_boxes(foldername, filename, smart_resized_target, delim=' ',limit=1
 
     true_boxes = []
 
+    print('Get true boxes\n')
     bar = progressbar.ProgressBar(max_value=len(filenames_dict))
 
     for b,filename in enumerate(filenames_dict):
         bar.update(b)
         if not os.path.isfile(foldername + filename):continue
-        image = cv2.imread(foldername + filename)
-        if image is None:continue
+        image = Image.open(foldername + filename)
+        if image is None: continue
+        width, height = image.size
 
         local_boxes = []
         for line in lines:
@@ -89,8 +92,8 @@ def get_true_boxes(foldername, filename, smart_resized_target, delim=' ',limit=1
                 class_ID = int(split[5])
                 x_min, y_min, x_max, y_max = numpy.array(split[1:5]).astype(numpy.float)
 
-                x_min, y_min = tools_image.smart_resize_point(x_min, y_min, image.shape[1], image.shape[0],smart_resized_target[1], smart_resized_target[0])
-                x_max, y_max = tools_image.smart_resize_point(x_max, y_max, image.shape[1], image.shape[0],smart_resized_target[1], smart_resized_target[0])
+                x_min, y_min = tools_image.smart_resize_point(x_min, y_min, width,height,smart_resized_target[1], smart_resized_target[0])
+                x_max, y_max = tools_image.smart_resize_point(x_max, y_max, width,height,smart_resized_target[1], smart_resized_target[0])
 
                 local_boxes.append([x_min, y_min, x_max, y_max, class_ID])
 
