@@ -239,7 +239,7 @@ def analyze_markups_mAP(folder_annotation,file_markup_true, file_markup_pred,fil
 
     return results[0]
 # ----------------------------------------------------------------------------------------------------------------------
-def analyze_markups_draw_boxes(class_ID,file_markup_true, file_markup_pred,path_out, delim=' ',metric='recall',iou_th=0.1):
+def analyze_markups_draw_boxes(class_ID,folder_annotation,file_markup_true, file_markup_pred,path_out, delim=' ',metric='recall',iou_th=0.1):
 
     tools_IO.remove_files(path_out,create=True)
 
@@ -247,7 +247,7 @@ def analyze_markups_draw_boxes(class_ID,file_markup_true, file_markup_pred,path_
     with open(file_markup_true) as f:lines_true = f.readlines()[1:]
     with open(file_markup_pred) as f:lines_pred = f.readlines()[1:]
 
-    file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred = calc_hits_stats(lines_true,lines_pred,class_ID,delim,iuo_th=iou_th)
+    file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred = calc_hits_stats(lines_true,lines_pred,class_ID,delim,folder_annotation,iuo_th=iou_th)
 
     red=(0,32,255)
     amber=(0,192,255)
@@ -265,6 +265,7 @@ def analyze_markups_draw_boxes(class_ID,file_markup_true, file_markup_pred,path_
         if image is None:
             continue
         image = tools_image.desaturate(image)
+        image = tools_image.smart_resize(image, 416, 416)
         is_hit=1
         is_FP=1
         idx = numpy.where(file_true==filename)

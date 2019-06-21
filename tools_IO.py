@@ -453,7 +453,8 @@ def print_top_fails(labels_fact, labels_pred, patterns,filename = None):
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def split_annotation_file(folder_annotation,file_input,file_part1,file_part2, ratio=0.5,limit=1000000, min_height=0):
+
+def split_annotation_file(folder_annotation,file_input,file_part1,file_part2, ratio=0.5,limit=1000000, min_height=10):
 
 
     with open(file_input) as f: lines = f.readlines()
