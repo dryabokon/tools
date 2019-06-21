@@ -10,6 +10,7 @@ import tools_IO
 import detector_YOLO3_core
 import xml.etree.cElementTree as ET
 import matplotlib.pyplot as plt
+from PIL import Image
 # ----------------------------------------------------------------------------------------------------------------------
 def get_COCO_class_names():
     return ['person','bicycle','car','motorbike',
@@ -23,10 +24,14 @@ def generate_colors(N=80):
     numpy.random.seed(42)
     colors = []
     for i in range(0, N):
-        color = cv2.cvtColor(
-            numpy.array([int(255 * numpy.random.rand()), 255, 225], dtype=numpy.uint8).reshape(1, 1, 3),
-            cv2.COLOR_HSV2BGR)[0][0]
+        if i==0:
+            hue = 0
+        else:
+            hue = int(255 * numpy.random.rand())
+        color = cv2.cvtColor(numpy.array([hue, 255, 225], dtype=numpy.uint8).reshape(1, 1, 3),cv2.COLOR_HSV2BGR)[0][0]
         colors.append((int(color[0]), int(color[1]), int(color[2])))
+
+
     numpy.random.seed(None)
 
     return colors
@@ -74,13 +79,15 @@ def get_true_boxes(foldername, filename, smart_resized_target, delim=' ',limit=1
 
     true_boxes = []
 
+    print('Get true boxes\n')
     bar = progressbar.ProgressBar(max_value=len(filenames_dict))
 
     for b,filename in enumerate(filenames_dict):
         bar.update(b)
         if not os.path.isfile(foldername + filename):continue
-        image = cv2.imread(foldername + filename)
-        if image is None:continue
+        image = Image.open(foldername + filename)
+        if image is None: continue
+        width, height = image.size
 
         local_boxes = []
         for line in lines:
@@ -89,8 +96,8 @@ def get_true_boxes(foldername, filename, smart_resized_target, delim=' ',limit=1
                 class_ID = int(split[5])
                 x_min, y_min, x_max, y_max = numpy.array(split[1:5]).astype(numpy.float)
 
-                x_min, y_min = tools_image.smart_resize_point(x_min, y_min, image.shape[1], image.shape[0],smart_resized_target[1], smart_resized_target[0])
-                x_max, y_max = tools_image.smart_resize_point(x_max, y_max, image.shape[1], image.shape[0],smart_resized_target[1], smart_resized_target[0])
+                x_min, y_min = tools_image.smart_resize_point(x_min, y_min, width,height,smart_resized_target[1], smart_resized_target[0])
+                x_max, y_max = tools_image.smart_resize_point(x_max, y_max, width,height,smart_resized_target[1], smart_resized_target[0])
 
                 local_boxes.append([x_min, y_min, x_max, y_max, class_ID])
 
@@ -121,7 +128,7 @@ def draw_annotation_boxes(file_annotations, file_classes, file_metadata, path_ou
 
     input_image_size, class_names, anchors, anchor_mask, obj_threshold, nms_threshold = load_metadata(file_metadata)
     mat = tools_IO.load_mat(file_classes, numpy.str)
-    if len(mat)<len(class_names):
+    if len(mat)<=len(class_names):
         class_names[:len(mat)] = mat
 
     foldername = '/'.join(file_annotations.split('/')[:-1]) + '/'
@@ -131,10 +138,15 @@ def draw_annotation_boxes(file_annotations, file_classes, file_metadata, path_ou
     class_IDs = numpy.array([line.split(delim)[5] for line in lines],dtype=numpy.int)
     colors = generate_colors(numpy.max(class_IDs)+1)
 
+    true_boxes = get_true_boxes(foldername, file_annotations, (416, 416), delim=' ')
+    if len(true_boxes) > 6:
+        anchors = annotation_boxes_to_ancors(true_boxes, 6)
+
     descript_ion = []
     for filename in set(filenames):
 
         image = cv2.imread(foldername + filename)
+        image = tools_image.desaturate(image,0.9)
         idx = numpy.where(filenames == filename)
 
         boxes_resized = []
@@ -225,7 +237,7 @@ def nms_boxes(boxes, scores,nms_threshold):
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_and_save(filename_out,image,boxes_yxyx, scores,classes,colors, class_names):
     if filename_out is not None:
-        res_image = draw_objects_on_image(tools_image.desaturate(image, 0.8), boxes_yxyx, scores,classes, colors, class_names)
+        res_image = draw_objects_on_image(tools_image.desaturate(image, 1.0), boxes_yxyx, scores,classes, colors, class_names)
         cv2.imwrite(filename_out, res_image)
     return
 # ----------------------------------------------------------------------------------------------------------------------

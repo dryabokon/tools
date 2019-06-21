@@ -77,7 +77,7 @@ def extract_frames(filename_in,folder_out):
     success, image = vidcap.read()
     count = 0
     while success:
-        cv2.imwrite(folder_out+'frame%04d.jpg' % count, image)
+        cv2.imwrite(folder_out+'frame%06d.jpg' % count, image)
         success, image = vidcap.read()
         count += 1
 

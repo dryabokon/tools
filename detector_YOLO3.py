@@ -169,6 +169,7 @@ class detector_YOLO3(object):
 
         tools_IO.save_mat(fact, filename_markup_out_true, delim=' ')
 
+        print('Processing annotation\n')
         bar = progressbar.ProgressBar(max_value=len(list_filenames))
         for b,local_filename in enumerate(list_filenames):
             bar.update(b)
@@ -210,7 +211,7 @@ class detector_YOLO3(object):
             store2 = tools_HDF5.HDF5_store(filename=folder_out + 'bottlenecks_2.hdf5',object_shape=bottlenecks[2][0].shape, dtype=numpy.float32)
 
         bar = progressbar.ProgressBar(max_value=len(filenames_list))
-
+        print('Saving bottleneck features\n')
         for b,filename in enumerate(filenames_list):
             if not os.path.isfile(filename): continue
             image = cv2.imread(filename)
