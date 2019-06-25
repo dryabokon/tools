@@ -160,6 +160,7 @@ def put_layer_on_image(image_background,image_layer,background_color=(0,0,0)):
     return im_result
 #--------------------------------------------------------------------------------------------------------------------------
 def rgb2bgr(image):
+    #image = image[:, :, [2, 1, 0]]
     return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 # --------------------------------------------------------------------------------------------------------------------------
 def desaturate_2d(image):
