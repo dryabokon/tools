@@ -65,7 +65,7 @@ class detector_Mask_RCNN(object):
             boxes_yxyx, scores, classes, masks = boxes_yxyx[msk], scores[msk], classes[msk], masks[:,:,msk]
             markup = tools_YOLO.get_markup(filename_in, boxes_yxyx, scores, classes)
 
-            detector_Mask_RCNN_core.display_instances(image, boxes_yxyx, masks, classes, self.class_names,filename_out,scores,self.colors)
+            detector_Mask_RCNN_core.display_instances(tools_image.desaturate(image), boxes_yxyx, masks, classes, self.class_names,filename_out,scores,self.colors)
 
         return markup
 # ----------------------------------------------------------------------------------------------------------------------
@@ -77,7 +77,7 @@ class detector_Mask_RCNN(object):
         local_filenames = numpy.sort(local_filenames)
         for local_filename in local_filenames:
             filename_out = path_out + local_filename if not markup_only else None
-            for each in self.process_file(path_input + local_filename, filename_out):
+            for each in self.process_file(path_input + local_filename, filename_out,draw_spline=True):
                 result.append(each)
             tools_IO.save_mat(result, path_out + 'markup_res.txt', delim=' ')
         total_time = (time.time() - start_time)
