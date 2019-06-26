@@ -3157,7 +3157,7 @@ def apply_mask(image, mask, color, alpha=0.5):
     return image
 
 
-def display_instances(image, boxes, masks, class_ids, class_names,filename_out,scores,colors,ax=None,show_mask=True, show_bbox=False,captions=None):
+def display_instances(image, boxes, masks, class_ids, class_names,filename_out,scores,colors,ax=None,show_mask=True, show_bbox=True,captions=None):
 
     N = boxes.shape[0]
     assert boxes.shape[0] == masks.shape[-1] == class_ids.shape[0]
@@ -3193,7 +3193,7 @@ def display_instances(image, boxes, masks, class_ids, class_names,filename_out,s
             caption = "{} {:.3f}".format(label, score) if score else label
         else:
             caption = captions[i]
-        #ax.text(x1, y1 + 8, caption,color='w', size=11, backgroundcolor="none")
+        ax.text(x1, y1 + 8, caption,color='w', size=11, backgroundcolor="none")
 
         # Mask
         mask = masks[:, :, i]

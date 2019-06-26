@@ -59,9 +59,9 @@ class detector_Mask_RCNN(object):
             r = self.model.detect([image], verbose=0)[0]
             boxes_yxyx, scores, classes,masks = r['rois'], r['scores'], r['class_ids'],r['masks']
             class_ID = tools_IO.smart_index(self.class_names,'person')[0]
-            msk1 = (scores > self.obj_threshold)
-            msk2 = (classes == class_ID)
-            msk = msk1.tolist() and msk2.tolist()
+            msk = (scores > self.obj_threshold).tolist()
+            #msk2 = (classes == class_ID)
+            #msk = msk  and msk2
             msk = numpy.array(msk)
             boxes_yxyx, scores, classes, masks = boxes_yxyx[msk], scores[msk], classes[msk], masks[:,:,msk]
             markup = tools_YOLO.get_markup(filename_in, boxes_yxyx, scores, classes)
