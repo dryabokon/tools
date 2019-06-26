@@ -30,7 +30,7 @@ class Logger(object):
 # ----------------------------------------------------------------------------------------------------------------------
 class detector_SSD300(object):
 
-    def __init__(self, model_weights_h5,filename_metadata,obj_threshold=None):
+    def __init__(self, model_weights_h5,filename_metadata=None,obj_threshold=None):
 
         self.class_names = ['background', 'aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat',
                             'chair', 'cow', 'diningtable', 'dog', 'horse', 'motorbike', 'person', 'pottedplant',

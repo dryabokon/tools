@@ -33,6 +33,7 @@ class detector_Mask_RCNN(object):
 
         r = self.model.detect([image], verbose=0)[0]
         boxes_yxyx, scores, classes = r['rois'],r['scores'],r['class_ids']
+
         msk = scores>self.obj_threshold
 
         boxes_yxyx=boxes_yxyx[msk]
@@ -40,7 +41,7 @@ class detector_Mask_RCNN(object):
         classes = classes[msk]
         return boxes_yxyx, scores, classes
 # ----------------------------------------------------------------------------------------------------------------------
-    def process_file(self, filename_in, filename_out,draw_spline=False):
+    def process_file(self, filename_in, filename_out,draw_spline=True):
 
         if not os.path.isfile(filename_in):
             return []
@@ -57,7 +58,7 @@ class detector_Mask_RCNN(object):
         else:
             r = self.model.detect([image], verbose=0)[0]
             boxes_yxyx, scores, classes,masks = r['rois'], r['scores'], r['class_ids'],r['masks']
-            class_ID = tools_IO.smart_index(self.class_names,'car')[0]
+            class_ID = tools_IO.smart_index(self.class_names,'person')[0]
             msk1 = (scores > self.obj_threshold)
             msk2 = (classes == class_ID)
             msk = msk1.tolist() and msk2.tolist()
@@ -77,7 +78,7 @@ class detector_Mask_RCNN(object):
         local_filenames = numpy.sort(local_filenames)
         for local_filename in local_filenames:
             filename_out = path_out + local_filename if not markup_only else None
-            for each in self.process_file(path_input + local_filename, filename_out,draw_spline=True):
+            for each in self.process_file(path_input + local_filename, filename_out):
                 result.append(each)
             tools_IO.save_mat(result, path_out + 'markup_res.txt', delim=' ')
         total_time = (time.time() - start_time)
