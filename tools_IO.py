@@ -530,8 +530,8 @@ def save_labels(out_filename, filenames, labels,append=0,delim='\t'):
         f_handle = open(out_filename, "a")
 
     for i in range(0,labels.shape[0]):
-        #f_handle.write("%s%c%03d\n" % (filenames[i],delim,labels[i]))
-        f_handle.write("%s%c%s\n" % (filenames[i],delim,labels[i]))
+        f_handle.write("%s%c%03d\n" % (filenames[i],delim,labels[i]))
+        #f_handle.write("%s%c%s\n" % (filenames[i],delim,labels[i]))
 
     f_handle.close()
 
@@ -735,15 +735,15 @@ def get_roc_data_from_scores_file(path_scores):
 
     return tpr,fpr,roc_auc
 # ----------------------------------------------------------------------------------------------------------------------
-def get_roc_data_from_scores_file_v2(path_scores_pos,path_scores_neg):
+def get_roc_data_from_scores_file_v2(path_scores_pos,path_scores_neg,delim='\t'):
 
-    data = load_mat(path_scores_pos, numpy.chararray, '\t')
-    l1= (data [1:, 0]).astype('float32')
+    data = load_mat(path_scores_pos, numpy.chararray, delim)
     s1= data[1:, 1:].astype('float32')
+    l1 = numpy.full(len(s1),1)
 
-    data = load_mat(path_scores_neg, numpy.chararray, '\t')
-    l0= (data [1:, 0]).astype('float32')
+    data = load_mat(path_scores_neg, numpy.chararray, delim)
     s0= data[1:, 1:].astype('float32')
+    l0 = numpy.full(len(s0), 0)
 
     labels = numpy.hstack((l0, l1))
     scores = numpy.vstack((s0, s1))
@@ -810,6 +810,9 @@ def plot_2D_scores_multi_Y(plt,X,Y,labels=None):
     return
 # ----------------------------------------------------------------------------------------------------------------------
 def plot_2D_scores(plt,fig,filename_data_pos,filename_data_neg,filename_data_grid,filename_scores_grid,th,noice_needed=0,caption=''):
+    if not os.path.isfile(filename_data_pos): return
+    if not os.path.isfile(filename_data_neg): return
+    if not os.path.isfile(filename_data_grid): return
 
     data = load_mat(filename_scores_grid, dtype=numpy.chararray, delim='\t')[1:,:]
     grid_scores = data[:, 1:].astype('float32')

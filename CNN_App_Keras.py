@@ -4,6 +4,7 @@ from os import listdir
 import numpy
 import fnmatch
 import cv2
+import progressbar
 # --------------------------------------------------------------------------------------------------------------------
 from keras.models import Model
 from keras.applications import MobileNet
@@ -39,9 +40,12 @@ class CNN_App_Keras(object):
             feature_filename = path_output + each + '.txt'
             features = []
 
+
             if not os.path.isfile(feature_filename):
-                for i in range (0,local_filenames.shape[0]):
-                    img = cv2.imread(path_input + each + '/' + local_filenames[i])
+                bar = progressbar.ProgressBar(max_value=len(local_filenames))
+                for b,local_filename in enumerate(local_filenames):
+                    bar.update(b)
+                    img = cv2.imread(path_input + each + '/' + local_filename)
                     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                     img = cv2.resize(img, self.input_shape).astype(numpy.float32)
                     model = Model(inputs=self.model.input, outputs=self.model.get_layer('global_average_pooling2d_1').output)

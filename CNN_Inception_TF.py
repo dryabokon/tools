@@ -8,6 +8,7 @@ import fnmatch
 import tensorflow as tf
 from tensorflow.python.platform import gfile
 import urllib
+import progressbar
 # --------------------------------------------------------------------------------------------------------------------
 import tools_IO
 import tools_CNN_view
@@ -71,8 +72,10 @@ class CNN_Inception_TF(object):
             features = []
 
             if not os.path.isfile(feature_filename):
-                for i in range (0,local_filenames.shape[0]):
-                    image_data = gfile.FastGFile(path_input + each + '/' + local_filenames[i], 'rb').read()
+                bar = progressbar.ProgressBar(max_value=len(local_filenames))
+                for b, local_filename in enumerate(local_filenames):
+                    bar.update(b)
+                    image_data = gfile.FastGFile(path_input + each + '/' + local_filename, 'rb').read()
                     feature = sess.run(self.tensor_bottleneck, {self.tensor_jpeg_data: image_data})[0]
                     features.append(feature)
 

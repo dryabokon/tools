@@ -4,12 +4,13 @@ import cv2
 import os
 from os import listdir
 import fnmatch
+import progressbar
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_IO
 import tools_image
 import tools_CNN_view
 # ----------------------------------------------------------------------------------------------------------------------
-net_data = numpy.load("../_weights/bvlc_alexnet.npy", encoding="latin1",allow_pickle=True).item()
+net_data = numpy.load('../_weights/bvlc_alexnet.npy', encoding="latin1",allow_pickle=True).item()
 # ----------------------------------------------------------------------------------------------------------------------
 def conv(input, kernel, biases, k_h, k_w, c_o, s_h, s_w,  padding="VALID", group=1):
     c_i = input.get_shape()[-1]
@@ -96,8 +97,10 @@ class CNN_AlexNet_TF():
             features = []
 
             if not os.path.isfile(feature_filename):
-                for i in range (0,local_filenames.shape[0]):
-                    image= cv2.imread(path_input + each + '/' + local_filenames[i])
+                bar = progressbar.ProgressBar(max_value=len(local_filenames))
+                for b, local_filename in enumerate(local_filenames):
+                    bar.update(b)
+                    image= cv2.imread(path_input + each + '/' + local_filename)
                     image = cv2.resize(image,(self.input_shape[0],self.input_shape[1]))
                     feature = sess.run(self.fc7, feed_dict={self.x: [image]})
                     features.append(feature[0])
