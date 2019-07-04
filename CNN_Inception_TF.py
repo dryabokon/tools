@@ -69,20 +69,22 @@ class CNN_Inception_TF(object):
             print(each)
             local_filenames = numpy.array(fnmatch.filter(listdir(path_input + each), mask))[:limit]
             feature_filename = path_output + each + '.txt'
-            features = []
+            features,filenames = [],[]
 
             if not os.path.isfile(feature_filename):
                 bar = progressbar.ProgressBar(max_value=len(local_filenames))
                 for b, local_filename in enumerate(local_filenames):
                     bar.update(b)
                     image_data = gfile.FastGFile(path_input + each + '/' + local_filename, 'rb').read()
+                    if image_data is None:continue
                     feature = sess.run(self.tensor_bottleneck, {self.tensor_jpeg_data: image_data})[0]
                     features.append(feature)
+                    filenames.append(local_filename)
 
                 features = numpy.array(features)
 
                 mat = numpy.zeros((features.shape[0], features.shape[1] + 1)).astype(numpy.str)
-                mat[:, 0] = local_filenames
+                mat[:, 0] = filenames
                 mat[:, 1:] = features
                 tools_IO.save_mat(mat, feature_filename, fmt='%s', delim='\t')
 

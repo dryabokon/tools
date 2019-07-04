@@ -313,16 +313,15 @@ def load_aligned_images_from_folder(path, label, mask="*.bmp", exclusion_folder=
     img = 0
     for image_name in fnmatch.filter(listdir(path), mask) :
         if ((limit == None) or (i < limit)) and (image_name not in exclusions):
-            try:
-                img = cv2.imread(path + image_name) if grayscaled==False else cv2.imread(path + image_name,0)
-                if ((resize_W is not None) and (resize_H is not None)):
-                    img = cv2.resize(img,(resize_W,resize_H))
+            
+            img = cv2.imread(path + image_name) if grayscaled==False else cv2.imread(path + image_name,0)
+            if img is None:continue
+            if ((resize_W is not None) and (resize_H is not None)):
+                img = cv2.resize(img,(resize_W,resize_H))
 
-                images.append(img)
-                filenames.append(image_name)
-                i += 1
-            except OSError:
-                i=i
+            images.append(img)
+            filenames.append(image_name)
+            i += 1
 
     images = numpy.array(images)
     filenames = numpy.array(filenames)

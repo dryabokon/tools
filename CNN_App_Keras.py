@@ -38,7 +38,7 @@ class CNN_App_Keras(object):
             print(each)
             local_filenames = numpy.array(fnmatch.filter(listdir(path_input + each), mask))[:limit]
             feature_filename = path_output + each + '.txt'
-            features = []
+            features,filenames = [],[]
 
 
             if not os.path.isfile(feature_filename):
@@ -46,16 +46,18 @@ class CNN_App_Keras(object):
                 for b,local_filename in enumerate(local_filenames):
                     bar.update(b)
                     img = cv2.imread(path_input + each + '/' + local_filename)
+                    if img is None:continue
                     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                     img = cv2.resize(img, self.input_shape).astype(numpy.float32)
                     model = Model(inputs=self.model.input, outputs=self.model.get_layer('global_average_pooling2d_1').output)
                     feature = model.predict(preprocess_input(numpy.array([img])))[0]
                     features.append(feature)
+                    filenames.append(local_filename)
 
                 features = numpy.array(features)
 
                 mat = numpy.zeros((features.shape[0], features.shape[1] + 1)).astype(numpy.str)
-                mat[:, 0] = local_filenames
+                mat[:, 0] = filenames
                 mat[:, 1:] = features
                 tools_IO.save_mat(mat, feature_filename, fmt='%s', delim='\t')
 

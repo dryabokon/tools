@@ -5,7 +5,7 @@ import fnmatch
 import numpy
 import math
 from keras.models import Model, load_model, Sequential
-from keras.layers import BatchNormalization, Input, Dense, Dropout, Flatten, Activation, InputLayer, Conv2DTranspose,UpSampling2D
+from keras.layers import BatchNormalization, Input, Dense, Dropout, Flatten, Activation, InputLayer, Conv2DTranspose,UpSampling2D, LeakyReLU
 from keras.layers.convolutional import MaxPooling2D, ZeroPadding2D, Conv2D, Conv3D
 from keras.models import load_model
 from keras.callbacks import EarlyStopping
@@ -22,10 +22,9 @@ class classifier_FC_Keras(object):
     def __init__(self,folder_debug=None,filename_weights=None):
         self.name = "FC"
         self.model = []
-        self.verbose = True
+        self.verbose = 2
         self.epochs = 200
         self.folder_debug = folder_debug
-        self.filename_debug_image = 'data/ex-natural/dog/dog_0000.jpg'
         if filename_weights is not None:
             self.load_model(filename_weights)
 # ----------------------------------------------------------------------------------------------------------------
@@ -37,101 +36,25 @@ class classifier_FC_Keras(object):
         self.model = load_model(filename_weights)
         return
 # ----------------------------------------------------------------------------------------------------------------
-    def init_model_1d(self, input_shape, num_classes):
-
-        layer_001 = Input(input_shape)
-        layer_002 = BatchNormalization()(layer_001)
-
-        if layer_002.shape.ndims == 2:
-            layer_out = Dense(units=num_classes,activation='softmax')(layer_002)
-        else:
-            layer_out = Dense(units=num_classes,activation='softmax')(Flatten()(layer_002))
-
-        self.model = Model(inputs=layer_001, outputs=layer_out)
-        self.model.compile(optimizer='adam',loss='categorical_crossentropy', metrics=['accuracy'])
-        return
+    def init_model(self, input_shape, num_classes):
+        return self.init_model_conv(input_shape, num_classes)
 # ----------------------------------------------------------------------------------------------------------------
-    def init_model_2x2(self, input_shape, num_classes):
-
-        n_filters = 64
-        n_features =  1*num_classes*num_classes
-        n_features = 64
-
-        scale = int(math.sqrt(n_filters) * math.sqrt(input_shape[0] * input_shape[1] / n_features))
-        d1 =  int(math.sqrt(scale))
-        d2 =  int(scale/d1)
-
-        self.S1 =  int(math.sqrt(d1))
-        self.S2 =  int(d1/self.S1)
-
-        self.S3 =  int(math.sqrt(d2))
-        self.S4 =  int(d2/self.S3)
-
-
-        self.model = Sequential()
-        self.model.add(BatchNormalization(input_shape=input_shape))
-
-        self.model.add(Conv2D(n_filters, (2, 2), activation='relu', strides=(self.S1, self.S1),padding='same',data_format='channels_last'))
-        self.model.add(MaxPooling2D(     (2, 2), strides=(self.S2, self.S2)))
-
-        N = self.model.layers[-1].output.get_shape().as_list()[3]
-        self.model.add(Conv2D(N,         (2, 2), activation='relu',strides=(self.S3, self.S3),padding='same',data_format='channels_last'))
-        self.model.add(MaxPooling2D(     (2, 2), strides=(self.S4, self.S4)))
-
-        self.model.add(Flatten())
-        self.model.add(Dropout(0.5))
-        N = numpy.prod(self.model.layers[-3].output.get_shape().as_list()[1:])
-        self.model.add(Dense(N, activation='relu'))
-        self.model.add(Dense(num_classes, activation='softmax'))
-        self.model.compile(optimizer='adam',loss='categorical_crossentropy', metrics=['accuracy'])
-
-        tools_CNN_view.visualize_layers(self.model, self.filename_debug_image, self.folder_debug)
-        self.model.summary()
-        return
-
-    # ----------------------------------------------------------------------------------------------------------------
-    def init_model_16_24(self, input_shape, num_classes):
-        n_filters = 32*3
-
-
-
-        self.model = Sequential()
-        self.model.add(BatchNormalization(input_shape=input_shape))
-
-        self.model.add(Conv2D(n_filters, (2, 2), activation='relu', strides=(2, 2), padding='same',data_format='channels_last'))
-        self.model.add(MaxPooling2D((2, 2), strides=(2, 2)))
-
-        N = self.model.layers[-1].output.get_shape().as_list()[3]
-        self.model.add(Conv2D(N, (2, 2), activation='relu', strides=(2, 2), padding='same',data_format='channels_last'))
-        self.model.add(MaxPooling2D((2, 2), strides=(2, 2)))
-
-        self.model.add(Flatten())
-        self.model.add(Dropout(0.5))
-        N = numpy.prod(self.model.layers[-3].output.get_shape().as_list()[1:])
-        self.model.add(Dense(int(N/4), activation='relu'))
-        self.model.add(Dense(num_classes, activation='softmax'))
-        self.model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-
-        tools_CNN_view.visualize_layers(self.model, self.filename_debug_image, self.folder_debug)
-        self.model.summary()
-        return
-    # ----------------------------------------------------------------------------------------------------------------
-    def init_model(self, input_shape, num_classes):#_alexNet
-
+    def init_model_conv(self, input_shape, num_classes):
         n_filters = 96
 
         self.model = Sequential()
+
         self.model.add(BatchNormalization(input_shape=input_shape))
 
-        self.model.add(Conv2D(n_filters, (11, 11), activation='relu', strides=(2, 2),padding='same',data_format='channels_last'))
+        self.model.add(Conv2D(n_filters, (5, 5), activation='relu', strides=(2, 2),padding='same',data_format='channels_last'))
         self.model.add(MaxPooling2D(     (2, 2)))
 
         N = self.model.layers[-1].output.get_shape().as_list()[3]
-        self.model.add(Conv2D(N,         (5, 5), activation='relu',strides=(2, 2),padding='same',data_format='channels_last'))
+        self.model.add(Conv2D(N,         (3, 3), activation='relu',strides=(2, 2),padding='same',data_format='channels_last'))
         self.model.add(MaxPooling2D(     (2, 2),strides=(2, 2)))
 
         N = self.model.layers[-1].output.get_shape().as_list()[3]
-        self.model.add(Conv2D(N,         (3, 3), activation='relu',strides=(1, 1),padding='same',data_format='channels_last'))
+        self.model.add(Conv2D(N,         (2, 2), activation='relu',strides=(1, 1),padding='same',data_format='channels_last'))
         self.model.add(MaxPooling2D(     (2, 2),strides=(2, 2)))
 
         self.model.add(Flatten())
@@ -139,29 +62,35 @@ class classifier_FC_Keras(object):
         self.model.add(Dense(numpy.prod(self.model.layers[-3].output.get_shape().as_list()[1:]), activation='relu'))
         self.model.add(Dense(num_classes, activation='softmax'))
 
-        weights = tools_CNN_view.import_weight('data/filter1.png',(11,11,3,96))[:,:,:,:n_filters]
-        self.model.layers[1].set_weights([weights, tools_CNN_view.import_bias()])
-        self.model.layers[1].trainable = True
-
-        self.model.summary()
-        self.model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-        tools_CNN_view.visualize_filters(self.model,self.folder_debug)
-        tools_CNN_view.visualize_layers(self.model, self.filename_debug_image, self.folder_debug)
+        self.model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
         return
+# ----------------------------------------------------------------------------------------------------------------
+    def init_model_dense(self, input_shape, num_classes):
 
-    # ----------------------------------------------------------------------------------------------------------------
+        self.model = Sequential()
 
+        self.model.add(BatchNormalization(input_shape=input_shape))
+        self.model.add(Flatten())
+
+        self.model.add(Dense(256*4))
+        self.model.add(LeakyReLU())
+
+        self.model.add(Dense(256))
+        self.model.add(LeakyReLU())
+
+        self.model.add(Dense(256))
+        self.model.add(Dropout(0.5))
+        self.model.add(Dense(num_classes))
+
+        self.model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+
+        return
+# ----------------------------------------------------------------------------------------------------------------
     def learn(self,data_train, target_train):
 
         num_classes = numpy.unique(target_train).shape[0]
-
-        if len(data_train.shape)==4:
-            self.init_model(data_train.shape[1:],num_classes)
-        else:
-            self.init_model_1d(data_train.shape[1:], num_classes)
-
-        data_train=tools_CNN_view.normalize(data_train.astype(numpy.float32))
+        self.init_model(data_train.shape[1:],num_classes)
         target_train = tools_IO.to_categorical(target_train)
 
         M = data_train.shape[0]
@@ -176,7 +105,7 @@ class classifier_FC_Keras(object):
             self.save_stats(hist)
             self.save_model(self.folder_debug+self.name+'_model.h5')
 
-        acc = hist.history['val_acc'][-1]
+        #acc = hist.history['val_acc'][-1]
         prob = self.predict(data_train[idx_valid])
         label_pred = numpy.argmax(prob, axis=1)
         label_fact = tools_IO.from_categorical(target_train[idx_valid])

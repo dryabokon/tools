@@ -94,21 +94,23 @@ class CNN_AlexNet_TF():
             print(each)
             local_filenames = numpy.array(fnmatch.filter(listdir(path_input + each), mask))[:limit]
             feature_filename = path_output + '/' + each + '.txt'
-            features = []
+            features,filenames = [],[]
 
             if not os.path.isfile(feature_filename):
                 bar = progressbar.ProgressBar(max_value=len(local_filenames))
                 for b, local_filename in enumerate(local_filenames):
                     bar.update(b)
                     image= cv2.imread(path_input + each + '/' + local_filename)
+                    if image is None:continue
                     image = cv2.resize(image,(self.input_shape[0],self.input_shape[1]))
                     feature = sess.run(self.fc7, feed_dict={self.x: [image]})
                     features.append(feature[0])
+                    filenames.append(local_filename)
 
                 features = numpy.array(features)
 
                 mat = numpy.zeros((features.shape[0], features.shape[1] + 1)).astype(numpy.str)
-                mat[:, 0] = local_filenames
+                mat[:, 0] = filenames
                 mat[:, 1:] = features
                 tools_IO.save_mat(mat, feature_filename, fmt='%s', delim='\t')
 

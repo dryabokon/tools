@@ -5,6 +5,7 @@ from sklearn import metrics
 from sklearn.preprocessing import normalize
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_IO
+import tools_CNN_view
 # ----------------------------------------------------------------------------------------------------------------------
 class tools_ML(object):
     def __init__(self,Classifier):
@@ -25,10 +26,6 @@ class tools_ML(object):
 
         label_prob = numpy.max(prob, axis=1)
         label_pred = m_class[numpy.argmax(prob, axis=1)]
-
-        idx = numpy.array([i for i, v in enumerate(label_prob) if ((v < cutoff_best))])
-        if idx.shape[0] > 0:
-            label_pred[idx] = "-"
 
         for i in range(0, n):
             for j in range(0, m):
@@ -198,8 +195,8 @@ class tools_ML(object):
         tools_IO.print_reject_rate (labels_fact, labels_pred, labels_prob, filename=path_output + self.classifier.name + '_accuracy.txt')
 
         if verbose == True:
-            #verbose_PCA = True if (X is not None) and (Y is not None) else False
-            verbose_PCA = False
+            verbose_PCA = True if (X is not None) and (Y is not None) else False
+            #verbose_PCA = False
 
             if verbose_PCA:
                 print('Extracting features for PCA')
@@ -231,6 +228,7 @@ class tools_ML(object):
 
 
         (X, Y, filenames) = self.prepare_tensors_from_image_folders(path_input, patterns,mask= mask,limit=limit_instances,resize_W=resize_W, resize_H =resize_H,grayscaled = grayscaled)
+        X = tools_CNN_view.normalize(X.astype(numpy.float32))
         idx_train = numpy.sort(numpy.random.choice(X.shape[0], int(X.shape[0] / 2), replace=False))
         idx_test  = numpy.array([x for x in range(0, X.shape[0]) if x not in idx_train])
 
