@@ -1,5 +1,6 @@
 import cv2
 import time
+import tools_IO
 #--------------------------------------------------------------------------------------------------------------------------
 def capture_image_to_disk(out_filename):
 
@@ -72,13 +73,24 @@ def reconvert_video(filename_in,filename_out):
     vidcap.release()
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def extract_frames(filename_in,folder_out):
+def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_sec=10):
+
+    tools_IO.remove_files(folder_out,create=True)
+
     vidcap = cv2.VideoCapture(filename_in)
+
+    fps = vidcap.get(cv2.CAP_PROP_FPS)
+    #end_time = vidcap.get(cv2.CAP_PROP_POS_MSEC)
+    vidcap.set(cv2.CAP_PROP_POS_MSEC, start_time_sec*1000)
+
     success, image = vidcap.read()
     count = 0
     while success:
-        cv2.imwrite(folder_out+'frame%06d.jpg' % count, image)
+        cv2.imwrite(folder_out+prefix+'frame%06d.jpg' % count, image)
         success, image = vidcap.read()
+        current_time = vidcap.get(cv2.CAP_PROP_POS_MSEC)
+
+        if current_time > 1000*end_time_sec: success = False
         count += 1
 
     return

@@ -3,7 +3,7 @@ import os
 import numpy
 import cv2
 import math
-from scipy.misc import toimage
+#from scipy.misc import toimage
 from scipy import ndimage
 from scipy.spatial import Delaunay
 from scipy.interpolate import griddata

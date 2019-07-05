@@ -4,6 +4,7 @@ from os import listdir
 import cv2
 import numpy
 # ----------------------------------------------------------------------------------------------------------------------
+import tools_image
 import tools_IO
 import imageio
 # ---------------------------------------------------------------------------------------------------------------------
@@ -62,4 +63,18 @@ def folder_to_video(path_input,filename_out,mask='*.jpg',resize_W=320,resize_H=2
     out.release()
     cv2.destroyAllWindows()
 
+# ---------------------------------------------------------------------------------------------------------------------
+def crop_images_in_folder(path_input,path_output,top, left, bottom, right,mask='*.jpg'):
+    tools_IO.remove_files(path_output,create=True)
+
+    fileslist = fnmatch.filter(listdir(path_input), mask)
+
+    for filename in fileslist:
+        image = cv2.imread(path_input+filename)
+        if image is None: continue
+
+        image = tools_image.crop_image(image,top, left, bottom, right)
+        cv2.imwrite(path_output+filename,image)
+
+    return
 # ---------------------------------------------------------------------------------------------------------------------
