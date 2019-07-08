@@ -169,6 +169,8 @@ def visualize_filters(keras_model, path_out):
     return
 # ---------------------------------------------------------------------------------------------------------------------
 def stage_tensors(outputs,path_out,names):
+    if len(outputs)==1:
+        outputs = [outputs]
 
     for i in range(0, len(outputs)):
         tensor = outputs[i][0]
@@ -177,7 +179,7 @@ def stage_tensors(outputs,path_out,names):
 
         if len(tensor.shape) == 3:
             if tensor.shape[2] == 3:  cv2.imwrite(path_out + 'layer_%s.png' % (names[i]), tensor)
-            elif tensor.shape[2] != 3:cv2.imwrite(path_out + 'layer_%s.png' % (names[i]), tensor_gray_3D_to_image(tensor, do_colorize=True))
+            elif tensor.shape[2] != 3:cv2.imwrite(path_out + 'layer_%s.png' % (names[i]), tensor_gray_3D_to_image(tensor, do_colorize=False))
         elif len(tensor.shape) == 1:  cv2.imwrite(path_out + 'layer_%s.png' % (names[i]), tools_image.hitmap2d_to_viridis(tensor_gray_1D_to_image(tensor)))
 
     return
@@ -198,7 +200,7 @@ def visualize_layers(keras_model, filename_input, path_out,need_scale=False):
         H,W = shape[1], shape[2]
         if H is None: H=64
         if W is None: W=64
-        image = cv2.resize(image, (H,W))
+        image = cv2.resize(image, (W,H))
 
     if need_scale==True:
         image=normalize(image.astype(numpy.float32))
@@ -206,10 +208,8 @@ def visualize_layers(keras_model, filename_input, path_out,need_scale=False):
     #print(keras_model.summary())
 
     layer_outputs = [layer.output for layer in keras_model.layers][1:]
-    I = range(len(keras_model.layers))
-    layer_names   = ['%02d_%s'%(i,layer.name) for i, layer in zip(I, keras_model.layers)]   [1:]
+    layer_names   = ['%02d_%s'%(i,layer.name) for i, layer in zip(range(len(keras_model.layers)), keras_model.layers)]   [1:]
     outputs = Model(inputs=keras_model.input, outputs=layer_outputs).predict(numpy.array([image]))
-
 
     #if need_scale==True:
     #    outputs = [scale(each) for each in outputs]
@@ -296,6 +296,18 @@ def construct_weights_2x2x3(n=16*3):
 
     return F / 3.0
 # ---------------------------------------------------------------------------------------------------------------------
+def construct_weights(N,height,width):
+    F = numpy.zeros((height, width, 3, N),dtype=numpy.float32)
+
+    for n in range(N):
+        for w in range(width):
+            div = 2**(n+1)#2,4,8
+
+            value =2 * (w % div < div//2) - 1
+            F[:,w,:,n]=value
+
+    return F/4.0
+# ---------------------------------------------------------------------------------------------------------------------
 def construct_weights_2x2(n=16):
 
     F = numpy.zeros((2, 2, 3,16))
@@ -323,6 +335,9 @@ def construct_weights_2x2(n=16):
 def construct_filters_2x2(n_filters=16):
 
     return [construct_weights_2x2()[:,:,:,:n_filters],numpy.zeros(16,numpy.float32)[:n_filters]]
+# ----------------------------------------------------------------------------------------------------------------------
+def construct_filters(n,height,width):
+    return [construct_weights(n,height,width), numpy.zeros(n, numpy.float32)]
 # ----------------------------------------------------------------------------------------------------------------------
 def normalize(y):
     x=y.copy()

@@ -74,7 +74,7 @@ def draw_objects_on_image(image, boxes_bound, scores, classes, colors, class_nam
         cv2.putText(image, '{0}'.format(class_names[cl]), (left+4, position), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 1, cv2.LINE_AA)
     return image
 # ----------------------------------------------------------------------------------------------------------------------
-def get_true_boxes(foldername, filename, smart_resized_target, delim=' ',limit=1000000):
+def get_true_boxes(foldername, filename, smart_resized_target=None, delim=' ',limit=1000000):
 
     with open(filename) as f:lines = f.readlines()[1:limit]
     filenames_dict = sorted(set([line.split(' ')[0] for line in lines]))
@@ -98,8 +98,9 @@ def get_true_boxes(foldername, filename, smart_resized_target, delim=' ',limit=1
                 class_ID = int(split[5])
                 x_min, y_min, x_max, y_max = numpy.array(split[1:5]).astype(numpy.float)
 
-                x_min, y_min = tools_image.smart_resize_point(x_min, y_min, width,height,smart_resized_target[1], smart_resized_target[0])
-                x_max, y_max = tools_image.smart_resize_point(x_max, y_max, width,height,smart_resized_target[1], smart_resized_target[0])
+                if smart_resized_target is not None:
+                    x_min, y_min = tools_image.smart_resize_point(x_min, y_min, width,height,smart_resized_target[1], smart_resized_target[0])
+                    x_max, y_max = tools_image.smart_resize_point(x_max, y_max, width,height,smart_resized_target[1], smart_resized_target[0])
 
                 local_boxes.append([x_min, y_min, x_max, y_max, class_ID])
 

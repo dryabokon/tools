@@ -179,6 +179,8 @@ class classifier_FC_Keras(object):
         feature_image = tools_CNN_view.tensor_gray_3D_to_image(feature)
         cv2.imwrite(path_output + 'feature.png', feature_image*255.0/feature_image.max())
 
+
+
         tools_CNN_view.stage_tensors(outputs,path_output,names)
 
 
