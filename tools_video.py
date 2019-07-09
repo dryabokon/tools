@@ -73,7 +73,7 @@ def reconvert_video(filename_in,filename_out):
     vidcap.release()
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_sec=10):
+def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_sec=1000000):
 
     tools_IO.remove_files(folder_out,create=True)
 
