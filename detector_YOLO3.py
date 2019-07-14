@@ -30,6 +30,7 @@ class Logger(object):
         self.AP_test = None
         self.last_layers = None
 
+
 # ----------------------------------------------------------------------------------------------------------------------
 class detector_YOLO3(object):
 
@@ -38,6 +39,7 @@ class detector_YOLO3(object):
             self.__load_model(model_weights_h5,filename_metadata,obj_threshold)
 
         self.logs = Logger()
+        self.name = 'YOLOv3'
 # ----------------------------------------------------------------------------------------------------------------------
     def init_tiny(self,default_weights_h5, num_classes):
 
@@ -228,6 +230,48 @@ class detector_YOLO3(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
+    def generate_features(self, path_input, path_output, limit=1000000, mask='*.png,*.jpg'):
+
+
+        if not os.path.exists(path_output):os.makedirs(path_output)
+
+        dict_last_layers, dict_bottlenects = self.__last_full_layers4()
+
+        outputs = [self.model.layers[len(self.model.layers) + i].output for i in dict_bottlenects.values()]
+        patterns = numpy.sort(numpy.array([f.path[len(path_input):] for f in os.scandir(path_input) if f.is_dir()]))
+
+        for each in patterns:
+            print(each)
+            local_filenames = tools_IO.get_filenames(path_input + each, mask)[:limit]
+            feature_filename = path_output + '/' + each + '_' + self.name + '.txt'
+            features, filenames = [], []
+
+            if not os.path.isfile(feature_filename):
+                bar = progressbar.ProgressBar(max_value=len(local_filenames))
+                for b, local_filename in enumerate(local_filenames):
+                    bar.update(b)
+                    image= cv2.imread(path_input + each + '/' + local_filename)
+                    if image is None: continue
+                    image_resized = tools_image.smart_resize(image, self.input_image_size[0], self.input_image_size[1])
+                    image_resized = numpy.expand_dims(image_resized / 255.0, axis=0)
+                    bottlenecks = Model(self.model.input, outputs).predict(image_resized)
+                    feature = numpy.hstack((bottlenecks[0].flatten(),bottlenecks[1].flatten()))
+
+                    features.append(feature[0])
+                    filenames.append(local_filename)
+
+                features = numpy.array(features)
+
+                mat = numpy.zeros((features.shape[0], features.shape[1] + 1)).astype(numpy.str)
+                mat[:, 0] = filenames
+                mat[:, 1:] = features
+                tools_IO.save_mat(mat, feature_filename, fmt='%s', delim='\t')
+
+
+        return
+
+# ---------------------------------------------------------------------------------------------------------------------
+
     def save_default_tiny_model_metadata(self, default_model_weights, num_classes, filename_model_out,filename_metadata_out):
         out_model = detector_YOLO3_core.yolo_body_tiny(Input(shape=(None, None, 3)), 3, num_classes)
         default_model = load_model(default_model_weights, compile=False)
@@ -468,7 +512,10 @@ class detector_YOLO3(object):
         store_bottlenecks0 = tools_HDF5.HDF5_store(filename=folder_in+'bottlenecks_0.hdf5')
         store_bottlenecks1 = tools_HDF5.HDF5_store(filename=folder_in+'bottlenecks_1.hdf5')
 
-        if (store_target0.size<1000):
+        use_generator = True
+        if store_target0.size <= 1000:use_generator = False
+
+        if use_generator:
             bottlenecks = [store_bottlenecks0.get(),store_bottlenecks1.get()]
             targets = [store_target0.get(),store_target1.get()]
             if len(self.anchor_mask) > 2:

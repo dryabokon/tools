@@ -22,7 +22,22 @@ def iou(boxA, boxB):
 
     return iou
 # ----------------------------------------------------------------------------------------------------------------------
-def calc_hits_stats_iou(lines_true, lines_pred, class_ID, delim, folder_annotation, iuo_th=0.5):
+def ovelraps(box_true, box_pred):
+
+    xT = max(box_true[0], box_pred[0])
+    yT = max(box_true[1], box_pred[1])
+    xP = min(box_true[2], box_pred[2])
+    yP = min(box_true[3], box_pred[3])
+
+    inter_area = max(0, xP - xT + 1) * max(0, yP - yT + 1)
+    box_true_area = (box_true[2] - box_true[0] + 1) * (box_true[3] - box_true[1] + 1)
+    box_pred_area = (box_pred[2] - box_pred[0] + 1) * (box_pred[3] - box_pred[1] + 1)
+
+    ovp =  inter_area/box_true_area
+    ovd = 1- inter_area/box_pred_area
+    return ovp,ovd
+# ----------------------------------------------------------------------------------------------------------------------
+def calc_hits_stats_iou(lines_true, lines_pred, class_ID, delim, folder_annotation, iuo_th=0.5,ovp_th=0.5,ovd_th=0.5):
     file_true, file_pred = [], []
     coord_true, coord_pred, = [], []
     conf_true, conf_pred = [], []
@@ -42,7 +57,7 @@ def calc_hits_stats_iou(lines_true, lines_pred, class_ID, delim, folder_annotati
 
             file_true.append(split[0].split('/')[-1])
             coord_true.append([x_min,y_min,x_max,y_max])
-            conf_true.append(float(0))
+            conf_true.append(float(-1))
             hit_true.append(0)
 
     for line in lines_pred:
@@ -61,19 +76,31 @@ def calc_hits_stats_iou(lines_true, lines_pred, class_ID, delim, folder_annotati
             conf_pred.append(float(split[6]))
             hit_pred.append(0)
 
-    for j, filename_true in enumerate(file_true):
-        best_i, best_iou, best_conf = None, -1, None
-        for i, filename_pred in enumerate(file_pred):
-            if filename_true == filename_pred:
-                iuo_value = iou(coord_true[j], coord_pred[i])
-                if iuo_value >= iuo_th and iuo_value > best_iou:
-                    best_i, best_iou, best_conf = i, iuo_value, conf_pred[i]
-        if best_i is not None:
-            hit_true[j], conf_true[j] = 1, best_conf
-            hit_pred[best_i], conf_pred[best_i] = 1, best_conf
-        else:
-            hit_true[j], conf_true[j] = 0, float(-1)
+    if iuo_th is not None:
+        for j, filename_true in enumerate(file_true):
+            best_i, best_iou, best_conf = None, -1, None
+            for i, filename_pred in enumerate(file_pred):
+                if filename_true == filename_pred:
+                    iuo_value = iou(coord_true[j], coord_pred[i])
+                    if iuo_value >= iuo_th and iuo_value > best_iou:
+                        best_i, best_iou, best_conf = i, iuo_value, conf_pred[i]
+            if best_i is not None:
+                hit_true[j], conf_true[j] = 1, best_conf
+                hit_pred[best_i], conf_pred[best_i] = 1, best_conf
+            else:
+                hit_true[j], conf_true[j] = 0, float(-1)
+    else:
+        for j, filename_true in enumerate(file_true):
+            for i, filename_pred in enumerate(file_pred):
+                if filename_true == filename_pred:
+                    if filename_true == '115277_138_79_306_126.png':
+                        k = 0
 
+                    ovp_value,ovd_value = ovelraps(coord_true[j], coord_pred[i])
+                    if ovp_value >= ovp_th and ovd_value <= ovd_th:
+                        hit_pred[i] = 1
+                        hit_true[j] = 1
+                        conf_true[j] = max(conf_true[j],conf_pred[i])
 
     conf_true, conf_pred = numpy.array(conf_true), numpy.array(conf_pred)
     hit_true , hit_pred  = numpy.array(hit_true ), numpy.array(hit_pred)
@@ -82,7 +109,7 @@ def calc_hits_stats_iou(lines_true, lines_pred, class_ID, delim, folder_annotati
 
     return file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred
 # ----------------------------------------------------------------------------------------------------------------------
-def get_precsion_recall_data_from_markups(folder_annotation,file_markup_true, file_markup_pred,iuo_th,delim=' '):
+def get_precsion_recall_data_from_markups(folder_annotation,file_markup_true, file_markup_pred,iuo_th,ovp_th,ovd_th,delim=' '):
 
     dict_classes={}
     with open(file_markup_true) as f:lines_true = f.readlines()[1:]
@@ -94,7 +121,7 @@ def get_precsion_recall_data_from_markups(folder_annotation,file_markup_true, fi
 
     for class_ID in sorted(set(dict_classes.keys())):
 
-        file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred = calc_hits_stats_iou(lines_true, lines_pred, class_ID, delim, folder_annotation, iuo_th)
+        file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred = calc_hits_stats_iou(lines_true, lines_pred, class_ID, delim, folder_annotation, iuo_th,ovp_th, ovd_th)
         if len(file_true)==0:
             continue
 
@@ -102,7 +129,8 @@ def get_precsion_recall_data_from_markups(folder_annotation,file_markup_true, fi
 
         ths={}
         for each in sorted(conf_true):
-            if each>=iuo_th:ths[each]=0
+            #if each>=iuo_th:
+            ths[each]=0
         precision, recall, conf = [],[],[]
 
         for cnt,th in enumerate(ths):
@@ -168,6 +196,7 @@ def write_precision_recall(filename_out,precision,recall,caption='',color=(128,1
     ax.set_ylabel('precision')
 
     plt.savefig(filename_out)
+    plt.close(figure)
     return AP
 # ----------------------------------------------------------------------------------------------------------------------
 def write_boxes_distribution(filename_out,true_boxes):
@@ -191,7 +220,7 @@ def write_boxes_distribution(filename_out,true_boxes):
     plt.savefig(filename_out)
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def analyze_markups_mAP(folder_annotation,file_markup_true, file_markup_pred,filename_meta, folder_out,out_prefix='',delim=' '):
+def plot_mAP_iou(folder_annotation, file_markup_true, file_markup_pred, filename_meta, folder_out, out_prefix=''):
 
     input_image_size, class_names, anchors, anchor_mask,obj_threshold, nms_threshold = tools_YOLO.load_metadata(filename_meta)
     colors = tools_YOLO.generate_colors(len(class_names))
@@ -199,18 +228,18 @@ def analyze_markups_mAP(folder_annotation,file_markup_true, file_markup_pred,fil
     iuo_ths = [0.5,0.3,0.1,0.01]
     results = []
     for iuo_th in iuo_ths:
-
-        out_dir = folder_out + '%02d/' % int(iuo_th * 100)
+        ovp_th, ovd_th = None,None
+        out_dir = folder_out + 'iou_%02d/' % int(iuo_th * 100)
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
 
-        precisions,recalls,confidences,class_IDs = get_precsion_recall_data_from_markups(folder_annotation,file_markup_true, file_markup_pred,iuo_th, delim=' ')
+        precisions,recalls,confidences,class_IDs = get_precsion_recall_data_from_markups(folder_annotation,file_markup_true, file_markup_pred,iuo_th,ovp_th,ovd_th, delim=' ')
         mAP = 0
 
         for i,class_ID in enumerate(class_IDs):
             if len(precisions[i])>1:
                 filename_out = out_dir + out_prefix + 'AP_%02d_%s.png' % (class_ID, class_names[class_ID])
-                AP = write_precision_recall(filename_out,precisions[i], recalls[i],caption=class_names[class_ID],color=(colors[class_ID][2]/255.0,colors[class_ID][1]/255.0,colors[class_ID][0]/255.0))
+                AP = write_precision_recall(filename_out,precisions[i], recalls[i],caption='iou %1.2f '%iuo_th+class_names[class_ID],color=(colors[class_ID][2]/255.0,colors[class_ID][1]/255.0,colors[class_ID][0]/255.0))
                 mAP +=AP
 
         results.append(mAP/len(class_IDs))
@@ -220,7 +249,34 @@ def analyze_markups_mAP(folder_annotation,file_markup_true, file_markup_pred,fil
 
     return results[0]
 # ----------------------------------------------------------------------------------------------------------------------
-def analyze_markups_draw_boxes(class_ID,folder_annotation,file_markup_true, file_markup_pred,path_out, delim=' ',metric='recall',iou_th=0.1):
+def plot_mAP_overlap(folder_annotation, file_markup_true, file_markup_pred, filename_meta, folder_out, out_prefix=''):
+
+    input_image_size, class_names, anchors, anchor_mask,obj_threshold, nms_threshold = tools_YOLO.load_metadata(filename_meta)
+    colors = tools_YOLO.generate_colors(len(class_names))
+
+    ovp_ths = [0.9, 0.8, 0.7, 0.6, 0.5,0.1]
+    ovd_ths = [0.1, 0.2, 0.5, 0.99]
+    results = []
+    for ovp_th in ovp_ths:
+        out_dir = folder_out + 'ovp_%02d/' % int(ovp_th * 100)
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+        for ovd_th in ovd_ths:
+
+            precisions,recalls,confidences,class_IDs = get_precsion_recall_data_from_markups(folder_annotation,file_markup_true, file_markup_pred,None,ovp_th,ovd_th, delim=' ')
+            mAP = 0
+
+            for i,class_ID in enumerate(class_IDs):
+                if len(precisions[i])>1:
+                    filename_out = out_dir + out_prefix + 'OVD_%02d_AP_%02d_%s.png' % (int(ovd_th*100),class_ID, class_names[class_ID])
+                    AP = write_precision_recall(filename_out,precisions[i], recalls[i],caption='ovp %1.2f ovd %1.2f '%(ovp_th,ovd_th)+class_names[class_ID],color=(colors[class_ID][2]/255.0,colors[class_ID][1]/255.0,colors[class_ID][0]/255.0))
+                    mAP +=AP
+
+            results.append(mAP/len(class_IDs))
+
+    return results[0]
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_boxes(class_ID, folder_annotation, file_markup_true, file_markup_pred, path_out, delim=' ', metric='recall', iou_th=0.1, ovp_th=0.5, ovd_th=0.5):
 
     tools_IO.remove_files(path_out,create=True)
 
@@ -228,12 +284,12 @@ def analyze_markups_draw_boxes(class_ID,folder_annotation,file_markup_true, file
     with open(file_markup_true) as f:lines_true = f.readlines()[1:]
     with open(file_markup_pred) as f:lines_pred = f.readlines()[1:]
 
-    file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred = calc_hits_stats_iou(lines_true, lines_pred, class_ID, delim, folder_annotation, iuo_th=iou_th)
+    file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred = calc_hits_stats_iou(lines_true, lines_pred,class_ID, delim, folder_annotation, iuo_th=iou_th,ovp_th=ovp_th,ovd_th=ovd_th)
 
     red=(0,32,255)
     amber=(0,192,255)
     green=(0,192,0)
-    marine =(64,192,0)
+    marine =(128,128,0)
     hit_colors_true = [red  , green]
     hit_colors_pred = [amber, marine]
     descript_ion = []
@@ -241,6 +297,7 @@ def analyze_markups_draw_boxes(class_ID,folder_annotation,file_markup_true, file
     bar = progressbar.ProgressBar(max_value=len(set(file_true)))
 
     for b,filename in enumerate(set(file_true)):
+
         bar.update(b)
         image = cv2.imread(foldername + filename)
         if image is None:

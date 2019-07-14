@@ -97,7 +97,7 @@ class tools_ML(object):
         score = (100 * score[:, 1]).astype(int)
 
         if (filename_scrs != None):
-            tools_IO.save_labels(filename_scrs, labels_test, score, append, delim=' ')
+            tools_IO.save_labels(filename_scrs, labels_test, score, append, delim=delimeter)
         return
 # ---------------------------------------------------------------------------------------------------------------------
     def train_test(self, X, Y, idx_train, idx_test,path_output=None):
@@ -272,16 +272,62 @@ class tools_ML(object):
 
         return
 # ---------------------------------------------------------------------------------------------------------------------
-    def E2E_features_2_classes(self, folder_out, filename_data_pos, filename_data_neg, filename_scrs_pos=None, filename_scrs_neg=None, fig=None):
+    def E2E_features_2_classes_dim_2(self, folder_out, filename_data_pos, filename_data_neg):
 
         tools_IO.remove_files(folder_out)
 
-        filename_data_grid = folder_out+'data_grid.txt'
-        filename_scores_grid = folder_out+'scores_grid.txt'
+        filename_scrs_pos = folder_out + 'scores_pos_'+ self.classifier.name + '.txt'
+        filename_scrs_neg = folder_out + 'scores_neg_'+ self.classifier.name + '.txt'
 
+        filename_data_grid = folder_out + 'data_grid.txt'
+        filename_scores_grid = folder_out + 'scores_grid.txt'
 
         Pos = (tools_IO.load_mat(filename_data_pos, numpy.chararray, '\t')).shape[0]
         Neg = (tools_IO.load_mat(filename_data_neg, numpy.chararray, '\t')).shape[0]
+
+        numpy.random.seed(125)
+        idx_pos_train = numpy.random.choice(Pos, int(Pos / 2), replace=False)
+        idx_neg_train = numpy.random.choice(Neg, int(Neg / 2), replace=False)
+        idx_pos_test = [x for x in range(0, Pos) if x not in idx_pos_train]
+        idx_neg_test = [x for x in range(0, Neg) if x not in idx_neg_train]
+
+        self.generate_data_grid(filename_data_pos, filename_data_neg, filename_data_grid)
+
+        self.learn_on_pos_neg_files(filename_data_pos, filename_data_neg, delimeter='\t', rand_pos=idx_pos_train,rand_neg=idx_neg_train)
+        self.score_feature_file(filename_data_pos, filename_scrs=filename_scrs_pos, delimeter='\t', append=0,rand_sel=idx_pos_test)
+        self.score_feature_file(filename_data_neg, filename_scrs=filename_scrs_neg, delimeter='\t', append=0,rand_sel=idx_neg_test)
+        self.score_feature_file(filename_data_grid, filename_scrs=filename_scores_grid)
+
+        self.learn_on_pos_neg_files(filename_data_pos, filename_data_neg, '\t', idx_pos_test, idx_neg_test)
+        self.score_feature_file(filename_data_pos, filename_scrs=filename_scrs_pos, delimeter='\t', append=1,rand_sel=idx_pos_train)
+        self.score_feature_file(filename_data_neg, filename_scrs=filename_scrs_neg, delimeter='\t', append=1,rand_sel=idx_neg_train)
+
+        tpr, fpr, auc = tools_IO.get_roc_data_from_scores_file_v2(filename_scrs_pos, filename_scrs_neg, delim='\t')
+
+        fig = plt.figure(figsize=(12, 6))
+        fig.subplots_adjust(hspace=0.01)
+
+        th = self.get_th(filename_scrs_pos, filename_scrs_neg, delim='\t')
+        tools_IO.display_roc_curve_from_descriptions(plt.subplot(1, 3, 3), fig, filename_scrs_pos,filename_scrs_neg, delim='\t')
+        tools_IO.display_distributions(plt.subplot(1, 3, 2), fig, filename_scrs_pos, filename_scrs_neg,delim='\t')
+        tools_IO.plot_2D_scores(plt.subplot(1, 3, 1), fig, filename_data_pos, filename_data_neg,filename_data_grid, filename_scores_grid, th, noice_needed=1,caption=self.classifier.name + ' %1.2f' % auc)
+        plt.tight_layout()
+        plt.savefig(folder_out + 'fig_roc.png')
+
+        return tpr, fpr, auc
+
+# ---------------------------------------------------------------------------------------------------------------------
+    def E2E_features_2_classes_multi_dim(self, folder_out, filename_data_pos, filename_data_neg):
+
+        #tools_IO.remove_files(folder_out)
+
+        filename_scrs_pos = folder_out + 'scores_pos_'+ self.classifier.name + '.txt'
+        filename_scrs_neg = folder_out + 'scores_neg_'+ self.classifier.name + '.txt'
+
+        x_pos = tools_IO.load_mat(filename_data_pos, numpy.chararray, '\t')[:,1:]
+        x_neg = tools_IO.load_mat(filename_data_neg, numpy.chararray, '\t')[:,1:]
+        Pos = x_pos.shape[0]
+        Neg = x_neg.shape[0]
 
         numpy.random.seed(125)
         idx_pos_train = numpy.random.choice(Pos, int(Pos/2),replace=False)
@@ -289,27 +335,23 @@ class tools_ML(object):
         idx_pos_test = [x for x in range(0, Pos) if x not in idx_pos_train]
         idx_neg_test = [x for x in range(0, Neg) if x not in idx_neg_train]
 
-        self.generate_data_grid(filename_data_pos, filename_data_neg, filename_data_grid)
-
         self.learn_on_pos_neg_files(filename_data_pos,filename_data_neg, delimeter='\t', rand_pos=idx_pos_train,rand_neg=idx_neg_train)
         self.score_feature_file(filename_data_pos, filename_scrs  =filename_scrs_pos,delimeter='\t', append=0, rand_sel=idx_pos_test)
         self.score_feature_file(filename_data_neg, filename_scrs  =filename_scrs_neg,delimeter='\t', append=0, rand_sel=idx_neg_test)
-        self.score_feature_file(filename_data_grid, filename_scrs =filename_scores_grid)
 
         self.learn_on_pos_neg_files(filename_data_pos,filename_data_neg, '\t', idx_pos_test,idx_neg_test)
         self.score_feature_file(filename_data_pos,  filename_scrs = filename_scrs_pos,delimeter='\t',append= 1,rand_sel=idx_pos_train)
         self.score_feature_file(filename_data_neg,  filename_scrs = filename_scrs_neg,delimeter='\t',append= 1,rand_sel=idx_neg_train)
 
-        tpr, fpr, auc = tools_IO.get_roc_data_from_scores_file_v2(filename_scrs_pos, filename_scrs_neg,delim=' ')
+        tpr, fpr, auc = tools_IO.get_roc_data_from_scores_file_v2(filename_scrs_pos, filename_scrs_neg,delim='\t')
 
-
-        if(fig!=None):
-            th = self.get_th(filename_scrs_pos, filename_scrs_neg,delim=' ')
-            tools_IO.display_roc_curve_from_descriptions(plt.subplot(1, 3, 3), fig, filename_scrs_pos, filename_scrs_neg, delim=' ')
-            tools_IO.display_distributions(plt.subplot(1, 3, 2), fig, filename_scrs_pos, filename_scrs_neg, delim=' ')
-            tools_IO.plot_2D_scores(plt.subplot(1, 3, 1), fig, filename_data_pos, filename_data_neg, filename_data_grid, filename_scores_grid, th, noice_needed=1, caption=self.classifier.name + ' %1.2f' % auc)
-            plt.tight_layout()
-            plt.show()
+        fig = plt.figure(figsize=(12, 6))
+        fig.subplots_adjust(hspace=0.01)
+        tools_IO.display_roc_curve_from_descriptions(plt.subplot(1, 3, 3), fig, filename_scrs_pos, filename_scrs_neg, delim='\t')
+        tools_IO.display_distributions(plt.subplot(1, 3, 2), fig, filename_scrs_pos, filename_scrs_neg, delim='\t')
+        #tools_IO.plot_features_PCA(plt.subplot(1, 3, 1),numpy.vstack((x_pos, x_neg)).astype(numpy.float),numpy.hstack((numpy.full(Pos, 1), numpy.full(Neg, 0))),['pos','neg'])
+        plt.tight_layout()
+        plt.savefig(folder_out + 'fig_roc.png')
 
         return tpr, fpr, auc
 # ---------------------------------------------------------------------------------------------------------------------

@@ -59,6 +59,23 @@ def remove_folders(path):
             shutil.rmtree(path + f)
     return
 # ----------------------------------------------------------------------------------------------------------------------
+def get_filenames(path_input,list_of_masks):
+    local_filenames = []
+    for mask in list_of_masks.split(','):
+        local_filenames += fnmatch.filter(listdir(path_input), mask)
+
+    return local_filenames
+# ----------------------------------------------------------------------------------------------------------------------
+def get_next_folder_out(base_folder_out):
+    sub_folders = get_sub_folder_from_folder(base_folder_out)
+    if len(sub_folders) > 0:
+        sub_folders = numpy.array(sub_folders, dtype=numpy.int)
+        sub_folders = numpy.sort(sub_folders)
+        sub_folder_out = str(sub_folders[-1] + 1)
+    else:
+        sub_folder_out = '0'
+    return base_folder_out + sub_folder_out + '/'
+# ----------------------------------------------------------------------------------------------------------------------
 def save_flatarrays_as_images(path, cols, rows, array, labels=None, filenames=None, descriptions=None):
 
     if not os.path.exists(path):
@@ -559,7 +576,7 @@ def list_to_chararray(input_list):
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-def plot_tp_fp(plt,fig,tpr,fpr,roc_auc,caption=''):
+def plot_tp_fp(plt,fig,tpr,fpr,roc_auc,caption='',filename_out=None):
 
     #ax = fig.gca()
     #ax.set_xticks(numpy.arange(0, 1.1, 0.1))
@@ -574,7 +591,9 @@ def plot_tp_fp(plt,fig,tpr,fpr,roc_auc,caption=''):
     #plt.legend(loc="lower right")
     plt.grid(which='major', color='lightgray', linestyle='--')
     fig.canvas.set_window_title(caption + ('AUC = %0.4f' % roc_auc))
-    #plt.show()
+    if filename_out is not None:
+        plt.savefig(filename_out)
+    return
 # ----------------------------------------------------------------------------------------------------------------------
 def plot_multiple_tp_fp(tpr,fpr,roc_auc,desc,caption=''):
 
@@ -809,12 +828,13 @@ def plot_2D_scores_multi_Y(plt,X,Y,labels=None):
         plt.legend(handles=patches)
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def plot_2D_scores(plt,fig,filename_data_pos,filename_data_neg,filename_data_grid,filename_scores_grid,th,noice_needed=0,caption=''):
+def plot_2D_scores(plt,fig,filename_data_pos,filename_data_neg,filename_data_grid,filename_scores_grid,th,noice_needed=0,caption='',filename_out=None):
     if not os.path.isfile(filename_data_pos): return
     if not os.path.isfile(filename_data_neg): return
     if not os.path.isfile(filename_data_grid): return
 
-    data = load_mat(filename_scores_grid, dtype=numpy.chararray, delim='\t')[1:,:]
+    data = load_mat(filename_scores_grid, dtype=numpy.chararray, delim='\t')
+    data = data[1:,:]
     grid_scores = data[:, 1:].astype('float32')
 
     data = load_mat(filename_data_grid, dtype=numpy.chararray, delim='\t')
@@ -872,12 +892,13 @@ def plot_2D_scores(plt,fig,filename_data_pos,filename_data_neg,filename_data_gri
     plt.set_xticks(())
     plt.set_yticks(())
     #fig.subplots_adjust(hspace=0.001,wspace =0.001)
-
+    if filename_out is not None:
+        plt.savefig(filename_out)
 
     return
 
 # ----------------------------------------------------------------------------------------------------------------------
-def display_roc_curve_from_descriptions(plt,figure,filename_scores_pos, filename_scores_neg,delim=' ',caption='',inverse_score=0):
+def display_roc_curve_from_descriptions(plt,figure,filename_scores_pos, filename_scores_neg,delim=' ',caption='',inverse_score=0,filename_out=None):
 
     scores_pos = []
     scores_neg = []
@@ -940,13 +961,13 @@ def display_roc_curve_from_descriptions(plt,figure,filename_scores_pos, filename
 
 
     if(roc_auc>0.5):
-        plot_tp_fp(plt,figure,tpr, fpr,roc_auc,caption)
+        plot_tp_fp(plt,figure,tpr, fpr,roc_auc,caption,filename_out)
     else:
-        plot_tp_fp(plt, figure, fpr, tpr, 1-roc_auc,caption)
+        plot_tp_fp(plt, figure, fpr, tpr, 1-roc_auc,caption,filename_out)
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-def display_distributions(plt,fig,path_scores1, path_scores2,delim=' ',inverse_score=0):
+def display_distributions(plt,fig,path_scores1, path_scores2,delim=' ',inverse_score=0,filename_out=None):
     scores1 = []
     scores2 = []
 
@@ -1031,7 +1052,10 @@ def display_distributions(plt,fig,path_scores1, path_scores2,delim=' ',inverse_s
     plt.plot(freq1, color='red', lw=2)
     plt.plot(freq2, color='gray', lw=2)
 
-    #plt.show()
+    if filename_out is not None:
+        plt.savefig(filename_out)
+
+    return
 #----------------------------------------------------------------------------------------------------------------------
 def plot_learning_rates1(plt,fig,filename_mat):
     if not os.path.isfile(filename_mat):

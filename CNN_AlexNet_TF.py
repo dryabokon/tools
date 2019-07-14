@@ -10,8 +10,6 @@ import tools_IO
 import tools_image
 import tools_CNN_view
 # ----------------------------------------------------------------------------------------------------------------------
-net_data = numpy.load('../_weights/bvlc_alexnet.npy', encoding="latin1",allow_pickle=True).item()
-# ----------------------------------------------------------------------------------------------------------------------
 def conv(input, kernel, biases, k_h, k_w, c_o, s_h, s_w,  padding="VALID", group=1):
     c_i = input.get_shape()[-1]
     assert c_i % group == 0
@@ -28,7 +26,7 @@ def conv(input, kernel, biases, k_h, k_w, c_o, s_h, s_w,  padding="VALID", group
     return tf.reshape(tf.nn.bias_add(conv, biases), [-1] + conv.get_shape().as_list()[1:])
 # ----------------------------------------------------------------------------------------------------------------------
 class CNN_AlexNet_TF():
-    def __init__(self):
+    def __init__(self,filename_weights):
         self.name = 'CNN_AlexNet_TF'
         self.input_shape = (227, 227)
         self.nb_classes = 4096
@@ -36,13 +34,14 @@ class CNN_AlexNet_TF():
         self.input_placeholder = tf.image.resize_images(self.x, (227, 227))
 
         self.class_names = tools_CNN_view.class_names
-        self.build()
+        self.build(filename_weights)
+
 
         return
 
     # ----------------------------------------------------------------------------------------------------------------------
-    def build(self):
-
+    def build(self,filename_weights):
+        net_data = numpy.load(filename_weights, encoding="latin1", allow_pickle=True).item()
         self.conv1W = tf.Variable(net_data["conv1"][0])
         self.conv2W = tf.Variable(net_data["conv2"][0])
         self.conv3W = tf.Variable(net_data["conv3"][0])
@@ -78,7 +77,8 @@ class CNN_AlexNet_TF():
 
         return
 # ---------------------------------------------------------------------------------------------------------------------
-    def generate_features(self, path_input, path_output,limit=1000000,mask='*.png'):
+    def generate_features(self, path_input, path_output,limit=1000000,mask = '*.png,*.jpg'):
+
         init = tf.global_variables_initializer()
         sess = tf.Session()
         sess.run(init)
@@ -92,9 +92,9 @@ class CNN_AlexNet_TF():
 
         for each in patterns:
             print(each)
-            local_filenames = numpy.array(fnmatch.filter(listdir(path_input + each), mask))[:limit]
-            feature_filename = path_output + '/' + each + '.txt'
-            features,filenames = [],[]
+            local_filenames = tools_IO.get_filenames(path_input + each,mask)[:limit]
+            feature_filename = path_output + '/' + each + '_' + self.name + '.txt'
+            features, filenames = [], []
 
             if not os.path.isfile(feature_filename):
                 bar = progressbar.ProgressBar(max_value=len(local_filenames))
@@ -103,7 +103,10 @@ class CNN_AlexNet_TF():
                     image= cv2.imread(path_input + each + '/' + local_filename)
                     if image is None:continue
                     image = cv2.resize(image,(self.input_shape[0],self.input_shape[1]))
+
+
                     feature = sess.run(self.fc7, feed_dict={self.x: [image]})
+
                     features.append(feature[0])
                     filenames.append(local_filename)
 
