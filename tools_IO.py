@@ -472,10 +472,14 @@ def print_top_fails(labels_fact, labels_pred, patterns,filename = None):
 
 def split_annotation_file(folder_annotation,file_input,file_part1,file_part2, ratio=0.5,limit=1000000, min_height=0):
 
-
     with open(file_input) as f: lines = f.readlines()
     header = lines[0]
-    lines  = lines[1: limit]
+    lines = lines[1:]
+
+    if limit<len(lines):
+        idx = numpy.random.choice(len(lines),limit)
+        lines = numpy.array(lines)[idx]
+
     part1, part2 = [],[]
     part1.append(header.split('\n')[0])
     part2.append(header.split('\n')[0])

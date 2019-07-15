@@ -513,9 +513,10 @@ class detector_YOLO3(object):
         store_bottlenecks1 = tools_HDF5.HDF5_store(filename=folder_in+'bottlenecks_1.hdf5')
 
         use_generator = True
-        if store_target0.size <= 1000:use_generator = False
+        if store_target0.size <= 1000:
+            use_generator = False
 
-        if use_generator:
+        if use_generator==False:
             bottlenecks = [store_bottlenecks0.get(),store_bottlenecks1.get()]
             targets = [store_target0.get(),store_target1.get()]
             if len(self.anchor_mask) > 2:
@@ -529,7 +530,7 @@ class detector_YOLO3(object):
             print('Learn fit_generator ...')
             generator_train = self.data_generator([store_bottlenecks0, store_bottlenecks1],[store_target0, store_target1], validation_split=0.3,batch_size=32,is_train=True)
             generator_val   = self.data_generator([store_bottlenecks0, store_bottlenecks1],[store_target0, store_target1], validation_split=0.3,batch_size=32,is_train=False)
-            model_loss.fit_generator(generator_train,validation_data=generator_val, epochs=n_epochs,steps_per_epoch=8,validation_steps=1,verbose=2,callbacks=[early_stopping_monitor])
+            model_loss.fit_generator(generator_train,validation_data=generator_val, epochs=n_epochs,steps_per_epoch=store_target0.size//32,validation_steps=1,verbose=2,callbacks=[early_stopping_monitor])
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
