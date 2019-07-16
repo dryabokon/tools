@@ -15,7 +15,7 @@ import tools_CNN_view
 # --------------------------------------------------------------------------------------------------------------------
 class CNN_App_Keras(object):
     def __init__(self):
-        self.name = 'CNN_App_Keras'
+        self.name = 'CNN_App_Keras_MobileNet'
         self.input_shape = (224,224)
         #self.model = Xception()
         self.model = MobileNet()
@@ -36,8 +36,8 @@ class CNN_App_Keras(object):
 
         for each in patterns:
             print(each)
-            local_filenames = numpy.array(fnmatch.filter(listdir(path_input + each), mask))[:limit]
-            feature_filename = path_output + each + '.txt'
+            local_filenames = tools_IO.get_filenames(path_input + each, mask)[:limit]
+            feature_filename = path_output + '/' + each + '_'+ self.name +'.txt'
             features,filenames = [],[]
 
 
