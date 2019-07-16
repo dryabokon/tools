@@ -1,17 +1,21 @@
 import numpy
 import cv2
-import dlib
 import tools_image
+import dlib
 # --------------------------------------------------------------------------------------------------------------------
 class detector_landmarks(object):
-    def __init__(self,H=1080,W=1920,mode='dlib'):
+    def __init__(self,filename_config,H=1080,W=1920,mode='dlib'):
+        #filename_config = './data/haarcascade_eye.xml'
+        #filename_config ='./data/shape_predictor_68_face_landmarks.dat'
         self.W=W
         self.H=H
         self.mode = mode
         self.name = "landmark_detector"
-        self.the_cascade = cv2.CascadeClassifier('./data/haarcascade_eye.xml')
-        self.detector = dlib.get_frontal_face_detector()
-        self.predictor = dlib.shape_predictor('./data/shape_predictor_68_face_landmarks.dat')
+        if mode == 'dlib':
+            self.detector = dlib.get_frontal_face_detector()
+            self.predictor = dlib.shape_predictor(filename_config)
+        else:
+            self.the_cascade = cv2.CascadeClassifier(filename_config)
 
 # --------------------------------------------------------------------------------------------------------------------
     def detect_face(self,image):
@@ -73,8 +77,22 @@ class detector_landmarks(object):
 
         return image
 # ----------------------------------------------------------------------------------------------------------------------
+    def draw_landmarks(self,image):
+
+        gray = tools_image.desaturate(image)
+        objects = self.detector(gray)
+
+        if len(objects) == 1:
+            landmarks = self.predictor(gray, objects[0])
+            for n in range(0, 68):
+                x = landmarks.part(n).x
+                y= landmarks.part(n).y
+                cv2.circle(gray,(x,y),5,(0,0,255),-1)
+
+        return gray
+# ----------------------------------------------------------------------------------------------------------------------
     def get_landmarks(self,image):
-        res = numpy.zeros(68 * 2, dtype=numpy.float)
+        res = numpy.zeros( (68,2), dtype=numpy.float)
         if image is None:
             return res
         gray = tools_image.desaturate(image)
@@ -84,8 +102,7 @@ class detector_landmarks(object):
             landmarks = self.predictor(gray, objects[0])
             res=[]
             for n in range(0, 68):
-                res.append(landmarks.part(n).x/self.W)
-                res.append(landmarks.part(n).y/self.H)
+                res.append([landmarks.part(n).x, landmarks.part(n).y])
             res = numpy.array(res)
 
         return res

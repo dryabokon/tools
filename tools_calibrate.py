@@ -216,8 +216,8 @@ def get_homography_by_keypoints_desc(points_source,des_source, points_destin,des
 # ---------------------------------------------------------------------------------------------------------------------
 def get_transform_by_keypoints(src,dst):
 
-    #M,_ = cv2.estimateAffine2D(src, dst,confidence=0.95)
-    M, _ = cv2.estimateAffinePartial2D(src, dst)
+    M,_ = cv2.estimateAffine2D(src, dst,confidence=0.95)
+    #M, _ = cv2.estimateAffinePartial2D(src, dst)
 
     return M
 #----------------------------------------------------------------------------------------------------------------------

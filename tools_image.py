@@ -252,53 +252,53 @@ def shift_image(image,dv,dh):
 
     return res2
 # ----------------------------------------------------------------------------------------------------------------------
+def GaussianPyramid(img, leveln):
+    GP = [img]
+    for i in range(leveln - 1):
+        GP.append(cv2.pyrDown(GP[i]))
+    return GP
+# --------------------------------------------------------------------------------------------------------------------------
+def LaplacianPyramid(img, leveln):
+    LP = []
+    for i in range(leveln - 1):
+        next_img = cv2.pyrDown(img)
+        size = img.shape[1::-1]
+
+        temp_image = cv2.pyrUp(next_img, dstsize=img.shape[1::-1])
+        LP.append(img - temp_image)
+        img = next_img
+    LP.append(img)
+    return LP
+# --------------------------------------------------------------------------------------------------------------------------
+def blend_pyramid(LPA, LPB, MP):
+    blended = []
+    for i, M in enumerate(MP):
+        blended.append(LPA[i] * M + LPB[i] * (1.0 - M))
+    return blended
+
+# --------------------------------------------------------------------------------------------------------------------------
+def reconstruct_from_pyramid(LS):
+    img = LS[-1]
+    for lev_img in LS[-2::-1]:
+        img = cv2.pyrUp(img, dstsize=lev_img.shape[1::-1])
+        img += lev_img
+    return img
+    # --------------------------------------------------------------------------------------------------------------------------
+def get_borders(image, bg=(255, 255, 255)):
+
+    if (bg == (255, 255, 255)):
+        prj = numpy.min(image, axis=0)
+    else:
+        prj = numpy.max(image, axis=0)
+
+    flg = (prj == bg)[:, 0]
+
+    l = numpy.argmax(flg == False)
+    r = numpy.argmin(flg == False)
+    return l, r, 0, 0
+# --------------------------------------------------------------------------------------------------------------------------
 def blend_multi_band(left, rght, background_color=(255, 255, 255)):
-    def GaussianPyramid(img, leveln):
-        GP = [img]
-        for i in range(leveln - 1):
-            GP.append(cv2.pyrDown(GP[i]))
-        return GP
-    # --------------------------------------------------------------------------------------------------------------------------
-    def LaplacianPyramid(img, leveln):
-        LP = []
-        for i in range(leveln - 1):
-            next_img = cv2.pyrDown(img)
-            size = img.shape[1::-1]
 
-            temp_image = cv2.pyrUp(next_img, dstsize=img.shape[1::-1])
-            LP.append(img - temp_image)
-            img = next_img
-        LP.append(img)
-        return LP
-    # --------------------------------------------------------------------------------------------------------------------------
-    def blend_pyramid(LPA, LPB, MP):
-        blended = []
-        for i, M in enumerate(MP):
-            blended.append(LPA[i] * M + LPB[i] * (1.0 - M))
-        return blended
-
-    # --------------------------------------------------------------------------------------------------------------------------
-    def reconstruct_from_pyramid(LS):
-        img = LS[-1]
-        for lev_img in LS[-2::-1]:
-            img = cv2.pyrUp(img, dstsize=lev_img.shape[1::-1])
-            img += lev_img
-        return img
-
-    # --------------------------------------------------------------------------------------------------------------------------
-    def get_borders(image, bg=(255, 255, 255)):
-
-        if (bg == (255, 255, 255)):
-            prj = numpy.min(image, axis=0)
-        else:
-            prj = numpy.max(image, axis=0)
-
-        flg = (prj == bg)[:, 0]
-
-        l = numpy.argmax(flg == False)
-        r = numpy.argmin(flg == False)
-        return l, r, 0, 0
-    # --------------------------------------------------------------------------------------------------------------------------
     left_l, left_r, left_t, left_b = get_borders(left, background_color)
     rght_l, rght_r, rght_t, rght_b = get_borders(rght, background_color)
     border = int((left_r+rght_l)/2)
@@ -311,6 +311,27 @@ def blend_multi_band(left, rght, background_color=(255, 255, 255)):
     MP = GaussianPyramid(mask, leveln)
     LPA = LaplacianPyramid(numpy.array(left).astype('float'), leveln)
     LPB = LaplacianPyramid(numpy.array(rght).astype('float'), leveln)
+    blended = blend_pyramid(LPA, LPB, MP)
+
+    result = reconstruct_from_pyramid(blended)
+    result[result > 255] = 255
+    result[result < 0] = 0
+    return result
+#----------------------------------------------------------------------------------------------------------------------
+def blend_multi_band_large_small(large, small, background_color=(255, 255, 255)):
+
+    mask = numpy.zeros(large.shape)
+    mask[numpy.where(small==background_color)] = 1
+    #large[numpy.where(small != background_color)] = 0
+    #mask = 1- mask
+
+    cv2.imwrite('./images/output/mask.jpg', mask*255)
+
+    leveln = int(numpy.floor(numpy.log2(min(large.shape[0], large.shape[1]))))
+
+    MP = GaussianPyramid(mask, leveln)
+    LPA = LaplacianPyramid(numpy.array(large).astype('float'), leveln)
+    LPB = LaplacianPyramid(numpy.array(small).astype('float'), leveln)
     blended = blend_pyramid(LPA, LPB, MP)
 
     result = reconstruct_from_pyramid(blended)
