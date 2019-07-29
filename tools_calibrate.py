@@ -148,6 +148,34 @@ def get_stitched_images_using_homography(img1, img2, M,background_color=(255, 25
 
     return result_img_1, result_img_2
 # ---------------------------------------------------------------------------------------------------------------------
+def homography_coordinates(img1, img2, M,coord1, coord2):
+
+    w1, h1 = img1.shape[:2]
+    w2, h2 = img2.shape[:2]
+
+    img2_dims      = numpy.float32([[0, 0], [0, w2], [h2, w2], [h2, 0]]).reshape(-1, 1, 2)
+    img1_dims_temp = numpy.float32([[0, 0], [0, w1], [h1, w1], [h1, 0]]).reshape(-1, 1, 2)
+    img1_dims = cv2.perspectiveTransform(img1_dims_temp, M)  # Get relative perspective of second image
+    result_dims = numpy.concatenate((img1_dims, img2_dims), axis=0)  # Resulting dimensions
+
+    [x_min, y_min] = numpy.int32(result_dims.min(axis=0).ravel() - 0.5)
+    [x_max, y_max] = numpy.int32(result_dims.max(axis=0).ravel() + 0.5)
+
+    transform_dist = [-x_min, -y_min]
+    transform_array = numpy.array([[1, 0, transform_dist[0]], [0, 1, transform_dist[1]], [0, 0, 1]])
+
+    H = transform_array.dot(M)
+
+    x = (H[0, 0] * coord1[:, 0] + H[0, 1] * coord1[:, 1] + H[0, 2] * 1)/(H[2, 0] * coord1[:, 0] + H[2, 1] * coord1[:, 1] + H[2, 2] * 1)
+    y = (H[1, 0] * coord1[:, 0] + H[1, 1] * coord1[:, 1] + H[1, 2] * 1)/(H[2, 0] * coord1[:, 0] + H[2, 1] * coord1[:, 1] + H[2, 2] * 1)
+    res1 = numpy.vstack((x,y)).T
+    res1 = res1.astype(int)
+
+    res2 = coord2
+    res2 += transform_dist
+
+    return res1, res2
+# ---------------------------------------------------------------------------------------------------------------------
 def get_stitched_images_using_translation(img1, img2, translation,background_color=(255, 255, 255),borderMode=cv2.BORDER_CONSTANT,keep_shape=False):
     #cv2.BORDER_CONSTANT
     #cv2.BORDER_REPLICATE
@@ -183,11 +211,41 @@ def get_stitched_images_using_translation(img1, img2, translation,background_col
         if borderMode == cv2.BORDER_REPLICATE:
             result_img2 = tools_image.fill_border(result_img2,transform_dist[1],transform_dist[0],w2+transform_dist[1],h2 + transform_dist[0])
     else:
-        result_img2 = result_img2[transform_dist[1]:transform_dist[1] + img1.shape[0],transform_dist[0]:transform_dist[0] + img1.shape[1]]
-        result_img1 = result_img1[transform_dist[1]:transform_dist[1] + img1.shape[0],transform_dist[0]:transform_dist[0] + img1.shape[1]]
+        result_img2 = result_img2[transform_dist[1]:transform_dist[1] + img2.shape[0],transform_dist[0]:transform_dist[0] + img2.shape[1]]
+        result_img1 = result_img1[transform_dist[1]:transform_dist[1] + img2.shape[0],transform_dist[0]:transform_dist[0] + img2.shape[1]]
 
     return result_img1, result_img2
 # --------------------------------------------------------------------------------------------------------------------------
+def translate_coordinates(img1, img2, translation, coord1, coord2):
+    M = translation.copy()
+
+    w1, h1 = img1.shape[:2]
+    w2, h2 = img2.shape[:2]
+
+    img2_dims = numpy.float32([[0, 0], [0, w2], [h2, w2], [h2, 0]]).reshape(-1, 1, 2)
+    img1_dims_temp = numpy.float32([[0, 0], [0, w1], [h1, w1], [h1, 0]]).reshape(-1, 1, 2)
+
+    img1_dims = cv2.transform(img1_dims_temp, M)  # Get relative perspective of second image
+    result_dims = numpy.concatenate((img1_dims, img2_dims), axis=0)  # Resulting dimensions
+
+    [x_min, y_min] = numpy.int32(result_dims.min(axis=0).ravel() - 0.5)
+    [x_max, y_max] = numpy.int32(result_dims.max(axis=0).ravel() + 0.5)
+
+    transform_dist = [-x_min, -y_min]
+
+    M[0, 2] += -x_min
+    M[1, 2] += -y_min
+
+    x = M[0,0]*coord1[:, 0] + M[0, 1] * coord1[:, 1] + M[0, 2] * 1
+    y = M[1,0]*coord1[:,0]+M[1,1]*coord1[:,1]+M[1,2]*1
+    res1 = numpy.vstack((x,y)).T
+    res1 = res1.astype(int)
+    res1-= transform_dist
+    res2 = coord2
+
+
+    return res1, res2.astype(int)
+# ---------------------------------------------------------------------------------------------------------------------
 def get_transform_by_keypoints_desc(points_source,des_source, points_destin,des_destin,matchtype='knn'):
 
     M = None

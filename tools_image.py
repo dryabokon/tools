@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import os
 import math
 import ctypes
+from scipy import ndimage
 #from PIL import ImageGrab
 #--------------------------------------------------------------------------------------------------------------------------
 import tools_IO
@@ -318,26 +319,39 @@ def blend_multi_band(left, rght, background_color=(255, 255, 255)):
     result[result < 0] = 0
     return result
 #----------------------------------------------------------------------------------------------------------------------
-def blend_multi_band_large_small(large, small, background_color=(255, 255, 255)):
+def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),do_color_balance=True):
 
     mask = numpy.zeros(large.shape)
     mask[numpy.where(small==background_color)] = 1
-    #large[numpy.where(small != background_color)] = 0
-    #mask = 1- mask
+    K = numpy.ones((50, 50))
+    mask = ndimage.convolve(mask[:,:,0], K, mode='nearest')/(K.shape[0]*K.shape[1])
 
-    cv2.imwrite('./images/output/mask.jpg', mask*255)
+    th = 0.4
+    mask[mask>th]=1
+    mask[mask <= th] = mask[mask <= th]*2
 
-    leveln = int(numpy.floor(numpy.log2(min(large.shape[0], large.shape[1]))))
+    if do_color_balance:
+        small = small.astype(numpy.float)
+        idx = numpy.where(mask[:,:]<0.5)
+        for c in range(3):
+            scale = numpy.average(small[:,:,c][idx])/ numpy.average(large[:,:,c][idx])
+            small[:,:,c]=small[:,:,c]/scale
 
-    MP = GaussianPyramid(mask, leveln)
+    small = numpy.clip(small,0,255).astype(numpy.uint8)
+
+    mask3d = numpy.zeros((mask.shape[0],mask.shape[1],3))
+    mask3d[:,:,0] = mask
+    mask3d[:, :, 1] = mask
+    mask3d[:, :, 2] = mask
+
+    leveln = 5#int(numpy.floor(numpy.log2(min(large.shape[0], large.shape[1]))))
+    MP = GaussianPyramid(mask3d, leveln)
     LPA = LaplacianPyramid(numpy.array(large).astype('float'), leveln)
     LPB = LaplacianPyramid(numpy.array(small).astype('float'), leveln)
     blended = blend_pyramid(LPA, LPB, MP)
-
     result = reconstruct_from_pyramid(blended)
-    result[result > 255] = 255
-    result[result < 0] = 0
-    return result
+    result = numpy.clip(result, 0, 255)
+    return result.astype(numpy.uint8)
 #----------------------------------------------------------------------------------------------------------------------
 def blend_avg(img1, img2,background_color=(255,255,255),weight=0.5):
 

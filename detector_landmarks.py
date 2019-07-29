@@ -2,6 +2,8 @@ import numpy
 import cv2
 import tools_image
 import dlib
+import tools_draw_numpy
+from scipy.spatial import Delaunay
 # --------------------------------------------------------------------------------------------------------------------
 class detector_landmarks(object):
     def __init__(self,filename_config,H=1080,W=1920,mode='dlib'):
@@ -80,14 +82,23 @@ class detector_landmarks(object):
     def draw_landmarks(self,image):
 
         gray = tools_image.desaturate(image)
-        objects = self.detector(gray)
+        landmarks = self.get_landmarks(image)
 
-        if len(objects) == 1:
-            landmarks = self.predictor(gray, objects[0])
-            for n in range(0, 68):
-                x = landmarks.part(n).x
-                y= landmarks.part(n).y
-                cv2.circle(gray,(x,y),5,(0,0,255),-1)
+        del_triangles = Delaunay(landmarks).vertices
+        for landmark in landmarks:
+            #cv2.circle(gray,(landmark[0],landmark[1]),5,(0,128,255),-1)
+            gray=tools_draw_numpy.draw_circle(gray, landmark[1],landmark[0], 3, (0,128,255),alpha_transp=0.7)
+
+        for t in del_triangles:
+            p0 = (landmarks[t[0],0], landmarks[t[0],1])
+            p1 = (landmarks[t[1],0], landmarks[t[1],1])
+            p2 = (landmarks[t[2],0], landmarks[t[2],1])
+            #cv2.line(gray,p0,p1,(0,0,255))
+            #cv2.line(gray,p0,p2,(0, 0, 255))
+            #cv2.line(gray,p2,p1,(0, 0, 255))
+            gray = tools_draw_numpy.draw_line(gray, p0[1], p0[0], p1[1], p1[0], (0, 0, 255), alpha_transp=0.7)
+            gray = tools_draw_numpy.draw_line(gray, p0[1], p0[0], p2[1], p2[0], (0, 0, 255), alpha_transp=0.7)
+            gray = tools_draw_numpy.draw_line(gray, p2[1], p2[0], p1[1], p1[0], (0, 0, 255), alpha_transp=0.7)
 
         return gray
 # ----------------------------------------------------------------------------------------------------------------------
