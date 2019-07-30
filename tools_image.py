@@ -83,6 +83,58 @@ def canvas_extrapolate(img,new_height,new_width):
 
     return newimage
 # ---------------------------------------------------------------------------------------------------------------------
+def de_vignette(img):
+    newimage = img.copy()
+    newimage = newimage.astype(numpy.float32)
+    row, cols = img.shape[0],img.shape[1]
+
+    a = cv2.getGaussianKernel(cols, 500)
+    b = cv2.getGaussianKernel(row, 500)
+    c = b * a.T
+    d = c / c.max()
+
+    newimage[:, :, 0] = img[:, :, 0] / d
+    newimage[:, :, 1] = img[:, :, 1] / d
+    newimage[:, :, 2] = img[:, :, 2] / d
+
+    newimage = numpy.clip(newimage,0,255)
+    return newimage.astype(img.dtype)
+# ---------------------------------------------------------------------------------------------------------------------
+def fade_header(img,color,top):
+    newimage = img.copy()
+    for row in range(top):
+        alpha = row/top
+        for col in range(img.shape[1]):
+            newimage[row, col, 0] = newimage[row, col, 0] * alpha + (1 - alpha) * color[0]
+            newimage[row, col, 1] = newimage[row, col, 1] * alpha + (1 - alpha) * color[1]
+            newimage[row, col, 2] = newimage[row, col, 2] * alpha + (1 - alpha) * color[2]
+
+    return newimage
+# ---------------------------------------------------------------------------------------------------------------------
+def fade_left_right(img,left,right):
+    newimage = img.copy()
+
+    K = numpy.ones((15, 50), numpy.float32)
+    K/= K.shape[0]*K.shape[1]
+    avg = cv2.filter2D(img, -1, K)
+
+    for col in range(right, img.shape[1]):
+        alpha = (img.shape[1]-1-col)/(img.shape[1]-1-right)
+        for row in range(img.shape[0]):
+            newimage[row, col, 0] = newimage[row, col, 0] * alpha + (1 - alpha) * avg[row,img.shape[1]-1,0]
+            newimage[row, col, 1] = newimage[row, col, 1] * alpha + (1 - alpha) * avg[row,img.shape[1]-1,1]
+            newimage[row, col, 2] = newimage[row, col, 2] * alpha + (1 - alpha) * avg[row,img.shape[1]-1,2]
+
+    for col in range(0,left):
+        alpha = col/left
+        for row in range(img.shape[0]):
+            newimage[row, col, 0] = newimage[row, col, 0] * alpha + (1 - alpha) * avg[row,0,0]
+            newimage[row, col, 1] = newimage[row, col, 1] * alpha + (1 - alpha) * avg[row,0,1]
+            newimage[row, col, 2] = newimage[row, col, 2] * alpha + (1 - alpha) * avg[row,0,2]
+
+
+    return newimage
+# ---------------------------------------------------------------------------------------------------------------------
 def crop_image(img, top, left, bottom, right,extrapolate_border=False):
 
     if top >=0 and left >= 0 and bottom <= img.shape[0] and right <= img.shape[1]:

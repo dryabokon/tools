@@ -114,7 +114,7 @@ def transferface_first_to_second_manual(filename_image_first, filename_image_sec
 # ---------------------------------------------------------------------------------------------------------------------
 def transferface_first_to_second(D,filename_image_first, filename_image_second,folder_out=None):
 
-    do_debug = True
+    do_debug = False
     swap = False
 
     if do_debug and folder_out is not None:
