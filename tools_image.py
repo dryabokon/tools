@@ -233,8 +233,9 @@ def desaturate(image,level=1.0):
 
     return result
 #--------------------------------------------------------------------------------------------------------------------------
-def hitmap2d_to_jet(hitmap_2d):
-    colormap = cv2.COLORMAP_JET
+def hitmap2d_to_jet(hitmap_2d,colormap=None):
+    if colormap is None:
+        colormap = cv2.COLORMAP_JET
     hitmap_RGB_jet = cv2.applyColorMap(hitmap_2d.astype(numpy.uint8), colormap)
     return hitmap_RGB_jet
 # ----------------------------------------------------------------------------------------------------------------------

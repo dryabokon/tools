@@ -1,6 +1,7 @@
 import cv2
 import time
 import tools_IO
+from pytube import YouTube
 #--------------------------------------------------------------------------------------------------------------------------
 def capture_image_to_disk(out_filename):
 
@@ -93,5 +94,17 @@ def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_se
         if current_time > 1000*end_time_sec: success = False
         count += 1
 
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+def grab_youtube_video(URL,filename):
+    yt = YouTube(URL)
+    streams = yt.streams.all()
+    stream = streams[0]
+
+
+    #yt.streams.filter(file_extension='mp4').all()
+
+    #stream = yt.streams.get_by_itag('22')()
+    stream.download('xxx.mp4')
     return
 # ----------------------------------------------------------------------------------------------------------------------
