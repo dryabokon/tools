@@ -470,7 +470,7 @@ def print_top_fails(labels_fact, labels_pred, patterns,filename = None):
     return
 # ----------------------------------------------------------------------------------------------------------------------
 
-def split_annotation_file(folder_annotation,file_input,file_part1,file_part2, ratio=0.5,limit=1000000, min_height=0):
+def split_annotation_file(folder_annotation,file_input,file_part1,file_part2, ratio=0.5,limit=1000000):
 
     with open(file_input) as f: lines = f.readlines()
     header = lines[0]
@@ -480,6 +480,8 @@ def split_annotation_file(folder_annotation,file_input,file_part1,file_part2, ra
         idx = numpy.random.choice(len(lines),limit)
         lines = numpy.array(lines)[idx]
 
+
+
     part1, part2 = [],[]
     part1.append(header.split('\n')[0])
     part2.append(header.split('\n')[0])
@@ -488,14 +490,15 @@ def split_annotation_file(folder_annotation,file_input,file_part1,file_part2, ra
         each = each.split('\n')[0]
         split = each.split(' ')
         if not os.path.isfile(folder_annotation + split[0]):continue
+
         image = Image.open(folder_annotation + split[0])
-        if image is None:
-            continue
+        if image is None:continue
+
         width, height = image.size
         x_min, y_min, x_max, y_max = numpy.array(split[1:5]).astype(numpy.float)
         x_min, y_min = tools_image.smart_resize_point(x_min, y_min, width, height, 416,416)
         x_max, y_max = tools_image.smart_resize_point(x_max, y_max, width, height, 416,416)
-        if y_max-y_min<=min_height:continue
+
 
         if (random.random() > ratio):
             part1.append(each)

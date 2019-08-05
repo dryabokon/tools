@@ -213,7 +213,7 @@ class detector_YOLO3(object):
             store2 = tools_HDF5.HDF5_store(filename=folder_out + 'bottlenecks_2.hdf5',object_shape=bottlenecks[2][0].shape, dtype=numpy.float32)
 
         bar = progressbar.ProgressBar(max_value=len(filenames_list))
-        print('Saving bottleneck features\n')
+        print('\nSaving bottleneck features\n')
         for b,filename in enumerate(filenames_list):
             if not os.path.isfile(filename): continue
             image = cv2.imread(filename)
@@ -547,6 +547,9 @@ class detector_YOLO3(object):
         true_boxes = tools_YOLO.get_true_boxes(foldername, file_annotations, (416, 416), delim =' ', limit=limit)
         detector_YOLO3_core.save_targets(folder_out, true_boxes, (416, 416), self.anchors, self.anchor_mask, len(self.class_names))
 
+
+
+
         if len(true_boxes)>6:
             self.anchors = tools_YOLO.annotation_boxes_to_ancors(true_boxes,len(self.anchors))
             self.boxes, self.scores, self.classes = detector_YOLO3_core.get_tensors_box_score_class(self.model.output,
@@ -557,14 +560,22 @@ class detector_YOLO3(object):
                                                                                                     score_threshold=self.obj_threshold,
                                                                                                     iou_threshold=self.nms_threshold)
 
+        
         if len(self.anchor_mask) > 2:
             dict_last_layers, dict_bottlenects = self.__last_full_layers4()
         else:
             dict_last_layers, dict_bottlenects = self.__last_tiny_layers4()
 
         placeholder_btlncs,last_layers_outs = self.construct_last_layers_placeholders(len(self.model.layers), dict_last_layers, dict_bottlenects)
+
+
+
+
+        
+        
         self.save_bottleneck_features(folder_out,list_filenames, dict_bottlenects)
 
+        
         model_last_layers = Model(inputs=[*placeholder_btlncs], outputs=[*last_layers_outs])
         self.__fit_loss_model_gen(model_last_layers, placeholder_btlncs,folder_out)
         total_time = (time.time() - start_time)
@@ -576,6 +587,7 @@ class detector_YOLO3(object):
         self.save_model(folder_out + 'A_model.h5')
         tools_YOLO.save_metadata(folder_out + 'A_metadata.txt', self.input_image_size, self.class_names, self.anchors, self.anchor_mask, self.obj_threshold, self.nms_threshold)
         self.__load_model(folder_out + 'A_model.h5', folder_out + 'A_metadata.txt', self.obj_threshold)
+
         return 0
 # ----------------------------------------------------------------------------------------------------------------------
 

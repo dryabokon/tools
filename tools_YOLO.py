@@ -2,6 +2,7 @@
 import numpy
 import cv2
 import os
+import time
 import progressbar
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_draw_numpy
@@ -76,12 +77,14 @@ def draw_objects_on_image(image, boxes_bound, scores, classes, colors, class_nam
 # ----------------------------------------------------------------------------------------------------------------------
 def get_true_boxes(foldername, filename, smart_resized_target=None, delim=' ',limit=1000000):
 
+
+
     with open(filename) as f:lines = f.readlines()[1:limit]
     filenames_dict = sorted(set([line.split(' ')[0] for line in lines]))
 
     true_boxes = []
 
-    print('Get true boxes\n')
+    print('\nGet %d true boxes\n' % len(filenames_dict))
     bar = progressbar.ProgressBar(max_value=len(filenames_dict))
 
     for b,filename in enumerate(filenames_dict):
@@ -248,7 +251,7 @@ def get_markup(filename_in,boxes_yxyx,scores,classes):
 
     markup = []
     for i, each in enumerate(scores):
-        markup.append([filename_in.split('/')[-1], int(boxes_yxyx[i][1]), int(boxes_yxyx[i][0]), int(boxes_yxyx[i][3]),int(boxes_yxyx[i][2]), classes[i], scores[i]])
+        markup.append([filename_in, int(boxes_yxyx[i][1]), int(boxes_yxyx[i][0]), int(boxes_yxyx[i][3]),int(boxes_yxyx[i][2]), classes[i], scores[i]])
     return markup
 # ----------------------------------------------------------------------------------------------------------------------
 def XML_indent(elem, level=0):

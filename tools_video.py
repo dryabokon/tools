@@ -96,7 +96,7 @@ def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_se
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def grab_youtube_video(URL,filename):
+def grab_youtube_video(URL,out_path, out_filename):
     yt = YouTube(URL)
     streams = yt.streams.all()
     stream = streams[0]
@@ -105,6 +105,6 @@ def grab_youtube_video(URL,filename):
     #yt.streams.filter(file_extension='mp4').all()
 
     #stream = yt.streams.get_by_itag('22')()
-    stream.download('xxx.mp4')
+    stream.download(out_path,out_filename)
     return
 # ----------------------------------------------------------------------------------------------------------------------
