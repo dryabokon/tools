@@ -1,7 +1,14 @@
 import numpy
 from skimage.draw import circle, line_aa
-
-
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_ellipse(array_bgr, row, col, r_radius, c_radius, color_brg, alpha_transp=0):
+    color_brg = numpy.array(color_brg)
+    res_rgb = array_bgr.copy()
+    if alpha_transp > 0:
+        res_rgb[ellipse(int(row), int(col), int(r_radius),int(c_radius), shape=array_bgr.shape)] = array_bgr[ellipse(int(row), int(col), int(r_radius),int(c_radius), shape=array_bgr.shape)] * alpha_transp + color_brg * (1 - alpha_transp)
+    else:
+        res_rgb[ellipse(int(row), int(col), int(r_radius),int(c_radius), shape=array_bgr.shape)] = color_brg
+    return res_rgb
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_circle(array_bgr, row, col, rad, color_brg, alpha_transp=0):
     color_brg = numpy.array(color_brg)
