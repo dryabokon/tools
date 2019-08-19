@@ -1,5 +1,6 @@
 import os
 import numpy
+import math
 import matplotlib.pyplot as plt
 from sklearn import metrics
 from sklearn.preprocessing import normalize
@@ -74,15 +75,19 @@ class tools_ML(object):
 
         return (X, Y, all_filenames)
 # ---------------------------------------------------------------------------------------------------------------------
-    def score_feature_file(self, file_test, filename_scrs=None, delimeter='\t', append=0, rand_sel=[]):
+    def score_feature_file(self, file_test, filename_scrs=None, delimeter='\t', append=0, rand_sel=[],has_header=True,has_labels_first_col=False):
 
         if not os.path.isfile(file_test):return
 
         data_test = tools_IO.load_mat(file_test, numpy.chararray, delimeter)
-        data_test = data_test[:, :]
+        if has_header:
+            data_test = data_test[1:, :]
 
-        labels_test = (data_test[:, 0]).astype(numpy.str)
-        data_test = data_test[:, 1:]
+        if has_labels_first_col:
+            data_test = data_test[:, 1:]
+            labels_test = (data_test[:, 0]).astype(numpy.str)
+        else:
+            labels_test = numpy.full(data_test.shape[0],'0',dtype=numpy.chararray)
 
         if data_test[0, -1] == b'':
             data_test = data_test[:, :-1]
@@ -110,15 +115,21 @@ class tools_ML(object):
 
         return (labels_train_pred, labels_train_prob, challangers_train,challangers_train_prob,labels_test_pred, labels_test_prob, challangers_test,challangers_test_prob)
 # ---------------------------------------------------------------------------------------------------------------------
-    def learn_on_pos_neg_files(self, file_train_pos, file_train_neg, delimeter='\t', rand_pos=None, rand_neg=None):
+    def learn_on_pos_neg_files(self, file_train_pos, file_train_neg, delimeter='\t', rand_pos=None, rand_neg=None,has_header=True,has_labels_first_col=False):
 
         X_train_pos = (tools_IO.load_mat(file_train_pos, numpy.chararray, delimeter)).astype(numpy.str)
         X_train_neg = (tools_IO.load_mat(file_train_neg, numpy.chararray, delimeter)).astype(numpy.str)
 
-        X_train_pos = (X_train_pos[:, 1:])
+        if has_header:
+            X_train_pos = X_train_pos[1:, :]
+            X_train_neg = X_train_neg[1:, :]
+
+        if has_labels_first_col:
+            X_train_pos = X_train_pos[:, 1:]
+            X_train_neg = X_train_neg[:, 1:]
 
         X_train_pos = X_train_pos.astype('float32')
-        X_train_neg = X_train_neg[:, 1:].astype('float32')
+        X_train_neg = X_train_neg.astype('float32')
 
         if rand_pos != []:
             X_train_pos = X_train_pos[rand_pos]
@@ -317,15 +328,40 @@ class tools_ML(object):
         return tpr, fpr, auc
 
 # ---------------------------------------------------------------------------------------------------------------------
-    def E2E_features_2_classes_multi_dim(self, folder_out, filename_data_pos, filename_data_neg):
+    def check_corr(self,X,Y,header):
+        N = X.shape[1]
+        C = numpy.zeros(N)
+        for i in range(N):C[i] = math.fabs(numpy.corrcoef(X[:, i], Y)[0,1])
+        idx = numpy.argsort(-C)
 
-        #tools_IO.remove_files(folder_out)
+        H = numpy.array(header,dtype=numpy.str)
+
+        for i in range(N):
+            print('%1.2f %s'%(C[idx[i]],str(H[idx[i]])))
+        return
+# ---------------------------------------------------------------------------------------------------------------------
+    def E2E_features_2_classes_multi_dim(self, folder_out, filename_data_pos, filename_data_neg,has_header=True,has_labels_first_col=True):
+
+        tools_IO.remove_files(folder_out)
 
         filename_scrs_pos = folder_out + 'scores_pos_'+ self.classifier.name + '.txt'
         filename_scrs_neg = folder_out + 'scores_neg_'+ self.classifier.name + '.txt'
 
-        x_pos = tools_IO.load_mat(filename_data_pos, numpy.chararray, '\t')[:,1:]
-        x_neg = tools_IO.load_mat(filename_data_neg, numpy.chararray, '\t')[:,1:]
+        data_pos = tools_IO.load_mat(filename_data_pos, numpy.chararray, '\t')
+        data_neg = tools_IO.load_mat(filename_data_neg, numpy.chararray, '\t')
+        if has_header:
+            header = numpy.array(data_pos[0,:],dtype=numpy.str)
+            x_pos  = data_pos[1:,:]
+            x_neg  = data_neg[1:,:]
+        else:
+            x_pos = data_pos[:,:]
+            x_neg = data_neg[:,:]
+
+        if has_labels_first_col:
+            header = header[1:]
+            x_pos = x_pos[:, 1:]
+            x_neg = x_neg[:, 1:]
+
         Pos = x_pos.shape[0]
         Neg = x_neg.shape[0]
 
@@ -335,23 +371,29 @@ class tools_ML(object):
         idx_pos_test = [x for x in range(0, Pos) if x not in idx_pos_train]
         idx_neg_test = [x for x in range(0, Neg) if x not in idx_neg_train]
 
-        self.learn_on_pos_neg_files(filename_data_pos,filename_data_neg, delimeter='\t', rand_pos=idx_pos_train,rand_neg=idx_neg_train)
-        self.score_feature_file(filename_data_pos, filename_scrs  =filename_scrs_pos,delimeter='\t', append=0, rand_sel=idx_pos_test)
-        self.score_feature_file(filename_data_neg, filename_scrs  =filename_scrs_neg,delimeter='\t', append=0, rand_sel=idx_neg_test)
+        self.learn_on_pos_neg_files(filename_data_pos,filename_data_neg, delimeter='\t', rand_pos=idx_pos_train,rand_neg=idx_neg_train,has_header=has_header,has_labels_first_col=has_labels_first_col)
+        self.score_feature_file(filename_data_pos, filename_scrs  =filename_scrs_pos,delimeter='\t', append=0, rand_sel=idx_pos_test,has_header=has_header,has_labels_first_col=has_labels_first_col)
+        self.score_feature_file(filename_data_neg, filename_scrs  =filename_scrs_neg,delimeter='\t', append=0, rand_sel=idx_neg_test,has_header=has_header,has_labels_first_col=has_labels_first_col)
 
-        self.learn_on_pos_neg_files(filename_data_pos,filename_data_neg, '\t', idx_pos_test,idx_neg_test)
-        self.score_feature_file(filename_data_pos,  filename_scrs = filename_scrs_pos,delimeter='\t',append= 1,rand_sel=idx_pos_train)
-        self.score_feature_file(filename_data_neg,  filename_scrs = filename_scrs_neg,delimeter='\t',append= 1,rand_sel=idx_neg_train)
+        self.learn_on_pos_neg_files(filename_data_pos,filename_data_neg, '\t', idx_pos_test,idx_neg_test,has_header=has_header,has_labels_first_col=has_labels_first_col)
+        self.score_feature_file(filename_data_pos,  filename_scrs = filename_scrs_pos,delimeter='\t',append= 1,rand_sel=idx_pos_train,has_header=has_header,has_labels_first_col=has_labels_first_col)
+        self.score_feature_file(filename_data_neg,  filename_scrs = filename_scrs_neg,delimeter='\t',append= 1,rand_sel=idx_neg_train,has_header=has_header,has_labels_first_col=has_labels_first_col)
+
+        X = numpy.vstack((x_pos, x_neg)).astype(numpy.float)
+        Y = numpy.hstack((numpy.full(Pos, 1), numpy.full(Neg, 0)))
 
         tpr, fpr, auc = tools_IO.get_roc_data_from_scores_file_v2(filename_scrs_pos, filename_scrs_neg,delim='\t')
 
         fig = plt.figure(figsize=(12, 6))
         fig.subplots_adjust(hspace=0.01)
-        tools_IO.display_roc_curve_from_descriptions(plt.subplot(1, 3, 3), fig, filename_scrs_pos, filename_scrs_neg, delim='\t')
-        tools_IO.display_distributions(plt.subplot(1, 3, 2), fig, filename_scrs_pos, filename_scrs_neg, delim='\t')
-        #tools_IO.plot_features_PCA(plt.subplot(1, 3, 1),numpy.vstack((x_pos, x_neg)).astype(numpy.float),numpy.hstack((numpy.full(Pos, 1), numpy.full(Neg, 0))),['pos','neg'])
+        tools_IO.display_roc_curve_from_descriptions(plt.subplot(2, 2, 3), fig, filename_scrs_pos, filename_scrs_neg, delim='\t')
+        tools_IO.display_distributions(plt.subplot(2, 2, 2), fig, filename_scrs_pos, filename_scrs_neg, delim='\t')
+        tools_IO.plot_features_PCA(plt.subplot(2, 2, 1),X,Y,['pos','neg'])
+        tools_IO.plot_feature_importance(plt.subplot(2,2,4),fig,X,Y,header)
         plt.tight_layout()
         plt.savefig(folder_out + 'fig_roc.png')
+
+        self.check_corr(X, Y, header)
 
         return tpr, fpr, auc
 # ---------------------------------------------------------------------------------------------------------------------

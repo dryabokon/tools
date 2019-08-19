@@ -14,6 +14,8 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from sklearn.manifold import TSNE
 from PIL import Image
+from xgboost import XGBClassifier
+from xgboost import plot_importance
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_image
 # ----------------------------------------------------------------------------------------------------------------------
@@ -594,10 +596,11 @@ def plot_tp_fp(plt,fig,tpr,fpr,roc_auc,caption='',filename_out=None):
     plt.plot([0, 1.05], [0, 1.05], color='lightgray', lw=lw, linestyle='--')
     #plt.xlabel('False Positive Rate')
     #plt.ylabel('True Positive Rate')
-    #plt.set_title(caption + ('AUC = %0.4f' % roc_auc))
+    plt.set_title(caption + ('AUC = %0.4f' % roc_auc))
     #plt.legend(loc="lower right")
     plt.grid(which='major', color='lightgray', linestyle='--')
     fig.canvas.set_window_title(caption + ('AUC = %0.4f' % roc_auc))
+
     if filename_out is not None:
         plt.savefig(filename_out)
     return
@@ -1108,6 +1111,52 @@ def plot_features_PCA(plt,features,Y,patterns):
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
+def plot_feature_importance(plt,fig,X,Y,header):
+
+    model = XGBClassifier()
+    model.fit(X, Y)
+
+    keys, values = [],[]
+
+    feature_importances = model.get_booster().get_score()
+    for k, v in feature_importances.items():
+        keys.append(k)
+        values.append(v)
+
+
+
+    values = numpy.array(values)
+    idx = numpy.argsort(-values)
+    keys = numpy.array(keys)[idx]
+    values = values[idx]
+    header = header[idx]
+
+    N=5
+    ax = fig.gca()
+    ax.pie(values[:N],  labels=header[:N], autopct='%1.1f%%',shadow=False, startangle=90)
+    plt.set_title('Feature importance')
+
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+def plot_corelation(plt,fig,X,Y,header):
+
+    N = X.shape[1]
+    mat = numpy.zeros((N,N))
+
+    for i in range(N):
+        for j in range(N):
+            mat[i,j] = numpy.correlate(X[:,i],X[:,j])
+
+    plt.imshow(mat,cmap='jet')
+
+    ax = fig.gca()
+    ax.set_xticks(numpy.arange(mat.shape[1]))
+    ax.set_yticks(numpy.arange(mat.shape[0]))
+
+    ax.set_yticklabels(header)
+
+    return
+#----------------------------------------------------------------------------------------------------------------------
 def plot_confusion_mat(plt,fig,filename_mat,caption=''):
 
     confusion_mat = load_mat(filename_mat,dtype=numpy.chararray,delim='\t')[:,:2]

@@ -36,9 +36,11 @@ def morph_triangle(img1, img2, img, t1, t2, t, alpha):
     warp_image2 = apply_affine_transform(img2_rect, t2_rect, t_rect, size)
 
     img_rect = (1.0 - alpha) * warp_image1 + alpha * warp_image2
+    if r[1] + r[3] < img.shape[0] and r[0] + r[2]<img.shape[1]:
+        xxx = img[r[1]:r[1] + r[3], r[0]:r[0] + r[2]] * (1 - mask)
+        xxx+= img_rect * mask
+        img[r[1]:r[1]+r[3], r[0]:r[0]+r[2]] = xxx
 
-
-    img[r[1]:r[1]+r[3], r[0]:r[0]+r[2]] = img[r[1]:r[1]+r[3], r[0]:r[0]+r[2]] * (1 - mask) + img_rect * mask
 # ---------------------------------------------------------------------------------------------------------------------
 def draw_trianges(image,src_points,del_triangles):
     result = tools_image.desaturate(image, 0.8)
@@ -83,6 +85,8 @@ def get_morph(src_img,target_img,src_points,target_points,del_triangles,alpha=0.
 # ---------------------------------------------------------------------------------------------------------------------
 def do_reansfer(image1, image2,L1_original, L2_original,del_triangles):
     H = tools_calibrate.get_transform_by_keypoints(L1_original, L2_original)
+    if H is None:
+        return image2
     aligned1, aligned2 = tools_calibrate.get_stitched_images_using_translation(image1, image2, H, keep_shape=True)
     L1_aligned, L2_aligned = tools_calibrate.translate_coordinates(image1, image2, H, L1_original, L2_original)
 
