@@ -249,12 +249,12 @@ def translate_coordinates(img1, img2, translation, coord1, coord2):
 def get_transform_by_keypoints_desc(points_source,des_source, points_destin,des_destin,matchtype='knn'):
 
     M = None
-    if points_source==[] or des_source==[] or points_destin==[] or des_destin==[]:
+    if points_source is None or des_source is None or points_destin is None or des_destin is None:
         return M
 
     src, dst, distance = tools_alg_match.get_matches_from_keypoints_desc(points_source, des_source, points_destin, des_destin, matchtype=matchtype)
 
-    if src.size!=0:
+    if src is not None and dst is not None:
         M = get_transform_by_keypoints(src, dst)
 
 
@@ -263,7 +263,7 @@ def get_transform_by_keypoints_desc(points_source,des_source, points_destin,des_
 def get_homography_by_keypoints_desc(points_source,des_source, points_destin,des_destin,matchtype='knn'):
 
     M = None
-    if points_source==[] or des_source==[] or points_destin==[] or des_destin==[]:
+    if points_source is None or des_source is None  or points_destin is None  or des_destin is None :
         return M
 
     src, dst, distance = tools_alg_match.get_matches_from_keypoints_desc(points_source, des_source, points_destin, des_destin, matchtype=matchtype)

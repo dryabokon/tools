@@ -55,7 +55,8 @@ def calc_hits_stats_iou(lines_true, lines_pred, class_ID, delim, folder_annotati
             x_min, y_min = tools_image.smart_resize_point(x_min, y_min, width,height, 416, 416)
             x_max, y_max = tools_image.smart_resize_point(x_max, y_max, width,height, 416, 416)
 
-            file_true.append(split[0].split('/')[-1])
+
+            file_true.append(split[0])
             coord_true.append([x_min,y_min,x_max,y_max])
             conf_true.append(float(-1))
             hit_true.append(0)
@@ -71,7 +72,7 @@ def calc_hits_stats_iou(lines_true, lines_pred, class_ID, delim, folder_annotati
             width, height = image.size
             x_min, y_min = tools_image.smart_resize_point(x_min, y_min, width, height,416, 416)
             x_max, y_max = tools_image.smart_resize_point(x_max, y_max, width, height,416, 416)
-            file_pred.append(split[0].split('/')[-1])
+            file_pred.append(split[0])
             coord_pred.append([x_min, y_min, x_max, y_max])
             conf_pred.append(float(split[6]))
             hit_pred.append(0)
@@ -124,6 +125,8 @@ def get_precsion_recall_data_from_markups(folder_annotation,file_markup_true, fi
         file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred = calc_hits_stats_iou(lines_true, lines_pred, class_ID, delim, folder_annotation, iuo_th,ovp_th, ovd_th)
         if len(file_true)==0:
             continue
+
+
 
         relevant_file = numpy.array([each in file_true for each in file_pred])
 
@@ -279,12 +282,17 @@ def plot_mAP_overlap(folder_annotation, file_markup_true, file_markup_pred, file
 def draw_boxes(class_ID, folder_annotation, file_markup_true, file_markup_pred, path_out, delim=' ', metric='recall', iou_th=0.1, ovp_th=0.5, ovd_th=0.5):
 
     tools_IO.remove_files(path_out,create=True)
+    tools_IO.remove_files(path_out + '0/', create=True)
+    tools_IO.remove_files(path_out + '1/', create=True)
 
-    foldername = '/'.join(file_markup_true.split('/')[:-1]) + '/'
+
+    #foldername = '/'.join(file_markup_true.split('/')[:-1]) + '/'
     with open(file_markup_true) as f:lines_true = f.readlines()[1:]
     with open(file_markup_pred) as f:lines_pred = f.readlines()[1:]
 
     file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred = calc_hits_stats_iou(lines_true, lines_pred,class_ID, delim, folder_annotation, iuo_th=iou_th,ovp_th=ovp_th,ovd_th=ovd_th)
+
+
 
     red=(0,32,255)
     amber=(0,192,255)
@@ -292,14 +300,14 @@ def draw_boxes(class_ID, folder_annotation, file_markup_true, file_markup_pred, 
     marine =(128,128,0)
     hit_colors_true = [red  , green]
     hit_colors_pred = [amber, marine]
-    descript_ion = []
 
     bar = progressbar.ProgressBar(max_value=len(set(file_true)))
 
     for b,filename in enumerate(set(file_true)):
 
         bar.update(b)
-        image = cv2.imread(foldername + filename)
+
+        image = cv2.imread(folder_annotation + filename)
         if image is None:
             continue
         image = tools_image.desaturate(image)
@@ -316,12 +324,12 @@ def draw_boxes(class_ID, folder_annotation, file_markup_true, file_markup_pred, 
             is_FP = min(is_FP, hit)
 
         if metric=='recall':
-            descript_ion.append([filename, is_hit])
+            subfolder = str(is_hit)
         else:
-            descript_ion.append([filename, is_FP])
+            subfolder = str(is_FP)
 
-        cv2.imwrite(path_out+filename,image)
-        tools_IO.save_mat(descript_ion,path_out+'descript.ion',delim=' ')
+        cv2.imwrite(path_out+subfolder+'/'+filename.split('/')[-1],image)
+
 
     return
 # ----------------------------------------------------------------------------------------------------------------------

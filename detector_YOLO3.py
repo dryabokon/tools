@@ -176,6 +176,7 @@ class detector_YOLO3(object):
         for b,local_filename in enumerate(list_filenames):
             bar.update(b)
             for each in self.process_file(local_filename, None):
+                each[0] = local_filename.split(foldername)[1]
                 result.append(each)
             tools_IO.save_mat(result,filename_markup_out_pred, delim=' ')
 

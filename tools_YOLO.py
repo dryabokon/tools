@@ -251,7 +251,7 @@ def get_markup(filename_in,boxes_yxyx,scores,classes):
 
     markup = []
     for i, each in enumerate(scores):
-        markup.append([filename_in, int(boxes_yxyx[i][1]), int(boxes_yxyx[i][0]), int(boxes_yxyx[i][3]),int(boxes_yxyx[i][2]), classes[i], scores[i]])
+        markup.append([filename_in.split('/')[-1], int(boxes_yxyx[i][1]), int(boxes_yxyx[i][0]), int(boxes_yxyx[i][3]),int(boxes_yxyx[i][2]), classes[i], scores[i]])
     return markup
 # ----------------------------------------------------------------------------------------------------------------------
 def XML_indent(elem, level=0):

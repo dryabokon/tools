@@ -351,12 +351,14 @@ def get_matches_from_keypoints_desc(points_source,des_source, points_destin,des_
 
         matches = get_matches_on_desc(des_source.astype(numpy.uint8),des_destin.astype(numpy.uint8) )
 
-
-    for m in matches:
-        if m.queryIdx < points_destin.shape[0] and m.trainIdx < points_source.shape[0]:
-            src.append(points_source[m.trainIdx])
-            dst.append(points_destin[m.queryIdx])
-            distance.append(m.distance)
+    if len(matches)==0:
+        return None,None,None
+    else:
+        for m in matches:
+            if m.queryIdx < points_destin.shape[0] and m.trainIdx < points_source.shape[0]:
+                src.append(points_source[m.trainIdx])
+                dst.append(points_destin[m.queryIdx])
+                distance.append(m.distance)
 
     return numpy.array(src), numpy.array(dst), numpy.array(distance)
 # ---------------------------------------------------------------------------------------------------------------------

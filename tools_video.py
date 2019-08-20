@@ -5,7 +5,7 @@ from pytube import YouTube
 #--------------------------------------------------------------------------------------------------------------------------
 def capture_image_to_disk(out_filename):
 
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(1)
 
     while (True):
 
