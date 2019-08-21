@@ -55,7 +55,11 @@ def calc_hits_stats_iou(lines_true, lines_pred, class_ID, delim, folder_annotati
             x_min, y_min = tools_image.smart_resize_point(x_min, y_min, width,height, 416, 416)
             x_max, y_max = tools_image.smart_resize_point(x_max, y_max, width,height, 416, 416)
 
+<<<<<<< HEAD
 
+=======
+            
+>>>>>>> 3022c629cd8cb7ad692af7d2d2f645274c7baf28
             file_true.append(split[0])
             coord_true.append([x_min,y_min,x_max,y_max])
             conf_true.append(float(-1))
@@ -284,8 +288,13 @@ def draw_boxes(class_ID, folder_annotation, file_markup_true, file_markup_pred, 
     tools_IO.remove_files(path_out,create=True)
     tools_IO.remove_files(path_out + '0/', create=True)
     tools_IO.remove_files(path_out + '1/', create=True)
+<<<<<<< HEAD
 
 
+=======
+
+
+>>>>>>> 3022c629cd8cb7ad692af7d2d2f645274c7baf28
     #foldername = '/'.join(file_markup_true.split('/')[:-1]) + '/'
     with open(file_markup_true) as f:lines_true = f.readlines()[1:]
     with open(file_markup_pred) as f:lines_pred = f.readlines()[1:]

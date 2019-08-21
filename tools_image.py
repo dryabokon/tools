@@ -374,14 +374,18 @@ def blend_multi_band(left, rght, background_color=(255, 255, 255)):
 #----------------------------------------------------------------------------------------------------------------------
 def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),do_color_balance=True):
 
+    debug_mode = 0
+
     mask = numpy.zeros(large.shape)
     mask[numpy.where(small==background_color)] = 1
+
     K = numpy.ones((50, 50))
     mask = ndimage.convolve(mask[:,:,0], K, mode='nearest')/(K.shape[0]*K.shape[1])
 
-    th = 0.4
-    mask[mask>th]=1
-    mask[mask <= th] = mask[mask <= th]*2
+    mask = numpy.clip(2*mask, 0, 1.0).astype(numpy.float)
+
+    if debug_mode == 1:cv2.imwrite('./images/output/mask2.png',255*mask)
+
 
     if do_color_balance:
         small = small.astype(numpy.float)
@@ -394,16 +398,19 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
 
     mask3d = numpy.zeros((mask.shape[0],mask.shape[1],3))
     mask3d[:,:,0] = mask
-    mask3d[:, :, 1] = mask
-    mask3d[:, :, 2] = mask
+    mask3d[:,:,1] = mask
+    mask3d[:,:,2] = mask
+    mask3d[numpy.where(small == background_color)] = 1
 
-    leveln = 5#int(numpy.floor(numpy.log2(min(large.shape[0], large.shape[1]))))
+    leveln = 3#int(numpy.floor(numpy.log2(min(large.shape[0], large.shape[1]))))
     MP = GaussianPyramid(mask3d, leveln)
     LPA = LaplacianPyramid(numpy.array(large).astype('float'), leveln)
     LPB = LaplacianPyramid(numpy.array(small).astype('float'), leveln)
     blended = blend_pyramid(LPA, LPB, MP)
     result = reconstruct_from_pyramid(blended)
     result = numpy.clip(result, 0, 255)
+
+
     return result.astype(numpy.uint8)
 #----------------------------------------------------------------------------------------------------------------------
 def blend_avg(img1, img2,background_color=(255,255,255),weight=0.5):

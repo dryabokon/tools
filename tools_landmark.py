@@ -36,11 +36,25 @@ def morph_triangle(img1, img2, img, t1, t2, t, alpha):
     warp_image2 = apply_affine_transform(img2_rect, t2_rect, t_rect, size)
 
     img_rect = (1.0 - alpha) * warp_image1 + alpha * warp_image2
+    if r[1] + r[3] < img.shape[0] and r[0] + r[2]<img.shape[1]:
+        xxx = img[r[1]:r[1] + r[3], r[0]:r[0] + r[2]] * (1 - mask)
+        xxx+= img_rect * mask
+        img[r[1]:r[1]+r[3], r[0]:r[0]+r[2]] = xxx
 
-
-    img[r[1]:r[1]+r[3], r[0]:r[0]+r[2]] = img[r[1]:r[1]+r[3], r[0]:r[0]+r[2]] * (1 - mask) + img_rect * mask
+# ---------------------------------------------------------------------------------------------------------------------
+def draw_trianges(image,src_points,del_triangles):
+    result = tools_image.desaturate(image, 0.8)
+    for triangle in del_triangles:
+        t = [src_points[triangle[0]], src_points[triangle[1]], src_points[triangle[2]]]
+        t = numpy.array(t,dtype=numpy.int)
+        cv2.line(result, (t[0][0], t[0][1]), (t[1][0], t[1][1]), (0, 0, 255))
+        cv2.line(result, (t[0][0], t[0][1]), (t[2][0], t[2][1]), (0, 0, 255))
+        cv2.line(result, (t[2][0], t[2][1]), (t[1][0], t[1][1]), (0, 0, 255))
+    return result
 # ---------------------------------------------------------------------------------------------------------------------
 def get_morph(src_img,target_img,src_points,target_points,del_triangles,alpha=0.5,keep_src_colors=True):
+
+    debug_mode = 0
 
     weighted_pts = []
     for i in range(0, len(src_points)):
@@ -48,7 +62,7 @@ def get_morph(src_img,target_img,src_points,target_points,del_triangles,alpha=0.
         y = (1 - alpha) * src_points[i][1] + alpha * target_points[i][1]
         weighted_pts.append((x, y))
 
-    img_morph = numpy.zeros(src_img.shape, dtype=src_img.dtype)
+    img_morph = numpy.full(src_img.shape,0, dtype=src_img.dtype)
 
     for triangle in del_triangles:
         x, y, z = triangle
@@ -60,10 +74,32 @@ def get_morph(src_img,target_img,src_points,target_points,del_triangles,alpha=0.
         else:
             morph_triangle(src_img, target_img, img_morph, t1, t2, t, alpha)
 
+    if debug_mode==1:
+        src_img_debug    = draw_trianges(src_img   ,src_points,del_triangles)
+        target_img_debug = draw_trianges(target_img,target_points, del_triangles)
+
+        cv2.imwrite('./images/output/src_img_debug.png',src_img_debug)
+        cv2.imwrite('./images/output/target_img_debug.png', target_img_debug)
+
     return img_morph
 # ---------------------------------------------------------------------------------------------------------------------
-def transferface_first_to_second_manual(filename_image_first, filename_image_second,file_annotations):
+def do_reansfer(image1, image2,L1_original, L2_original,del_triangles):
+    H = tools_calibrate.get_transform_by_keypoints(L1_original, L2_original)
+    if H is None:
+        return image2
+    aligned1, aligned2 = tools_calibrate.get_stitched_images_using_translation(image1, image2, H, keep_shape=True)
+    L1_aligned, L2_aligned = tools_calibrate.translate_coordinates(image1, image2, H, L1_original, L2_original)
 
+    # H = tools_calibrate.get_homography_by_keypoints(L1_original,L2_original)
+    # aligned1, aligned2= tools_calibrate.get_stitched_images_using_homography(image1, image2, H)
+    # L1_aligned, L2_aligned = tools_calibrate.homography_coordinates(image1, image2, H, L1_original, L2_original)
+
+    face = get_morph(aligned1, aligned2, L1_aligned, L2_aligned, del_triangles, alpha=1, keep_src_colors=True)
+    result2 = tools_image.blend_multi_band_large_small(aligned2, face, (0, 0, 0))
+    return result2
+# ---------------------------------------------------------------------------------------------------------------------
+
+def transferface_first_to_second_manual(filename_image_first, filename_image_second,file_annotations):
 
     image1 = cv2.imread(filename_image_first)
     image2 = cv2.imread(filename_image_second)
@@ -72,43 +108,15 @@ def transferface_first_to_second_manual(filename_image_first, filename_image_sec
     with open(file_annotations) as f: lines = f.readlines()[1:]
     boxes_xyxy = numpy.array([line.split(delim)[1:5] for line in lines], dtype=numpy.int)
     filenames = numpy.array([line.split(delim)[0] for line in lines])
-    class_IDs = numpy.array([line.split(delim)[5] for line in lines], dtype=numpy.int)
 
     L1_original = boxes_xyxy[filenames==filename_image_first.split('/')[-1]][:,:2]
     L2_original = boxes_xyxy[filenames==filename_image_second.split('/')[-1]][:,:2]
-    del_triangles = Delaunay(L1_original).vertices
-
-    landmarks = L1_original
-
-    for t in del_triangles:
-        p0 = (landmarks[t[0], 0], landmarks[t[0], 1])
-        p1 = (landmarks[t[1], 0], landmarks[t[1], 1])
-        p2 = (landmarks[t[2], 0], landmarks[t[2], 1])
-        #cv2.line(image1,p0,p1,(0,0,255))
-        #cv2.line(image1,p0,p2,(0, 0, 255))
-        #cv2.line(image1,p2,p1,(0, 0, 255))
-
-    #for i in range(len(L1_original)):cv2.putText(image1, '{0:d}'.format(i), (L1_original[i,0], L1_original[i,1]),cv2.FONT_HERSHEY_SIMPLEX, 0.6,(0,0,255))
-    #for i in range(len(L2_original)):cv2.putText(image2, '{0:d}'.format(i), (L2_original[i, 0], L2_original[i, 1]),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255))
-    #cv2.imwrite('./images/output/tri1.png',image1)
-    #cv2.imwrite('./images/output/tri2.png', image2)
-
     L1_original = L1_original.astype(numpy.float)
     L2_original = L2_original.astype(numpy.float)
 
+    del_triangles = Delaunay(L1_original).vertices
 
-    H = tools_calibrate.get_transform_by_keypoints(L1_original,L2_original)
-    aligned1, aligned2= tools_calibrate.get_stitched_images_using_translation(image1, image2, H,keep_shape=True)
-    L1_aligned, L2_aligned = tools_calibrate.translate_coordinates(image1, image2, H, L1_original, L2_original)
-
-    #H = tools_calibrate.get_homography_by_keypoints(L1_original,L2_original)
-    #aligned1, aligned2= tools_calibrate.get_stitched_images_using_homography(image1, image2, H)
-    #L1_aligned, L2_aligned = tools_calibrate.homography_coordinates(image1, image2, H, L1_original, L2_original)
-
-    face = get_morph(aligned1, aligned2, L1_aligned, L2_aligned, del_triangles, alpha=1,keep_src_colors=True)
-    result2 = tools_image.blend_multi_band_large_small(aligned2, face, (0, 0, 0))
-
-    cv2.imwrite('./images/output/res.png', result2)
+    result2 = do_reansfer(image1, image2, L1_original, L2_original,del_triangles)
 
     return result2
 # ---------------------------------------------------------------------------------------------------------------------
@@ -218,10 +226,11 @@ def morph_first_to_second_manual(D,filename_image_first, filename_image_second,f
 
     for weight in weight_array:
         result = cv2.add(stage1*(1-weight), stage2*(weight))
-        cv2.imwrite(folder_out+'result_%03d.jpg'%(weight*100), result)
+        cv2.imwrite(folder_out + 'r_%03d.jpg'%(weight*100), result)
+        cv2.imwrite(folder_out + 'r_%03d.jpg'%(100 + (100-weight * 100)), result)
 
-    cv2.imwrite(folder_out + 'result_%03d.jpg' % (0 * 100), stage1)
-    cv2.imwrite(folder_out + 'result_%03d.jpg' % (1 * 100), stage2)
+    cv2.imwrite(folder_out + 'r_%03d.jpg' % (0 * 100), stage1)
+    cv2.imwrite(folder_out + 'r_%03d.jpg' % (1 * 100), stage2)
 
     return
 # ---------------------------------------------------------------------------------------------------------------------

@@ -257,6 +257,10 @@ def get_transform_by_keypoints_desc(points_source,des_source, points_destin,des_
     if src is not None and dst is not None:
         M = get_transform_by_keypoints(src, dst)
 
+        if M is None:
+            return M
+        if not is_transform_good(src, dst, M):
+            M = None
 
     return M
 # --------------------------------------------------------------------------------------------------------------------------
@@ -268,8 +272,13 @@ def get_homography_by_keypoints_desc(points_source,des_source, points_destin,des
 
     src, dst, distance = tools_alg_match.get_matches_from_keypoints_desc(points_source, des_source, points_destin, des_destin, matchtype=matchtype)
 
-    if src.size!=0:
+    if src is not None:
         M = get_homography_by_keypoints(src, dst)
+        if M is None:
+            return M
+        if not is_homography_good(src, dst,M):
+            M = None
+
     return M
 # ---------------------------------------------------------------------------------------------------------------------
 def get_transform_by_keypoints(src,dst):
@@ -287,6 +296,43 @@ def get_homography_by_keypoints(src,dst):
 
     return M
 #----------------------------------------------------------------------------------------------------------------------
+def is_homography_good(src, dst,M):
+    src_w = numpy.max(src[:, 0])
+    src_h = numpy.max(src[:, 1])
+
+    dst_w = numpy.max(dst[:, 0])
+    dst_h = numpy.max(dst[:, 1])
+
+    dims = numpy.float32([[0, 0], [0, src_w], [src_h, src_w], [src_h, 0]]).reshape(-1, 1, 2)
+    dims2 = cv2.perspectiveTransform(dims, M)
+
+    for i in range(dims2.shape[0]):
+        if dims2[i][0][0] < -10: return False
+        if dims2[i][0][1] < -10: return False
+        if dims2[i][0][0] > dst_w + 10: return False
+        if dims2[i][0][1] > dst_h + 10: return False
+
+    return True
+# ----------------------------------------------------------------------------------------------------------------------
+def is_transform_good(src, dst,M):
+
+    src_w = numpy.max(src[:,0])
+    src_h = numpy.max(src[:,1])
+
+    dst_w = numpy.max(dst[:,0])
+    dst_h = numpy.max(dst[:,1])
+
+    dims = numpy.float32([[0, 0], [0, src_w], [src_h, src_w], [src_h, 0]]).reshape(-1, 1, 2)
+    dims2 = cv2.transform(dims, M)
+
+    for i in range(dims2.shape[0]):
+        if dims2[i][0][0] <-10: return False
+        if dims2[i][0][1] <-10: return False
+        if dims2[i][0][0] >dst_w+10: return False
+        if dims2[i][0][1] >dst_h+10: return False
+
+    return True
+# ----------------------------------------------------------------------------------------------------------------------
 def rotationMatrixToEulerAngles(R):
 
     Rt = numpy.transpose(R)
