@@ -96,6 +96,7 @@ def do_reansfer(image1, image2,L1_original, L2_original,del_triangles):
 
     face = get_morph(aligned1, aligned2, L1_aligned, L2_aligned, del_triangles, alpha=1, keep_src_colors=True)
     result2 = tools_image.blend_multi_band_large_small(aligned2, face, (0, 0, 0))
+
     return result2
 # ---------------------------------------------------------------------------------------------------------------------
 

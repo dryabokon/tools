@@ -372,14 +372,14 @@ def blend_multi_band(left, rght, background_color=(255, 255, 255)):
     result[result < 0] = 0
     return result
 #----------------------------------------------------------------------------------------------------------------------
-def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),do_color_balance=True):
+def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),do_color_balance=True,filter_size=50,leveln_default=3 ):
 
     debug_mode = 0
 
     mask = numpy.zeros(large.shape)
     mask[numpy.where(small==background_color)] = 1
 
-    K = numpy.ones((50, 50))
+    K = numpy.ones((filter_size, filter_size))
     mask = ndimage.convolve(mask[:,:,0], K, mode='nearest')/(K.shape[0]*K.shape[1])
 
     mask = numpy.clip(2*mask, 0, 1.0).astype(numpy.float)
@@ -402,7 +402,7 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
     mask3d[:,:,2] = mask
     mask3d[numpy.where(small == background_color)] = 1
 
-    leveln = 3#int(numpy.floor(numpy.log2(min(large.shape[0], large.shape[1]))))
+    leveln = leveln_default#int(numpy.floor(numpy.log2(min(large.shape[0], large.shape[1]))))
     MP = GaussianPyramid(mask3d, leveln)
     LPA = LaplacianPyramid(numpy.array(large).astype('float'), leveln)
     LPB = LaplacianPyramid(numpy.array(small).astype('float'), leveln)

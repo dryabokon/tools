@@ -328,8 +328,8 @@ def is_transform_good(src, dst,M):
     for i in range(dims2.shape[0]):
         if dims2[i][0][0] <-10: return False
         if dims2[i][0][1] <-10: return False
-        if dims2[i][0][0] >dst_w+10: return False
-        if dims2[i][0][1] >dst_h+10: return False
+        if dims2[i][0][0] >dst_h+10: return False
+        if dims2[i][0][1] >dst_w+10: return False
 
     return True
 # ----------------------------------------------------------------------------------------------------------------------
