@@ -36,7 +36,7 @@ def folders_to_animated_gif_ffmpeg(path_input,path_out, mask='.png', framerate=1
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
-def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png', framerate=10,resize_H=64, resize_W=64):
+def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png', framerate=10,resize_H=64, resize_W=64,do_reverce=False):
     tools_IO.remove_file(filename_out)
     images, labels, filenames = tools_IO.load_aligned_images_from_folder(path_input, '-', mask=mask,resize_W=resize_W,resize_H=resize_H)
 
@@ -44,7 +44,18 @@ def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png', frame
         images[i] = cv2.cvtColor(images[i], cv2.COLOR_BGR2RGB)
         #images[i] = tools_image.desaturate(images[i],level=0.7)
 
-    imageio.mimsave(filename_out, images, 'GIF', duration=1/framerate)
+    if not do_reverce:
+        imageio.mimsave(filename_out, images, 'GIF', duration=1/framerate)
+    else:
+        images_all = []
+        for image in images:images_all.append(image)
+        for image in reversed(images): images_all.append(image)
+
+        images_all = numpy.array(images_all,dtype=images.dtype)
+
+        imageio.mimsave(filename_out, images_all, 'GIF', duration=1 / framerate)
+
+
     return
 # ---------------------------------------------------------------------------------------------------------------------
 def folder_to_video(path_input,filename_out,mask='*.jpg',resize_W=320,resize_H=240):
