@@ -59,7 +59,7 @@ def draw_objects_on_image(image, boxes_bound, scores, classes, colors, class_nam
         return image
 
     for box, score, cl in zip(boxes_bound, scores, classes):
-        if class_names[cl]!='car':continue
+        #if class_names[cl]!='car':continue
         top, left, bottom,right = box
 
         top     = max(0, numpy.floor(top + 0.5).astype('int32'))
@@ -72,7 +72,7 @@ def draw_objects_on_image(image, boxes_bound, scores, classes, colors, class_nam
         cv2.rectangle(image, (left,top), (right,bottom), color, 2)
         position = top - 6 if top - 6 > 10 else top + 26
         #cv2.putText(image, '{0} {1:.2f}'.format(class_names[cl], score), (left+4, position), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 1, cv2.LINE_AA)
-        cv2.putText(image, '{0}'.format(class_names[cl]), (left+4, position), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 1, cv2.LINE_AA)
+        #cv2.putText(image, '{0}'.format(class_names[cl]), (left+4, position), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 1, cv2.LINE_AA)
     return image
 # ----------------------------------------------------------------------------------------------------------------------
 def get_true_boxes(foldername, filename, smart_resized_target=None, delim=' ',limit=1000000):
