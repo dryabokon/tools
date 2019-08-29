@@ -83,7 +83,7 @@ def get_morph(src_img,target_img,src_points,target_points,del_triangles,alpha=0.
 
     return img_morph
 # ---------------------------------------------------------------------------------------------------------------------
-def do_reansfer(image1, image2,L1_original, L2_original,del_triangles):
+def do_transfer(image1, image2, L1_original, L2_original, del_triangles):
     H = tools_calibrate.get_transform_by_keypoints(L1_original, L2_original)
     if H is None:
         return image2
@@ -117,7 +117,7 @@ def transferface_first_to_second_manual(filename_image_first, filename_image_sec
 
     del_triangles = Delaunay(L1_original).vertices
 
-    result2 = do_reansfer(image1, image2, L1_original, L2_original,del_triangles)
+    result2 = do_transfer(image1, image2, L1_original, L2_original, del_triangles)
 
     return result2
 # ---------------------------------------------------------------------------------------------------------------------
