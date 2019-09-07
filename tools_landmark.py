@@ -138,7 +138,7 @@ def transferface_first_to_second(D,filename_image_first, filename_image_second,f
     L2_original = D.get_landmarks(image2)
     del_triangles = Delaunay(L1_original).vertices
 
-    result = [('filename', 'x_right', 'y_top', 'x_left', 'y_bottom', 'class_ID', 'confidence')]
+    result = [('filename', 'x_left', 'y_top', 'x_right', 'y_bottom', 'class_ID', 'confidence')]
     for l1,l2 in zip(L1_original,L2_original):
         result.append([filename_image_first.split('/')[-1],  l1[0],l1[1],l1[0],l1[1],0,1])
         result.append([filename_image_second.split('/')[-1], l2[0],l2[1],l2[0],l2[1],0,1])

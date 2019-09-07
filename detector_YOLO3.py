@@ -135,7 +135,7 @@ class detector_YOLO3(object):
         start_time = time.time()
         local_filenames  = tools_IO.get_filenames(path_input, list_of_masks)[:limit]
 
-        result = [('filename', 'x_right','y_top','x_left','y_bottom','class_ID','confidence')]
+        result = [('filename', 'x_left','y_top','x_right','y_bottom','class_ID','confidence')]
         local_filenames = numpy.sort(local_filenames)
         for local_filename in local_filenames:
             filename_out = path_out + local_filename if not markup_only else None
@@ -167,8 +167,8 @@ class detector_YOLO3(object):
         else:
             foldername = folder_annotation
 
-        result = [('filename', 'x_right', 'y_top', 'x_left', 'y_bottom', 'class_ID', 'confidence')]
-        fact   = [('filename', 'x_right', 'y_top', 'x_left', 'y_bottom', 'class_ID', 'confidence')]
+        result = [('filename', 'x_left', 'y_top', 'x_right', 'y_bottom', 'class_ID', 'confidence')]
+        fact   = [('filename', 'x_left', 'y_top', 'x_right', 'y_bottom', 'class_ID', 'confidence')]
 
         with open(file_annotations) as f:lines = f.readlines()
         lines = lines[1:]
