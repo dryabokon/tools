@@ -220,7 +220,7 @@ def write_boxes_distribution(filename_out,true_boxes):
     plt.savefig(filename_out)
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def plot_mAP_iou(folder_annotation, file_markup_true, file_markup_pred, filename_meta, folder_out, out_prefix=''):
+def plot_mAP_iou(folder_annotation, file_markup_true, file_markup_pred, filename_meta, folder_out, out_prefix='',delim=' '):
 
     input_image_size, class_names, anchors, anchor_mask,obj_threshold, nms_threshold = tools_YOLO.load_metadata(filename_meta)
     colors = tools_YOLO.generate_colors(len(class_names))
@@ -233,7 +233,7 @@ def plot_mAP_iou(folder_annotation, file_markup_true, file_markup_pred, filename
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
 
-        precisions,recalls,confidences,class_IDs = get_precsion_recall_data_from_markups(folder_annotation,file_markup_true, file_markup_pred,iuo_th,ovp_th,ovd_th, delim=' ')
+        precisions,recalls,confidences,class_IDs = get_precsion_recall_data_from_markups(folder_annotation,file_markup_true, file_markup_pred,iuo_th,ovp_th,ovd_th, delim=delim)
         mAP = 0
 
         for i,class_ID in enumerate(class_IDs):
@@ -249,7 +249,7 @@ def plot_mAP_iou(folder_annotation, file_markup_true, file_markup_pred, filename
 
     return results[0]
 # ----------------------------------------------------------------------------------------------------------------------
-def plot_mAP_overlap(folder_annotation, file_markup_true, file_markup_pred, filename_meta, folder_out, out_prefix=''):
+def plot_mAP_overlap(folder_annotation, file_markup_true, file_markup_pred, filename_meta, folder_out, out_prefix='',delim=' '):
 
     input_image_size, class_names, anchors, anchor_mask,obj_threshold, nms_threshold = tools_YOLO.load_metadata(filename_meta)
     colors = tools_YOLO.generate_colors(len(class_names))
@@ -263,7 +263,7 @@ def plot_mAP_overlap(folder_annotation, file_markup_true, file_markup_pred, file
             os.makedirs(out_dir)
         for ovd_th in ovd_ths:
 
-            precisions,recalls,confidences,class_IDs = get_precsion_recall_data_from_markups(folder_annotation,file_markup_true, file_markup_pred,None,ovp_th,ovd_th, delim=' ')
+            precisions,recalls,confidences,class_IDs = get_precsion_recall_data_from_markups(folder_annotation,file_markup_true, file_markup_pred,None,ovp_th,ovd_th, delim=delim)
             mAP = 0
 
             for i,class_ID in enumerate(class_IDs):

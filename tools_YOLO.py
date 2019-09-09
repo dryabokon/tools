@@ -80,7 +80,7 @@ def get_true_boxes(foldername, filename, smart_resized_target=None, delim=' ',li
 
 
     with open(filename) as f:lines = f.readlines()[1:limit]
-    filenames_dict = sorted(set([line.split(' ')[0] for line in lines]))
+    filenames_dict = sorted(set([line.split(delim)[0] for line in lines]))
 
     true_boxes = []
 
