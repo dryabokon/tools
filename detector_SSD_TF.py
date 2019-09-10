@@ -75,7 +75,7 @@ class detector_SSD_TF(object):
         tools_IO.remove_files(path_out)
         start_time = time.time()
         local_filenames = numpy.array(fnmatch.filter(listdir(path_input), mask))[:limit]
-        result = [('filename', 'x_right','y_top','x_left','y_bottom','class_ID','confidence')]
+        result = [('filename', 'x_left','y_top','x_right','y_bottom','class_ID','confidence')]
         local_filenames = numpy.sort(local_filenames)
         for local_filename in local_filenames:
             filename_out = path_out + local_filename if not markup_only else None

@@ -121,7 +121,7 @@ class detector_SSD300(object):
         tools_IO.remove_files(path_out)
         start_time = time.time()
         local_filenames = numpy.array(fnmatch.filter(listdir(path_input), mask))[:limit]
-        result = [('filename', 'x_right','y_top','x_left','y_bottom','class_ID','confidence')]
+        result = [('filename', 'x_left','y_top','x_right','y_bottom','class_ID','confidence')]
         local_filenames = numpy.sort(local_filenames)
         for local_filename in local_filenames:
             filename_out = path_out + local_filename if not markup_only else None
@@ -149,7 +149,7 @@ class detector_SSD300(object):
         local_filenames = [line.split(' ')[0] for line in lines]
         local_filenames = sorted(set(local_filenames))
 
-        result = [('filename', 'x_right', 'y_top', 'x_left', 'y_bottom', 'class_ID', 'confidence')]
+        result = [('filename', 'x_left', 'y_top', 'x_right', 'y_bottom', 'class_ID', 'confidence')]
         for local_filename in local_filenames:
             filename_image_out = path_out + local_filename if not markup_only else None
             for each in self.process_file(foldername+local_filename, filename_image_out):

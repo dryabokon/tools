@@ -14,8 +14,8 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from sklearn.manifold import TSNE
 from PIL import Image
-from xgboost import XGBClassifier
-from xgboost import plot_importance
+#from xgboost import XGBClassifier
+#from xgboost import plot_importance
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_image
 # ----------------------------------------------------------------------------------------------------------------------
@@ -472,7 +472,7 @@ def print_top_fails(labels_fact, labels_pred, patterns,filename = None):
     return
 # ----------------------------------------------------------------------------------------------------------------------
 
-def split_annotation_file(folder_annotation,file_input,file_part1,file_part2, ratio=0.5,limit=1000000):
+def split_annotation_file(folder_annotation,file_input,file_part1,file_part2, ratio=0.5,delim=' ',limit=1000000):
 
     with open(file_input) as f: lines = f.readlines()
     header = lines[0]
@@ -490,25 +490,24 @@ def split_annotation_file(folder_annotation,file_input,file_part1,file_part2, ra
 
     for each in lines:
         each = each.split('\n')[0]
-        split = each.split(' ')
-        if not os.path.isfile(folder_annotation + split[0]):continue
+        split = each.split(delim)
+        #if not os.path.isfile(folder_annotation + split[0]):
+        #    print('ERROR: ' + folder_annotation + split[0])
+        #    continue
 
-        image = Image.open(folder_annotation + split[0])
-        if image is None:continue
-
-        width, height = image.size
-        x_min, y_min, x_max, y_max = numpy.array(split[1:5]).astype(numpy.float)
-        x_min, y_min = tools_image.smart_resize_point(x_min, y_min, width, height, 416,416)
-        x_max, y_max = tools_image.smart_resize_point(x_max, y_max, width, height, 416,416)
-
+        #image = Image.open(folder_annotation + split[0])
+        #if image is None:
+        #    print('ERROR: ' + folder_annotation + split[0])
+        #    continue
 
         if (random.random() > ratio):
             part1.append(each)
         else:
             part2.append(each)
 
-    save_mat(part1, file_part1, delim=' ')
-    save_mat(part2, file_part2, delim=' ')
+
+    save_mat(part1, file_part1, delim=delim)
+    save_mat(part2, file_part2, delim=delim)
 
     return
 # ----------------------------------------------------------------------------------------------------------------------

@@ -130,11 +130,12 @@ class detector_YOLO3(object):
 
         return markup
 # ----------------------------------------------------------------------------------------------------------------------
-    def process_folder(self, path_input, path_out, mask='*.jpg', limit=1000000,markup_only=False):
+    def process_folder(self, path_input, path_out, list_of_masks='*.png,*.jpg', limit=1000000,markup_only=False):
         tools_IO.remove_files(path_out)
         start_time = time.time()
-        local_filenames = numpy.array(fnmatch.filter(listdir(path_input), mask))[:limit]
-        result = [('filename', 'x_right','y_top','x_left','y_bottom','class_ID','confidence')]
+        local_filenames  = tools_IO.get_filenames(path_input, list_of_masks)[:limit]
+
+        result = [('filename', 'x_left','y_top','x_right','y_bottom','class_ID','confidence')]
         local_filenames = numpy.sort(local_filenames)
         for local_filename in local_filenames:
             filename_out = path_out + local_filename if not markup_only else None
@@ -145,7 +146,20 @@ class detector_YOLO3(object):
         print('Processing: %s sec in total - %f per image' % (total_time, int(total_time) / len(local_filenames)))
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def process_annotation(self, file_annotations, filename_markup_out_true,filename_markup_out_pred,folder_annotation=None, markup_only=False,limit=1000000):
+    def process_folder_negatives(self, path_input, path_out, list_of_masks='*.png,*.jpg', limit=1000000,confidence=0.80):
+        tools_IO.remove_files(path_out)
+        local_filenames = tools_IO.get_filenames(path_input, list_of_masks)[:limit]
+        local_filenames = numpy.sort(local_filenames)
+        for local_filename in local_filenames:
+            image = cv2.imread(path_input + local_filename)
+            if image is None:return []
+            boxes_yxyx, classes, scores = self.process_image(image)
+            if len(scores) >0 and scores[0]>=confidence:
+                filename_out = path_out + '%02d_'%int(100*scores[0]) + local_filename
+                tools_YOLO.draw_and_save(filename_out, image, boxes_yxyx, scores, classes, self.colors, self.class_names)
+        return
+    # ----------------------------------------------------------------------------------------------------------------------
+    def process_annotation(self, file_annotations, filename_markup_out_true,filename_markup_out_pred,folder_annotation=None, markup_only=False,delim=' ',limit=1000000):
 
         start_time = time.time()
         if folder_annotation is None:
@@ -153,8 +167,8 @@ class detector_YOLO3(object):
         else:
             foldername = folder_annotation
 
-        result = [('filename', 'x_right', 'y_top', 'x_left', 'y_bottom', 'class_ID', 'confidence')]
-        fact   = [('filename', 'x_right', 'y_top', 'x_left', 'y_bottom', 'class_ID', 'confidence')]
+        result = [('filename', 'x_left', 'y_top', 'x_right', 'y_bottom', 'class_ID', 'confidence')]
+        fact   = [('filename', 'x_left', 'y_top', 'x_right', 'y_bottom', 'class_ID', 'confidence')]
 
         with open(file_annotations) as f:lines = f.readlines()
         lines = lines[1:]
@@ -164,12 +178,12 @@ class detector_YOLO3(object):
             limit*=-1
             lines = lines[-limit:]
 
-        list_filenames = sorted(set([foldername+line.split(' ')[0] for line in lines]))
+        list_filenames = sorted(set([foldername+line.split(delim)[0] for line in lines]))
         for each in lines:
             each = each.split('\n')[0]
-            fact.append(each.split(' '))
+            fact.append(each.split(delim))
 
-        tools_IO.save_mat(fact, filename_markup_out_true, delim=' ')
+        tools_IO.save_mat(fact, filename_markup_out_true, delim=delim)
 
         print('Processing annotation\n')
         bar = progressbar.ProgressBar(max_value=len(list_filenames))
@@ -178,7 +192,7 @@ class detector_YOLO3(object):
             for each in self.process_file(local_filename, None):
                 each[0] = local_filename.split(foldername)[1]
                 result.append(each)
-            tools_IO.save_mat(result,filename_markup_out_pred, delim=' ')
+            tools_IO.save_mat(result,filename_markup_out_pred, delim=delim)
 
 
 
@@ -535,7 +549,7 @@ class detector_YOLO3(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def learn(self, file_annotations, folder_out, folder_annotation=None, limit=1000000):
+    def learn(self, file_annotations, folder_out, folder_annotation=None, delim=' ',limit=1000000):
 
         if folder_annotation is not None:
             foldername = folder_annotation
@@ -545,13 +559,11 @@ class detector_YOLO3(object):
 
         with open(file_annotations) as f:lines = f.readlines()[1:limit]
 
-        print(lines)
-
         list_filenames = sorted(set([foldername+line.split(' ')[0] for line in lines]))
         true_boxes = tools_YOLO.get_true_boxes(foldername, file_annotations, (416, 416), delim =' ', limit=limit)
+        list_filenames = sorted(set([foldername+line.split(delim)[0] for line in lines]))
+        true_boxes = tools_YOLO.get_true_boxes(foldername, file_annotations, (416, 416), delim =delim, limit=limit)
         detector_YOLO3_core.save_targets(folder_out, true_boxes, (416, 416), self.anchors, self.anchor_mask, len(self.class_names))
-
-
 
 
         if len(true_boxes)>6:

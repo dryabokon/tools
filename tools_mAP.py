@@ -55,7 +55,6 @@ def calc_hits_stats_iou(lines_true, lines_pred, class_ID, delim, folder_annotati
             x_min, y_min = tools_image.smart_resize_point(x_min, y_min, width,height, 416, 416)
             x_max, y_max = tools_image.smart_resize_point(x_max, y_max, width,height, 416, 416)
 
-
             file_true.append(split[0])
             coord_true.append([x_min,y_min,x_max,y_max])
             conf_true.append(float(-1))
@@ -94,8 +93,6 @@ def calc_hits_stats_iou(lines_true, lines_pred, class_ID, delim, folder_annotati
         for j, filename_true in enumerate(file_true):
             for i, filename_pred in enumerate(file_pred):
                 if filename_true == filename_pred:
-                    if filename_true == '115277_138_79_306_126.png':
-                        k = 0
 
                     ovp_value,ovd_value = ovelraps(coord_true[j], coord_pred[i])
                     if ovp_value >= ovp_th and ovd_value <= ovd_th:
@@ -223,7 +220,7 @@ def write_boxes_distribution(filename_out,true_boxes):
     plt.savefig(filename_out)
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def plot_mAP_iou(folder_annotation, file_markup_true, file_markup_pred, filename_meta, folder_out, out_prefix=''):
+def plot_mAP_iou(folder_annotation, file_markup_true, file_markup_pred, filename_meta, folder_out, out_prefix='',delim=' '):
 
     input_image_size, class_names, anchors, anchor_mask,obj_threshold, nms_threshold = tools_YOLO.load_metadata(filename_meta)
     colors = tools_YOLO.generate_colors(len(class_names))
@@ -236,7 +233,7 @@ def plot_mAP_iou(folder_annotation, file_markup_true, file_markup_pred, filename
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
 
-        precisions,recalls,confidences,class_IDs = get_precsion_recall_data_from_markups(folder_annotation,file_markup_true, file_markup_pred,iuo_th,ovp_th,ovd_th, delim=' ')
+        precisions,recalls,confidences,class_IDs = get_precsion_recall_data_from_markups(folder_annotation,file_markup_true, file_markup_pred,iuo_th,ovp_th,ovd_th, delim=delim)
         mAP = 0
 
         for i,class_ID in enumerate(class_IDs):
@@ -252,7 +249,7 @@ def plot_mAP_iou(folder_annotation, file_markup_true, file_markup_pred, filename
 
     return results[0]
 # ----------------------------------------------------------------------------------------------------------------------
-def plot_mAP_overlap(folder_annotation, file_markup_true, file_markup_pred, filename_meta, folder_out, out_prefix=''):
+def plot_mAP_overlap(folder_annotation, file_markup_true, file_markup_pred, filename_meta, folder_out, out_prefix='',delim=' '):
 
     input_image_size, class_names, anchors, anchor_mask,obj_threshold, nms_threshold = tools_YOLO.load_metadata(filename_meta)
     colors = tools_YOLO.generate_colors(len(class_names))
@@ -266,11 +263,14 @@ def plot_mAP_overlap(folder_annotation, file_markup_true, file_markup_pred, file
             os.makedirs(out_dir)
         for ovd_th in ovd_ths:
 
-            precisions,recalls,confidences,class_IDs = get_precsion_recall_data_from_markups(folder_annotation,file_markup_true, file_markup_pred,None,ovp_th,ovd_th, delim=' ')
+            precisions,recalls,confidences,class_IDs = get_precsion_recall_data_from_markups(folder_annotation,file_markup_true, file_markup_pred,None,ovp_th,ovd_th, delim=delim)
             mAP = 0
 
             for i,class_ID in enumerate(class_IDs):
                 if len(precisions[i])>1:
+                    xxx= numpy.array([precisions[i], recalls[i],confidences[i]]).T
+                    filename_out = out_dir + out_prefix + 'OVD_%02d_AP_%02d_%s.txt' % (int(ovd_th * 100), class_ID, class_names[class_ID])
+                    tools_IO.save_mat(xxx,filename_out)
                     filename_out = out_dir + out_prefix + 'OVD_%02d_AP_%02d_%s.png' % (int(ovd_th*100),class_ID, class_names[class_ID])
                     AP = write_precision_recall(filename_out,precisions[i], recalls[i],caption='ovp %1.2f ovd %1.2f '%(ovp_th,ovd_th)+class_names[class_ID],color=(colors[class_ID][2]/255.0,colors[class_ID][1]/255.0,colors[class_ID][0]/255.0))
                     mAP +=AP
@@ -279,23 +279,24 @@ def plot_mAP_overlap(folder_annotation, file_markup_true, file_markup_pred, file
 
     return results[0]
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_boxes(class_ID, folder_annotation, file_markup_true, file_markup_pred, path_out, delim=' ', metric='recall', iou_th=0.1, ovp_th=0.5, ovd_th=0.5):
+def draw_boxes(class_ID, folder_annotation, file_markup_true, file_markup_pred, path_out, delim=' ', metric='recall', confidence=0.10,iou_th=0.1, ovp_th=0.5, ovd_th=0.5):
 
     tools_IO.remove_files(path_out,create=True)
     tools_IO.remove_files(path_out + '0/', create=True)
     tools_IO.remove_files(path_out + '1/', create=True)
+
     #foldername = '/'.join(file_markup_true.split('/')[:-1]) + '/'
     with open(file_markup_true) as f:lines_true = f.readlines()[1:]
     with open(file_markup_pred) as f:lines_pred = f.readlines()[1:]
 
-    file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred = calc_hits_stats_iou(lines_true, lines_pred,class_ID, delim, folder_annotation, iuo_th=iou_th,ovp_th=ovp_th,ovd_th=ovd_th)
-
+    file_true, file_pred, coord_true, coord_pred, conf_true, conf_pred, hit_true, hit_pred = calc_hits_stats_iou(lines_true, lines_pred,class_ID, delim, folder_annotation,iuo_th=iou_th,ovp_th=ovp_th,ovd_th=ovd_th)
 
 
     red=(0,32,255)
     amber=(0,192,255)
     green=(0,192,0)
     marine =(128,128,0)
+    gray = (128, 128, 128)
     hit_colors_true = [red  , green]
     hit_colors_pred = [amber, marine]
 
@@ -310,15 +311,21 @@ def draw_boxes(class_ID, folder_annotation, file_markup_true, file_markup_pred, 
             continue
         image = tools_image.desaturate(image)
         image = tools_image.smart_resize(image, 416, 416)
-        is_hit=1
+        is_hit=0
         is_FP=1
         idx = numpy.where(file_true==filename)
-        for coord, hit in zip(coord_true[idx],hit_true[idx]):
+        for coord, hit, conf in zip(coord_true[idx],hit_true[idx],conf_true[idx]):
+            if conf<confidence:
+                hit = 0
             cv2.rectangle(image,(coord[0], coord[1]),(coord[2], coord[3]),hit_colors_true[hit],thickness=2)
-            is_hit = min(is_hit,hit)
+            is_hit = max(is_hit,hit)
         idx = numpy.where(file_pred == filename)
-        for coord, hit in zip(coord_pred[idx],hit_pred[idx]):
-            cv2.rectangle(image,(coord[0], coord[1]),(coord[2], coord[3]),hit_colors_pred[hit],thickness=1)
+        for coord, hit, conf in zip(coord_pred[idx],hit_pred[idx],conf_pred[idx]):
+            if conf<confidence:
+                hit=0
+                cv2.rectangle(image, (coord[0], coord[1]), (coord[2], coord[3]), gray, thickness=1)
+            else:
+                cv2.rectangle(image, (coord[0], coord[1]), (coord[2], coord[3]), hit_colors_pred[hit], thickness=1)
             is_FP = min(is_FP, hit)
 
         if metric=='recall':
