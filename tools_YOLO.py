@@ -59,7 +59,7 @@ def draw_objects_on_image(image, boxes_bound, scores, classes, colors, class_nam
         return image
 
     for box, score, cl in zip(boxes_bound, scores, classes):
-        if class_names[cl]!='car':continue
+        #if class_names[cl]!='car':continue
         top, left, bottom,right = box
 
         top     = max(0, numpy.floor(top + 0.5).astype('int32'))
