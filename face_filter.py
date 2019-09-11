@@ -157,7 +157,7 @@ class Discriminator(nn.Module):
         return out_src, out_cls.view(out_cls.size(0), out_cls.size(1))
 #----------------------------------------------------------------------------------------------------------------------
 class Face_filter(object):
-    def __init__(self, result_dir,filename_G_weights,filename_D_weights):
+    def __init__(self, result_dir,filename_G_weights=None,filename_D_weights=None):
 
 
         # Model configurations.
@@ -199,12 +199,13 @@ class Face_filter(object):
 
         # Step size.
         self.log_step = 10
-        self.sample_step = 1000
+        self.sample_step = 100
         self.model_save_step = 10000
         self.lr_update_step = 1000
 
         self.build_model()
-        self.restore_model(filename_G_weights,filename_D_weights)
+        if filename_G_weights is not None and filename_C_weights is not None:
+            self.restore_model(filename_G_weights,filename_D_weights)
 
         self.transform = []
         self.transform.append(T.CenterCrop(178))
@@ -312,7 +313,7 @@ class Face_filter(object):
             for i, (x_real, c_org) in enumerate(self.data_loader):
 
                 x_real = x_real.to(self.device)
-                c_trg_list = self.create_labels(c_org, self.c_dim, self.dataset, self.selected_attrs)
+                c_trg_list = self.create_labels(c_org, c_dim=self.c_dim, selected_attrs=self.selected_attrs)
 
                 x_fake_list = [x_real]
                 for c_trg in c_trg_list:
@@ -368,20 +369,25 @@ class Face_filter(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def train(self,image_dir, attr_path):
 
-        self.dataset = CelebA(image_dir, attr_path, self.selected_attrs, self.transform, 'test')
-        self.data_loader = data.DataLoader(dataset=self.dataset, batch_size=1, num_workers=1)
+        dataset = CelebA(image_dir, attr_path, self.selected_attrs, self.transform, 'test')
+        self.data_loader = data.DataLoader(dataset=dataset, batch_size=1, num_workers=1)
 
         # Fetch fixed inputs for debugging.
         data_iter = iter(self.data_loader)
         x_fixed, c_org = next(data_iter)
         x_fixed = x_fixed.to(self.device)
-        c_fixed_list = self.create_labels(c_org, self.c_dim, self.dataset, self.selected_attrs)
+        c_fixed_list = self.create_labels(c_org, c_dim=self.c_dim, selected_attrs=self.selected_attrs)
 
 
         for i in range(0, self.num_iters):
+            print(i)
 
             #1.Preprocess input data
-            x_real, label_org = next(data_iter)
+            try:
+                x_real, label_org = next(data_iter)
+            except:
+                data_iter = iter(self.data_loader)
+                x_real, label_org = next(data_iter)
 
             # Generate target domain labels randomly.
             rand_idx = torch.randperm(label_org.size(0))
@@ -403,7 +409,7 @@ class Face_filter(object):
             # Compute loss with real images.
             out_src, out_cls = self.D(x_real)
             d_loss_real = - torch.mean(out_src)
-            d_loss_cls = self.classification_loss(out_cls, label_org, self.dataset)
+            d_loss_cls = self.classification_loss(out_cls, label_org)
 
             # Compute loss with fake images.
             x_fake = self.G(x_real, c_trg)
@@ -429,7 +435,7 @@ class Face_filter(object):
                 x_fake = self.G(x_real, c_trg)
                 out_src, out_cls = self.D(x_fake)
                 g_loss_fake = - torch.mean(out_src)
-                g_loss_cls = self.classification_loss(out_cls, label_trg, self.dataset)
+                g_loss_cls = self.classification_loss(out_cls, label_trg)
 
                 # Target-to-original domain.
                 x_reconst = self.G(x_fake, c_org)
@@ -445,7 +451,7 @@ class Face_filter(object):
 
             #4. Miscellaneous                                    #
             # Translate fixed images for debugging.
-            if True:#(i + 1) % self.sample_step == 0:
+            if (i + 1) % self.sample_step == 0:
                 with torch.no_grad():
                     x_fake_list = [x_fixed]
                     for c_fixed in c_fixed_list:
