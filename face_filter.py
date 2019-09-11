@@ -10,6 +10,7 @@ import os
 import cv2
 from PIL import Image
 import tools_IO
+import tools_image
 #----------------------------------------------------------------------------------------------------------------------
 class CelebA(data.Dataset):
     def __init__(self, image_dir, attr_path, selected_attrs, transform, mode):
@@ -156,73 +157,68 @@ class Discriminator(nn.Module):
         return out_src, out_cls.view(out_cls.size(0), out_cls.size(1))
 #----------------------------------------------------------------------------------------------------------------------
 class Face_filter(object):
-    def __init__(self, config):
+    def __init__(self, result_dir,filename_G_weights,filename_D_weights):
+
+
         # Model configurations.
-        self.c_dim = config.c_dim
-        self.c2_dim = config.c2_dim
-        self.image_size = config.image_size
-        self.g_conv_dim = config.g_conv_dim
-        self.d_conv_dim = config.d_conv_dim
-        self.g_repeat_num = config.g_repeat_num
-        self.d_repeat_num = config.d_repeat_num
-        self.lambda_cls = config.lambda_cls
-        self.lambda_rec = config.lambda_rec
-        self.lambda_gp = config.lambda_gp
+        self.c_dim = 5
+        self.c2_dim = 8
+        self.image_size = 128
+        self.g_conv_dim = 64
+        self.d_conv_dim = 64
+        self.g_repeat_num = 6
+        self.d_repeat_num = 6
+        self.lambda_cls = float(1.0)
+        self.lambda_rec = float(10.0)
+        self.lambda_gp = float(10.0)
 
         # Training configurations.
-        self.dataset = config.dataset
-        self.batch_size = config.batch_size
-        self.num_iters = config.num_iters
-        self.num_iters_decay = config.num_iters_decay
-        self.g_lr = config.g_lr
-        self.d_lr = config.d_lr
-        self.n_critic = config.n_critic
-        self.beta1 = config.beta1
-        self.beta2 = config.beta2
-        self.resume_iters = config.resume_iters
-        self.selected_attrs = config.selected_attrs
+        #self.dataset = config.dataset
+        self.batch_size = 32
+        self.num_iters = 2000
+        self.num_iters_decay = 1000
+        self.g_lr = float(0.0001)
+        self.d_lr = float(0.0001)
+        self.n_critic = 5
+        self.beta1 = float(0.5)
+        self.beta2 = float(0.999)
+        self.selected_attrs = ['Black_Hair', 'Blond_Hair', 'Brown_Hair', 'Male', 'Young']
 
         # Test configurations.
-        self.test_iters = config.test_iters
+        self.test_iters = 2000
 
         # Miscellaneous.
-        self.use_tensorboard = config.use_tensorboard
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         # Directories.
-        self.log_dir = config.log_dir
-        self.sample_dir = config.sample_dir
-        self.model_save_dir = config.model_save_dir
-        self.result_dir = config.result_dir
+        self.result_dir = result_dir
+        self.log_dir = result_dir
+        self.sample_dir = result_dir
+        self.model_save_dir = result_dir
+
 
         # Step size.
-        self.log_step = config.log_step
-        self.sample_step = config.sample_step
-        self.model_save_step = config.model_save_step
-        self.lr_update_step = config.lr_update_step
+        self.log_step = 10
+        self.sample_step = 1000
+        self.model_save_step = 10000
+        self.lr_update_step = 1000
 
         self.build_model()
-        self.restore_model(self.test_iters)
+        self.restore_model(filename_G_weights,filename_D_weights)
 
         self.transform = []
         self.transform.append(T.CenterCrop(178))
-        self.transform.append(T.Resize(config.image_size))
+        self.transform.append(T.Resize(self.image_size))
         self.transform.append(T.ToTensor())
         self.transform.append(T.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)))
         self.transform = T.Compose(self.transform)
 
-        dataset = CelebA(config.celeba_image_dir, config.attr_path, self.selected_attrs, self.transform, 'test')
-        self.celeba_loader = data.DataLoader(dataset=dataset, batch_size=1, num_workers=1)
-
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def build_model(self):
-        if self.dataset in ['CelebA', 'RaFD']:
-            self.G = Generator(self.g_conv_dim, self.c_dim, self.g_repeat_num)
-            self.D = Discriminator(self.image_size, self.d_conv_dim, self.c_dim, self.d_repeat_num) 
-        elif self.dataset in ['Both']:
-            self.G = Generator(self.g_conv_dim, self.c_dim+self.c2_dim+2, self.g_repeat_num)   # 2 for mask vector.
-            self.D = Discriminator(self.image_size, self.d_conv_dim, self.c_dim+self.c2_dim, self.d_repeat_num)
+
+        self.G = Generator(self.g_conv_dim, self.c_dim, self.g_repeat_num)
+        self.D = Discriminator(self.image_size, self.d_conv_dim, self.c_dim, self.d_repeat_num)
 
         self.g_optimizer = torch.optim.Adam(self.G.parameters(), self.g_lr, (self.beta1, self.beta2))
         self.d_optimizer = torch.optim.Adam(self.D.parameters(), self.d_lr, (self.beta1, self.beta2))
@@ -239,11 +235,9 @@ class Face_filter(object):
         print("The number of parameters: {}".format(num_params))
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def restore_model(self, resume_iters):
-        G_path = ('%s'%self.model_save_dir)+'/{}-G.ckpt'.format(resume_iters)
-        D_path = ('%s'%self.model_save_dir)+'/{}-D.ckpt'.format(resume_iters)
-        self.G.load_state_dict(torch.load(G_path, map_location=lambda storage, loc: storage))
-        self.D.load_state_dict(torch.load(D_path, map_location=lambda storage, loc: storage))
+    def restore_model(self,filename_G_weights,filename_D_weights):
+        self.G.load_state_dict(torch.load(filename_G_weights, map_location=lambda storage, loc: storage))
+        self.D.load_state_dict(torch.load(filename_D_weights, map_location=lambda storage, loc: storage))
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def update_lr(self, g_lr, d_lr):
@@ -315,7 +309,7 @@ class Face_filter(object):
 
         with torch.no_grad():
 
-            for i, (x_real, c_org) in enumerate(self.celeba_loader):
+            for i, (x_real, c_org) in enumerate(self.data_loader):
 
                 x_real = x_real.to(self.device)
                 c_trg_list = self.create_labels(c_org, self.c_dim, self.dataset, self.selected_attrs)
@@ -333,28 +327,32 @@ class Face_filter(object):
     def process_file(self, filename_in,filename_out):
 
         image = Image.open(filename_in)
+        image_original = numpy.array(image)
+        image_original = tools_image.center_crop(image_original, self.image_size * 2)
+
         x_real = self.transform(image)
         x_real = x_real.unsqueeze(0)
-        res_image = numpy.zeros((self.image_size*2,self.image_size*2,3),dtype=numpy.uint8)
+        image_result = numpy.zeros((self.image_size*2,self.image_size*4,3),dtype=numpy.uint8)
+        image_result = tools_image.put_image(image_result, image_original, 0, 0)
 
-        c_org = torch.tensor([[0.0,0.0,1.0,0.0,1.0]])
-        c_trg_list = self.create_labels(c_org, self.c_dim, self.dataset, self.selected_attrs)
+        #Black_Hair, Blond_Hair, Brown_Hair, Male, 'Young
+        #c_org = torch.tensor([[0.0,0.0,1.0,0.0,1.0]])
+        c_org = torch.tensor([[0.0,0.0,1.0,1.0,1.0]])
+        c_trg_list = self.create_labels(c_org, c_dim=self.c_dim, selected_attrs=self.selected_attrs)
 
         for i,c_trg in enumerate(c_trg_list):
             res = self.G(x_real, c_trg)
             tensor = self.denorm(res.data.cpu())
-            grid = make_grid(tensor, nrow=1, padding=0)
-            res_array = grid.mul_(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to('cpu', torch.uint8).numpy()
-            if i==0:res_image[:self.image_size,:self.image_size ] = res_array
-            if i==1:res_image[:self.image_size, self.image_size:] = res_array
-            if i==2:res_image[self.image_size:,:self.image_size ] = res_array
-            if i==4:res_image[self.image_size:, self.image_size:] = res_array
+            grid_result = make_grid(tensor, nrow=1, padding=0)
+            newlook = grid_result.mul_(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to('cpu', torch.uint8).numpy()
 
-        res_image = cv2.cvtColor(res_image, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(filename_out,res_image)
-
+            if i == 0: image_result=tools_image.put_image(image_result, newlook, 0,self.image_size*2+ 0)
+            if i == 1: image_result=tools_image.put_image(image_result, newlook, 0,self.image_size*2+ self.image_size)
+            if i == 2: image_result=tools_image.put_image(image_result, newlook, self.image_size, self.image_size*2+0)
+            if i == 4: image_result=tools_image.put_image(image_result, newlook, self.image_size, self.image_size*2+self.image_size)
+        image_result = cv2.cvtColor(image_result, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(filename_out,image_result)
         return
-
 # ----------------------------------------------------------------------------------------------------------------------
     def process_folder(self, path_input, path_out, list_of_masks='*.png,*.jpg', limit=1000000):
         tools_IO.remove_files(path_out,create=True)
@@ -368,3 +366,103 @@ class Face_filter(object):
         print('Processing: %s sec in total - %f per image' % (total_time, int(total_time) / len(local_filenames)))
         return
 # ----------------------------------------------------------------------------------------------------------------------
+    def train(self,image_dir, attr_path):
+
+        self.dataset = CelebA(image_dir, attr_path, self.selected_attrs, self.transform, 'test')
+        self.data_loader = data.DataLoader(dataset=self.dataset, batch_size=1, num_workers=1)
+
+        # Fetch fixed inputs for debugging.
+        data_iter = iter(self.data_loader)
+        x_fixed, c_org = next(data_iter)
+        x_fixed = x_fixed.to(self.device)
+        c_fixed_list = self.create_labels(c_org, self.c_dim, self.dataset, self.selected_attrs)
+
+
+        for i in range(0, self.num_iters):
+
+            #1.Preprocess input data
+            x_real, label_org = next(data_iter)
+
+            # Generate target domain labels randomly.
+            rand_idx = torch.randperm(label_org.size(0))
+            label_trg = label_org[rand_idx]
+
+            c_org = label_org.clone()
+            c_trg = label_trg.clone()
+
+
+            x_real = x_real.to(self.device)  # Input images.
+            c_org = c_org.to(self.device)  # Original domain labels.
+            c_trg = c_trg.to(self.device)  # Target domain labels.
+            label_org = label_org.to(self.device)  # Labels for computing classification loss.
+            label_trg = label_trg.to(self.device)  # Labels for computing classification loss.
+
+
+            #2.Train the discriminator
+
+            # Compute loss with real images.
+            out_src, out_cls = self.D(x_real)
+            d_loss_real = - torch.mean(out_src)
+            d_loss_cls = self.classification_loss(out_cls, label_org, self.dataset)
+
+            # Compute loss with fake images.
+            x_fake = self.G(x_real, c_trg)
+            out_src, out_cls = self.D(x_fake.detach())
+            d_loss_fake = torch.mean(out_src)
+
+            # Compute loss for gradient penalty.
+            alpha = torch.rand(x_real.size(0), 1, 1, 1).to(self.device)
+            x_hat = (alpha * x_real.data + (1 - alpha) * x_fake.data).requires_grad_(True)
+            out_src, _ = self.D(x_hat)
+            d_loss_gp = self.gradient_penalty(out_src, x_hat)
+
+            # Backward and optimize.
+            d_loss = d_loss_real + d_loss_fake + self.lambda_cls * d_loss_cls + self.lambda_gp * d_loss_gp
+            self.reset_grad()
+            d_loss.backward()
+            self.d_optimizer.step()
+
+
+            #3. Train the generator                                #
+            if (i + 1) % self.n_critic == 0:
+                # Original-to-target domain.
+                x_fake = self.G(x_real, c_trg)
+                out_src, out_cls = self.D(x_fake)
+                g_loss_fake = - torch.mean(out_src)
+                g_loss_cls = self.classification_loss(out_cls, label_trg, self.dataset)
+
+                # Target-to-original domain.
+                x_reconst = self.G(x_fake, c_org)
+                g_loss_rec = torch.mean(torch.abs(x_real - x_reconst))
+
+                # Backward and optimize.
+                g_loss = g_loss_fake + self.lambda_rec * g_loss_rec + self.lambda_cls * g_loss_cls
+                self.reset_grad()
+                g_loss.backward()
+                self.g_optimizer.step()
+
+
+
+            #4. Miscellaneous                                    #
+            # Translate fixed images for debugging.
+            if True:#(i + 1) % self.sample_step == 0:
+                with torch.no_grad():
+                    x_fake_list = [x_fixed]
+                    for c_fixed in c_fixed_list:
+                        x_fake_list.append(self.G(x_fixed, c_fixed))
+                    x_concat = torch.cat(x_fake_list, dim=3)
+                    sample_path = os.path.join(self.sample_dir, '{}-images.jpg'.format(i + 1))
+                    save_image(self.denorm(x_concat.data.cpu()), sample_path, nrow=1, padding=0)
+                    print('Saved real and fake images into {}...'.format(sample_path))
+
+            # Save model checkpoints.
+            if (i + 1) % self.model_save_step == 0:
+                G_path = os.path.join(self.model_save_dir, '{}-G.ckpt'.format(i + 1))
+                D_path = os.path.join(self.model_save_dir, '{}-D.ckpt'.format(i + 1))
+                torch.save(self.G.state_dict(), G_path)
+                torch.save(self.D.state_dict(), D_path)
+                print('Saved model checkpoints into {}...'.format(self.model_save_dir))
+
+
+        return
+# ---------------------------------------------------------------------------------------------------------------------

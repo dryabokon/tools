@@ -51,6 +51,20 @@ def smart_resize(img, target_image_height, target_image_width):
     new_image.paste(pillow_image, ((target_image_width - nw) // 2, (target_image_height - nh) // 2))
     return numpy.array(new_image)
 # ---------------------------------------------------------------------------------------------------------------------
+def center_crop(img, size):
+    h, w = img.shape[0],img.shape[1]
+
+    if h>w:
+        new_height = int(size*h/w)
+        new_width = size
+        img = cv2.resize(img,(new_width,new_height))
+        return crop_image(img, top=(new_height-new_width)//2, left=0, bottom=new_height-1-(new_height-new_width)//2, right=new_width)
+    else:
+        new_height = size
+        new_width = int(size*w/h)
+        img = cv2.resize(img, (new_width, new_height))
+        return crop_image(img, top=0, left=(new_width-new_height)//2, bottom=new_height, right=new_width-1-(new_width-new_height)//2)
+# ---------------------------------------------------------------------------------------------------------------------
 def smart_resize_point(original_x, original_y, original_w, original_h, target_w, target_h):
     scale_hor = target_h / original_h
     scale_ver = target_w / original_w
@@ -212,6 +226,25 @@ def put_layer_on_image(image_background,image_layer,background_color=(0,0,0)):
 
     return im_result
 #--------------------------------------------------------------------------------------------------------------------------
+def put_image(image_large,image_small,start_row,start_col):
+    result = image_large.copy()
+    end_row_large = start_row+image_small.shape[0]
+    end_row_small= image_small.shape[0]
+    delta = image_large.shape[0] - end_row_large
+    if delta<0:
+        end_row_large+=delta
+        end_row_small+=delta
+
+    end_col_large = start_col + image_small.shape[1]
+    end_col_small = image_small.shape[1]
+    delta = image_large.shape[1] - end_col_large
+    if delta < 0:
+        end_col_large += delta
+        end_col_small += delta
+
+    result[start_row:end_row_large,start_col:end_col_large]=image_small[0:end_row_small,0:end_col_small]
+    return result
+# ---------------------------------------------------------------------------------------------------------------------
 def rgb2bgr(image):
     return image[:, :, [2, 1, 0]]
     #return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
