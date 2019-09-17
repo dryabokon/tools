@@ -204,7 +204,7 @@ class Face_filter(object):
         self.lr_update_step = 1000
 
         self.build_model()
-        if filename_G_weights is not None and filename_C_weights is not None:
+        if filename_G_weights is not None and filename_D_weights is not None:
             self.restore_model(filename_G_weights,filename_D_weights)
 
         self.transform = []
