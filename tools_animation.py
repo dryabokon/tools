@@ -10,11 +10,12 @@ import imageio
 # ---------------------------------------------------------------------------------------------------------------------
 def folder_to_animated_gif_ffmpeg(path_input, path_out, filename_out, mask='.png', framerate=10,resize_H=64, resize_W=64):
 
+
     fileslist = fnmatch.filter(listdir(path_input), '*'+mask)
 
     prefix = fileslist[0].split('0')[0]
-    command_make_palette = 'ffmpeg -i %s%s%s -vf "palettegen" -y palette.png'% (prefix,'%04d',mask)
-    command_make_gif =  'ffmpeg -framerate %d -i %s%s%s -lavfi "scale=%d:%d:flags=bitexact" -i palette.png %s -y' % (framerate,prefix,'%04d',mask,resize_W,resize_H,filename_out)
+    command_make_palette = 'ffmpeg -i %s%s%s -vf "palettegen" -y palette.png'% (prefix,'%06d',mask)
+    command_make_gif =  'ffmpeg -framerate %d -i %s%s%s -lavfi "scale=%d:%d:dither=none" -i palette.png %s -y' % (framerate,prefix,'%06d',mask,resize_W,resize_H,filename_out)
 
     cur_dir = os.getcwd()
     os.chdir(path_input)
@@ -22,6 +23,7 @@ def folder_to_animated_gif_ffmpeg(path_input, path_out, filename_out, mask='.png
     os.system(command_make_gif)
     os.system('del palette.png')
     os.chdir(cur_dir)
+    tools_IO.remove_file('%s%s' % (path_out, filename_out))
     os.rename('%s%s'%(path_input,filename_out), '%s%s'%(path_out,filename_out))
 
     return

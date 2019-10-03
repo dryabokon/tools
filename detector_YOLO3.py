@@ -558,11 +558,12 @@ class detector_YOLO3(object):
         start_time = time.time()
 
         with open(file_annotations) as f:lines = f.readlines()[1:limit]
+
+        list_filenames = sorted(set([foldername+line.split(' ')[0] for line in lines]))
+        true_boxes = tools_YOLO.get_true_boxes(foldername, file_annotations, (416, 416), delim =' ', limit=limit)
         list_filenames = sorted(set([foldername+line.split(delim)[0] for line in lines]))
         true_boxes = tools_YOLO.get_true_boxes(foldername, file_annotations, (416, 416), delim =delim, limit=limit)
         detector_YOLO3_core.save_targets(folder_out, true_boxes, (416, 416), self.anchors, self.anchor_mask, len(self.class_names))
-
-
 
 
         if len(true_boxes)>6:
