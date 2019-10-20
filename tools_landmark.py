@@ -12,9 +12,14 @@ def apply_affine_transform(src, src_tri, target_tri, size):
     return dst
 # ---------------------------------------------------------------------------------------------------------------------
 def morph_triangle(img1, img2, img, t1, t2, t, alpha):
+
+    if t[0]==t[1] or t[2]==t[1] or t[0]==t[2]:return
+
     r1 = cv2.boundingRect(numpy.float32([t1]))
     r2 = cv2.boundingRect(numpy.float32([t2]))
     r =  cv2.boundingRect(numpy.float32([t]))
+
+    if r[2]<=1 or r[3]<=1:return
 
     t1_rect = []
     t2_rect = []
@@ -41,6 +46,7 @@ def morph_triangle(img1, img2, img, t1, t2, t, alpha):
         xxx+= img_rect * mask
         img[r[1]:r[1]+r[3], r[0]:r[0]+r[2]] = xxx
 
+    return
 # ---------------------------------------------------------------------------------------------------------------------
 def draw_trianges(image,src_points,del_triangles):
     result = tools_image.desaturate(image, 0.8)
@@ -64,15 +70,20 @@ def get_morph(src_img,target_img,src_points,target_points,del_triangles,alpha=0.
 
     img_morph = numpy.full(src_img.shape,0, dtype=src_img.dtype)
 
-    for triangle in del_triangles:
+    for i,triangle in enumerate(del_triangles):
+
         x, y, z = triangle
         t1 = [src_points[x], src_points[y], src_points[z]]
         t2 = [target_points[x], target_points[y], target_points[z]]
         t = [weighted_pts[x], weighted_pts[y], weighted_pts[z]]
+        if i==32:
+            i==i
         if keep_src_colors:
             morph_triangle(src_img, target_img, img_morph, t1, t2, t, 0)
         else:
             morph_triangle(src_img, target_img, img_morph, t1, t2, t, alpha)
+        #if debug_mode == 1:
+        #    cv2.imwrite('./images/output/img_morph_%03d.png'%i, img_morph)
 
     if debug_mode==1:
         src_img_debug    = draw_trianges(src_img   ,src_points,del_triangles)
@@ -123,7 +134,7 @@ def transferface_first_to_second_manual(filename_image_first, filename_image_sec
 # ---------------------------------------------------------------------------------------------------------------------
 def transferface_first_to_second(D,filename_image_first, filename_image_second,folder_out=None):
 
-    do_debug = False
+    do_debug = True
     swap = False
 
     if do_debug and folder_out is not None:
@@ -146,8 +157,9 @@ def transferface_first_to_second(D,filename_image_first, filename_image_second,f
     tools_IO.save_mat(result,'./images/markup.txt',delim=' ')
 
 
-    idx = [1,2,3,4,14,15,16,17,18,19,20,21,22,23,24,25,26,27,8,9,10,32,33,34,35,36,37,38,38,40,41,42,43,44,45,46,47,48]
-    idx = numpy.arange(0,68,1).tolist()
+    #idx = [1,2,3,4,14,15,16,17,18,19,20,21,22,23,24,25,26,27,8,9,10,32,33,34,35,36,37,38,38,40,41,42,43,44,45,46,47,48]
+    idx = [1,2,3,4,14,15,16,17,18,19,20,21,22,23,24,25,26,27]
+    #idx = numpy.arange(0,68,1).tolist()
 
     H = tools_calibrate.get_transform_by_keypoints(L1_original[idx],L2_original[idx])
     aligned1, aligned2= tools_calibrate.get_stitched_images_using_translation(image1, image2, H,keep_shape=True)
@@ -158,21 +170,23 @@ def transferface_first_to_second(D,filename_image_first, filename_image_second,f
     #L1_aligned, L2_aligned = tools_calibrate.homography_coordinates(image1, image2, H, L1_original, L2_original)
 
     if do_debug and folder_out is not None:
-        cv2.imwrite(folder_out+'original1.jpg', image1)
-        cv2.imwrite(folder_out+'original2.jpg', image2)
-        cv2.imwrite(folder_out+'aligned1.jpg', aligned1)
-        cv2.imwrite(folder_out+'aligned2.jpg', aligned2)
+        cv2.imwrite(folder_out+'s01-original1.jpg', image1)
+        cv2.imwrite(folder_out+'s05-original2.jpg', image2)
+        cv2.imwrite(folder_out+'s02-aligned1.jpg', aligned1)
+        #cv2.imwrite(folder_out+'aligned2.jpg', aligned2)
 
     face = get_morph(aligned1, aligned2, L1_aligned, L2_aligned, del_triangles, alpha=1,keep_src_colors=True)
     #face = get_morph(aligned1, aligned2, L1_aligned, L2_aligned, del_triangles, alpha=0,keep_src_colors=True)
     if do_debug and folder_out is not None:
-        cv2.imwrite(folder_out + 'face1.jpg', face)
+        for alpha in [0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1]:
+            temp_face = get_morph(aligned1, aligned2, L1_aligned, L2_aligned, del_triangles, alpha=alpha, keep_src_colors=True)
+            cv2.imwrite(folder_out + 's03-temp_face_%02d.jpg'%int(alpha*10), temp_face)
 
 
     result2 = tools_image.blend_multi_band_large_small(aligned2, face, (0, 0, 0))
 
     if do_debug and folder_out is not None:
-        cv2.imwrite(folder_out+'result2.jpg', result2)
+        cv2.imwrite(folder_out+'s04-result2.jpg', result2)
 
     return result2
 # ---------------------------------------------------------------------------------------------------------------------
