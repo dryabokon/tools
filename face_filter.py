@@ -380,7 +380,7 @@ class Face_filter(object):
 
 
         for i in range(0, self.num_iters):
-            print(i)
+            print('.',end='')
 
             #1.Preprocess input data
             try:
