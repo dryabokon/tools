@@ -15,6 +15,18 @@ def morph_triangle(img1, img2, img, t1, t2, t, alpha):
 
     if t[0]==t[1] or t[2]==t[1] or t[0]==t[2]:return
 
+    flag=0
+    for i in [0,1,2]:
+        if t1[i][0] < 0 or t1[i][0] >= img1.shape[0]: flag = 1
+        if t1[i][1] < 0 or t1[i][1] >= img1.shape[1]: flag = 1
+        if t2[i][0] < 0 or t2[i][0] >= img2.shape[0]: flag = 1
+        if t2[i][1] < 0 or t2[i][1] >= img2.shape[1]: flag = 1
+        if  t[i][0] < 0 or  t[i][0] >= img.shape[0]: flag = 1
+        if  t[i][1] < 0 or  t[i][1] >= img.shape[1]: flag = 1
+
+    if flag==1:
+        return
+
     r1 = cv2.boundingRect(numpy.float32([t1]))
     r2 = cv2.boundingRect(numpy.float32([t2]))
     r =  cv2.boundingRect(numpy.float32([t]))
@@ -76,8 +88,6 @@ def get_morph(src_img,target_img,src_points,target_points,del_triangles,alpha=0.
         t1 = [src_points[x], src_points[y], src_points[z]]
         t2 = [target_points[x], target_points[y], target_points[z]]
         t = [weighted_pts[x], weighted_pts[y], weighted_pts[z]]
-        if i==32:
-            i==i
         if keep_src_colors:
             morph_triangle(src_img, target_img, img_morph, t1, t2, t, 0)
         else:
