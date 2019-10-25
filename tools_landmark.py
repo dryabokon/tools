@@ -84,7 +84,7 @@ def draw_trianges(image,src_points,del_triangles):
 # ---------------------------------------------------------------------------------------------------------------------
 def get_morph(src_img,target_img,src_points,target_points,del_triangles,alpha=0.5,keep_src_colors=True):
 
-    debug_mode = 1
+    debug_mode = 0
 
     weighted_pts = []
     for i in range(0, len(src_points)):
