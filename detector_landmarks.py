@@ -88,19 +88,21 @@ class detector_landmarks(object):
 
         del_triangles = Delaunay(landmarks).vertices
         for landmark in landmarks:
-            #cv2.circle(gray,(landmark[0],landmark[1]),5,(0,128,255),-1)
-            gray=tools_draw_numpy.draw_circle(gray, landmark[1],landmark[0], 3, (0,128,255),alpha_transp=0.7)
+            cv2.circle(gray,(landmark[0],landmark[1]),2,(0,128,255),-1)
+            #gray=tools_draw_numpy.draw_circle(gray, landmark[1],landmark[0], 3, (0,128,255),alpha_transp=0.7)
+
 
         for t in del_triangles:
             p0 = (landmarks[t[0],0], landmarks[t[0],1])
             p1 = (landmarks[t[1],0], landmarks[t[1],1])
             p2 = (landmarks[t[2],0], landmarks[t[2],1])
-            #cv2.line(gray,p0,p1,(0,0,255))
-            #cv2.line(gray,p0,p2,(0, 0, 255))
-            #cv2.line(gray,p2,p1,(0, 0, 255))
-            gray = tools_draw_numpy.draw_line(gray, p0[1], p0[0], p1[1], p1[0], (0, 0, 255), alpha_transp=0.7)
-            gray = tools_draw_numpy.draw_line(gray, p0[1], p0[0], p2[1], p2[0], (0, 0, 255), alpha_transp=0.7)
-            gray = tools_draw_numpy.draw_line(gray, p2[1], p2[0], p1[1], p1[0], (0, 0, 255), alpha_transp=0.7)
+            cv2.line(gray,p0,p1,(0,0,255))
+            cv2.line(gray,p0,p2,(0, 0, 255))
+            cv2.line(gray,p2,p1,(0, 0, 255))
+            #gray = tools_draw_numpy.draw_line(gray, p0[1], p0[0], p1[1], p1[0], (0, 0, 255), alpha_transp=0.7)
+            #gray = tools_draw_numpy.draw_line(gray, p0[1], p0[0], p2[1], p2[0], (0, 0, 255), alpha_transp=0.7)
+            #gray = tools_draw_numpy.draw_line(gray, p2[1], p2[0], p1[1], p1[0], (0, 0, 255), alpha_transp=0.7)
+
 
         return gray
 # ----------------------------------------------------------------------------------------------------------------------

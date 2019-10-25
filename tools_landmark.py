@@ -13,21 +13,30 @@ def apply_affine_transform(src, src_tri, target_tri, size):
 # ---------------------------------------------------------------------------------------------------------------------
 def morph_triangle(img1, img2, img, t1, t2, t, alpha):
 
-    if t[0]==t[1] or t[2]==t[1] or t[0]==t[2]:return
 
-    '''
+    if t1[0] == t1[1] or t1[2] == t1[1] or t1[0] == t1[2]: return
+    if t2[0] == t2[1] or t2[2] == t2[1] or t2[0] == t2[2]: return
+    if t[0] == t[1] or t[2] == t[1] or t[0] == t[2]: return
+
+
     flag=0
     for i in [0,1,2]:
-        if t1[i][0] < 0 or t1[i][0] >= img1.shape[0]: flag = 1
-        if t1[i][1] < 0 or t1[i][1] >= img1.shape[1]: flag = 1
-        if t2[i][0] < 0 or t2[i][0] >= img2.shape[0]: flag = 1
-        if t2[i][1] < 0 or t2[i][1] >= img2.shape[1]: flag = 1
-        if  t[i][0] < 0 or  t[i][0] >= img.shape[0]: flag = 1
-        if  t[i][1] < 0 or  t[i][1] >= img.shape[1]: flag = 1
+        if t1[i][0] < 0 or t1[i][0] >= img1.shape[1]: flag = 1
+        if t1[i][1] < 0 or t1[i][1] >= img1.shape[0]: flag = 1
+        if t2[i][0] < 0 or t2[i][0] >= img2.shape[1]: flag = 1
+        if t2[i][1] < 0 or t2[i][1] >= img2.shape[0]: flag = 1
+        if  t[i][0] < 0 or  t[i][0] >= img.shape[1]: flag = 1
+        if  t[i][1] < 0 or  t[i][1] >= img.shape[0]: flag = 1
 
     if flag==1:
         return
-    '''
+
+    val1 = (t1[2][0] - t1[1][0]) * (t1[0][1] - t1[2][1]) - (t1[2][1] - t1[1][1]) * (t1[0][0] - t1[2][0])
+    val2 = (t2[2][0] - t2[1][0]) * (t2[0][1] - t2[2][1]) - (t2[2][1] - t2[1][1]) * (t2[0][0] - t2[2][0])
+
+    if val1*val2<0:
+        return
+
 
     r1 = cv2.boundingRect(numpy.float32([t1]))
     r2 = cv2.boundingRect(numpy.float32([t2]))
@@ -54,6 +63,7 @@ def morph_triangle(img1, img2, img, t1, t2, t, alpha):
     warp_image1 = apply_affine_transform(img1_rect, t1_rect, t_rect, size)
     warp_image2 = apply_affine_transform(img2_rect, t2_rect, t_rect, size)
 
+
     img_rect = (1.0 - alpha) * warp_image1 + alpha * warp_image2
     if r[1] + r[3] < img.shape[0] and r[0] + r[2]<img.shape[1]:
         xxx = img[r[1]:r[1] + r[3], r[0]:r[0] + r[2]] * (1 - mask)
@@ -74,7 +84,7 @@ def draw_trianges(image,src_points,del_triangles):
 # ---------------------------------------------------------------------------------------------------------------------
 def get_morph(src_img,target_img,src_points,target_points,del_triangles,alpha=0.5,keep_src_colors=True):
 
-    debug_mode = 0
+    debug_mode = 1
 
     weighted_pts = []
     for i in range(0, len(src_points)):
@@ -87,9 +97,11 @@ def get_morph(src_img,target_img,src_points,target_points,del_triangles,alpha=0.
     for i,triangle in enumerate(del_triangles):
 
         x, y, z = triangle
-        t1 = [src_points[x], src_points[y], src_points[z]]
-        t2 = [target_points[x], target_points[y], target_points[z]]
+        t1 = [[src_points[x][0],src_points[x][1]], [src_points[y][0],src_points[y][1]], [src_points[z][0],src_points[z][1]]]
+        t2 = [[target_points[x][0], target_points[x][1]], [target_points[y][0], target_points[y][1]],[target_points[z][0], target_points[z][1]]]
         t = [weighted_pts[x], weighted_pts[y], weighted_pts[z]]
+        if i==91:
+            i=i
         if keep_src_colors:
             morph_triangle(src_img, target_img, img_morph, t1, t2, t, 0)
         else:

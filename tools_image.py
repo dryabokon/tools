@@ -405,7 +405,7 @@ def blend_multi_band(left, rght, background_color=(255, 255, 255)):
     result[result < 0] = 0
     return result
 #----------------------------------------------------------------------------------------------------------------------
-def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),do_color_balance=True,filter_size=50,leveln_default=3 ):
+def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),do_color_balance=True,filter_size=50,leveln_default=1 ):
 
     debug_mode = 0
 
@@ -413,7 +413,8 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
     mask[numpy.where(small==background_color)] = 1
 
     K = numpy.ones((filter_size, filter_size))
-    mask = ndimage.convolve(mask[:,:,0], K, mode='nearest')/(K.shape[0]*K.shape[1])
+    #mask = ndimage.convolve(mask[:,:,0], K, mode='nearest')/(K.shape[0]*K.shape[1])
+    mask = ndimage.uniform_filter(mask[:,:,0], size=(filter_size,filter_size), mode='constant')
 
     mask = numpy.clip(2*mask, 0, 1.0).astype(numpy.float)
 
@@ -442,7 +443,6 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
     blended = blend_pyramid(LPA, LPB, MP)
     result = reconstruct_from_pyramid(blended)
     result = numpy.clip(result, 0, 255)
-
 
     return result.astype(numpy.uint8)
 #----------------------------------------------------------------------------------------------------------------------
