@@ -15,6 +15,7 @@ def morph_triangle(img1, img2, img, t1, t2, t, alpha):
 
     if t[0]==t[1] or t[2]==t[1] or t[0]==t[2]:return
 
+    '''
     flag=0
     for i in [0,1,2]:
         if t1[i][0] < 0 or t1[i][0] >= img1.shape[0]: flag = 1
@@ -26,6 +27,7 @@ def morph_triangle(img1, img2, img, t1, t2, t, alpha):
 
     if flag==1:
         return
+    '''
 
     r1 = cv2.boundingRect(numpy.float32([t1]))
     r2 = cv2.boundingRect(numpy.float32([t2]))
@@ -92,8 +94,8 @@ def get_morph(src_img,target_img,src_points,target_points,del_triangles,alpha=0.
             morph_triangle(src_img, target_img, img_morph, t1, t2, t, 0)
         else:
             morph_triangle(src_img, target_img, img_morph, t1, t2, t, alpha)
-        #if debug_mode == 1:
-        #    cv2.imwrite('./images/output/img_morph_%03d.png'%i, img_morph)
+        if debug_mode == 1:
+            cv2.imwrite('./images/output/img_morph_%03d.png'%i, img_morph)
 
     if debug_mode==1:
         src_img_debug    = draw_trianges(src_img   ,src_points,del_triangles)
