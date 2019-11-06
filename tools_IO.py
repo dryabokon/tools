@@ -13,8 +13,8 @@ import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from sklearn.manifold import TSNE
-from PIL import Image
-#from xgboost import XGBClassifier
+#from PIL import Image
+from xgboost import XGBClassifier
 #from xgboost import plot_importance
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_image
@@ -598,7 +598,8 @@ def plot_tp_fp(plt,fig,tpr,fpr,roc_auc,caption='',filename_out=None):
     #plt.set_title(caption + ('AUC = %0.4f' % roc_auc))
     #plt.legend(loc="lower right")
     plt.grid(which='major', color='lightgray', linestyle='--')
-    fig.canvas.set_window_title(caption + ('AUC = %0.4f' % roc_auc))
+    #fig.canvas.set_window_title(caption + ('AUC = %0.4f' % roc_auc))
+    plt.set_title(caption)
 
     if filename_out is not None:
         plt.savefig(filename_out)

@@ -64,11 +64,16 @@ def morph_triangle(img1, img2, img, t1, t2, t, alpha):
     warp_image2 = apply_affine_transform(img2_rect, t2_rect, t_rect, size)
 
 
+
     img_rect = (1.0 - alpha) * warp_image1 + alpha * warp_image2
     if r[1] + r[3] < img.shape[0] and r[0] + r[2]<img.shape[1]:
-        xxx = img[r[1]:r[1] + r[3], r[0]:r[0] + r[2]] * (1 - mask)
-        xxx+= img_rect * mask
+        before = img[r[1]:r[1]+r[3], r[0]:r[0]+r[2]].copy()
+        non_empty_mask_shift = numpy.where(before>0)
+        xxx = before * (1 - mask) + img_rect * mask
+        xxx[non_empty_mask_shift] = before[non_empty_mask_shift]
         img[r[1]:r[1]+r[3], r[0]:r[0]+r[2]] = xxx
+
+
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
@@ -113,8 +118,8 @@ def get_morph(src_img,target_img,src_points,target_points,del_triangles,alpha=0.
         src_img_debug    = draw_trianges(src_img   ,src_points,del_triangles)
         target_img_debug = draw_trianges(target_img,target_points, del_triangles)
 
-        cv2.imwrite('./images/output/src_img_debug.png',src_img_debug)
-        cv2.imwrite('./images/output/target_img_debug.png', target_img_debug)
+        #cv2.imwrite('./images/output/src_img_debug.png',src_img_debug)
+        #cv2.imwrite('./images/output/target_img_debug.png', target_img_debug)
 
     return img_morph
 # ---------------------------------------------------------------------------------------------------------------------

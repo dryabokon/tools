@@ -34,15 +34,19 @@ class tools_ML(object):
 
         return label_pred, numpy.array(label_prob), challangers, prob
 # ---------------------------------------------------------------------------------------------------------------------
-    def prepare_arrays_from_feature_files(self, path_input, patterns=numpy.array(['0', '1']),feature_mask='.txt', limit=1000000):
+    def prepare_arrays_from_feature_files(self, path_input, patterns=numpy.array(['0', '1']),feature_mask='.txt', limit=1000000,has_header=True,has_labels_first_col=True):
 
         x = tools_IO.load_mat(path_input + ('%s%s' % (patterns[0], feature_mask)), numpy.chararray, delim='\t')
+
+        if has_header:x = x[1:,:]
 
         X = numpy.full(x.shape[1], '-').astype(numpy.chararray)
         Y = numpy.array(patterns[0])
 
         for i in range(0,patterns.shape[0]):
             x = tools_IO.load_mat(path_input + ('%s%s' % (patterns[i], feature_mask)), numpy.chararray, delim='\t')
+            if has_header: x = x[1:, :]
+
             if (limit != 1000000) and (x.shape[0] > limit):
                 idx_limit = numpy.sort(numpy.random.choice(x.shape[0], int(limit), replace=False))
                 x = x[idx_limit]
@@ -143,13 +147,17 @@ class tools_ML(object):
         self.classifier.learn(X_train, Y_train)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def generate_data_grid(self,filename_data_train, filename_data_test, filename_data_grid):
+    def generate_data_grid(self,filename_data_train, filename_data_test, filename_data_grid,has_header=True,has_labels_first_col=True):
 
         data = tools_IO.load_mat(filename_data_train, numpy.chararray, '\t')
-        X_train = data[:, 1:].astype('float32')
+        if has_header:data = data[1:,:]
+        if has_labels_first_col:data = data[:, 1:]
+        X_train = data.astype('float32')
 
         data = tools_IO.load_mat(filename_data_test, numpy.chararray, '\t')
-        X_test = data[:, 1:].astype('float32')
+        if has_header:data = data[1:,:]
+        if has_labels_first_col:data = data[:, 1:]
+        X_test = data.astype('float32')
 
         X = numpy.vstack((X_train, X_test))
 
@@ -254,19 +262,23 @@ class tools_ML(object):
 
         return
 # ---------------------------------------------------------------------------------------------------------------------
-    def E2E_features(self, path_input, path_output,mask = '.txt', limit_classes=1000000,limit_instances=1000000):
+    def E2E_features(self, path_input, path_output,mask = '.txt', limit_classes=1000000,limit_instances=1000000,has_header=True,has_labels_first_col=True):
 
         print('E2E train-test on features: classifier=%s\n\n' % (self.classifier.name))
         if not os.path.exists(path_output):
             os.makedirs(path_output)
 
-
-
         patterns = numpy.unique(numpy.array([f.path[len(path_input):].split(mask)[0] for f in os.scandir(path_input) if f.is_file()]))[:limit_classes]
 
-        (X, Y, filenames) = self.prepare_arrays_from_feature_files(path_input, patterns,feature_mask=mask,limit=limit_instances)
+        (X, Y, filenames) = self.prepare_arrays_from_feature_files(path_input, patterns,feature_mask=mask,limit=limit_instances,has_header=has_header,has_labels_first_col=has_labels_first_col)
         idx_train = numpy.sort(numpy.random.choice(X.shape[0], int(X.shape[0] / 2), replace=False))
         idx_test  = numpy.array([x for x in range(0, X.shape[0]) if x not in idx_train])
+
+        if has_header:
+            header = tools_IO.load_mat(path_input + ('%s%s' % (patterns[0], mask)), numpy.chararray, delim='\t')
+            header = header[0]
+        else:
+            header = None
 
         X = normalize(X)
         min = numpy.min(X)
@@ -280,6 +292,18 @@ class tools_ML(object):
         labels_fact = numpy.hstack((Y[idx_train], Y[idx_test]))
 
         self.stage_train_stats(path_output, labels_fact, labels_train_pred, labels_test_pred, labels_train_prob, labels_test_prob, patterns)
+
+        N = 3
+        if not has_header:N-=1
+
+        fig = plt.figure(figsize=(12, 6))
+        fig.subplots_adjust(hspace=0.01)
+        tools_IO.plot_features_PCA(plt.subplot(1, N, 1), X, Y, patterns)
+        tools_IO.plot_confusion_mat(plt.subplot(1, N, 2),fig,path_output + self.classifier.name + '_predictions.txt',self.classifier.name)
+        if has_header:
+            tools_IO.plot_feature_importance(plt.subplot(1, N, 3), fig, X, Y, header)
+        plt.tight_layout()
+        plt.savefig(path_output + 'fig_roc.png')
 
         return
 # ---------------------------------------------------------------------------------------------------------------------
@@ -326,7 +350,6 @@ class tools_ML(object):
         plt.savefig(folder_out + 'fig_roc.png')
 
         return tpr, fpr, auc
-
 # ---------------------------------------------------------------------------------------------------------------------
     def check_corr(self,X,Y,header):
         N = X.shape[1]
@@ -354,13 +377,15 @@ class tools_ML(object):
             x_pos  = data_pos[1:,:]
             x_neg  = data_neg[1:,:]
         else:
+            header = None
             x_pos = data_pos[:,:]
             x_neg = data_neg[:,:]
 
         if has_labels_first_col:
-            header = header[1:]
             x_pos = x_pos[:, 1:]
             x_neg = x_neg[:, 1:]
+            if header is not None:
+                header = header [1:]
 
         Pos = x_pos.shape[0]
         Neg = x_neg.shape[0]
@@ -389,11 +414,12 @@ class tools_ML(object):
         tools_IO.display_roc_curve_from_descriptions(plt.subplot(2, 2, 3), fig, filename_scrs_pos, filename_scrs_neg, delim='\t')
         tools_IO.display_distributions(plt.subplot(2, 2, 2), fig, filename_scrs_pos, filename_scrs_neg, delim='\t')
         tools_IO.plot_features_PCA(plt.subplot(2, 2, 1),X,Y,['pos','neg'])
-        tools_IO.plot_feature_importance(plt.subplot(2,2,4),fig,X,Y,header)
+        if header is not None:
+            tools_IO.plot_feature_importance(plt.subplot(2,2,4),fig,X,Y,header)
         plt.tight_layout()
         plt.savefig(folder_out + 'fig_roc.png')
 
-        self.check_corr(X, Y, header)
+        #self.check_corr(X, Y, header)
 
         return tpr, fpr, auc
 # ---------------------------------------------------------------------------------------------------------------------

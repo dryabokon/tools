@@ -1,6 +1,7 @@
 import pyaudio
 import librosa
 import wave
+import numpy
 # ----------------------------------------------------------------------------------------------------------------------
 form_1 = pyaudio.paInt16
 chans = 1
@@ -26,5 +27,18 @@ def trim_file(filename_in,start,stop,filename_out):
 # ----------------------------------------------------------------------------------------------------------------------
 def trim_X(X,fs,start,stop,filename_out):
     librosa.output.write_wav(filename_out, X[start:stop], fs)
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+def merge_audio_files(list_of_files, filename_out):
+
+    res=[]
+    sr = samp_rate
+    for filename in list_of_files:
+        x, sr = librosa.load(filename)
+        res.append(x)
+
+    res = numpy.concatenate(res)
+
+    librosa.output.write_wav(filename_out, res, sr)
     return
 # ----------------------------------------------------------------------------------------------------------------------
