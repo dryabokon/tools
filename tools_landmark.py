@@ -1,3 +1,4 @@
+#https://matthewearl.github.io/2015/07/28/switching-eds-with-python/
 import cv2
 import numpy
 # ---------------------------------------------------------------------------------------------------------------------
@@ -176,6 +177,10 @@ def transferface_first_to_second(D,filename_image_first, filename_image_second,f
 
     L1_original = D.get_landmarks(image1)
     L2_original = D.get_landmarks(image2)
+
+    #L1_original = L1_original[49:]
+    #L2_original = L2_original[49:]
+
     del_triangles = Delaunay(L1_original).vertices
 
     result = [('filename', 'x_left', 'y_top', 'x_right', 'y_bottom', 'class_ID', 'confidence')]
@@ -187,8 +192,8 @@ def transferface_first_to_second(D,filename_image_first, filename_image_second,f
 
 
     #idx = [1,2,3,4,14,15,16,17,18,19,20,21,22,23,24,25,26,27,8,9,10,32,33,34,35,36,37,38,38,40,41,42,43,44,45,46,47,48]
-    idx = [1,2,3,4,14,15,16,17,18,19,20,21,22,23,24,25,26,27]
-    #idx = numpy.arange(0,68,1).tolist()
+    #idx = [1,2,3,4,14,15,16,17,18,19,20,21,22,23,24,25,26,27]
+    idx = numpy.arange(0,len(L1_original),1).tolist()
 
     H = tools_calibrate.get_transform_by_keypoints(L1_original[idx],L2_original[idx])
     aligned1, aligned2= tools_calibrate.get_stitched_images_using_translation(image1, image2, H,keep_shape=True)
@@ -205,14 +210,14 @@ def transferface_first_to_second(D,filename_image_first, filename_image_second,f
         #cv2.imwrite(folder_out+'aligned2.jpg', aligned2)
 
     face = get_morph(aligned1, aligned2, L1_aligned, L2_aligned, del_triangles, alpha=1,keep_src_colors=True)
-    #face = get_morph(aligned1, aligned2, L1_aligned, L2_aligned, del_triangles, alpha=0,keep_src_colors=True)
     if do_debug and folder_out is not None:
         for alpha in [0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1]:
             temp_face = get_morph(aligned1, aligned2, L1_aligned, L2_aligned, del_triangles, alpha=alpha, keep_src_colors=True)
             cv2.imwrite(folder_out + 's03-temp_face_%02d.jpg'%int(alpha*10), temp_face)
 
-
-    result2 = tools_image.blend_multi_band_large_small(aligned2, face, (0, 0, 0))
+    filter_size = 50
+    filter_size = int(face.shape[0]*0.10)
+    result2 = tools_image.blend_multi_band_large_small(aligned2, face, (0, 0, 0),filter_size=filter_size)
 
     if do_debug and folder_out is not None:
         cv2.imwrite(folder_out+'s04-result2.jpg', result2)

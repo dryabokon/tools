@@ -83,7 +83,7 @@ class detector_landmarks(object):
 
         gray = tools_image.desaturate(image)
         landmarks = self.get_landmarks(image)
-        if len(landmarks)!=68:
+        if len(landmarks)!=68 or numpy.sum(landmarks)==0:
             return gray
 
         del_triangles = Delaunay(landmarks).vertices

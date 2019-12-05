@@ -92,3 +92,22 @@ def crop_images_in_folder(path_input,path_output,top, left, bottom, right,mask='
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
+def merge_images_in_folders(path_input1,path_input2,path_output,mask='*.jpg'):
+    tools_IO.remove_files(path_output,create=True)
+
+    fileslist1 = fnmatch.filter(listdir(path_input1), mask)
+    fileslist2 = fnmatch.filter(listdir(path_input2), mask)
+
+    for filename1,filename2 in zip(fileslist1,fileslist2):
+        image1 = cv2.imread(path_input1 + filename1)
+        image2 = cv2.imread(path_input2 + filename2)
+        if image1 is None or image2 is None: continue
+
+        shape= image1.shape
+        image = numpy.zeros((shape[0],shape[1]*2,shape[2]),dtype=numpy.uint8)
+        image[:,:shape[1]] = image1
+        image[:,shape[1]:] = image2
+        cv2.imwrite(path_output+filename1,image)
+
+    return
+# ---------------------------------------------------------------------------------------------------------------------
