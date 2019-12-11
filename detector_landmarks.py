@@ -13,6 +13,10 @@ class detector_landmarks(object):
         self.H=H
         self.mode = mode
         self.name = "landmark_detector"
+        self.idx_head = numpy.arange(0,27,1).tolist()
+        self.idx_nose = numpy.arange(27, 36, 1).tolist()
+        self.idx_eyes = numpy.arange(36, 48, 1).tolist()
+        self.idx_mouth = numpy.arange(48, 68, 1).tolist()
         if mode == 'dlib':
             self.detector = dlib.get_frontal_face_detector()
             self.predictor = dlib.shape_predictor(filename_config)
@@ -105,6 +109,24 @@ class detector_landmarks(object):
 
 
         return gray
+# ----------------------------------------------------------------------------------------------------------------------
+    def draw_landmarks_v2(self, image,landmarks,del_triangles):
+
+        gray = tools_image.desaturate(image,level=0)
+
+        for landmark in landmarks:
+            cv2.circle(gray, (landmark[0], landmark[1]), 2, (0, 128, 255), -1)
+
+        for t in del_triangles:
+            p0 = (landmarks[t[0], 0], landmarks[t[0], 1])
+            p1 = (landmarks[t[1], 0], landmarks[t[1], 1])
+            p2 = (landmarks[t[2], 0], landmarks[t[2], 1])
+            cv2.line(gray, p0, p1, (0, 0, 255))
+            cv2.line(gray, p0, p2, (0, 0, 255))
+            cv2.line(gray, p2, p1, (0, 0, 255))
+
+        return gray
+
 # ----------------------------------------------------------------------------------------------------------------------
     def get_landmarks(self,image):
         res = numpy.zeros( (68,2), dtype=numpy.float)
