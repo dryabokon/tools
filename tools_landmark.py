@@ -136,7 +136,7 @@ def get_morph(src_img,target_img,src_points,target_points,del_triangles,alpha=0.
 
     return img_morph
 # ---------------------------------------------------------------------------------------------------------------------
-def do_transfer0(image1, image2, L1_original, L2_original, del_triangles):
+def do_transfer(image1, image2, L1_original, L2_original, del_triangles):
     H = tools_calibrate.get_transform_by_keypoints(L1_original, L2_original)
     if H is None:
         return image2
@@ -152,20 +152,18 @@ def do_transfer0(image1, image2, L1_original, L2_original, del_triangles):
 
     return result2
 # ---------------------------------------------------------------------------------------------------------------------
-def do_transfer(image1, image2, L1_original, L2_original, del_triangles):
+def do_reenackement(image1, image2, L1_original, L2_original, idx_mouth,del_triangles_all,del_triangles_mouth):
 
-    D = detector_landmarks.detector_landmarks('..//_weights//shape_predictor_68_face_landmarks.dat')
+    idx_head = numpy.arange(0, 27, 1).tolist()
 
-    H = tools_calibrate.get_transform_by_keypoints(L2_original[D.idx_head], L1_original[D.idx_head])
+    H = tools_calibrate.get_transform_by_keypoints(L2_original[idx_head], L1_original[idx_head])
+    if H is None:
+        return image1
     aligned2, aligned1 = tools_calibrate.get_stitched_images_using_translation(image2, image1, H, keep_shape=True)
     L2_aligned, L1_aligned = tools_calibrate.translate_coordinates(image2, image1, H, L2_original, L1_original)
 
-    del_triangles = Delaunay(L1_aligned).vertices
-    face12 = get_morph(aligned1, aligned1, L1_aligned, L2_aligned, del_triangles, alpha=1)
-
-    idx = D.idx_head + D.idx_nose + D.idx_eyes
-    del_triangles = Delaunay(L2_aligned[idx]).vertices
-    face21 = get_morph(face12, face12, L2_aligned[idx], L1_aligned[idx], del_triangles, alpha=1)
+    face12 = get_morph(aligned1, aligned1, L1_aligned, L2_aligned, del_triangles_all, alpha=1)
+    face21 = get_morph(face12, face12, L2_aligned[idx_mouth], L1_aligned[idx_mouth], del_triangles_mouth, alpha=1)
 
     filter_size = int(face12.shape[0] * 0.07)
     result2 = tools_image.blend_multi_band_large_small(aligned1, face21, (0, 0, 0), filter_size=filter_size)
@@ -244,7 +242,7 @@ def transferface_first_to_second(D,filename_image_first, filename_image_second,f
 # ---------------------------------------------------------------------------------------------------------------------
 def transfer_emo(D,filename_image_src1, filename_image_src2,folder_out=None):
 
-    do_debug = False
+    do_debug = True
     swap = True
     if do_debug and folder_out is not None:
         tools_IO.remove_files(folder_out, create=True)
