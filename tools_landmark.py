@@ -51,7 +51,6 @@ def morph_triangle(img1, img2, img, t1, t2, t, alpha):
     if val1*val2<0:
         return
 
-
     r1 = cv2.boundingRect(numpy.float32([t1]))
     r2 = cv2.boundingRect(numpy.float32([t2]))
     r =  cv2.boundingRect(numpy.float32([t]))
@@ -101,9 +100,7 @@ def draw_trianges(image,src_points,del_triangles):
         cv2.line(result, (t[2][0], t[2][1]), (t[1][0], t[1][1]), (0, 0, 255))
     return result
 # ---------------------------------------------------------------------------------------------------------------------
-def get_morph(src_img,target_img,src_points,target_points,del_triangles,alpha=0.5,keep_src_colors=True):
-
-    debug_mode = 0
+def get_morph(src_img,target_img,src_points,target_points,del_triangles,alpha=0.5,keep_src_colors=True,debug_mode = 0):
 
     weighted_pts = []
     for i in range(0, len(src_points)):
@@ -253,8 +250,8 @@ def transfer_emo(D,filename_image_src1, filename_image_src2,folder_out=None):
     if swap:
         image1,image2 = image2,image1
 
-    L1_original = D.get_landmarks(image1)
-    L2_original = D.get_landmarks(image2)
+    L1_original = D.get_landmarks(image1)[D.idx_removed_lip_line]
+    L2_original = D.get_landmarks(image2)[D.idx_removed_lip_line]
 
     H = tools_calibrate.get_transform_by_keypoints(L2_original[D.idx_head], L1_original[D.idx_head])
     aligned2, aligned1 = tools_calibrate.get_stitched_images_using_translation(image2, image1, H, keep_shape=True)
@@ -264,8 +261,8 @@ def transfer_emo(D,filename_image_src1, filename_image_src2,folder_out=None):
         for lmark in L1_aligned :aligned1 = tools_draw_numpy.draw_circle(aligned1, lmark[1], lmark[0], 2, [0, 0, 255])
         for lmark in L2_aligned: aligned2 = tools_draw_numpy.draw_circle(aligned2, lmark[1], lmark[0], 2, [255, 0, 0])
 
-    del_triangles = Delaunay(L1_aligned).vertices
-    face12 = get_morph(aligned1,aligned1,L1_aligned,L2_aligned,del_triangles,alpha=1)
+    del_triangles = Delaunay(L2_aligned).vertices
+    face12 = get_morph(aligned1,aligned1,L1_aligned,L2_aligned,del_triangles,alpha=1,debug_mode=1)
 
     idx = D.idx_head + D.idx_nose + D.idx_eyes
     del_triangles = Delaunay(L2_aligned[idx]).vertices
@@ -274,7 +271,11 @@ def transfer_emo(D,filename_image_src1, filename_image_src2,folder_out=None):
     filter_size = int(face12.shape[0] * 0.07)
     result2 = tools_image.blend_multi_band_large_small(aligned1, face21, (0, 0, 0), filter_size=filter_size)
 
+
+
     if do_debug:
+        cv2.imwrite(folder_out + 'landmark1.jpg', D.draw_landmarks(image1))
+        cv2.imwrite(folder_out + 'landmark2.jpg', D.draw_landmarks(image2))
         cv2.imwrite(folder_out + 'aligned1.jpg', aligned1)
         cv2.imwrite(folder_out + 'aligned2.jpg', aligned2)
         cv2.imwrite(folder_out + 'face12.jpg', face12)
