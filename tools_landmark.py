@@ -145,11 +145,12 @@ def do_transfer(image1, image2, L1_original, L2_original, del_triangles):
     # L1_aligned, L2_aligned = tools_calibrate.homography_coordinates(image1, image2, H, L1_original, L2_original)
 
     face = get_morph(aligned1, aligned2, L1_aligned, L2_aligned, del_triangles, alpha=1, keep_src_colors=True)
-    result2 = tools_image.blend_multi_band_large_small(aligned2, face, (0, 0, 0))
+    filter_size = int(face.shape[0] * 0.07)
+    result2 = tools_image.blend_multi_band_large_small(aligned2, face, (0, 0, 0),filter_size=filter_size)
 
     return result2
 # ---------------------------------------------------------------------------------------------------------------------
-def do_reenackement(image1, image2, L1_original, L2_original, idx_mouth,del_triangles_all,del_triangles_mouth):
+def do_reenackement0(image1, image2, L1_original, L2_original, idx_mouth,del_triangles_all,del_triangles_mouth):
 
     idx_head = numpy.arange(0, 27, 1).tolist()
 
@@ -158,12 +159,46 @@ def do_reenackement(image1, image2, L1_original, L2_original, idx_mouth,del_tria
         return image1
     aligned2, aligned1 = tools_calibrate.get_stitched_images_using_translation(image2, image1, H, keep_shape=True)
     L2_aligned, L1_aligned = tools_calibrate.translate_coordinates(image2, image1, H, L2_original, L1_original)
-
     face12 = get_morph(aligned1, aligned1, L1_aligned, L2_aligned, del_triangles_all, alpha=1)
     face21 = get_morph(face12, face12, L2_aligned[idx_mouth], L1_aligned[idx_mouth], del_triangles_mouth, alpha=1)
+    filter_size = int(face12.shape[0] * 0.07)
+    result2 = tools_image.blend_multi_band_large_small(aligned1, face21, (0, 0, 0), filter_size=filter_size)
+
+
+
+    return result2
+# ---------------------------------------------------------------------------------------------------------------------
+def do_reenackement(image1, image2, L1_original, L2_original):
+
+    #idx_emo = numpy.arange(3,15,1).tolist()
+    #idx_emo += numpy.arange(31, 36, 1).tolist()
+    #idx_emo += numpy.arange(48, 61, 1).tolist()
+    #idx_minus = numpy.arange(0,len(idx_emo)-12,1).tolist()
+
+    idx_emo = numpy.arange(0, 60, 1).tolist()
+    idx_minus = numpy.arange(0, len(idx_emo) - 12, 1).tolist()
+
+
+    L1_original = L1_original[idx_emo]
+    L2_original = L2_original[idx_emo]
+
+    H = tools_calibrate.get_transform_by_keypoints(L2_original, L1_original)
+    if H is None:
+        return image1
+    aligned2, aligned1 = tools_calibrate.get_stitched_images_using_translation(image2, image1, H, keep_shape=True)
+    L2_aligned, L1_aligned = tools_calibrate.translate_coordinates(image2, image1, H, L2_original, L1_original)
+
+    del_triangles = Delaunay(L2_aligned).vertices
+    face12 = get_morph(aligned1,aligned1,L1_aligned,L2_aligned,del_triangles,alpha=1,debug_mode=0)
+
+
+    del_triangles = Delaunay(L2_aligned[idx_minus]).vertices
+    face21 = get_morph(face12, face12, L2_aligned[idx_minus], L1_aligned[idx_minus], del_triangles, alpha=1)
 
     filter_size = int(face12.shape[0] * 0.07)
     result2 = tools_image.blend_multi_band_large_small(aligned1, face21, (0, 0, 0), filter_size=filter_size)
+
+
 
     return result2
 # ---------------------------------------------------------------------------------------------------------------------
@@ -237,7 +272,7 @@ def transferface_first_to_second(D,filename_image_first, filename_image_second,f
 
     return result2
 # ---------------------------------------------------------------------------------------------------------------------
-def transfer_emo(D,filename_image_src1, filename_image_src2,folder_out=None):
+def transfer_emo0(D,filename_image_src1, filename_image_src2,folder_out=None):
 
     do_debug = True
     swap = True
@@ -257,16 +292,73 @@ def transfer_emo(D,filename_image_src1, filename_image_src2,folder_out=None):
     aligned2, aligned1 = tools_calibrate.get_stitched_images_using_translation(image2, image1, H, keep_shape=True)
     L2_aligned, L1_aligned = tools_calibrate.translate_coordinates(image2, image1, H, L2_original, L1_original)
 
+    #if do_debug:
+        #for lmark in L1_aligned :aligned1 = tools_draw_numpy.draw_circle(aligned1, lmark[1], lmark[0], 2, [0, 0, 255])
+        #for lmark in L2_aligned: aligned2 = tools_draw_numpy.draw_circle(aligned2, lmark[1], lmark[0], 2, [255, 0, 0])
+
+    del_triangles = Delaunay(L2_aligned).vertices
+    face12 = get_morph(aligned1,aligned1,L1_aligned,L2_aligned,del_triangles,alpha=1,debug_mode=0)
+
+    idx = D.idx_head + D.idx_nose + D.idx_eyes
+    del_triangles = Delaunay(L2_aligned[idx]).vertices
+    face21 = get_morph(face12, face12, L2_aligned[idx], L1_aligned[idx], del_triangles, alpha=1)
+
+    filter_size = int(face12.shape[0] * 0.07)
+    result2 = tools_image.blend_multi_band_large_small(aligned1, face21, (0, 0, 0), filter_size=filter_size)
+
+
+
+    if do_debug:
+        cv2.imwrite(folder_out + 'landmark1.jpg', D.draw_landmarks(image1))
+        cv2.imwrite(folder_out + 'landmark2.jpg', D.draw_landmarks(image2))
+        cv2.imwrite(folder_out + 'aligned1.jpg', aligned1)
+        cv2.imwrite(folder_out + 'aligned2.jpg', aligned2)
+        cv2.imwrite(folder_out + 'face12.jpg', face12)
+        cv2.imwrite(folder_out + 'face21.jpg', face21)
+        cv2.imwrite(folder_out + 'result2.jpg', result2)
+
+    return result2
+# ---------------------------------------------------------------------------------------------------------------------
+def transfer_emo(D,filename_image_src1, filename_image_src2,folder_out=None):
+
+    do_debug = True
+    swap = True
+    if do_debug and folder_out is not None:
+        tools_IO.remove_files(folder_out, create=True)
+
+    image1 = cv2.imread(filename_image_src1)
+    image2 = cv2.imread(filename_image_src2)
+
+    if swap:
+        image1,image2 = image2,image1
+
+    #option 1
+    idx_emo = numpy.arange(3,15,1).tolist()
+    idx_emo += numpy.arange(31, 36, 1).tolist()
+    idx_emo += numpy.arange(48, 61, 1).tolist()
+
+    #option 2
+    #idx_emo = numpy.arange(0,61,1).tolist()
+
+    idx_minus = numpy.arange(0, len(idx_emo) - 12, 1).tolist()
+
+    L1_original = D.get_landmarks(image1)[idx_emo]
+    L2_original = D.get_landmarks(image2)[idx_emo]
+
+    H = tools_calibrate.get_transform_by_keypoints(L2_original, L1_original)
+    aligned2, aligned1 = tools_calibrate.get_stitched_images_using_translation(image2, image1, H, keep_shape=True)
+    L2_aligned, L1_aligned = tools_calibrate.translate_coordinates(image2, image1, H, L2_original, L1_original)
+
     if do_debug:
         for lmark in L1_aligned :aligned1 = tools_draw_numpy.draw_circle(aligned1, lmark[1], lmark[0], 2, [0, 0, 255])
         for lmark in L2_aligned: aligned2 = tools_draw_numpy.draw_circle(aligned2, lmark[1], lmark[0], 2, [255, 0, 0])
 
     del_triangles = Delaunay(L2_aligned).vertices
-    face12 = get_morph(aligned1,aligned1,L1_aligned,L2_aligned,del_triangles,alpha=1,debug_mode=1)
+    face12 = get_morph(aligned1,aligned1,L1_aligned,L2_aligned,del_triangles,alpha=1,debug_mode=0)
 
-    idx = D.idx_head + D.idx_nose + D.idx_eyes
-    del_triangles = Delaunay(L2_aligned[idx]).vertices
-    face21 = get_morph(face12, face12, L2_aligned[idx], L1_aligned[idx], del_triangles, alpha=1)
+
+    del_triangles = Delaunay(L2_aligned[idx_minus]).vertices
+    face21 = get_morph(face12, face12, L2_aligned[idx_minus], L1_aligned[idx_minus], del_triangles, alpha=1)
 
     filter_size = int(face12.shape[0] * 0.07)
     result2 = tools_image.blend_multi_band_large_small(aligned1, face21, (0, 0, 0), filter_size=filter_size)

@@ -405,7 +405,7 @@ def blend_multi_band(left, rght, background_color=(255, 255, 255)):
     result[result < 0] = 0
     return result
 #----------------------------------------------------------------------------------------------------------------------
-def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),do_color_balance=True,filter_size=50,leveln_default=5 ):
+def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),do_color_balance=True,filter_size=50,leveln_default=1 ):
 
     debug_mode = 0
 
