@@ -200,8 +200,6 @@ def get_stitched_images_using_translation(img1, img2, translation,background_col
     M[1, 2]+=-y_min
 
     result_img1 = cv2.warpAffine(img1, M, (x_max - x_min, y_max - y_min),borderMode=borderMode, borderValue=background_color)
-    #print(M)
-    #print(result_img1.shape)
 
     #!!!
     result_img2 = numpy.full(result_img1.shape,background_color,dtype=numpy.uint8)
