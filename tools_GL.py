@@ -12,7 +12,7 @@ class render_GL(object):
     def __init__(self,image_texture):
         glfw.init()
         glfw.window_hint(glfw.VISIBLE, False)
-        self.window = glfw.create_window(20, 20, "hidden window", None, None)
+        self.window = glfw.create_window(200, 200, "hidden window", None, None)
         self.texture_is_setup = False
         self.image_texture = image_texture
         return
@@ -117,9 +117,9 @@ class render_GL(object):
         width,height = image.shape[1], image.shape[0]
         glfw.set_window_size(self.window, width,height)
         self.__draw_image(image)
-        image_buffer = glReadPixels(0, 0, width,height, OpenGL.GL.GL_RGB, OpenGL.GL.GL_UNSIGNED_BYTE)
-        image = numpy.frombuffer(image_buffer, dtype=numpy.uint8).reshape(height, width, 3)
-        return image
+        #image_buffer = glReadPixels(0, 0, width,height, OpenGL.GL.GL_RGB, OpenGL.GL.GL_UNSIGNED_BYTE)
+        #image = numpy.frombuffer(image_buffer, dtype=numpy.uint8).reshape(height, width, 3)
+        return #image
 # ----------------------------------------------------------------------------------------------------------------------
     def morph_mesh(self,H,W,points_coord,points_text_coord,triangles):
 

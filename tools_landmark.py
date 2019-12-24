@@ -238,6 +238,7 @@ def transferface_first_to_second(D,filename_image_clbrt, filename_image_actor,fo
     if do_debug and folder_out is not None:
         cv2.imwrite(folder_out+'s04-result2.jpg', result2)
 
+
     return result2
 # ---------------------------------------------------------------------------------------------------------------------
 def transferface_folder(D,filename_candidate, folder_in,folder_out):
