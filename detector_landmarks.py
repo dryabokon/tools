@@ -4,6 +4,8 @@ import tools_image
 import dlib
 import tools_draw_numpy
 from scipy.spatial import Delaunay
+from scipy import ndimage
+import math
 # --------------------------------------------------------------------------------------------------------------------
 class detector_landmarks(object):
     def __init__(self,filename_config,H=1080,W=1920,mode='dlib'):
@@ -87,7 +89,7 @@ class detector_landmarks(object):
     def draw_landmarks(self,image):
 
         gray = tools_image.desaturate(image)
-        landmarks = self.get_landmarks(image)
+        landmarks = self.get_landmarks_augm(image)
         if len(landmarks)!=68 or numpy.sum(landmarks)==0:
             return gray
 
@@ -111,25 +113,25 @@ class detector_landmarks(object):
 
         return gray
 # ----------------------------------------------------------------------------------------------------------------------
-    def draw_landmarks_v2(self, image,landmarks,del_triangles):
+    def draw_landmarks_v2(self, image,landmarks,del_triangles=None,color=(0, 128, 255)):
 
         gray = tools_image.desaturate(image,level=0)
 
         for landmark in landmarks:
-            cv2.circle(gray, (landmark[0], landmark[1]), 2, (0, 128, 255), -1)
+            cv2.circle(gray, (int(landmark[0]), int(landmark[1])), 2, color, -1)
 
-        for t in del_triangles:
-            p0 = (landmarks[t[0], 0], landmarks[t[0], 1])
-            p1 = (landmarks[t[1], 0], landmarks[t[1], 1])
-            p2 = (landmarks[t[2], 0], landmarks[t[2], 1])
-            cv2.line(gray, p0, p1, (0, 0, 255))
-            cv2.line(gray, p0, p2, (0, 0, 255))
-            cv2.line(gray, p2, p1, (0, 0, 255))
+        if del_triangles is not None:
+            for t in del_triangles:
+                p0 = (int(landmarks[t[0], 0]), int(landmarks[t[0], 1]))
+                p1 = (int(landmarks[t[1], 0]), int(landmarks[t[1], 1]))
+                p2 = (int(landmarks[t[2], 0]), int(landmarks[t[2], 1]))
+                cv2.line(gray, p0, p1, (0, 0, 255))
+                cv2.line(gray, p0, p2, (0, 0, 255))
+                cv2.line(gray, p2, p1, (0, 0, 255))
 
         return gray
-
 # ----------------------------------------------------------------------------------------------------------------------
-    def get_landmarks(self,image):
+    def get_landmarks(self, image):
         res = numpy.zeros( (68,2), dtype=numpy.float)
         if image is None:
             return res
@@ -143,5 +145,39 @@ class detector_landmarks(object):
                 res.append([landmarks.part(n).x, landmarks.part(n).y])
             res = numpy.array(res)
 
-        return res
+        return res.astype(numpy.float)
+# ----------------------------------------------------------------------------------------------------------------------
+    def get_landmarks_augm(self, image):
+
+        '''
+        H,W,_ = image.shape
+
+        angles = [5,-5,10,-10]
+        res = []
+        res.append(self.get_landmarks(image))
+        for angle in angles:
+            image_augm = ndimage.rotate(image, angle)
+
+            L_augm = self.get_landmarks(image_augm)
+            L = L_augm.copy()
+
+            CY, CX,  _ = image.shape
+            CYA, CXA, _ = image_augm.shape
+
+            L[:, 0] = CX/2+(L_augm[:, 0]-CXA/2) * math.cos(angle*math.pi/180) - (L_augm[:, 1]-CYA/2) * math.sin(angle*math.pi/180)
+            L[:, 1] = CY/2+(L_augm[:, 0]-CXA/2) * math.sin(angle*math.pi/180) + (L_augm[:, 1]-CYA/2) * math.cos(angle*math.pi/180)
+
+            res.append(L)
+
+        res2 = numpy.array(res)
+        res2 = numpy.average(res2,axis=0)
+
+        #res_image = self.draw_landmarks_v2(image,res2)
+        #cv2.imwrite('./images/output/au.png', res_image)
+
+        #res_image = self.draw_landmarks_v2(image, res[0])
+        #cv2.imwrite('./images/output/or.png', res_image)
+        '''
+
+        return self.get_landmarks(image)
 # ----------------------------------------------------------------------------------------------------------------------

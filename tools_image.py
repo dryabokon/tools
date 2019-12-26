@@ -405,21 +405,44 @@ def blend_multi_band(left, rght, background_color=(255, 255, 255)):
     result[result < 0] = 0
     return result
 #----------------------------------------------------------------------------------------------------------------------
-def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),do_color_balance=True,filter_size=50,leveln_default=1 ):
+def align_color(small,large,mask):
+
+    small = put_layer_on_image(large,small)
+    filter_size = small.shape[0]/10
+
+    B = 128+small[:, :, 0]//2 - large[:, :, 0]//2
+    G = 128+small[:, :, 1]//2 - large[:, :, 1]//2
+    R = 128+small[:, :, 2]//2 - large[:, :, 2]//2
+
+    Rf = ndimage.uniform_filter(R, size=(filter_size, filter_size), mode='reflect')
+    Gf = ndimage.uniform_filter(G, size=(filter_size, filter_size), mode='reflect')
+    Bf = ndimage.uniform_filter(B, size=(filter_size, filter_size), mode='reflect')
+
+    res = small.copy()
+    res[:, :, 0] -= (Bf-128)*2
+    res[:, :, 1] -= (Gf-128)*2
+    res[:, :, 2] -= (Rf-128)*2
+
+    res = numpy.clip(res,0,255)
+    res[numpy.where(mask != 0)] = 0
+
+    return res
+#----------------------------------------------------------------------------------------------------------------------
+def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),do_color_balance=True,filter_size=50,n_clips=1):
 
     debug_mode = 0
 
-    mask = numpy.zeros(large.shape)
-    mask[numpy.where(small==background_color)] = 1
+    mask_original = 1*(small[:, :] == background_color)
+    mask = mask_original.copy()
+    mask = numpy.array(numpy.min(mask,axis=2),dtype=numpy.float)
 
-    K = numpy.ones((filter_size, filter_size))
-    #mask = ndimage.convolve(mask[:,:,0], K, mode='nearest')/(K.shape[0]*K.shape[1])
-    mask = ndimage.uniform_filter(mask[:,:,0], size=(filter_size,filter_size), mode='constant')
+    if debug_mode == 1: cv2.imwrite('./images/output/mask0.png', 255*mask)
+    mask = ndimage.uniform_filter(mask, size=(filter_size,filter_size), mode='reflect')
+    if debug_mode == 1: cv2.imwrite('./images/output/mask1.png', 255*mask)
 
-    mask = numpy.clip(2*mask, 0, 1.0).astype(numpy.float)
-
-    if debug_mode == 1:cv2.imwrite('./images/output/mask2.png',255*mask)
-
+    for c in range(n_clips):
+        mask = numpy.clip(2 * mask, 0, 1.0)
+        if debug_mode == 1: cv2.imwrite('./images/output/mask2.png', 255 * mask)
 
     if do_color_balance:
         small = small.astype(numpy.float)
@@ -428,23 +451,22 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
             scale = numpy.average(small[:,:,c][idx])/ numpy.average(large[:,:,c][idx])
             small[:,:,c]=small[:,:,c]/scale
 
-    small = numpy.clip(small,0,255).astype(numpy.uint8)
+    #git pushsmall = align_color(small,large,mask_original)
 
-    mask3d = numpy.zeros((mask.shape[0],mask.shape[1],3))
-    mask3d[:,:,0] = mask
-    mask3d[:,:,1] = mask
-    mask3d[:,:,2] = mask
-    mask3d[numpy.where(small == background_color)] = 1
+    mask = numpy.stack((mask,mask,mask),axis=2)
 
-    leveln = leveln_default#int(numpy.floor(numpy.log2(min(large.shape[0], large.shape[1]))))
-    MP = GaussianPyramid(mask3d, leveln)
-    LPA = LaplacianPyramid(numpy.array(large).astype('float'), leveln)
-    LPB = LaplacianPyramid(numpy.array(small).astype('float'), leveln)
-    blended = blend_pyramid(LPA, LPB, MP)
-    result = reconstruct_from_pyramid(blended)
-    result = numpy.clip(result, 0, 255)
+    background = numpy.multiply(mask, large)
+    if debug_mode == 1: cv2.imwrite('./images/output/background.png', background)
 
-    return result.astype(numpy.uint8)
+    foreground = numpy.multiply(1-mask, small)
+    if debug_mode == 1: cv2.imwrite('./images/output/foreground.png', foreground)
+
+    result = cv2.add(background,foreground)
+    if debug_mode == 1: cv2.imwrite('./images/output/result.png', result)
+
+    result = numpy.array(result).astype(numpy.uint8)
+
+    return result
 #----------------------------------------------------------------------------------------------------------------------
 def blend_avg(img1, img2,background_color=(255,255,255),weight=0.5):
 
