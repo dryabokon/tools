@@ -1,8 +1,7 @@
 # ----------------------------------------------------------------------------------------------------------------------
 import numpy
 from filterpy.kalman import KalmanFilter
-import scipy
-
+from scipy.signal import medfilt
 # ----------------------------------------------------------------------------------------------------------------------
 def from_fistorical(L):
 
@@ -27,13 +26,17 @@ def from_fistorical(L):
 
     return res
 # ----------------------------------------------------------------------------------------------------------------------
-def do_filter_median(X):
-    res = scipy.signal.medfilt(X, kernel_size=1)
+def do_filter_median(X,N=5):
+    res = medfilt(X,kernel_size=N)
+    res[:N] = X[:N]
+    res[-N:] = X[-N:]
     return res
 # ----------------------------------------------------------------------------------------------------------------------
-def do_filter_average(X):
-    a = numpy.average(X)
-    return numpy.full(len(X),a)
+def do_filter_average(X,N):
+    res = numpy.convolve(X, numpy.ones((N,)) / N,mode='same')#[(N - 1):]
+    res[:N] = X[:N]
+    res[-N:] = X[-N:]
+    return res
 # ----------------------------------------------------------------------------------------------------------------------
 def do_filter_kalman(X,noise_level = 1,Q = 0.001):
 

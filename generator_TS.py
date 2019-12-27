@@ -3,33 +3,33 @@ import tools_IO
 from sklearn.datasets import make_blobs,make_multilabel_classification
 # --------------------------------------------------------------------------------------------------------------------
 class generator_TS(object):
-    def __init__(self, dim=2,len=400):
+    def __init__(self, dim=2,len=20):
         self.dim = dim
         self.len = len
         return
 # --------------------------------------------------------------------------------------------------------------------
-    def generate_linear(self, filename_output):
+    def generate_linear(self, filename_output,noise_signal_ratio= 0.0):
 
-        noise_signal_ratio = 0.10
         X = numpy.random.rand(self.len,self.dim)
         Y = numpy.zeros(self.len,dtype=numpy.float32)
         A = numpy.random.rand(self.dim+1)
-        for i in range(0,self.dim):Y[:]=X[:,i]*A[i]
+        for i in range(0,self.dim):
+            Y[:]=X[:,i]*A[i]
         Y+=A[-1]
 
-        noise = noise_signal_ratio*Y.mean()*numpy.random.rand(self.len)
+        noise = self.generate_noise(noise_signal_ratio)
 
         Y+=noise
 
-        mat = numpy.hstack((numpy.matrix(Y).T,X))
+        mat = numpy.vstack((Y,X.T)).T
         tools_IO.save_mat(mat,filename_output)
 
-        return
+        return mat
 # ---------------------------------------------------------------------------------------------------------------------
-    def generate_sine(self, filename_output):
+    def generate_sine(self, filename_output,max_periods=3,noise_signal_ratio= 0.0):
 
-        max_periods = 20
-        noise_signal_ratio = 0.0
+        numpy.random.seed(125)
+        max_periods = max_periods
 
         X = numpy.random.rand(self.len,self.dim)
         Y = numpy.zeros(self.len,dtype=numpy.float32)
@@ -45,17 +45,19 @@ class generator_TS(object):
         for i in range(0, self.dim):
             Y[:]=A[i]*numpy.sin(ph[i]+2*numpy.pi*X[:,i]*periods[i])
 
-
-
-
         Y+=A[-1]
 
-        noise = noise_signal_ratio*Y.mean()*numpy.random.rand(self.len)
+        noise = self.generate_noise(noise_signal_ratio)
 
         Y+=noise
 
-        mat = numpy.hstack((numpy.matrix(Y).T,X))
+        mat = numpy.vstack((Y,X.T)).T
         tools_IO.save_mat(mat,filename_output)
 
-        return
+        return mat
+# ---------------------------------------------------------------------------------------------------------------------
+    def generate_noise(self,noise_signal_ratio= 0.0):
+        noise = 2*(numpy.random.rand(self.len)-0.5)*noise_signal_ratio
+        return noise
+
 # ---------------------------------------------------------------------------------------------------------------------

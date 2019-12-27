@@ -668,12 +668,15 @@ def plot_hystogram(plt,H,label,SMAPE,xmin=None,xmax=None,ymax=None):
     plt.grid()
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def plot_series(plt,S,labels,SMAPE):
+def plot_series(plt,S,labels=None,SMAPE=None):
 
     colors_list = list(('blue','gray', 'red', 'purple', 'green', 'orange', 'cyan', 'black','pink','darkblue','darkred','darkgreen', 'darkcyan'))
     patches = []
 
     x=numpy.arange(0,S.shape[0],1)
+
+    if SMAPE is None:SMAPE = [0]*S.shape[1]
+    if labels is None: labels = [''] * S.shape[1]
 
     for i in range(0,S.shape[1]):
         color = colors_list[i%len(colors_list)]

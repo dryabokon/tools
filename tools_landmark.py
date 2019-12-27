@@ -1,4 +1,5 @@
 #https://matthewearl.github.io/2015/07/28/switching-eds-with-python/
+import os
 import cv2
 import numpy
 import tools_draw_numpy
@@ -11,145 +12,92 @@ import tools_IO
 import tools_GL
 import tools_filter
 # ---------------------------------------------------------------------------------------------------------------------
-def do_transfer(R_c,R_a,image_clbrt, image_actor, L_clbrt, L_actor, del_triangles):
+def transferface_first_to_second(R_c,R_a,image_clbrt, image_actor, L_clbrt, L_actor, del_triangles_C,folder_out='./images/output/',do_debug=False):
 
-    H = tools_calibrate.get_transform_by_keypoints(L_clbrt, L_actor)
-    if H is None:
-        return image_actor
-
-    L1_aligned, L2_aligned = tools_calibrate.translate_coordinates(image_clbrt, image_actor, H, L_clbrt, L_actor)
-    face = R_c.morph_mesh(image_actor.shape[0], image_actor.shape[1], L2_aligned, L_clbrt, del_triangles)
-
-    L2_aligned_mouth = L2_aligned[numpy.arange(48, 61, 1).tolist()]
-    del_mouth = Delaunay(L2_aligned_mouth).vertices
-    temp_mouth = R_a.morph_mesh(image_actor.shape[0], image_actor.shape[1], L2_aligned_mouth, L2_aligned_mouth,del_mouth)
-
-    filter_size = int(face.shape[0] * 0.07)
-    result2 = tools_image.blend_multi_band_large_small(image_actor, face, (0, 0, 0), filter_size=filter_size)
-    result2 = tools_image.blend_multi_band_large_small(result2, temp_mouth, (0, 0, 0), do_color_balance=False,filter_size=filter_size // 2)
-
-    return result2
-# ---------------------------------------------------------------------------------------------------------------------
-def transferface_first_to_second(D,filename_image_clbrt, filename_image_actor,folder_out=None):
-
-    do_debug = True
     swap = False
-
 
     if do_debug and folder_out is not None:
         tools_IO.remove_files(folder_out, create=True)
 
-    image_clbrt = cv2.imread(filename_image_clbrt)
-    image_actor = cv2.imread(filename_image_actor)
     if swap:
         image_clbrt,image_actor = image_actor,image_clbrt
-
-    R_c = tools_GL.render_GL(image_clbrt)
-    R_a = tools_GL.render_GL(image_actor)
-
-    L_clbrt = D.get_landmarks_augm(image_clbrt)
-    L_actor = D.get_landmarks_augm(image_actor)
-    del_triangles = Delaunay(L_actor).vertices
 
     H = tools_calibrate.get_transform_by_keypoints(L_clbrt,L_actor)
     L1_aligned, L2_aligned = tools_calibrate.translate_coordinates(image_clbrt, image_actor, H, L_clbrt, L_actor)
 
-    if do_debug and folder_out is not None:
-        cv2.imwrite(folder_out+'s01-original1.jpg', image_clbrt)
-        cv2.imwrite(folder_out+'s05-original2.jpg', image_actor)
+    # face
+    face = R_c.morph_mesh(image_actor.shape[0],image_actor.shape[1],L2_aligned,L_clbrt,del_triangles_C)
+    filter_size = 0.1*L2_aligned[:,0].max()
+    result = tools_image.blend_multi_band_large_small(image_actor, face, (0, 0, 0),filter_size=filter_size,n_clips=1)
 
-    face = R_c.morph_mesh(image_actor.shape[0],image_actor.shape[1],L2_aligned,L_clbrt,del_triangles)
+    if do_debug: cv2.imwrite(folder_out + 's03-face.jpg', face)
+    if do_debug: cv2.imwrite(folder_out + 's03-result.jpg', result)
 
-    if do_debug and folder_out is not None:
-        cv2.imwrite(folder_out + 's03-face.jpg', face)
-
+    # mouth
     L2_aligned_mouth = L2_aligned[numpy.arange(48, 61, 1).tolist()]
     del_mouth = Delaunay(L2_aligned_mouth).vertices
-
-    temp_mouth = R_a.morph_mesh(image_actor.shape[0],image_actor.shape[1],L2_aligned_mouth,L2_aligned_mouth, del_mouth)
-
-    if do_debug:cv2.imwrite(folder_out + 's04-mouth.jpg', temp_mouth)
-
-    filter_size = 0.1*L2_aligned[:,0].max()
-    result2 = tools_image.blend_multi_band_large_small(image_actor, face, (0, 0, 0),filter_size=filter_size,n_clips=2)
-    if do_debug:cv2.imwrite(folder_out + 's04-mouth_face.jpg', result2)
-
+    temp_mouth = R_a.morph_mesh(image_actor.shape[0], image_actor.shape[1], L2_aligned_mouth, L2_aligned_mouth,del_mouth)
     filter_size = 0.05*L2_aligned_mouth[:,0].max()
-    result2 = tools_image.blend_multi_band_large_small(result2, temp_mouth, (0, 0, 0),do_color_balance=False, filter_size=filter_size,n_clips=1)
+    result = tools_image.blend_multi_band_large_small(result, temp_mouth, (0, 0, 0), do_color_balance=False, filter_size=filter_size, n_clips=1,do_debug=do_debug)
 
-    if do_debug and folder_out is not None:
-        cv2.imwrite(folder_out+'s04-result2.jpg', result2)
+    if do_debug: cv2.imwrite(folder_out + 's03-temp_mouth.jpg', temp_mouth)
 
+    if do_debug:
+        cv2.imwrite(folder_out+'s06-result2.jpg', result)
+        cv2.imwrite(folder_out + 's06-original.jpg', image_actor)
 
-    return result2
+    return result
 # ---------------------------------------------------------------------------------------------------------------------
-def transferface_folder(D, filename_celebrity, folder_in, folder_out):
+def process_folder(D, folder_in, folder_out, write_images=True, write_annotation=True,delim='\t'):
 
-    tools_IO.remove_files(folder_out,create=True)
-
+    tools_IO.remove_files(folder_out, create=True)
     local_filenames = tools_IO.get_filenames(folder_in, '*.jpg')
 
-    image_clbrt = cv2.imread(filename_celebrity)
-    L_clbrt = D.get_landmarks_augm(image_clbrt)
-    del_triangles_C = Delaunay(L_clbrt).vertices
-    R_c = tools_GL.render_GL(image_clbrt)
-    image_actor = cv2.imread(folder_in + local_filenames[0])
-    R_a = tools_GL.render_GL(image_actor)
+    myfile = None
 
-    M = 20
-    L_actor_hist = numpy.zeros((M,68,2))
+    if write_annotation:
+        myfile = open(folder_out+"Landmarks.txt", "w")
+        myfile.close()
 
     for local_filename in local_filenames:
 
-        image_actor = cv2.imread(folder_in+local_filename)
-        L_actor = D.get_landmarks_augm(image_actor)
-        #L_actor_hist = numpy.roll(L_actor_hist,1,axis=0)
-        #L_actor_hist[0] = L_actor
-        #L_actor = tools_filter.from_fistorical(L_actor_hist)
+        image = cv2.imread(folder_in + local_filename)
+        L_actor = D.get_landmarks_augm(image)
 
-        R_a.update_texture(image_actor)
+        if write_images:
+            del_triangles_A = Delaunay(L_actor).vertices
+            result = D.draw_landmarks_v2(image, L_actor, color=(0, 192, 255),del_triangles=del_triangles_A)
+            cv2.imwrite(folder_out + local_filename, result)
 
-        H = tools_calibrate.get_transform_by_keypoints(L_clbrt, L_actor)
-        if H is None:
-            return image_actor
+        if write_annotation:
+            myfile = open(folder_out + "Landmarks.txt", "a")
+            data = numpy.vstack((numpy.array([local_filename, local_filename]),(L_actor).astype(numpy.chararray))).T
+            numpy.savetxt(myfile,data.astype(numpy.str),fmt='%s',encoding='str',delimiter=delim)
+            myfile.close()
 
-        L1_aligned, L2_aligned = tools_calibrate.translate_coordinates(image_clbrt, image_actor, H, L_clbrt, L_actor)
-        face = R_c.morph_mesh(image_actor.shape[0], image_actor.shape[1], L2_aligned, L_clbrt, del_triangles_C)
-
-        L2_aligned_mouth = L2_aligned[numpy.arange(48, 61, 1).tolist()]
-        del_mouth = Delaunay(L2_aligned_mouth).vertices
-        temp_mouth = R_a.morph_mesh(image_actor.shape[0], image_actor.shape[1], L2_aligned_mouth, L2_aligned_mouth,del_mouth)
-
-        filter_size = int(face.shape[0] * 0.07)
-        result = tools_image.blend_multi_band_large_small(image_actor, face, (0, 0, 0), filter_size=filter_size,do_color_balance=False)
-        result = tools_image.blend_multi_band_large_small(result, temp_mouth, (0, 0, 0), do_color_balance=False,filter_size=filter_size // 2)
-
-        cv2.imwrite(folder_out + local_filename, result)
         print(local_filename)
-
     return
 # ---------------------------------------------------------------------------------------------------------------------
-def landmarks_folder(D,folder_in, folder_out):
-    tools_IO.remove_files(folder_out, create=True)
+def draw_landmarks(D,folder_in, filaname_landmarks, folder_out,delim='\t'):
 
-    local_filenames = tools_IO.get_filenames(folder_in, '*.jpg')
+    with open(filaname_landmarks) as f:
+        lines = f.readlines()
 
-    M = 20
-    L_actor_hist = numpy.zeros((M, 68, 2))
+    filenames_dict = sorted(set([line.split(delim)[0] for line in lines]))
 
-    for local_filename in local_filenames:
+    for local_filename in filenames_dict:
+        if not os.path.isfile(folder_in + local_filename): continue
 
-        image_actor = cv2.imread(folder_in + local_filename)
-        L_actor = D.get_landmarks_augm(image_actor)
-        del_triangles_A = Delaunay(L_actor).vertices
-        #L_actor_hist = numpy.roll(L_actor_hist, 1, axis=0)
-        #L_actor_hist[0] = L_actor
-        #L_actor = tools_filter.from_fistorical(L_actor_hist)
+        L = []
+        for i,line in enumerate(lines):
+            if local_filename == line.split(delim)[0]:
+                L.append(line.split(delim))
 
-        result = D.draw_landmarks_v2(image_actor, L_actor, color=(0, 192, 255),del_triangles=del_triangles_A)
+        if len(L)==2:
+            L = (numpy.array(L)[:,1:].T).astype(numpy.float)
+            image = cv2.imread(folder_in + local_filename)
+            image = D.draw_landmarks_v2(image,L)
+            cv2.imwrite(folder_out+local_filename,image)
 
-
-        cv2.imwrite(folder_out + local_filename, result)
-        print(local_filename)
     return
 # ---------------------------------------------------------------------------------------------------------------------
