@@ -639,8 +639,7 @@ def plot_multiple_tp_fp(tpr,fpr,roc_auc,desc,caption=''):
         leg.legendHandles[i].set_color(colors_list[i%L])
 
     leg.legendHandles[0].set_visible(False)
-
-
+    return
 
 # ----------------------------------------------------------------------------------------------------------------------
 def smape(A, F):

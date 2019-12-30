@@ -111,10 +111,10 @@ class tools_ML(object):
 # ---------------------------------------------------------------------------------------------------------------------
     def train_test(self, X, Y, idx_train, idx_test,path_output=None):
 
-        self.classifier.learn(X[idx_train], Y[idx_train])
+        self.classifier.train(X[idx_train], Y[idx_train])
         (labels_test_pred, labels_test_prob, challangers_test,challangers_test_prob) = self.predict(numpy.unique(Y), X[idx_test])
 
-        self.classifier.learn(X[idx_test], Y[idx_test])
+        self.classifier.train(X[idx_test], Y[idx_test])
         (labels_train_pred, labels_train_prob, challangers_train,challangers_train_prob) = self.predict(numpy.unique(Y), X[idx_train])
 
         return (labels_train_pred, labels_train_prob, challangers_train,challangers_train_prob,labels_test_pred, labels_test_prob, challangers_test,challangers_test_prob)
@@ -144,7 +144,7 @@ class tools_ML(object):
         X_train = numpy.vstack((X_train_pos, X_train_neg))
         Y_train = numpy.hstack((numpy.full(X_train_pos.shape[0], +1), numpy.full(X_train_neg.shape[0], -1)))
 
-        self.classifier.learn(X_train, Y_train)
+        self.classifier.train(X_train, Y_train)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def generate_data_grid(self,filename_data_train, filename_data_test, filename_data_grid,has_header=True,has_labels_first_col=True):
@@ -307,7 +307,7 @@ class tools_ML(object):
 
         return
 # ---------------------------------------------------------------------------------------------------------------------
-    def E2E_features_2_classes_dim_2(self, folder_out, filename_data_pos, filename_data_neg):
+    def E2E_features_2_classes_dim_2(self, folder_out, filename_data_pos, filename_data_neg,has_header=True,has_labels_first_col=True):
 
         tools_IO.remove_files(folder_out)
 
@@ -320,6 +320,10 @@ class tools_ML(object):
         Pos = (tools_IO.load_mat(filename_data_pos, numpy.chararray, '\t')).shape[0]
         Neg = (tools_IO.load_mat(filename_data_neg, numpy.chararray, '\t')).shape[0]
 
+        if has_header:
+            Pos-=1
+            Neg-=1
+
         numpy.random.seed(125)
         idx_pos_train = numpy.random.choice(Pos, int(Pos / 2), replace=False)
         idx_neg_train = numpy.random.choice(Neg, int(Neg / 2), replace=False)
@@ -328,14 +332,15 @@ class tools_ML(object):
 
         self.generate_data_grid(filename_data_pos, filename_data_neg, filename_data_grid)
 
-        self.learn_on_pos_neg_files(filename_data_pos, filename_data_neg, delimeter='\t', rand_pos=idx_pos_train,rand_neg=idx_neg_train)
-        self.score_feature_file(filename_data_pos, filename_scrs=filename_scrs_pos, delimeter='\t', append=0,rand_sel=idx_pos_test)
-        self.score_feature_file(filename_data_neg, filename_scrs=filename_scrs_neg, delimeter='\t', append=0,rand_sel=idx_neg_test)
-        self.score_feature_file(filename_data_grid, filename_scrs=filename_scores_grid)
+        self.learn_on_pos_neg_files(filename_data_pos,filename_data_neg, delimeter='\t', rand_pos=idx_pos_train,rand_neg=idx_neg_train,has_header=has_header,has_labels_first_col=has_labels_first_col)
+        self.score_feature_file(filename_data_pos, filename_scrs  =filename_scrs_pos,delimeter='\t', append=0, rand_sel=idx_pos_test,has_header=has_header,has_labels_first_col=has_labels_first_col)
+        self.score_feature_file(filename_data_neg, filename_scrs  =filename_scrs_neg,delimeter='\t', append=0, rand_sel=idx_neg_test,has_header=has_header,has_labels_first_col=has_labels_first_col)
 
-        self.learn_on_pos_neg_files(filename_data_pos, filename_data_neg, '\t', idx_pos_test, idx_neg_test)
-        self.score_feature_file(filename_data_pos, filename_scrs=filename_scrs_pos, delimeter='\t', append=1,rand_sel=idx_pos_train)
-        self.score_feature_file(filename_data_neg, filename_scrs=filename_scrs_neg, delimeter='\t', append=1,rand_sel=idx_neg_train)
+        self.learn_on_pos_neg_files(filename_data_pos,filename_data_neg, '\t', idx_pos_test,idx_neg_test,has_header=has_header,has_labels_first_col=has_labels_first_col)
+        self.score_feature_file(filename_data_pos,  filename_scrs = filename_scrs_pos,delimeter='\t',append= 1,rand_sel=idx_pos_train,has_header=has_header,has_labels_first_col=has_labels_first_col)
+        self.score_feature_file(filename_data_neg,  filename_scrs = filename_scrs_neg,delimeter='\t',append= 1,rand_sel=idx_neg_train,has_header=has_header,has_labels_first_col=has_labels_first_col)
+
+        self.score_feature_file(filename_data_grid, filename_scrs=filename_scores_grid,has_header=has_header,has_labels_first_col=has_labels_first_col)
 
         tpr, fpr, auc = tools_IO.get_roc_data_from_scores_file_v2(filename_scrs_pos, filename_scrs_neg, delim='\t')
 
@@ -343,9 +348,9 @@ class tools_ML(object):
         fig.subplots_adjust(hspace=0.01)
 
         th = self.get_th(filename_scrs_pos, filename_scrs_neg, delim='\t')
-        tools_IO.display_roc_curve_from_descriptions(plt.subplot(1, 3, 3), fig, filename_scrs_pos,filename_scrs_neg, delim='\t')
-        tools_IO.display_distributions(plt.subplot(1, 3, 2), fig, filename_scrs_pos, filename_scrs_neg,delim='\t')
         tools_IO.plot_2D_scores(plt.subplot(1, 3, 1), fig, filename_data_pos, filename_data_neg,filename_data_grid, filename_scores_grid, th, noice_needed=1,caption=self.classifier.name + ' %1.2f' % auc)
+        tools_IO.display_distributions(plt.subplot(1, 3, 2), fig, filename_scrs_pos, filename_scrs_neg, delim='\t')
+        tools_IO.display_roc_curve_from_descriptions(plt.subplot(1, 3, 3), fig, filename_scrs_pos, filename_scrs_neg,delim='\t')
         plt.tight_layout()
         plt.savefig(folder_out + 'fig_roc.png')
 

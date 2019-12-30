@@ -438,6 +438,7 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
 
     if n_clips>0:
         mask = ndimage.uniform_filter(mask, size=(filter_size,filter_size), mode='reflect')
+        #mask = cv2.GaussianBlur(mask, (int(filter_size), int(filter_size)), 0)
 
     if do_debug == 1: cv2.imwrite('./images/output/mask1.png', 255 * mask)
 

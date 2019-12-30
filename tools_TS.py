@@ -12,7 +12,6 @@ import math
 # GRU, Peephole, # https://medium.com/@godricglow/a-deeper-understanding-of-nnets-part-3-lstm-and-gru-e557468acb04
 # random walk?
 # benchmark with sliding window # https://www.datascience.com/blog/time-series-forecasting-machine-learning-differences
-# as ML
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_IO
 # ----------------------------------------------------------------------------------------------------------------------

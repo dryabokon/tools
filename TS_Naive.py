@@ -7,7 +7,7 @@ class TS_Naive(object):
         self.folder_debug = folder_debug
         return
 # ----------------------------------------------------------------------------------------------------------------
-    def learn(self, array_X, array_Y):
+    def train(self, array_X, array_Y):
         return numpy.hstack((array_Y[0], array_Y[:-1]))
 #----------------------------------------------------------------------------------------------------------------------
     def predict(self, array_X,array_Y):

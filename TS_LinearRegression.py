@@ -9,7 +9,7 @@ class TS_LinearRegression(object):
         self.folder_debug = folder_debug
         return
 # ----------------------------------------------------------------------------------------------------------------
-    def learn(self, array_X, array_Y):
+    def train(self, array_X, array_Y):
         self.train_X = array_X
         self.train_Y = array_Y
         self.model = LinearRegression()

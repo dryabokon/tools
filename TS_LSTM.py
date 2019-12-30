@@ -47,7 +47,7 @@ class TS_LSTM(object):
         return
 
 #----------------------------------------------------------------------------------------------------------------------
-    def learn(self, array_X, array_Y):
+    def train(self, array_X, array_Y):
         M = array_X.shape[0]
         self.init_model(array_X.shape[1])
         tensor_X = numpy.expand_dims(array_X,2)

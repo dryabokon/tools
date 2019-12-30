@@ -151,7 +151,7 @@ class classifier_FC_numpy(object):
 
         return params_values
 # ----------------------------------------------------------------------------------------------------------------------
-    def learn(self, X, Y):
+    def train(self, X, Y):
 
         NN_ARCHITECTURE = self.NN_ARCHITECTURE
         # initiation of neural net parameters

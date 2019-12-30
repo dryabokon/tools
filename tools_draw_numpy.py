@@ -1,5 +1,7 @@
+import cv2
+from scipy.spatial import ConvexHull
 import numpy
-from skimage.draw import circle, line_aa
+from skimage.draw import circle, line_aa,ellipse
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_ellipse(array_bgr, row, col, r_radius, c_radius, color_brg, alpha_transp=0):
     color_brg = numpy.array(color_brg)
@@ -47,4 +49,11 @@ def draw_rect(array_bgr, row_up, col_left, row_down, col_right, color_bgr, alpha
     res_rgb = draw_line(res_rgb, row_down, col_left , row_up  , col_left , color_bgr, alpha_transp)
     return res_rgb
 
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_convex_hull(im, points, color=(255,255,255)):
+
+    hull = ConvexHull(numpy.array(points))
+    cntrs = points[hull.vertices].reshape(1,-1, 1, 2).astype(numpy.int)
+    res = cv2.drawContours(im, cntrs,-1,color,thickness=-1)
+    return res
 # ----------------------------------------------------------------------------------------------------------------------

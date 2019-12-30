@@ -17,7 +17,7 @@ class TS_Holt(object):
         self.train_Y = []
         return
 # ----------------------------------------------------------------------------------------------------------------
-    def learn(self, array_X, array_Y):
+    def train(self, array_X, array_Y):
         self.train_X = array_X
         self.train_Y = array_Y
         self.model = Holt(array_Y, exponential=self.exponential, damped=self.damped)
