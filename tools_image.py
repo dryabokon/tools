@@ -459,20 +459,29 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
 
     mask = numpy.stack((mask,mask,mask),axis=2)
 
+    result = do_blend(large,small,mask)
+
+    return result
+#----------------------------------------------------------------------------------------------------------------------
+def do_blend(large,small,mask):
+
+    if len(mask.shape)==2:
+        mask = numpy.array([mask,mask,mask]).transpose([1,2,0])
+
+    if mask.max()>1:
+        mask = (mask.astype(numpy.float)/255.0)
+
     background = numpy.multiply(mask, large)
     background = numpy.clip(background, 0, 255)
-    if do_debug == 1: cv2.imwrite('./images/output/background.png', background)
 
-    foreground = numpy.multiply(1-mask, small)
+
+    foreground = numpy.multiply(1 - mask, small)
     foreground = numpy.clip(foreground, 0, 255)
-    if do_debug == 1: cv2.imwrite('./images/output/foreground.png', foreground)
 
-    result = cv2.add(background,foreground)
+    result = cv2.add(background, foreground)
     result = numpy.clip(result, 0, 255)
-    if do_debug == 1: cv2.imwrite('./images/output/result.png', result)
 
     result = numpy.array(result).astype(numpy.uint8)
-
     return result
 #----------------------------------------------------------------------------------------------------------------------
 def blend_avg(img1, img2,background_color=(255,255,255),weight=0.5):

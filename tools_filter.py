@@ -2,6 +2,7 @@
 import numpy
 from filterpy.kalman import KalmanFilter
 from scipy.signal import medfilt
+import scipy.interpolate
 # ----------------------------------------------------------------------------------------------------------------------
 def from_fistorical(L):
 
@@ -27,15 +28,19 @@ def from_fistorical(L):
     return res
 # ----------------------------------------------------------------------------------------------------------------------
 def do_filter_median(X,N=5):
-    res = medfilt(X,kernel_size=N)
-    res[:N] = X[:N]
-    res[-N:] = X[-N:]
-    return res
+    R = medfilt(X,kernel_size=N)
+    R[:N] = X[:N]
+    R[-N:] = X[-N:]
+    return R
 # ----------------------------------------------------------------------------------------------------------------------
 def do_filter_average(X,N):
-    res = numpy.convolve(X, numpy.ones((N,)) / N,mode='same')#[(N - 1):]
-    res[:N] = X[:N]
-    res[-N:] = X[-N:]
+    R = numpy.convolve(X, numpy.ones((N,)) / N,mode='same')#[(N - 1):]
+    R[:N] = X[:N]
+    R[-N:] = X[-N:]
+    return R
+# ----------------------------------------------------------------------------------------------------------------------
+def do_filter_dummy(X,N):
+    res = X.copy()
     return res
 # ----------------------------------------------------------------------------------------------------------------------
 def do_filter_kalman(X,noise_level = 1,Q = 0.001):
@@ -54,3 +59,15 @@ def do_filter_kalman(X,noise_level = 1,Q = 0.001):
     return X_fildered[:,0]
 
 # ----------------------------------------------------------------------------------------------------------------------
+def fill_zeros(A):
+
+    idx = numpy.where(A == 0)[0]
+    A[idx] = numpy.nan
+
+    inds = numpy.arange(A.shape[0])
+    good = numpy.where(numpy.isfinite(A))
+    f = scipy.interpolate.interp1d(inds[good], A[good],bounds_error=False)
+    B = numpy.where(numpy.isfinite(A),A,f(inds))
+    A[idx]=0
+    return B
+# --------------------------------------------------------------------------------------------------------------------

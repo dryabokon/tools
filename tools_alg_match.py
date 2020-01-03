@@ -170,6 +170,7 @@ def get_keypoints_STAR(image1):
         im1_gray = cv2.cvtColor(image1, cv2.COLOR_BGR2GRAY)
 
     detector = cv2.xfeatures2d.StarDetector_create()
+    cv2.Detec
 
     kp = detector.detect(image1)
 
