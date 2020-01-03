@@ -163,24 +163,6 @@ def get_keypoints_desc(image1, detector='SIFT'):
 
 
 # ---------------------------------------------------------------------------------------------------------------------
-def get_keypoints_STAR(image1):
-    if len(image1.shape) == 2:
-        im1_gray = image1.copy()
-    else:
-        im1_gray = cv2.cvtColor(image1, cv2.COLOR_BGR2GRAY)
-
-    detector = cv2.xfeatures2d.StarDetector_create()
-    cv2.Detec
-
-    kp = detector.detect(image1)
-
-    points = []
-    if (len(kp) > 0):
-        points = numpy.array([kp[int(idx)].pt for idx in range(0, len(kp))]).astype(int)
-
-    return points
-
-# ---------------------------------------------------------------------------------------------------------------------
 def get_corners_Fast(image1):
     if len(image1.shape) == 2:
         im1_gray = image1.copy()
