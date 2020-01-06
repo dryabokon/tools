@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from sklearn.manifold import TSNE
 #from PIL import Image
-from xgboost import XGBClassifier
+#from xgboost import XGBClassifier
 #from xgboost import plot_importance
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_image
