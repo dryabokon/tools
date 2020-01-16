@@ -144,7 +144,7 @@ class tools_ML(object):
         X_train = numpy.vstack((X_train_pos, X_train_neg))
         Y_train = numpy.hstack((numpy.full(X_train_pos.shape[0], +1), numpy.full(X_train_neg.shape[0], -1)))
 
-        self.classifier.train(X_train, Y_train)
+        self.classifier.learn(X_train, Y_train)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def generate_data_grid(self,filename_data_train, filename_data_test, filename_data_grid,has_header=True,has_labels_first_col=True):

@@ -198,6 +198,9 @@ def process_folder_draw_landmarks(D, folder_in, list_of_filaname_landmarks, fold
 # ---------------------------------------------------------------------------------------------------------------------
 def process_folder_faceswap_by_landmarks(D, filename_clbrt,folder_in, filaname_landmarks, folder_out, delim='\t'):
 
+    if not os.path.exists(folder_out):
+        os.mkdir(folder_out)
+
     image_clbrt = cv2.imread(filename_clbrt)
     L_clbrt = D.get_landmarks_augm(image_clbrt)
     del_triangles_C = Delaunay(L_clbrt).vertices
