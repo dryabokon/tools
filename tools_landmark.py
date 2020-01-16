@@ -83,7 +83,7 @@ def do_faceswap(R_c, R_a, image_clbrt, image_actor, L_clbrt, L_actor, del_triang
     else:
         do_eye_swap = False
 
-    if do_eye_swap:
+    if True:#do_eye_swap:
         #eye_1
         mask_eye1 = get_mask_eye1(LA_aligned,image_actor,R_a)
         mask_eye1 = ndimage.uniform_filter(mask_eye1[:, :, 0], size=(25, 25), mode='reflect')
