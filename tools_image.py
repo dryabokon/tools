@@ -434,13 +434,13 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
     mask = mask_original.copy()
     mask = numpy.array(numpy.min(mask,axis=2),dtype=numpy.float)
 
-    if do_debug == 1: cv2.imwrite('./images/output/mask0.png', 255 * mask)
+    if do_debug: cv2.imwrite('./images/output/mask0.png', 255 * mask)
 
     if n_clips>0:
         mask = ndimage.uniform_filter(mask, size=(filter_size,filter_size), mode='reflect')
         #mask = cv2.GaussianBlur(mask, (int(filter_size), int(filter_size)), 0)
 
-    if do_debug == 1: cv2.imwrite('./images/output/mask1.png', 255 * mask)
+    if do_debug: cv2.imwrite('./images/output/mask1.png', 255 * mask)
 
     for c in range(n_clips):
         mask = numpy.clip(2 * mask, 0, 1.0)
@@ -455,7 +455,7 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
                 scale = numpy.average(small[:,:,c][idx])/ numpy.average(large[:,:,c][idx])
                 small[:,:,c]=small[:,:,c]/scale
 
-    if do_debug == 1: cv2.imwrite('./images/output/small_corrected.png', small)
+    if do_debug: cv2.imwrite('./images/output/small_corrected.png', small)
 
     mask = numpy.stack((mask,mask,mask),axis=2)
 
