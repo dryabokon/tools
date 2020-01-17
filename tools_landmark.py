@@ -70,6 +70,9 @@ def do_faceswap(R_c, R_a, image_clbrt, image_actor, L_clbrt, L_actor, del_triang
         face_yy = R_f.morph_mesh(image_clbrt.shape[0], image_clbrt.shape[1], L_clbrt[:27], L_actor[:27], del_triangles)
         cv2.imwrite(folder_out + 's02-celebrity-face.jpg', face_yy)
 
+        face_c = R_c.morph_mesh(image_clbrt.shape[0], image_clbrt.shape[1], L_clbrt,L_clbrt, del_triangles_C)
+        cv2.imwrite(folder_out + 's02-celebrity-face_original.jpg', face_c)
+
     # mouth
     LA_aligned_mouth = L_actor[numpy.arange(48, 61, 1).tolist()]
     del_mouth = Delaunay(LA_aligned_mouth).vertices
