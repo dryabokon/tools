@@ -41,102 +41,6 @@ def get_mask_eye2(LA_aligned,image_actor,R_a):
     mask = 255*(mask[:, :] != (0,0,0))
     return mask
 # ---------------------------------------------------------------------------------------------------------------------
-def do_faceswap(R_c, R_a, image_clbrt, image_actor, L_clbrt, L_actor, del_triangles_C, folder_out='./images/output/', do_debug=False):
-
-    swap = False
-
-    if do_debug and folder_out is not None:
-        tools_IO.remove_files(folder_out, create=True)
-
-    if swap:
-        image_clbrt,image_actor = image_actor,image_clbrt
-
-    if L_actor.min()==L_actor.max()==0 or L_clbrt.min()==L_clbrt.max()==0:
-        return image_actor
-
-    # face
-    face = R_c.morph_mesh(image_actor.shape[0],image_actor.shape[1],L_actor,L_clbrt,del_triangles_C)
-    #del_triangles = Delaunay(L_clbrt[:27]).vertices
-    #face  = R_c.morph_mesh(image_actor.shape[0], image_actor.shape[1], L_actor[:27], L_clbrt[:27], del_triangles)
-
-    face_narrow = narrow_face(face, L_actor)
-    if do_debug: cv2.imwrite(folder_out + 's04-face_masked.jpg', face_narrow)
-    filter_size = 50#0.1*LA_aligned[:,0].max()
-    result = tools_image.blend_multi_band_large_small(image_actor, face_narrow, (0, 0, 0),filter_size=filter_size,n_clips=1)
-    if do_debug: cv2.imwrite(folder_out + 's04-result.jpg', result)
-
-    if do_debug:
-        face_c = R_c.morph_mesh(image_clbrt.shape[0], image_clbrt.shape[1], L_clbrt,L_clbrt, del_triangles_C)
-        cv2.imwrite(folder_out + 's02-face_c.jpg', face_c)
-
-        face_a_morphed = R_a.morph_mesh(image_clbrt.shape[0], image_clbrt.shape[1], L_clbrt, L_actor, del_triangles_C)
-        cv2.imwrite(folder_out + 's02-face_a_morphed.jpg', face_a_morphed)
-
-        R_f = tools_GL.render_GL(face)
-        del_triangles = Delaunay(L_clbrt[:27]).vertices
-        face_c_morphed = R_f.morph_mesh(image_clbrt.shape[0], image_clbrt.shape[1], L_clbrt[:27], L_actor[:27], del_triangles)
-        cv2.imwrite(folder_out + 's02-face_c_morphed.jpg', face_c_morphed)
-
-        face_a = R_a.morph_mesh(image_actor.shape[0], image_actor.shape[1], L_actor, L_actor, del_triangles_C)
-        cv2.imwrite(folder_out + 's03-face_a.jpg', face_a)
-
-        face_c_morphed = R_c.morph_mesh(image_actor.shape[0], image_actor.shape[1], L_actor, L_clbrt,  del_triangles_C)
-        cv2.imwrite(folder_out + 's03-face_c_morphed.jpg', face_c_morphed)
-
-        face2 = R_a.morph_mesh(image_clbrt.shape[0], image_clbrt.shape[1], L_clbrt, L_actor,  del_triangles_C)
-        R_f.update_texture(face2)
-        del_triangles = Delaunay(L_actor[:27]).vertices
-        face_a_morphed = R_f.morph_mesh(image_actor.shape[0], image_actor.shape[1], L_actor[:27],L_clbrt[:27],del_triangles)
-        cv2.imwrite(folder_out + 's03-face_a_morphed.jpg', face_a_morphed)
-
-
-    # mouth
-    LA_aligned_mouth = L_actor[numpy.arange(48, 61, 1).tolist()]
-    del_mouth = Delaunay(LA_aligned_mouth).vertices
-    temp_mouth = R_a.morph_mesh(image_actor.shape[0], image_actor.shape[1], LA_aligned_mouth, LA_aligned_mouth,del_mouth)
-    if do_debug: cv2.imwrite(folder_out + 's04-temp_mouth.jpg', temp_mouth)
-    filter_size = 25#0.05*LA_aligned_mouth[:,0].max()
-    result = tools_image.blend_multi_band_large_small(result, temp_mouth, (0, 0, 0), do_color_balance=False, filter_size=filter_size, n_clips=1)
-    if do_debug: cv2.imwrite(folder_out + 's04-result-mouth.jpg', result)
-
-
-
-
-    pos_eye = L_actor[numpy.arange(36, 42, 1).tolist()]
-    dx = pos_eye[:,0].max() - pos_eye[:,0].min()
-    dy = pos_eye[:,1].max() - pos_eye[:,1].min()
-    if float(dx/dy)>5:
-        do_eye_swap = True
-    else:
-        do_eye_swap = False
-
-    if do_eye_swap:
-        #eye_1
-        mask_eye1 = get_mask_eye1(L_actor,image_actor,R_a)
-        mask_eye1 = ndimage.uniform_filter(mask_eye1[:, :, 0], size=(25, 25), mode='reflect')
-        mask_eye1 = numpy.clip(4 * mask_eye1, 0, 255).astype(numpy.uint8)
-        if do_debug: cv2.imwrite(folder_out + 's04-mask_eye1.jpg', mask_eye1)
-        temp_face = R_a.morph_mesh(image_actor.shape[0], image_actor.shape[1], L_actor, L_actor,del_triangles_C)
-        if do_debug: cv2.imwrite(folder_out + 's04-temp_eye1.jpg', temp_face)
-        result = tools_image.do_blend(result, temp_face, 255-mask_eye1)
-        if do_debug: cv2.imwrite(folder_out + 's04-temp_blend1.jpg', result)
-
-        #eye_2
-        mask_eye2 = get_mask_eye2(L_actor,image_actor,R_a)
-        mask_eye2 = ndimage.uniform_filter(mask_eye2[:, :, 0], size=(25, 25), mode='reflect')
-        mask_eye2 = numpy.clip(4 * mask_eye2, 0, 255).astype(numpy.uint8)
-        if do_debug: cv2.imwrite(folder_out + 's04-mask_eye2.jpg', mask_eye2)
-        if do_debug: cv2.imwrite(folder_out + 's04-temp_eye2.jpg', temp_face)
-        result = tools_image.do_blend(result, temp_face, 255-mask_eye2)
-        if do_debug: cv2.imwrite(folder_out + 's04-temp_blend2.jpg', result)
-
-    if do_debug:
-        cv2.imwrite(folder_out + 's02-celebrity.jpg', image_clbrt)
-        cv2.imwrite(folder_out+'s06-result2.jpg', result)
-        cv2.imwrite(folder_out + 's06-original.jpg', image_actor)
-
-    return result
-# ---------------------------------------------------------------------------------------------------------------------
 def process_folder_extract_landmarks(D, folder_in, folder_out, write_images=True, write_annotation=True, delim='\t'):
 
     tools_IO.remove_files(folder_out, create=True)
@@ -255,7 +159,7 @@ def process_folder_faceswap_by_landmarks(D, filename_clbrt,folder_in, filaname_l
             image_actor = cv2.imread(folder_in + local_filename)
             R_a.update_texture(image_actor)
 
-            result = do_faceswap(R_c, R_a, image_clbrt, image_actor, L_clbrt, L_actor, del_triangles_C)
+            result = do_faceswap(R_c, R_a, image_clbrt, image_actor, L_clbrt, L_actor, del_triangles_C,do_debug=False)
             cv2.imwrite(folder_out + local_filename, result)
 
             print(local_filename)
@@ -320,4 +224,49 @@ def interpolate(filename_in, filename_out,N=5,delim='\t'):
     myfile.close()
 
     return
+# ---------------------------------------------------------------------------------------------------------------------
+def do_faceswap(R_c, R_a, image_clbrt, image_actor, L_clbrt, L_actor, del_triangles_C, folder_out='./images/output/', do_debug=False):
+
+    swap = False
+
+    if do_debug and folder_out is not None:
+        tools_IO.remove_files(folder_out, create=True)
+
+    if swap:
+        image_clbrt,image_actor = image_actor,image_clbrt
+
+    if L_actor.min()==L_actor.max()==0 or L_clbrt.min()==L_clbrt.max()==0:
+        return image_actor
+
+    H = tools_calibrate.get_transform_by_keypoints(L_clbrt,L_actor)
+    LC_aligned, LA_aligned = tools_calibrate.translate_coordinates(image_clbrt, image_actor, H, L_clbrt, L_actor)
+
+    idx_removed_eyes = numpy.arange(0, 68, 1).tolist()
+    for each in [37, 38, 40, 41, 43, 44, 46, 47]:idx_removed_eyes.remove(each)
+
+    # face
+    del_face = Delaunay(L_clbrt[idx_removed_eyes]).vertices
+    face = R_c.morph_mesh(image_actor.shape[0],image_actor.shape[1],LA_aligned[idx_removed_eyes],L_clbrt[idx_removed_eyes],del_face)
+    if do_debug: cv2.imwrite(folder_out + 's03-face.jpg', face)
+    #face = narrow_face(face, L_actor)
+    if do_debug: cv2.imwrite(folder_out + 's03-face_masked.jpg', face)
+    filter_size = 50#0.1*LA_aligned[:,0].max()
+    result = tools_image.blend_multi_band_large_small(image_actor, face, (0, 0, 0),adjust_colors='small',n_clips=1,do_debug=do_debug)
+    if do_debug: cv2.imwrite(folder_out + 's03-result.jpg', result)
+
+    # mouth
+    LA_aligned_mouth = LA_aligned[numpy.arange(48, 61, 1).tolist()]
+    del_mouth = Delaunay(LA_aligned_mouth).vertices
+    temp_mouth = R_a.morph_mesh(image_actor.shape[0], image_actor.shape[1], LA_aligned_mouth, LA_aligned_mouth,del_mouth)
+    if do_debug: cv2.imwrite(folder_out + 's03-temp_mouth.jpg', temp_mouth)
+    filter_size = 25#0.05*LA_aligned_mouth[:,0].max()
+    result = tools_image.blend_multi_band_large_small(result, temp_mouth, (0, 0, 0), adjust_colors=None, filter_size=filter_size, n_clips=1)
+    if do_debug: cv2.imwrite(folder_out + 's03-result-mouth.jpg', result)
+
+
+    if do_debug:
+        cv2.imwrite(folder_out+'s06-result2.jpg', result)
+        cv2.imwrite(folder_out + 's06-original.jpg', image_actor)
+
+    return result
 # ---------------------------------------------------------------------------------------------------------------------
