@@ -19,7 +19,10 @@ class detector_landmarks(object):
         self.idx_nose = numpy.arange(27, 36, 1).tolist()
         self.idx_eyes = numpy.arange(36, 48, 1).tolist()
         self.idx_mouth = numpy.arange(48, 68, 1).tolist()
-        self.idx_removed_lip_line=numpy.arange(0,60,1).tolist()
+        self.idx_removed_eyes = numpy.arange(0,68,1).tolist()
+        for each in [37,38,40,41,43,44,46,47]:
+            self.idx_removed_eyes.remove(each)
+
         if mode == 'dlib':
             self.detector = dlib.get_frontal_face_detector()
             self.predictor = dlib.shape_predictor(filename_config)

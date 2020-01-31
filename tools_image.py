@@ -428,7 +428,7 @@ def align_color(small,large,mask):
 
     return res
 #----------------------------------------------------------------------------------------------------------------------
-def blend_multi_band_large_small(large, small, background_color=(255, 255, 255), do_color_balance=True, filter_size=50, n_clips=1, do_debug=False):
+def blend_multi_band_large_small0(large, small, background_color=(255, 255, 255), adjust_colors='avg', filter_size=50, n_clips=1, do_debug=False):
 
     mask_original = 1*(small[:, :] == background_color)
     mask = mask_original.copy()
@@ -446,14 +446,67 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
         mask = numpy.clip(2 * mask, 0, 1.0)
         if do_debug == 1: cv2.imwrite('./images/output/mask2.png', 255 * mask)
 
-    small = small.astype(numpy.float)
+    if adjust_colors is not None:
+        large = large.astype(numpy.float)
+        small = small.astype(numpy.float)
 
-    if do_color_balance:
         idx = numpy.where(mask[:,:]<0.5)
         if len(idx[0])>0:
             for c in range(3):
                 scale = numpy.average(small[:,:,c][idx])/ numpy.average(large[:,:,c][idx])
-                small[:,:,c]=small[:,:,c]/scale
+                if adjust_colors=='avg':
+                    scale = numpy.sqrt(scale)
+                    large[:,:,c] = large[:,:,c]*scale
+                    small[:,:,c]=small[:,:,c]/scale
+                if adjust_colors=='large':
+                    large[:,:,c] = large[:,:,c]*scale
+                if adjust_colors=='small':
+                    small[:,:,c]=small[:,:,c]/scale
+
+    if do_debug: cv2.imwrite('./images/output/small_corrected.png', small)
+
+    mask = numpy.stack((mask,mask,mask),axis=2)
+
+    result = do_blend(large,small,mask)
+
+    return result
+#----------------------------------------------------------------------------------------------------------------------
+def blend_multi_band_large_small(large, small, background_color=(255, 255, 255), adjust_colors='avg', filter_size=50, n_clips=1, do_debug=False):
+
+    mask_original = 1*(small[:, :] == background_color)
+    mask = mask_original.copy()
+    mask = numpy.array(numpy.min(mask,axis=2),dtype=numpy.float)
+
+    if do_debug: cv2.imwrite('./images/output/mask0.png', 255 * mask)
+
+    if n_clips>0:
+        mask = ndimage.uniform_filter(mask, size=(filter_size,filter_size), mode='reflect')
+
+    if do_debug: cv2.imwrite('./images/output/mask1.png', 255 * mask)
+
+    avg_size = filter_size
+
+    for c in range(n_clips):
+        mask = numpy.clip(2 * mask, 0, 1.0)
+        if do_debug == 1: cv2.imwrite('./images/output/mask2.png', 255 * mask)
+
+    if adjust_colors is not None:
+        large = large.astype(numpy.float)
+        small = small.astype(numpy.float)
+
+        idx = numpy.where(mask[:,:]<0.5)
+        if len(idx[0])>0:
+            for c in range(3):
+                avg_large = ndimage.convolve(large[:, :, c].astype(numpy.float), numpy.ones((avg_size, avg_size)),mode='constant') / (avg_size ** 2)
+                avg_large = avg_large.astype(numpy.uint8)
+                avg_small = ndimage.convolve(small[:, :, c].astype(numpy.float), numpy.ones((avg_size, avg_size)),mode='constant') / (avg_size ** 2)
+                avg_small = avg_small.astype(numpy.uint8)
+                if do_debug: cv2.imwrite('./images/output/avg_large.png', avg_large)
+                if do_debug: cv2.imwrite('./images/output/avg_small.png', avg_small)
+
+                scale = avg_large/avg_small
+                scale = numpy.nan_to_num(scale)
+                small[:,:,c]=small[:,:,c]*scale
 
     if do_debug: cv2.imwrite('./images/output/small_corrected.png', small)
 
