@@ -6,6 +6,7 @@ import tools_draw_numpy
 from scipy.spatial import Delaunay
 from scipy import ndimage
 import math
+import tools_GL
 # --------------------------------------------------------------------------------------------------------------------
 class detector_landmarks(object):
     def __init__(self,filename_config,H=1080,W=1920,mode='dlib'):
@@ -149,38 +150,4 @@ class detector_landmarks(object):
             res = numpy.array(res)
 
         return res.astype(numpy.float)
-# ----------------------------------------------------------------------------------------------------------------------
-    def get_landmarks_augm(self, image):
-
-        '''
-        H,W,_ = image.shape
-
-        angles = [5,-5,10,-10]
-        res = []
-        res.append(self.get_landmarks(image))
-        for angle in angles:
-            image_augm = ndimage.rotate(image, angle)
-
-            L_augm = self.get_landmarks(image_augm)
-            L = L_augm.copy()
-
-            CY, CX,  _ = image.shape
-            CYA, CXA, _ = image_augm.shape
-
-            L[:, 0] = CX/2+(L_augm[:, 0]-CXA/2) * math.cos(angle*math.pi/180) - (L_augm[:, 1]-CYA/2) * math.sin(angle*math.pi/180)
-            L[:, 1] = CY/2+(L_augm[:, 0]-CXA/2) * math.sin(angle*math.pi/180) + (L_augm[:, 1]-CYA/2) * math.cos(angle*math.pi/180)
-
-            res.append(L)
-
-        res2 = numpy.array(res)
-        res2 = numpy.average(res2,axis=0)
-
-        #res_image = self.draw_landmarks_v2(image,res2)
-        #cv2.imwrite('./images/output/au.png', res_image)
-
-        #res_image = self.draw_landmarks_v2(image, res[0])
-        #cv2.imwrite('./images/output/or.png', res_image)
-        '''
-
-        return self.get_landmarks(image)
 # ----------------------------------------------------------------------------------------------------------------------
