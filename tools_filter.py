@@ -1,8 +1,12 @@
 # ----------------------------------------------------------------------------------------------------------------------
+import pandas as pd
 import numpy
+from numpy.lib.stride_tricks import as_strided
 from filterpy.kalman import KalmanFilter
 from scipy.signal import medfilt
 import scipy.interpolate
+from scipy import ndimage
+
 # ----------------------------------------------------------------------------------------------------------------------
 def from_fistorical(L):
 
@@ -71,3 +75,34 @@ def fill_zeros(A):
     A[idx]=0
     return B
 # --------------------------------------------------------------------------------------------------------------------
+def sliding_2d(A,h,w,stat='avg',mode='reflect'):
+
+    #BB = numpy.zeros((A.shape[0]+2*h+1,A.shape[1]+2*w+1))
+    #BB[h:-h-1, w:-w-1] = A
+
+    B = numpy.pad(A,(h,w),mode)
+
+    C1 = numpy.cumsum(B , axis=0)
+    C2 = numpy.cumsum(C1, axis=1)
+
+    up = numpy.roll(C2, h, axis=0)
+    S1 = numpy.roll(up, w, axis=1)
+    S2 = numpy.roll(up,-w+1, axis=1)
+
+    dn = numpy.roll(C2,-h+1, axis=0)
+    S3 = numpy.roll(dn, w, axis=1)
+    S4 = numpy.roll(dn, -w+1, axis=1)
+
+    if stat=='avg':
+        R = (S1-S2-S3+S4)/((2*w)*(2*h))
+    else:
+        R = (S1 - S2 - S3 + S4)
+
+    return R[h:-h,w:-w]
+# --------------------------------------------------------------------------------------------------------------------
+def sliding_sum_2d_slow(A,h,w):
+    sum_large = ndimage.convolve(A.astype(numpy.float), numpy.ones((2*h+1, 2*w+1)),mode='constant') / ((1+2*h)*(1+2*w))
+    return sum_large
+# --------------------------------------------------------------------------------------------------------------------
+
+

@@ -248,10 +248,10 @@ def do_faceswap(R_c, R_a, image_clbrt, image_actor, L_clbrt, L_actor, del_triang
     del_face = Delaunay(L_clbrt[idx_removed_eyes]).vertices
     face = R_c.morph_mesh(image_actor.shape[0],image_actor.shape[1],LA_aligned[idx_removed_eyes],L_clbrt[idx_removed_eyes],del_face)
     if do_debug: cv2.imwrite(folder_out + 's03-face.jpg', face)
-    #face = narrow_face(face, L_actor)
+
     if do_debug: cv2.imwrite(folder_out + 's03-face_masked.jpg', face)
-    filter_size = 50#0.1*LA_aligned[:,0].max()
-    result = tools_image.blend_multi_band_large_small(image_actor, face, (0, 0, 0),adjust_colors='small',n_clips=1,do_debug=do_debug)
+    filter_face_size = int(0.2*(LA_aligned[:,0].max()-LA_aligned[:,0].min()))
+    result = tools_image.blend_multi_band_large_small(image_actor, face, (0, 0, 0),adjust_colors='xxx',filter_size=filter_face_size,do_debug=do_debug)
     if do_debug: cv2.imwrite(folder_out + 's03-result.jpg', result)
 
     # mouth
@@ -259,8 +259,8 @@ def do_faceswap(R_c, R_a, image_clbrt, image_actor, L_clbrt, L_actor, del_triang
     del_mouth = Delaunay(LA_aligned_mouth).vertices
     temp_mouth = R_a.morph_mesh(image_actor.shape[0], image_actor.shape[1], LA_aligned_mouth, LA_aligned_mouth,del_mouth)
     if do_debug: cv2.imwrite(folder_out + 's03-temp_mouth.jpg', temp_mouth)
-    filter_size = 25#0.05*LA_aligned_mouth[:,0].max()
-    result = tools_image.blend_multi_band_large_small(result, temp_mouth, (0, 0, 0), adjust_colors=None, filter_size=filter_size, n_clips=1)
+    filter_mouth_size = filter_face_size//2
+    result = tools_image.blend_multi_band_large_small(result, temp_mouth, (0, 0, 0), adjust_colors=None, filter_size=filter_mouth_size, n_clips=1)
     if do_debug: cv2.imwrite(folder_out + 's03-result-mouth.jpg', result)
 
 

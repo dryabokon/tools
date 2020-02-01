@@ -6,6 +6,7 @@ import os
 import math
 import ctypes
 from scipy import ndimage
+import tools_filter
 #from PIL import ImageGrab
 #--------------------------------------------------------------------------------------------------------------------------
 import tools_IO
@@ -474,14 +475,14 @@ def blend_multi_band_large_small0(large, small, background_color=(255, 255, 255)
 def blend_multi_band_large_small(large, small, background_color=(255, 255, 255), adjust_colors='avg', filter_size=50, n_clips=1, do_debug=False):
 
     mask_original = 1*(small[:, :] == background_color)
-    mask = mask_original.copy()
-    mask = numpy.array(numpy.min(mask,axis=2),dtype=numpy.float)
+    mask_bin = mask_original.copy()
+    mask_bin = numpy.array(numpy.min(mask_bin,axis=2),dtype=numpy.int)
 
-    if do_debug: cv2.imwrite('./images/output/mask0.png', 255 * mask)
+    if do_debug: cv2.imwrite('./images/output/mask0.png', 255 * mask_bin)
 
     if n_clips>0:
-        mask = ndimage.uniform_filter(mask, size=(filter_size,filter_size), mode='reflect')
-
+        #mask = ndimage.uniform_filter(mask_bin.astype(numpy.float), size=(filter_size,filter_size), mode='reflect')
+        mask = tools_filter.sliding_2d(mask_bin,filter_size//2,filter_size//2,'avg')
     if do_debug: cv2.imwrite('./images/output/mask1.png', 255 * mask)
 
     avg_size = filter_size
@@ -494,19 +495,20 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
         large = large.astype(numpy.float)
         small = small.astype(numpy.float)
 
-        idx = numpy.where(mask[:,:]<0.5)
-        if len(idx[0])>0:
-            for c in range(3):
-                avg_large = ndimage.convolve(large[:, :, c].astype(numpy.float), numpy.ones((avg_size, avg_size)),mode='constant') / (avg_size ** 2)
-                avg_large = avg_large.astype(numpy.uint8)
-                avg_small = ndimage.convolve(small[:, :, c].astype(numpy.float), numpy.ones((avg_size, avg_size)),mode='constant') / (avg_size ** 2)
-                avg_small = avg_small.astype(numpy.uint8)
-                if do_debug: cv2.imwrite('./images/output/avg_large.png', avg_large)
-                if do_debug: cv2.imwrite('./images/output/avg_small.png', avg_small)
+        cnt_small = tools_filter.sliding_2d(1-mask_bin,avg_size,avg_size,'cnt')
+        for c in range(3):
 
-                scale = avg_large/avg_small
-                scale = numpy.nan_to_num(scale)
-                small[:,:,c]=small[:,:,c]*scale
+            avg_large = tools_filter.sliding_2d(large[:, :, c],avg_size,avg_size,'avg')
+
+            sum_small = tools_filter.sliding_2d(small[:, :, c],avg_size,avg_size,'cnt')
+            avg_small = sum_small/cnt_small
+            if do_debug: cv2.imwrite('./images/output/avg_large.png', avg_large)
+            if do_debug: cv2.imwrite('./images/output/avg_small.png', avg_small)
+            if do_debug: cv2.imwrite('./images/output/cnt_small.png', cnt_small)
+
+            scale = avg_large/avg_small
+            scale = numpy.nan_to_num(scale)
+            small[:,:,c]=small[:,:,c]*scale
 
     if do_debug: cv2.imwrite('./images/output/small_corrected.png', small)
 
