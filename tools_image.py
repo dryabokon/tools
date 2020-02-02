@@ -480,8 +480,8 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
 
     if do_debug: cv2.imwrite('./images/output/mask0.png', 255 * mask_bin)
 
-    mask = ndimage.uniform_filter(mask_bin.astype(numpy.float), size=(filter_size,filter_size), mode='reflect')
-    #mask = tools_filter.sliding_2d(mask_bin,filter_size//2,filter_size//2,'avg')
+    #mask = ndimage.uniform_filter(mask_bin.astype(numpy.float), size=(filter_size,filter_size), mode='reflect')
+    mask = tools_filter.sliding_2d(mask_bin,filter_size//2,filter_size//2,'avg')
     if do_debug: cv2.imwrite('./images/output/mask1.png', 255 * mask)
 
 

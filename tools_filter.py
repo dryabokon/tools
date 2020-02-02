@@ -77,21 +77,20 @@ def fill_zeros(A):
 # --------------------------------------------------------------------------------------------------------------------
 def sliding_2d(A,h,w,stat='avg',mode='reflect'):
 
-    #BB = numpy.zeros((A.shape[0]+2*h+1,A.shape[1]+2*w+1))
-    #BB[h:-h-1, w:-w-1] = A
-
     B = numpy.pad(A,(h,w),mode)
+    B = numpy.roll(B, 1, axis=0)
+    B = numpy.roll(B, 1, axis=1)
 
     C1 = numpy.cumsum(B , axis=0)
     C2 = numpy.cumsum(C1, axis=1)
 
     up = numpy.roll(C2, h, axis=0)
     S1 = numpy.roll(up, w, axis=1)
-    S2 = numpy.roll(up,-w+1, axis=1)
+    S2 = numpy.roll(up,-w, axis=1)
 
-    dn = numpy.roll(C2,-h+1, axis=0)
+    dn = numpy.roll(C2,-h, axis=0)
     S3 = numpy.roll(dn, w, axis=1)
-    S4 = numpy.roll(dn, -w+1, axis=1)
+    S4 = numpy.roll(dn, -w, axis=1)
 
     if stat=='avg':
         R = (S1-S2-S3+S4)/((2*w)*(2*h))
