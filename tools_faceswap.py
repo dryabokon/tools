@@ -12,8 +12,9 @@ import tools_IO
 import tools_filter
 # ---------------------------------------------------------------------------------------------------------------------
 class Face_Swaper(object):
-    def __init__(self,D,image_clbrt,image_actor,device = 'cpu'):
+    def __init__(self,D,image_clbrt,image_actor,device = 'cpu',adjust_every_frame=False):
         self.device = device
+        self.adjust_every_frame = adjust_every_frame
         self.folder_out = './images/output/'
         self.D = D
         self.image_clbrt = image_clbrt
@@ -321,17 +322,16 @@ class Face_Swaper(object):
 
         if do_debug: cv2.imwrite(folder_out + 's03-face_masked.jpg', face)
         filter_face_size = int(0.2*(LA_aligned[:,0].max()-LA_aligned[:,0].min()))
-        result = tools_image.blend_multi_band_large_small(self.image_actor, face, (0, 0, 0),filter_size=filter_face_size,do_debug=do_debug)
+        result = tools_image.blend_multi_band_large_small(self.image_actor, face, (0, 0, 0),adjust_colors=self.adjust_every_frame,filter_size=filter_face_size,do_debug=do_debug)
         if do_debug: cv2.imwrite(folder_out + 's03-result.jpg', result)
 
         # mouth
-
         LA_aligned_mouth = LA_aligned[numpy.arange(48, 61, 1).tolist()]
         del_mouth = Delaunay(LA_aligned_mouth).vertices
         temp_mouth = self.R_a.morph_mesh(self.image_actor.shape[0], self.image_actor.shape[1], LA_aligned_mouth, LA_aligned_mouth,del_mouth)
         if do_debug: cv2.imwrite(folder_out + 's03-temp_mouth.jpg', temp_mouth)
         filter_mouth_size = filter_face_size//2
-        result = tools_image.blend_multi_band_large_small(result, temp_mouth, (0, 0, 0), filter_size=filter_mouth_size)
+        result = tools_image.blend_multi_band_large_small(result, temp_mouth, (0, 0, 0),adjust_colors=False,filter_size=filter_mouth_size)
         if do_debug: cv2.imwrite(folder_out + 's03-result-mouth.jpg', result)
 
 
@@ -353,13 +353,12 @@ class Face_Swaper(object):
         filter_face_size = int(0.2 * (LA_aligned[:, 0].max() - LA_aligned[:, 0].min()))
 
 
-        result = tools_cupy.blend_multi_band_large_small(self.image_actor, face, (0, 0, 0),adjust_colors=True,filter_size=filter_face_size)
+        result = tools_cupy.blend_multi_band_large_small(self.image_actor, face, (0, 0, 0),adjust_colors=self.adjust_every_frame,filter_size=filter_face_size)
 
         LA_aligned_mouth = LA_aligned[numpy.arange(48, 61, 1).tolist()]
         del_mouth = Delaunay(LA_aligned_mouth).vertices
         temp_mouth = self.R_a.morph_mesh(self.image_actor.shape[0], self.image_actor.shape[1], LA_aligned_mouth,LA_aligned_mouth, del_mouth)
-
-        result = tools_cupy.blend_multi_band_large_small(result, temp_mouth, (0, 0, 0), filter_size=filter_face_size // 2)
+        result = tools_cupy.blend_multi_band_large_small(result, temp_mouth, (0, 0, 0),adjust_colors=False, filter_size=filter_face_size // 2)
 
         return tools_cupy.asnumpy(result)
 # ---------------------------------------------------------------------------------------------------------------------

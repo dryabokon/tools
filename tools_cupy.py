@@ -1,3 +1,4 @@
+import cv2
 import cupy as numpy
 #--------------------------------------------------------------------------------------------------------------------------
 def sliding_2d(A,h,w,stat='avg',mode='reflect'):
@@ -44,14 +45,14 @@ def do_blend(large,small,mask):
     result = numpy.array(result).astype(numpy.uint8)
     return result
 #----------------------------------------------------------------------------------------------------------------------
-def blend_multi_band_large_small(large, small, background_color=(255, 255, 255), adjust_colors=None, filter_size=50,  do_debug=False):
+def blend_multi_band_large_small(large, small, background_color=(255, 255, 255), adjust_colors=False, filter_size=50,  do_debug=False):
 
     large = numpy.array(large)
 
 
     mask_original = numpy.array(1*(small[:, :] == background_color))
 
-    small = numpy.array(small)
+    small = numpy.array(small).astype(float)
     mask_bin = mask_original.copy()
     mask_bin = numpy.array(numpy.min(mask_bin,axis=2))
 
@@ -59,7 +60,7 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
 
     mask = numpy.clip(2 * mask, 0, 1.0)
 
-    if adjust_colors is not None:
+    if adjust_colors:
         cnt_small = sliding_2d(1-mask_bin,filter_size,filter_size,'cnt')
         for c in range(3):
 
@@ -70,6 +71,8 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
             scale = avg_large/avg_small
             scale = numpy.nan_to_num(scale)
             small[:,:,c]=small[:,:,c]*scale
+
+
 
     mask = numpy.stack((mask,mask,mask),axis=2)
     result = do_blend(large,small,mask)

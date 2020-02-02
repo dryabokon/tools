@@ -472,7 +472,7 @@ def blend_multi_band_large_small0(large, small, background_color=(255, 255, 255)
 
     return result
 #----------------------------------------------------------------------------------------------------------------------
-def blend_multi_band_large_small(large, small, background_color=(255, 255, 255), adjust_colors=None, filter_size=50,  do_debug=False):
+def blend_multi_band_large_small(large, small, background_color=(255, 255, 255), adjust_colors=False, filter_size=50,  do_debug=False):
 
     mask_original = 1*(small[:, :] == background_color)
     mask_bin = mask_original.copy()
@@ -480,15 +480,13 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
 
     if do_debug: cv2.imwrite('./images/output/mask0.png', 255 * mask_bin)
 
-    #mask = ndimage.uniform_filter(mask_bin.astype(numpy.float), size=(filter_size,filter_size), mode='reflect')
     mask = tools_filter.sliding_2d(mask_bin,filter_size//2,filter_size//2,'avg')
     if do_debug: cv2.imwrite('./images/output/mask1.png', 255 * mask)
-
 
     mask = numpy.clip(2 * mask, 0, 1.0)
     if do_debug == 1: cv2.imwrite('./images/output/mask2.png', 255 * mask)
 
-    if adjust_colors is not None:
+    if adjust_colors:
         large = large.astype(numpy.float)
         small = small.astype(numpy.float)
 
