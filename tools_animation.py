@@ -98,6 +98,9 @@ def merge_images_in_folders(path_input1,path_input2,path_output,mask='*.jpg'):
     fileslist1 = fnmatch.filter(listdir(path_input1), mask)
     fileslist2 = fnmatch.filter(listdir(path_input2), mask)
 
+    fileslist1.sort()
+    fileslist2.sort()
+
     for filename1,filename2 in zip(fileslist1,fileslist2):
         image1 = cv2.imread(path_input1 + filename1)
         image2 = cv2.imread(path_input2 + filename2)

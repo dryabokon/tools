@@ -60,16 +60,12 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
     mask = numpy.clip(2 * mask, 0, 1.0)
 
     if adjust_colors is not None:
-        large = large.astype(numpy.float)
-        small = small.astype(numpy.float)
-
         cnt_small = sliding_2d(1-mask_bin,filter_size,filter_size,'cnt')
         for c in range(3):
 
             avg_large = sliding_2d(large[:, :, c],filter_size,filter_size,'avg')
             sum_small = sliding_2d(small[:, :, c],filter_size,filter_size,'cnt')
             avg_small = sum_small/cnt_small
-
 
             scale = avg_large/avg_small
             scale = numpy.nan_to_num(scale)

@@ -353,7 +353,7 @@ class Face_Swaper(object):
         filter_face_size = int(0.2 * (LA_aligned[:, 0].max() - LA_aligned[:, 0].min()))
 
 
-        result = tools_cupy.blend_multi_band_large_small(self.image_actor, face, (0, 0, 0),filter_size=filter_face_size)
+        result = tools_cupy.blend_multi_band_large_small(self.image_actor, face, (0, 0, 0),adjust_colors=True,filter_size=filter_face_size)
 
         LA_aligned_mouth = LA_aligned[numpy.arange(48, 61, 1).tolist()]
         del_mouth = Delaunay(LA_aligned_mouth).vertices
