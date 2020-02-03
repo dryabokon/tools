@@ -12,9 +12,10 @@ import tools_IO
 import tools_filter
 # ---------------------------------------------------------------------------------------------------------------------
 class Face_Swaper(object):
-    def __init__(self,D,image_clbrt,image_actor,device = 'cpu',adjust_every_frame=False):
+    def __init__(self,D,image_clbrt,image_actor,device = 'cpu',adjust_every_frame=False,do_narrow_face=False):
         self.device = device
         self.adjust_every_frame = adjust_every_frame
+        self.do_narrow_face = do_narrow_face
         self.folder_out = './images/output/'
         self.D = D
         self.image_clbrt = image_clbrt
@@ -318,6 +319,8 @@ class Face_Swaper(object):
 
         # face
         face = self.R_c.morph_mesh(self.image_actor.shape[0],self.image_actor.shape[1],LA_aligned[self.D.idx_removed_eyes],self.L_clbrt[self.D.idx_removed_eyes],self.del_triangles_C)
+        if self.do_narrow_face:
+            face = self.narrow_face(face,LA_aligned)
         if do_debug: cv2.imwrite(folder_out + 's03-face.jpg', face)
 
         if do_debug: cv2.imwrite(folder_out + 's03-face_masked.jpg', face)
@@ -350,6 +353,9 @@ class Face_Swaper(object):
         LC_aligned, LA_aligned = tools_calibrate.translate_coordinates(self.image_clbrt, self.image_actor, H,self.L_clbrt, self.L_actor)
 
         face = self.R_c.morph_mesh(self.image_actor.shape[0], self.image_actor.shape[1],LA_aligned[self.D.idx_removed_eyes], self.L_clbrt[self.D.idx_removed_eyes],self.del_triangles_C)
+        if self.do_narrow_face:
+            face = self.narrow_face(face,LA_aligned)
+
         filter_face_size = int(0.2 * (LA_aligned[:, 0].max() - LA_aligned[:, 0].min()))
 
 
