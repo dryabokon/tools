@@ -1,5 +1,6 @@
 import cv2
-import cupy as numpy
+#import cupy as numpy
+import numpy as numpy
 #--------------------------------------------------------------------------------------------------------------------------
 def sliding_2d(A,h,w,stat='avg',mode='reflect'):
 
