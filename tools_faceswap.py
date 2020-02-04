@@ -12,7 +12,8 @@ import tools_IO
 import tools_filter
 # ---------------------------------------------------------------------------------------------------------------------
 class Face_Swaper(object):
-    def __init__(self,D,image_clbrt,image_actor,device = 'cpu',adjust_every_frame=False,do_narrow_face=False):
+    def __init__(self,D,image_clbrt,image_actor,device='cpu',adjust_every_frame=False,do_narrow_face=False):
+
         self.device = device
         self.adjust_every_frame = adjust_every_frame
         self.do_narrow_face = do_narrow_face
@@ -301,7 +302,7 @@ class Face_Swaper(object):
         return
 # ---------------------------------------------------------------------------------------------------------------------
     def do_faceswap(self,folder_out='./images/output/', do_debug=False):
-        if self.device=='cpu':
+        if self.device  == str('cpu'):
             return self.do_faceswap_cpu(folder_out,do_debug)
         else:
             return self.do_faceswap_gpu()

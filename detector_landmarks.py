@@ -93,7 +93,7 @@ class detector_landmarks(object):
     def draw_landmarks(self,image):
 
         gray = tools_image.desaturate(image)
-        landmarks = self.get_landmarks_augm(image)
+        landmarks = self.get_landmarks(image)
         if len(landmarks)!=68 or numpy.sum(landmarks)==0:
             return gray
 
@@ -151,3 +151,102 @@ class detector_landmarks(object):
 
         return res.astype(numpy.float)
 # ----------------------------------------------------------------------------------------------------------------------
+    def are_frontface_landmarks(self,landmarks):
+        if (landmarks.min() == landmarks.max() == 0):
+            return False
+
+        return True
+# ----------------------------------------------------------------------------------------------------------------------
+    def extract_face_by_landmarks(self,image,landmarks):
+        if not (landmarks.min()==landmarks.max()==0):
+            rect = self.get_rect_by_landmarks(landmarks)
+            top, left, bottom, right = rect[0],rect[1],rect[2],rect[3]
+            res = image[top:bottom,left:right,:]
+        else:
+            return image
+        return res
+# ----------------------------------------------------------------------------------------------------------------------
+    def get_rect_by_landmarks(self,landmarks):
+        top = (landmarks[:, 1].min())
+        left = (landmarks[:, 0].min())
+        bottom = landmarks[:, 1].max()
+        right = landmarks[:, 0].max()
+        return numpy.array([top, left, bottom,right])
+# ----------------------------------------------------------------------------------------------------------------------
+    def cut_face(self, image, L, desiredLeftEye=(0.35, 0.35), target_W=256, target_H=256):
+
+        (lStart, lEnd) = (42,47)
+        (rStart, rEnd) = (36,41)
+        leftEyePts = L[lStart:lEnd]
+        rightEyePts = L[rStart:rEnd]
+
+
+        leftEyeCenter = leftEyePts.mean(axis=0).astype("int")
+        rightEyeCenter = rightEyePts.mean(axis=0).astype("int")
+
+        dY = rightEyeCenter[1] - leftEyeCenter[1]
+        dX = rightEyeCenter[0] - leftEyeCenter[0]
+        angle = numpy.degrees(numpy.arctan2(dY, dX)) - 180
+
+        desiredRightEyeX = 1.0 - desiredLeftEye[0]
+
+
+        dist = numpy.sqrt((dX ** 2) + (dY ** 2))
+        desiredDist = (desiredRightEyeX - desiredLeftEye[0])
+        desiredDist *= target_W
+        scale = desiredDist / dist
+
+        eyesCenter = ((leftEyeCenter[0] + rightEyeCenter[0]) // 2,(leftEyeCenter[1] + rightEyeCenter[1]) // 2)
+
+
+        M = cv2.getRotationMatrix2D(eyesCenter, angle, scale)
+
+        tX = target_W * 0.5
+        tY = target_H * desiredLeftEye[1]
+        M[0, 2] += (tX - eyesCenter[0])
+        M[1, 2] += (tY - eyesCenter[1])
+
+        (w, h) = (target_W, target_H)
+        output = cv2.warpAffine(image, M, (w, h),flags=cv2.INTER_CUBIC)
+
+        return output
+# --------------------------------------------------------------------------------------------------------------------
+    def get_position_distance_hor(self, image,landmarks):
+        if len(landmarks) != 68 or numpy.sum(landmarks) == 0:
+            return 1
+
+        swp = [[0,16],[1,15],[2,14],[3,13],[4,12],[5,11],[6,10],[7,9],[8,8],[17,26],[18,25],[19,24],[20,23],[21,22],[31, 35],[32, 34]]
+        #swp = [[0,16],[1,15],[2,14],[3,13],[4,12],[5,11],[6,10],[7,9],[8,8]]
+
+        r=[]
+        for each in swp:
+            x0 = landmarks[each[0], 0]
+            y0 = landmarks[each[0], 1]
+            x1 = landmarks[each[1], 0]
+            y1 = landmarks[each[1], 1]
+
+            r.append(x0-(image.shape[1]-x1))
+            r.append(x1-(image.shape[1]-x0))
+
+        r=numpy.array(r)/image.shape[1]
+        r = r**2
+        q = 100*r.mean()
+
+        return q
+# --------------------------------------------------------------------------------------------------------------------
+    def get_position_distance_ver(self, image,landmarks):
+        landmarks = self.get_landmarks(image)
+        if len(landmarks) != 68 or numpy.sum(landmarks) == 0:
+            return 1
+
+        mid = landmarks[[31, 32, 33, 34, 35], 1].mean()
+        top = landmarks[:,1].min()
+        bottom = landmarks[:, 1].max()
+
+        q = (mid - top) - (bottom-mid)
+
+        q = q/image.shape[1]
+        q= 100*q**2
+
+        return q
+# --------------------------------------------------------------------------------------------------------------------
