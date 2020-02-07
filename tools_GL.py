@@ -6,15 +6,25 @@ from PIL import Image,ImageDraw
 import glfw
 from OpenGL.GLUT import *
 import numpy
+import tools_aruco
 # ----------------------------------------------------------------------------------------------------------------------
 class render_GL(object):
 
     def __init__(self,image_texture):
-        glfw.init()
-        glfw.window_hint(glfw.VISIBLE, False)
-        self.window = glfw.create_window(200, 200, "hidden window", None, None)
+
+        #glfw.init()
+        #glfw.window_hint(glfw.VISIBLE, False)
+        glutInit()
+        glutCreateWindow("OpenGL")
+        glutHideWindow()
+        #self.window = glfw.create_window(200, 200, "hidden window", None, None)
         self.texture_is_setup = False
         self.image_texture = image_texture
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def update_texture(self, image_texture):
+        self.image_texture = image_texture
+        self.texture_is_setup = False
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def clean(self):
@@ -117,12 +127,11 @@ class render_GL(object):
         width,height = image.shape[1], image.shape[0]
         glfw.set_window_size(self.window, width,height)
         self.__draw_image(image)
-        #image_buffer = glReadPixels(0, 0, width,height, OpenGL.GL.GL_RGB, OpenGL.GL.GL_UNSIGNED_BYTE)
-        #image = numpy.frombuffer(image_buffer, dtype=numpy.uint8).reshape(height, width, 3)
-        return #image
+        image_buffer = glReadPixels(0, 0, width,height, OpenGL.GL.GL_RGB, OpenGL.GL.GL_UNSIGNED_BYTE)
+        image = numpy.frombuffer(image_buffer, dtype=numpy.uint8).reshape(height, width, 3)
+        return image
 # ----------------------------------------------------------------------------------------------------------------------
-    def morph_mesh(self,H,W,points_coord,points_text_coord,triangles):
-
+    def morph_2D_mesh(self, H, W, points_coord, points_text_coord, triangles):
         height,width = H,W
         glfw.set_window_size(self.window, width, height)
         self.__draw_2d_mesh(H,W,points_coord,points_text_coord, triangles)
@@ -130,8 +139,138 @@ class render_GL(object):
         image = numpy.frombuffer(image_buffer, dtype=numpy.uint8).reshape(height, width, 3)
         return image[:height,:width]
 # ----------------------------------------------------------------------------------------------------------------------
-    def update_texture(self,image_texture):
-        self.image_texture = image_texture
-        self.texture_is_setup = False
+    def __draw_3d_mesh0(self,H,W,frame,rvec, tvec):
+
+        glfw.make_context_current(self.window)
+        glEnable(GL_TEXTURE_2D)
+
+
+        height, width, _ = frame.shape
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+        glLoadIdentity()
+
+        self.__refresh2d(width, height)
+
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+        glDisable(GL_DEPTH_TEST)
+        glDrawPixels(frame.shape[1], frame.shape[0], GL_BGR, GL_UNSIGNED_BYTE, frame[:, :, [2, 1, 0]])
+        glEnable(GL_DEPTH_TEST)
+
+        glMatrixMode(GL_PROJECTION)
+        glLoadIdentity()
+
+        fx, fy = 1090, 1090
+        image_shape = 400, 600
+        principalX, principalY = fx / 2, fy / 2
+        near = 1
+        far = 1050
+        marker_length = 0.1
+
+        left = -principalX / fx
+        right = (image_shape[1] - principalX) / fx
+        bottom = (principalY - image_shape[0]) / fy
+        top = principalY / fy
+        glFrustum(left, right, bottom, top, near, far)
+
+        glMatrixMode(GL_MODELVIEW)
+        glLoadMatrixf(tools_aruco.compose_GL_MAT(rvec, tvec))
+        tools_aruco.draw_native_axis(marker_length / 2)
+
+        glPushMatrix()
+        glRotatef(90, +1, 0, 0)
+        glutSolidTeapot(marker_length / 4)
+        #tools_aruco.draw_cube(size=marker_length/4)
+        glPopMatrix()
+        glFlush()
+
         return
+# ----------------------------------------------------------------------------------------------------------------------
+    def __draw_3d_mesh1(self, H, W, frame, rvec, tvec):
+        glfw.make_context_current(self.window)
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+        glDisable(GL_DEPTH_TEST)
+        glDrawPixels(frame.shape[1], frame.shape[0], GL_BGR, GL_UNSIGNED_BYTE, frame[:,:,[2,1,0]])
+        glEnable(GL_DEPTH_TEST)
+
+        glMatrixMode(GL_PROJECTION)
+        glLoadIdentity()
+
+        fx, fy = 1090, 1090
+        image_shape = 400, 600
+        principalX, principalY = fx / 2, fy / 2
+        near = 1
+        far = 1050
+        marker_length = 0.1
+
+        left = -principalX / fx
+        right = (image_shape[1] - principalX) / fx
+        bottom = (principalY - image_shape[0]) / fy
+        top = principalY / fy
+        glFrustum(left, right, bottom, top, near, far)
+
+        # a = (GLfloat * 16)()
+        # glGetFloatv(GL_PROJECTION_MATRIX, a)
+        # a= list(a)
+
+        if numpy.count_nonzero(rvec) > 0:
+            glMatrixMode(GL_MODELVIEW)
+            glLoadMatrixf(tools_aruco.compose_GL_MAT(rvec, tvec))
+            tools_aruco.draw_native_axis(marker_length / 2)
+
+            glPushMatrix()
+            glRotatef(90, +1, 0, 0)
+            #glutSolidTeapot(marker_length / 4)
+            tools_aruco.draw_cube(size=marker_length/4,pos_x=0, pos_y=0, pos_z=+1)
+            #tools_aruco.draw_point((10,10,10))
+            glPopMatrix()
+
+        #glutSwapBuffers()
+        glFlush()
+        #glutPostRedisplay()
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def __draw_3d_mesh(self, H, W, frame, rvec, tvec):
+        xrot = 0
+        yrot = 0
+        lightpos = (1,1,1)
+        greencolor = (0.2, 0.8, 0.0, 0.8)  # Зеленый цвет для иголок
+        treecolor = (0.9, 0.6, 0.3, 0.8)  # Коричневый цвет для ствола
+
+        #glfw.make_context_current(self.window)
+        glClear(GL_COLOR_BUFFER_BIT)  # Очищаем экран и заливаем серым цветом
+        glPushMatrix()  # Сохраняем текущее положение "камеры"
+        glRotatef(xrot, 1.0, 0.0, 0.0)  # Вращаем по оси X на величину xrot
+        glRotatef(yrot, 0.0, 1.0, 0.0)  # Вращаем по оси Y на величину yrot
+        glLightfv(GL_LIGHT0, GL_POSITION, lightpos)  # Источник света вращаем вместе с елкой
+
+        # Рисуем ствол елки
+        # Устанавливаем материал: рисовать с 2 сторон, рассеянное освещение, коричневый цвет
+        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, treecolor)
+        glTranslatef(0.0, 0.0, -0.7)  # Сдвинемся по оси Z на -0.7
+        # Рисуем цилиндр с радиусом 0.1, высотой 0.2
+        # Последние два числа определяют количество полигонов
+        glutSolidCylinder(0.1, 0.2, 20, 20)
+        # Рисуем ветки елки
+        # Устанавливаем материал: рисовать с 2 сторон, рассеянное освещение, зеленый цвет
+        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, greencolor)
+        glTranslatef(0.0, 0.0, 0.2)  # Сдвинемся по оси Z на 0.2
+        # Рисуем нижние ветки (конус) с радиусом 0.5, высотой 0.5
+        # Последние два числа определяют количество полигонов
+        glutSolidCone(0.5, 0.5, 20, 20)
+        glTranslatef(0.0, 0.0, 0.3)  # Сдвинемся по оси Z на -0.3
+        glutSolidCone(0.4, 0.4, 20, 20)  # Конус с радиусом 0.4, высотой 0.4
+        glTranslatef(0.0, 0.0, 0.3)  # Сдвинемся по оси Z на -0.3
+        glutSolidCone(0.3, 0.3, 20, 20)  # Конус с радиусом 0.3, высотой 0.3
+
+        glPopMatrix()  # Возвращаем сохраненное положение "камеры"
+        glutSwapBuffers()
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def morph_3D_mesh(self, H, W,image,r_vec, t_vec):
+        height,width = H,W
+        #glfw.set_window_size(self.window, width, height)
+        self.__draw_3d_mesh(H,W,image,r_vec, t_vec)
+        image_buffer = glReadPixels(0, 0, width, height, OpenGL.GL.GL_RGB, OpenGL.GL.GL_UNSIGNED_BYTE)
+        image = numpy.frombuffer(image_buffer, dtype=numpy.uint8).reshape(height, width, 3)
+        return image[:height,:width]
 # ----------------------------------------------------------------------------------------------------------------------

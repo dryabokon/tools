@@ -24,6 +24,8 @@ class detector_landmarks(object):
         for each in [37,38,40,41,43,44,46,47]:
             self.idx_removed_eyes.remove(each)
 
+
+        self.init_pose_estimator()
         if mode == 'dlib':
             self.detector = dlib.get_frontal_face_detector()
             self.predictor = dlib.shape_predictor(filename_config)
@@ -151,7 +153,7 @@ class detector_landmarks(object):
 
         return res.astype(numpy.float)
 # ----------------------------------------------------------------------------------------------------------------------
-    def are_frontface_landmarks(self,landmarks):
+    def are_landmarks_valid(self,landmarks):
         if (landmarks.min() == landmarks.max() == 0):
             return False
 
@@ -211,42 +213,101 @@ class detector_landmarks(object):
 
         return output
 # --------------------------------------------------------------------------------------------------------------------
-    def get_position_distance_hor(self, image,landmarks):
-        if len(landmarks) != 68 or numpy.sum(landmarks) == 0:
-            return 1
+    def init_pose_estimator(self, path_to_model=None, img_size=(480, 640)):
+        self.size = img_size
+        self.model_points = numpy.array([
+            (0.0, 0.0, 0.0),             # Nose tip
+            (0.0, -330.0, -65.0),        # Chin
+            (-225.0, 170.0, -135.0),     # Left eye left corner
+            (225.0, 170.0, -135.0),      # Right eye right corne
+            (-150.0, -150.0, -125.0),    # Left Mouth corner
+            (150.0, -150.0, -125.0)      # Right mouth corner
+        ]) / 4.5
 
-        swp = [[0,16],[1,15],[2,14],[3,13],[4,12],[5,11],[6,10],[7,9],[8,8],[17,26],[18,25],[19,24],[20,23],[21,22],[31, 35],[32, 34]]
-        #swp = [[0,16],[1,15],[2,14],[3,13],[4,12],[5,11],[6,10],[7,9],[8,8]]
-
-        r=[]
-        for each in swp:
-            x0 = landmarks[each[0], 0]
-            y0 = landmarks[each[0], 1]
-            x1 = landmarks[each[1], 0]
-            y1 = landmarks[each[1], 1]
-
-            r.append(x0-(image.shape[1]-x1))
-            r.append(x1-(image.shape[1]-x0))
-
-        r=numpy.array(r)/image.shape[1]
-        r = r**2
-        q = 100*r.mean()
-
-        return q
+        self.model_68_points = self._get_full_model_points()
+        self.focal_length = self.size[1]
+        self.camera_center = (self.size[1] / 2, self.size[0] / 2)
+        self.camera_matrix = numpy.array([[self.focal_length, 0, self.camera_center[0]],[0, self.focal_length, self.camera_center[1]],[0, 0, 1]], dtype="double")
+        self.dist_coeefs = numpy.zeros((4, 1))
+        self.r_vec = numpy.array([[0.01891013], [0.08560084], [-3.14392813]])
+        self.t_vec = numpy.array([[-14.97821226], [-10.62040383], [-2053.03596872]])
+        return
 # --------------------------------------------------------------------------------------------------------------------
-    def get_position_distance_ver(self, image,landmarks):
-        landmarks = self.get_landmarks(image)
-        if len(landmarks) != 68 or numpy.sum(landmarks) == 0:
-            return 1
+    def _get_full_model_points(self):
 
-        mid = landmarks[[31, 32, 33, 34, 35], 1].mean()
-        top = landmarks[:,1].min()
-        bottom = landmarks[:, 1].max()
+        raw_value = [-73.393523,
+                -72.775014, -70.533638, -66.850058, -59.790187, -48.368973, -34.121101,-17.875411, 0.098749,
+                17.477031,32.648966,46.372358,57.343480,64.388482,68.212038, 70.486405,71.375822,
+                -61.119406,-51.287588,-37.804800,-24.022754,-11.635713,12.056636,25.106256, 38.338588,
+                51.191007, 60.053851, 0.653940, 0.804809,0.992204, 1.226783, -14.772472,-7.180239,
+                0.555920, 8.272499,15.214351,-46.047290,-37.674688,-27.883856, -19.648268,-28.272965, -38.082418,
+                19.265868, 27.894191,37.437529,45.170805,38.196454, 28.764989, -28.916267,-17.533194,
+                -6.684590,0.381001,8.375443,18.876618,28.794412,19.057574,8.956375,0.381549,
+                -7.428895, -18.160634,-24.377490, -6.897633,0.340663,8.444722, 24.474473,8.449166,0.205322,
+                -7.198266,-29.801432,-10.949766,7.929818,26.074280,42.564390,56.481080, 67.246992,
+                75.056892,77.061286, 74.758448, 66.929021,56.311389,42.419126,25.455880, 6.990805,
+                -11.666193, -30.365191,-49.361602,-58.769795,-61.996155,-61.033399,-56.686759, -57.391033,
+                -61.902186,-62.777713, -59.302347, -50.190255,-42.193790,-30.993721,-19.944596, -8.414541,
+                2.598255,4.751589,6.562900, 4.661005,2.643046,-37.471411,-42.730510,-42.711517,
+                -36.754742, -35.134493,-34.919043,-37.032306,-43.342445, -43.110822, -38.086515,-35.532024,
+                -35.484289, 28.612716,22.172187,19.029051,20.721118, 19.035460,22.394109,28.079924,
+                36.298248, 39.634575, 40.395647,39.836405, 36.677899, 28.677771,25.475976,26.014269,
+                25.326198, 28.323008, 30.596216,31.408738,30.844876, 47.667532,45.909403,44.842580,
+                43.141114, 38.635298, 30.750622,18.456453, 3.609035,-0.881698,5.181201, 19.176563,
+                30.770570, 37.628629,40.886309,42.281449,44.142567, 47.140426, 14.254422,7.268147,
+                0.442051,-6.606501,-11.967398,-12.051204, -7.315098,-1.022953,5.349435,11.615746,
+                -13.380835,-21.150853,-29.284036, -36.948060,-20.132003,-23.536684, -25.944448, -23.695741,
+                -20.858157,7.037989,3.021217,1.353629,-0.111088,-0.147273, 1.476612,-0.665746,
+                0.247660, 1.696435,4.894163,0.282961, -1.172675,-2.240310,-15.934335,-22.611355,
+                -23.748437, -22.721995,-15.610679,-3.217393,-14.987997, -22.554245, -23.591626,-22.406106,
+                -15.121907, -4.785684,-20.893742,-22.220479, -21.025520, -5.712776, -20.671489,-21.903670,
+                -20.328022]
 
-        q = (mid - top) - (bottom-mid)
+        model_points = numpy.array(raw_value, dtype=numpy.float32)
+        model_points = numpy.reshape(model_points, (3, -1)).T
+        model_points[:, -1] *= -1
+        return model_points
+# --------------------------------------------------------------------------------------------------------------------
+    def get_pose(self, image_points):
+        if self.r_vec is None:
+            (_, rotation_vector, translation_vector) = cv2.solvePnP(
+                self.model_68_points, image_points, self.camera_matrix, self.dist_coeefs)
+            self.r_vec = rotation_vector
+            self.t_vec = translation_vector
 
-        q = q/image.shape[1]
-        q= 100*q**2
+        (_, rotation_vector, translation_vector) = cv2.solvePnP(self.model_68_points, image_points, self.camera_matrix, self.dist_coeefs, rvec=self.r_vec, tvec=self.t_vec, useExtrinsicGuess=True)
 
-        return q
+        return rotation_vector, translation_vector
+# --------------------------------------------------------------------------------------------------------------------
+    def draw_annotation_box(self,image, rotation_vector, translation_vector, color=(0, 128, 255), line_width=1):
+
+        point_3d = []
+        rear_size = 75
+        rear_depth = 0
+        dist_coefs = numpy.zeros((4, 1))
+        camera_matrix = numpy.array([[image.shape[1], 0, (image.shape[1]/2)],[0, image.shape[1], (image.shape[0]/2)],[0, 0, 1]], dtype="double")
+        point_3d.append((-rear_size, -rear_size, rear_depth))
+        point_3d.append((-rear_size, rear_size, rear_depth))
+        point_3d.append((rear_size, rear_size, rear_depth))
+        point_3d.append((rear_size, -rear_size, rear_depth))
+        point_3d.append((-rear_size, -rear_size, rear_depth))
+
+        front_size = 100
+        front_depth = 100
+        point_3d.append((-front_size, -front_size, front_depth))
+        point_3d.append((-front_size, front_size, front_depth))
+        point_3d.append((front_size, front_size, front_depth))
+        point_3d.append((front_size, -front_size, front_depth))
+        point_3d.append((-front_size, -front_size, front_depth))
+        point_3d = numpy.array(point_3d, dtype=numpy.float).reshape(-1, 3)
+
+        (point_2d, _) = cv2.projectPoints(point_3d,rotation_vector,translation_vector,camera_matrix,dist_coefs)
+        point_2d = numpy.int32(point_2d.reshape(-1, 2))
+
+        result = image.copy()
+        cv2.polylines(result, [point_2d], True, color, line_width, cv2.LINE_AA)
+        cv2.line(result, tuple(point_2d[1]), tuple(point_2d[6]), color, line_width, cv2.LINE_AA)
+        cv2.line(result, tuple(point_2d[2]), tuple(point_2d[7]), color, line_width, cv2.LINE_AA)
+        cv2.line(result, tuple(point_2d[3]), tuple(point_2d[8]), color, line_width, cv2.LINE_AA)
+        return result
 # --------------------------------------------------------------------------------------------------------------------
