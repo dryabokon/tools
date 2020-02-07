@@ -111,10 +111,10 @@ class tools_ML(object):
 # ---------------------------------------------------------------------------------------------------------------------
     def train_test(self, X, Y, idx_train, idx_test,path_output=None):
 
-        self.classifier.train(X[idx_train], Y[idx_train])
+        self.classifier.learn(X[idx_train], Y[idx_train])
         (labels_test_pred, labels_test_prob, challangers_test,challangers_test_prob) = self.predict(numpy.unique(Y), X[idx_test])
 
-        self.classifier.train(X[idx_test], Y[idx_test])
+        self.classifier.learn(X[idx_test], Y[idx_test])
         (labels_train_pred, labels_train_prob, challangers_train,challangers_train_prob) = self.predict(numpy.unique(Y), X[idx_train])
 
         return (labels_train_pred, labels_train_prob, challangers_train,challangers_train_prob,labels_test_pred, labels_test_prob, challangers_test,challangers_test_prob)
