@@ -27,6 +27,7 @@ class Face_Swaper(object):
         self.L_actor = self.D.get_landmarks(image_actor)
         self.R_c = tools_GL.render_GL(image_clbrt)
         self.R_a = tools_GL.render_GL(image_actor)
+        self.update_clbrt(image_clbrt)
         return
 # ---------------------------------------------------------------------------------------------------------------------
     def update_clbrt(self, image_clbrt):
@@ -242,7 +243,7 @@ class Face_Swaper(object):
         H = tools_calibrate.get_transform_by_keypoints(self.L_clbrt,self.L_actor)
         LC_aligned, LA_aligned = tools_calibrate.translate_coordinates(self.image_clbrt, self.image_actor, H, self.L_clbrt, self.L_actor)
 
-        face = self.R_c.morph_mesh(self.image_actor.shape[0],self.image_actor.shape[1],LA_aligned[self.D.idx_removed_eyes],self.L_clbrt[self.D.idx_removed_eyes],self.del_triangles_C)
+        face = self.R_c.morph_2D_mesh(self.image_actor.shape[0], self.image_actor.shape[1], LA_aligned[self.D.idx_removed_eyes], self.L_clbrt[self.D.idx_removed_eyes], self.del_triangles_C)
         self.filter_face_size = int(0.2*(LA_aligned[:,0].max()-LA_aligned[:,0].min()))
 
         mask_bin = 1 * (face[:, :] == (0,0,0))
@@ -273,9 +274,9 @@ class Face_Swaper(object):
 
         R = tools_GL.render_GL(scale)
 
-        reverce_scale = R.morph_mesh(self.image_clbrt.shape[0], self.image_clbrt.shape[1],
-                                   self.L_clbrt[self.D.idx_removed_eyes],LA_aligned[self.D.idx_removed_eyes],
-                                   self.del_triangles_C)
+        reverce_scale = R.morph_2D_mesh(self.image_clbrt.shape[0], self.image_clbrt.shape[1],
+                                        self.L_clbrt[self.D.idx_removed_eyes], LA_aligned[self.D.idx_removed_eyes],
+                                        self.del_triangles_C)
 
 
         mask = 1 * (reverce_scale[:, :] == (0,0,0))
@@ -319,7 +320,7 @@ class Face_Swaper(object):
         LC_aligned, LA_aligned = tools_calibrate.translate_coordinates(self.image_clbrt, self.image_actor, H, self.L_clbrt, self.L_actor)
 
         # face
-        face = self.R_c.morph_mesh(self.image_actor.shape[0],self.image_actor.shape[1],LA_aligned[self.D.idx_removed_eyes],self.L_clbrt[self.D.idx_removed_eyes],self.del_triangles_C)
+        face = self.R_c.morph_2D_mesh(self.image_actor.shape[0], self.image_actor.shape[1], LA_aligned[self.D.idx_removed_eyes], self.L_clbrt[self.D.idx_removed_eyes], self.del_triangles_C)
         if self.do_narrow_face:
             face = self.narrow_face(face,LA_aligned)
         if do_debug: cv2.imwrite(folder_out + 's03-face.jpg', face)
@@ -332,7 +333,7 @@ class Face_Swaper(object):
         # mouth
         LA_aligned_mouth = LA_aligned[numpy.arange(48, 61, 1).tolist()]
         del_mouth = Delaunay(LA_aligned_mouth).vertices
-        temp_mouth = self.R_a.morph_mesh(self.image_actor.shape[0], self.image_actor.shape[1], LA_aligned_mouth, LA_aligned_mouth,del_mouth)
+        temp_mouth = self.R_a.morph_2D_mesh(self.image_actor.shape[0], self.image_actor.shape[1], LA_aligned_mouth, LA_aligned_mouth, del_mouth)
         if do_debug: cv2.imwrite(folder_out + 's03-temp_mouth.jpg', temp_mouth)
         filter_mouth_size = filter_face_size//2
         result = tools_image.blend_multi_band_large_small(result, temp_mouth, (0, 0, 0),adjust_colors=False,filter_size=filter_mouth_size)
@@ -353,7 +354,7 @@ class Face_Swaper(object):
         H = tools_calibrate.get_transform_by_keypoints(self.L_clbrt, self.L_actor)
         LC_aligned, LA_aligned = tools_calibrate.translate_coordinates(self.image_clbrt, self.image_actor, H,self.L_clbrt, self.L_actor)
 
-        face = self.R_c.morph_mesh(self.image_actor.shape[0], self.image_actor.shape[1],LA_aligned[self.D.idx_removed_eyes], self.L_clbrt[self.D.idx_removed_eyes],self.del_triangles_C)
+        face = self.R_c.morph_2D_mesh(self.image_actor.shape[0], self.image_actor.shape[1], LA_aligned[self.D.idx_removed_eyes], self.L_clbrt[self.D.idx_removed_eyes], self.del_triangles_C)
         if self.do_narrow_face:
             face = self.narrow_face(face,LA_aligned)
 
@@ -364,7 +365,7 @@ class Face_Swaper(object):
 
         LA_aligned_mouth = LA_aligned[numpy.arange(48, 61, 1).tolist()]
         del_mouth = Delaunay(LA_aligned_mouth).vertices
-        temp_mouth = self.R_a.morph_mesh(self.image_actor.shape[0], self.image_actor.shape[1], LA_aligned_mouth,LA_aligned_mouth, del_mouth)
+        temp_mouth = self.R_a.morph_2D_mesh(self.image_actor.shape[0], self.image_actor.shape[1], LA_aligned_mouth, LA_aligned_mouth, del_mouth)
         result = tools_cupy.blend_multi_band_large_small(result, temp_mouth, (0, 0, 0),adjust_colors=False, filter_size=filter_face_size // 2)
 
         return tools_cupy.asnumpy(result)
