@@ -107,9 +107,6 @@ def draw_point(point_3d):
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_cube(image_texture=None,pos_x=0, pos_y=0, pos_z=0,size=1):
 
-    #glutSolidCube(size)
-    #return
-
     if image_texture != None:
         glEnable(GL_TEXTURE_2D)
         glBindTexture(GL_TEXTURE_2D, 0)

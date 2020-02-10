@@ -213,17 +213,8 @@ class detector_landmarks(object):
 
         return output
 # --------------------------------------------------------------------------------------------------------------------
-    def init_pose_estimator(self, path_to_model=None, img_size=(480, 640)):
+    def init_pose_estimator(self, img_size=(480, 640)):
         self.size = img_size
-        self.model_points = numpy.array([
-            (0.0, 0.0, 0.0),             # Nose tip
-            (0.0, -330.0, -65.0),        # Chin
-            (-225.0, 170.0, -135.0),     # Left eye left corner
-            (225.0, 170.0, -135.0),      # Right eye right corne
-            (-150.0, -150.0, -125.0),    # Left Mouth corner
-            (150.0, -150.0, -125.0)      # Right mouth corner
-        ]) / 4.5
-
         self.model_68_points = self._get_full_model_points()
         self.focal_length = self.size[1]
         self.camera_center = (self.size[1] / 2, self.size[0] / 2)
@@ -270,8 +261,7 @@ class detector_landmarks(object):
 # --------------------------------------------------------------------------------------------------------------------
     def get_pose(self, image_points):
         if self.r_vec is None:
-            (_, rotation_vector, translation_vector) = cv2.solvePnP(
-                self.model_68_points, image_points, self.camera_matrix, self.dist_coeefs)
+            (_, rotation_vector, translation_vector) = cv2.solvePnP(self.model_68_points, image_points, self.camera_matrix, self.dist_coeefs)
             self.r_vec = rotation_vector
             self.t_vec = translation_vector
 
@@ -284,20 +274,21 @@ class detector_landmarks(object):
         point_3d = []
         rear_size = 75
         rear_depth = 0
+        front_size = 100
+        front_depth = 100
+
         dist_coefs = numpy.zeros((4, 1))
         camera_matrix = numpy.array([[image.shape[1], 0, (image.shape[1]/2)],[0, image.shape[1], (image.shape[0]/2)],[0, 0, 1]], dtype="double")
         point_3d.append((-rear_size, -rear_size, rear_depth))
-        point_3d.append((-rear_size, rear_size, rear_depth))
-        point_3d.append((rear_size, rear_size, rear_depth))
-        point_3d.append((rear_size, -rear_size, rear_depth))
+        point_3d.append((-rear_size, +rear_size, rear_depth))
+        point_3d.append((+rear_size, +rear_size, rear_depth))
+        point_3d.append((+rear_size, -rear_size, rear_depth))
         point_3d.append((-rear_size, -rear_size, rear_depth))
 
-        front_size = 100
-        front_depth = 100
         point_3d.append((-front_size, -front_size, front_depth))
-        point_3d.append((-front_size, front_size, front_depth))
-        point_3d.append((front_size, front_size, front_depth))
-        point_3d.append((front_size, -front_size, front_depth))
+        point_3d.append((-front_size, +front_size, front_depth))
+        point_3d.append((+front_size, +front_size, front_depth))
+        point_3d.append((+front_size, -front_size, front_depth))
         point_3d.append((-front_size, -front_size, front_depth))
         point_3d = numpy.array(point_3d, dtype=numpy.float).reshape(-1, 3)
 
