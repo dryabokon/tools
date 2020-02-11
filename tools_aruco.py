@@ -89,6 +89,18 @@ def draw_axis(img, camera_matrix, dist, rvec, tvec, axis_length):
     img = tools_draw_numpy.draw_line(img, axis_2d_start[0, 1], axis_2d_start[0, 0], axis_2d_end[2, 1],axis_2d_end[2, 0], (255, 0, 0))
     return img
 # ----------------------------------------------------------------------------------------------------------------------
+def draw_cube_numpy(img, camera_matrix, dist, rvec, tvec, L,color=(255,0,0)):
+
+
+    pooints_3d = 0.5*L*numpy.array([[-1, -1, -1], [-1, +1, -1], [+1, +1, -1], [+1, -1, -1],[-1, -1, +1], [-1, +1, +1], [+1, +1, +1], [+1, -1, +1]],dtype = numpy.float32)
+
+    points_2d, jac = cv2.projectPoints(pooints_3d, rvec, tvec, camera_matrix, dist)
+    points_2d = points_2d.reshape((-1,2))
+    for i,j in zip((0,1,2,3,4,5,6,7,0,1,2,3),(1,2,3,0,5,6,7,4,4,5,6,7)):
+        img = tools_draw_numpy.draw_line(img, points_2d[i, 1], points_2d[i, 0], points_2d[j, 1],points_2d[j, 0], (0, 0, 255))
+
+    return img
+# ----------------------------------------------------------------------------------------------------------------------
 def detect_marker_and_draw_axes(frame,marker_length,camera_matrix, dist):
     corners, ids, rejectedImgPoints = aruco.detectMarkers(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), aruco.Dictionary_get(aruco.DICT_6X6_50))
     rvec, tvec = numpy.array([[[0,0,0]]]),numpy.array([[[0,0,0]]])
@@ -97,10 +109,10 @@ def detect_marker_and_draw_axes(frame,marker_length,camera_matrix, dist):
     if len(corners) > 0:
         aruco.drawDetectedMarkers(frame, corners)
         rvec, tvec, _ = aruco.estimatePoseSingleMarkers(corners[0], marker_length, camera_matrix, dist)
-        frame = draw_axis(frame, camera_matrix, dist, rvec[0], tvec[0], marker_length / 2)
+        res= draw_axis(frame, camera_matrix, dist, rvec[0], tvec[0], marker_length / 2)
         #aruco.drawAxis(frame,camera_matrix,dist,rvec[0], tvec[0], marker_length / 2)
 
-    return frame, rvec, tvec
+    return res, rvec, tvec
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_point(point_3d):
     glColor3f(1.0, 1.0, 1.0)

@@ -16,12 +16,12 @@ import tools_aruco
 # ----------------------------------------------------------------------------------------------------------------------
 class ObjLoader:
     def __init__(self):
-        self.vert_coords = []
-        self.text_coords = []
-        self.norm_coords = []
-        self.vertex_index = []
-        self.texture_index = []
-        self.normal_index = []
+        self.coord_vert = []
+        self.coord_texture = []
+        self.coord_norm = []
+        self.idx_vertex = []
+        self.idx_texture = []
+        self.idx_normal = []
         self.model = []
 # ----------------------------------------------------------------------------------------------------------------------
     def load_model(self, file):
@@ -30,9 +30,9 @@ class ObjLoader:
             values = line.split()
             if not values: continue
 
-            if values[0] == 'v':self.vert_coords.append(values[1:4])
-            if values[0] == 'vt':self.text_coords.append(values[1:3])
-            if values[0] == 'vn':self.norm_coords.append(values[1:4])
+            if values[0] == 'v' :self.coord_vert.append(values[1:4])
+            if values[0] == 'vt':self.coord_texture.append(values[1:3])
+            if values[0] == 'vn':self.coord_norm.append(values[1:4])
 
             if values[0] == 'f':
                 face_i = []
@@ -43,29 +43,31 @@ class ObjLoader:
                     face_i.append(int(w[0])-1)
                     text_i.append(int(w[1])-1)
                     norm_i.append(int(w[2])-1)
-                self.vertex_index.append(face_i)
-                self.texture_index.append(text_i)
-                self.normal_index.append(norm_i)
+                self.idx_vertex.append(face_i)
+                self.idx_texture.append(text_i)
+                self.idx_normal.append(norm_i)
 
-        self.vertex_index = [y for x in self.vertex_index for y in x]
-        self.texture_index = [y for x in self.texture_index for y in x]
-        self.normal_index = [y for x in self.normal_index for y in x]
 
-        for i in self.vertex_index:self.model.extend(self.vert_coords[i])
-        for i in self.texture_index:self.model.extend(self.text_coords[i])
-        for i in self.normal_index:self.model.extend(self.norm_coords[i])
+        self.idx_vertex  = [y for x in self.idx_vertex for y in x]
+        self.idx_texture = [y for x in self.idx_texture for y in x]
+        self.idx_normal  = [y for x in self.idx_normal for y in x]
+
+        for i in self.idx_vertex :self.model.extend(self.coord_vert[i])
+        for i in self.idx_texture:self.model.extend(self.coord_texture[i])
+        for i in self.idx_normal :self.model.extend(self.coord_norm[i])
         self.model = numpy.array(self.model, dtype='float32')
         return
 # ----------------------------------------------------------------------------------------------------------------------
 class render_GL3D(object):
 
-    def __init__(self,filename_obj,filename_texture=None, W=640, H=480):
+    def __init__(self,filename_obj,filename_texture=None, W=640, H=480,scale=1):
 
+        glutInit()
         glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH)
         glfw.init()
         self.W = W
         self.H = H
-        self.bg_color = (0.3, 0.3, 0.3, 0.5)
+        self.bg_color = numpy.array([92.0,92,92.0, 0])/255
         glfw.window_hint(glfw.VISIBLE, False)
         self.window = glfw.create_window(self.W, self.H, "hidden window", None, None)
         glfw.make_context_current(self.window)
@@ -76,10 +78,10 @@ class render_GL3D(object):
 
         self.__init_shader()
         self.__init_texture(self.filename_texture)
-        self.init_mat_projection()
-        self.__init_mat_view((0,0*0.6,0),(0,0,-1),flip=False)
-        self.__init_mat_model()
-        self.__init_mat_transform((0.1,0.1,0.1))
+        self.__init_mat_projection()
+        self.__init_mat_view((0,0,0),(0,0,-1),flip=False)
+        self.__init_mat_model(flip=False)
+        self.__init_mat_transform((scale,scale,scale))
         self.__init_mat_light()
         self.__init_runtime()
         return
@@ -141,37 +143,25 @@ class render_GL3D(object):
         glEnable(GL_TEXTURE_2D)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def init_mat_projection0(self):
-        near,far  = 1,1000
-        fx, fy = float(self.W), float(self.H)
-        principalX, principalY = fx / 2, fy / 2
-        left = -principalX / fx
-        right = (self.W - principalX) / fx
-        bottom = (principalY - self.H) / fy
-        top = principalY / fy
-        self.cameraMatrix = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 1]])
+    def __init_mat_projection(self):
 
-        mat_projection2 = self.convert_hz_intrinsic_to_opengl_projection(self.cameraMatrix, fx / 2, fy / 2, self.W,self.H, near, far)
+        fx, fy = float(2*self.W), float(2*self.H)
+        left, right, bottom, top = -0.5, (self.W - fx / 2) / fx, (fy / 2 - self.H) / fy, 0.5
+        near, far = 1, 1000
+
+        self.mat_camera = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 1]])
         self.mat_projection = pyrr.matrix44.create_perspective_projection_from_bounds(left,right,bottom,top,near,far)
-
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "projection"), 1, GL_FALSE, self.mat_projection)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def init_mat_projection(self):
-        near, far = 1, 1000
-        fx, fy = float(1*self.W), float(1*self.H)
-        self.cameraMatrix = numpy.array([[fx, 0, fx/2], [0, fy, fy/2], [0, 0, 1]])
-        self.mat_projection = self.convert_hz_intrinsic_to_opengl_projection(self.cameraMatrix, fx/2, fy/2, self.W, self.H, near, far)
-        glUniformMatrix4fv(glGetUniformLocation(self.shader, "projection"), 1, GL_FALSE, self.mat_projection)
-        return
-    # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_view(self,rvec=(0,0,0), tvec=(0,0,0),flip=True):
         self.mat_view = tools_aruco.compose_GL_MAT(numpy.array(rvec,dtype=numpy.float), numpy.array(tvec,dtype=numpy.float),flip=flip)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_model(self,rvec=(0,0,0), tvec=(0,0,0),flip=True):
-        self.mat_model  = tools_aruco.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float),numpy.array(tvec, dtype=numpy.float), flip=flip)
+        self.mat_model = pyrr.Matrix44.from_y_rotation(0)
+        #self.mat_model  = tools_aruco.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float),numpy.array(tvec, dtype=numpy.float), flip=flip)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "model"), 1, GL_FALSE, self.mat_model)
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -186,8 +176,8 @@ class render_GL3D(object):
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_runtime(self):
-        texture_offset = len(self.obj.vertex_index) * 12
-        normal_offset = (texture_offset + len(self.obj.texture_index) * 8)
+        texture_offset = len(self.obj.idx_vertex) * 12
+        normal_offset = (texture_offset + len(self.obj.idx_texture) * 8)
 
         VBO = glGenBuffers(1)
         glBindBuffer(GL_ARRAY_BUFFER, VBO)
@@ -214,17 +204,21 @@ class render_GL3D(object):
     # view from world space to camera space,
     # projection from camera to screen.
 # ----------------------------------------------------------------------------------------------------------------------
-    def __draw(self,rvec=(0,0,0),tvec=(0,0,0)):
+    def __draw(self,rvec=(0,0,0),tvec=(0,0,0),flip=True):
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
-        self.__init_mat_view(rvec,tvec)
-        #self.__init_mat_model(rvec,tvec)
-        glDrawArrays(GL_TRIANGLES, 0, len(self.obj.vertex_index))
+        self.__init_mat_view(rvec,tvec,flip)
+        glDrawArrays(GL_TRIANGLES, 0, len(self.obj.idx_vertex))
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def get_image(self,rvec=None,tvec=None):
-        self.__draw(rvec,tvec)
+    def get_image(self,rvec=None,tvec=None,flip=True):
+        self.__draw(rvec,tvec,flip)
         image_buffer = glReadPixels(0, 0, self.W,self.H, OpenGL.GL.GL_RGB, OpenGL.GL.GL_UNSIGNED_BYTE)
         image = numpy.frombuffer(image_buffer, dtype=numpy.uint8).reshape(self.H, self.W, 3)
+        image = cv2.flip(image,0)
+        #self.draw_mat(self.mat_projection, 20, 20,image)
+        #self.draw_mat(self.mat_view      , 20, 120, image)
+        #self.draw_mat(self.mat_model     , 20, 220, image)
+        #self.draw_mat(self.mat_camera    , 20, 350, image)
         return image
 # ----------------------------------------------------------------------------------------------------------------------
     def convert_hz_intrinsic_to_opengl_projection(self,K,x0,y0,width,height,znear,zfar, window_coords='y down'):
@@ -281,4 +275,13 @@ class render_GL3D(object):
         Rt = numpy.hstack((R, t ))
 
         return dict(intrinsic=K,rotation=R,cam_center=C_,t=t,extrinsic=Rt)
+# ----------------------------------------------------------------------------------------------------------------------
+    def draw_mat(self, M, posx, posy, image):
+        for row in range(M.shape[0]):
+            if M.shape[1]==4:
+                string1 = '%+1.2f %+1.2f %+1.2f %+1.2f' % (M[row, 0], M[row, 1], M[row, 2], M[row, 3])
+            else:
+                string1 = '%+1.2f %+1.2f %+1.2f' % (M[row, 0], M[row, 1], M[row, 2])
+            image = cv2.putText(image, '{0}'.format(string1), (posx, posy + 20 * row), cv2.FONT_HERSHEY_SIMPLEX, 0.4,(128, 128, 0), 1, cv2.LINE_AA)
+        return image
 # ----------------------------------------------------------------------------------------------------------------------
