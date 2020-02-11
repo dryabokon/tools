@@ -9,7 +9,7 @@ import numpy
 import tools_draw_numpy
 
 # ----------------------------------------------------------------------------------------------------------------------
-def compose_GL_MAT(rotv,tvecs):
+def compose_GL_MAT(rotv,tvecs,flip=False):
 
     rotv = rotv.reshape(3, 1)
     tvecs = tvecs.reshape(3, 1)
@@ -20,8 +20,9 @@ def compose_GL_MAT(rotv,tvecs):
     matrix[0:3, 0:3] = rotMat
     matrix[0:3, 3:4] = tvecs
     newMat = numpy.identity(4)
-    newMat[1][1] = -1
-    newMat[2][2] = -1
+    if flip:
+        newMat[1][1] = -1
+        newMat[2][2] = -1
     matrix = numpy.dot(newMat, matrix)
 
     return matrix.T
@@ -76,13 +77,16 @@ def draw_axis(img, camera_matrix, dist, rvec, tvec, axis_length):
     axis_2d_end, jac = cv2.projectPoints(axis_3d_end, rvec, tvec, camera_matrix, dist)
     axis_2d_start, jac = cv2.projectPoints(axis_3d_start, rvec, tvec, camera_matrix, dist)
 
+    axis_2d_end = axis_2d_end.reshape((3,2))
+    axis_2d_start = axis_2d_start.reshape((1,2))
+
     #axis_2d_end, jac = project_points(axis_3d_end, rvec, tvec, camera_matrix, dist)
     #axis_2d_start, jac = project_points(axis_3d_start, rvec, tvec, camera_matrix, dist)
 
 
-    img = tools_draw_numpy.draw_line(img, axis_2d_start[0, 0, 1], axis_2d_start[0, 0, 0], axis_2d_end[0, 0, 1],axis_2d_end[0, 0, 0], (0, 0, 255))
-    img = tools_draw_numpy.draw_line(img, axis_2d_start[0, 0, 1], axis_2d_start[0, 0, 0], axis_2d_end[1, 0, 1],axis_2d_end[1, 0, 0], (0, 255, 0))
-    img = tools_draw_numpy.draw_line(img, axis_2d_start[0, 0, 1], axis_2d_start[0, 0, 0], axis_2d_end[2, 0, 1],axis_2d_end[2, 0, 0], (255, 0, 0))
+    img = tools_draw_numpy.draw_line(img, axis_2d_start[0, 1], axis_2d_start[0, 0], axis_2d_end[0, 1],axis_2d_end[0, 0], (0, 0, 255))
+    img = tools_draw_numpy.draw_line(img, axis_2d_start[0, 1], axis_2d_start[0, 0], axis_2d_end[1, 1],axis_2d_end[1, 0], (0, 255, 0))
+    img = tools_draw_numpy.draw_line(img, axis_2d_start[0, 1], axis_2d_start[0, 0], axis_2d_end[2, 1],axis_2d_end[2, 0], (255, 0, 0))
     return img
 # ----------------------------------------------------------------------------------------------------------------------
 def detect_marker_and_draw_axes(frame,marker_length,camera_matrix, dist):
