@@ -219,6 +219,7 @@ class detector_landmarks(object):
         self.focal_length = self.size[1]
         self.camera_center = (self.size[1] / 2, self.size[0] / 2)
         self.camera_matrix = numpy.array([[self.focal_length, 0, self.camera_center[0]],[0, self.focal_length, self.camera_center[1]],[0, 0, 1]], dtype="double")
+
         self.dist_coeefs = numpy.zeros((4, 1))
         self.r_vec = numpy.array([[0.01891013], [0.08560084], [-3.14392813]])
         self.t_vec = numpy.array([[-14.97821226], [-10.62040383], [-2053.03596872]])
