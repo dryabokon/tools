@@ -42,8 +42,8 @@ class render_GL(object):
         image = Image.fromarray(inputimage)
         image = image.tobytes("raw", "RGBX", 0, -1)
         texture = glGenTextures(1)
-        width = image.size[0]
-        height = image.size[1]
+        width = inputimage.shape[1]
+        height = inputimage.shape[0]
 
         glBindTexture(GL_TEXTURE_2D, texture)  # 2d texture (x and y size)
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
