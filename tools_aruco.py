@@ -9,7 +9,7 @@ import numpy
 import tools_draw_numpy
 
 # ----------------------------------------------------------------------------------------------------------------------
-def compose_GL_MAT(rotv,tvecs,flip=False):
+def compose_GL_MAT(rotv,tvecs):
 
     rotv = rotv.reshape(3, 1)
     tvecs = tvecs.reshape(3, 1)
@@ -20,7 +20,7 @@ def compose_GL_MAT(rotv,tvecs,flip=False):
     matrix[0:3, 0:3] = rotMat
     matrix[0:3, 3:4] = tvecs
     newMat = numpy.identity(4)
-    if flip:
+    if True:
         newMat[1][1] = -1
         newMat[2][2] = -1
     matrix = numpy.dot(newMat, matrix)
@@ -89,15 +89,31 @@ def draw_axis(img, camera_matrix, dist, rvec, tvec, axis_length):
     img = tools_draw_numpy.draw_line(img, axis_2d_start[0, 1], axis_2d_start[0, 0], axis_2d_end[2, 1],axis_2d_end[2, 0], (255, 0, 0))
     return img
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_cube_numpy(img, camera_matrix, dist, rvec, tvec, L,color=(255,0,0)):
+def draw_cube_numpy(img, camera_matrix, dist, rvec, tvec, scale=(1,1,1),color=(255,128,0),):
 
+    pooints_3d = 0.5*numpy.array([[-1, -1, -1], [-1, +1, -1], [+1, +1, -1], [+1, -1, -1],[-1, -1, +1], [-1, +1, +1], [+1, +1, +1], [+1, -1, +1]],dtype = numpy.float32)
 
-    pooints_3d = 0.5*L*numpy.array([[-1, -1, -1], [-1, +1, -1], [+1, +1, -1], [+1, -1, -1],[-1, -1, +1], [-1, +1, +1], [+1, +1, +1], [+1, -1, +1]],dtype = numpy.float32)
+    pooints_3d[:,0]*=scale[0]
+    pooints_3d[:,1]*=scale[1]
+    pooints_3d[:,2]*=scale[2]
 
     points_2d, jac = cv2.projectPoints(pooints_3d, rvec, tvec, camera_matrix, dist)
     points_2d = points_2d.reshape((-1,2))
     for i,j in zip((0,1,2,3,4,5,6,7,0,1,2,3),(1,2,3,0,5,6,7,4,4,5,6,7)):
-        img = tools_draw_numpy.draw_line(img, points_2d[i, 1], points_2d[i, 0], points_2d[j, 1],points_2d[j, 0], (0, 0, 255))
+        img = tools_draw_numpy.draw_line(img, points_2d[i, 1], points_2d[i, 0], points_2d[j, 1],points_2d[j, 0], color)
+
+    return img
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_mesh_numpy(pooints_3d, img, camera_matrix, dist, rvec, tvec, scale=(1,1,1),color=(66,0,166),):
+
+    pooints_3d[:,0]*=scale[0]
+    pooints_3d[:,1]*=scale[1]
+    pooints_3d[:,2]*=scale[2]
+
+    points_2d, jac = cv2.projectPoints(pooints_3d, rvec, tvec, camera_matrix, dist)
+    points_2d = points_2d.reshape((-1,2))
+    for point in points_2d:
+        img = tools_draw_numpy.draw_circle(img, point[1], point[0], 4, color)
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
@@ -107,7 +123,8 @@ def detect_marker_and_draw_axes(frame,marker_length,camera_matrix, dist):
 
 
     if len(corners) > 0:
-        aruco.drawDetectedMarkers(frame, corners)
+        res = frame.copy()
+        aruco.drawDetectedMarkers(res, corners)
         rvec, tvec, _ = aruco.estimatePoseSingleMarkers(corners[0], marker_length, camera_matrix, dist)
         res= draw_axis(frame, camera_matrix, dist, rvec[0], tvec[0], marker_length / 2)
         #aruco.drawAxis(frame,camera_matrix,dist,rvec[0], tvec[0], marker_length / 2)

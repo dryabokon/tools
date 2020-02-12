@@ -9,12 +9,7 @@ import math
 import tools_GL
 # --------------------------------------------------------------------------------------------------------------------
 class detector_landmarks(object):
-    def __init__(self,filename_config,H=1080,W=1920,mode='dlib'):
-        #filename_config = './data/haarcascade_eye.xml'
-        #filename_config ='./data/shape_predictor_68_face_landmarks.dat'
-        self.W=W
-        self.H=H
-        self.mode = mode
+    def __init__(self,filename_config):
         self.name = "landmark_detector"
         self.idx_head = numpy.arange(0,27,1).tolist()
         self.idx_nose = numpy.arange(27, 36, 1).tolist()
@@ -24,29 +19,15 @@ class detector_landmarks(object):
         for each in [37,38,40,41,43,44,46,47]:
             self.idx_removed_eyes.remove(each)
 
+        self.model_68_points = self.__get_full_model_points()
+        self.r_vec = None
+        self.t_vec = None
 
-        self.init_pose_estimator()
-        if mode == 'dlib':
-            self.detector = dlib.get_frontal_face_detector()
-            self.predictor = dlib.shape_predictor(filename_config)
-        else:
-            self.the_cascade = cv2.CascadeClassifier(filename_config)
-
+        self.detector = dlib.get_frontal_face_detector()
+        self.predictor = dlib.shape_predictor(filename_config)
+        return
 # --------------------------------------------------------------------------------------------------------------------
     def detect_face(self,image):
-        if self.mode=='opencv':
-            return self.__detect_face_opencv(image)
-        else:
-            return self.__detect_face_dlib(image)
-
-# --------------------------------------------------------------------------------------------------------------------
-    def draw_face(self, image):
-        if self.mode == 'opencv':
-            return self.__draw_face_opencv(image)
-        else:
-            return self.__draw_face_dlib(image)
-# --------------------------------------------------------------------------------------------------------------------
-    def __detect_face_dlib(self,image):
         gray = tools_image.desaturate(image)
         objects = self.detector(gray)
         if len(objects) == 1:
@@ -59,27 +40,7 @@ class detector_landmarks(object):
 
         return None
 # ----------------------------------------------------------------------------------------------------------------------
-    def __detect_face_opencv(self, image):
-        objects = self.the_cascade.detectMultiScale(image, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
-        if len(objects) == 2:
-            xmin = min(objects[0][0], objects[1][0])
-            xmax = max(objects[0][0] + objects[0][2], objects[1][0] + objects[1][2])
-
-            ymin = min(objects[0][1], objects[1][1])
-            ymax = max(objects[0][1] + objects[0][3], objects[1][1] + objects[1][3])
-
-            if xmax > xmin and ymax > ymin:
-                return image[ymin:ymax, xmin:xmax, :]
-
-        return None
-# ----------------------------------------------------------------------------------------------------------------------
-    def __draw_face_opencv(self, image):
-        objects = self.the_cascade.detectMultiScale(image, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
-        if len(objects) == 2:
-            for (x, y, w, h) in objects: cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
-        return image
-# ----------------------------------------------------------------------------------------------------------------------
-    def __draw_face_dlib(self,image):
+    def draw_face(self,image):
         gray = tools_image.desaturate(image)
         objects = self.detector(gray)
         if len(objects) == 1:
@@ -213,19 +174,7 @@ class detector_landmarks(object):
 
         return output
 # --------------------------------------------------------------------------------------------------------------------
-    def init_pose_estimator(self, img_size=(480, 640)):
-        self.size = img_size
-        self.model_68_points = self._get_full_model_points()
-        self.focal_length = self.size[1]
-        self.camera_center = (self.size[1] / 2, self.size[0] / 2)
-        self.camera_matrix = numpy.array([[self.focal_length, 0, self.camera_center[0]],[0, self.focal_length, self.camera_center[1]],[0, 0, 1]], dtype="double")
-
-        self.dist_coeefs = numpy.zeros((4, 1))
-        self.r_vec = numpy.array([[0.01891013], [0.08560084], [-3.14392813]])
-        self.t_vec = numpy.array([[-14.97821226], [-10.62040383], [-2053.03596872]])
-        return
-# --------------------------------------------------------------------------------------------------------------------
-    def _get_full_model_points(self):
+    def __get_full_model_points(self):
 
         raw_value = [-73.393523,
                 -72.775014, -70.533638, -66.850058, -59.790187, -48.368973, -34.121101,-17.875411, 0.098749,
@@ -260,14 +209,25 @@ class detector_landmarks(object):
         model_points[:, -1] *= -1
         return model_points
 # --------------------------------------------------------------------------------------------------------------------
-    def get_pose(self, image_points):
+    def get_pose(self, image,landmarks_2d, landmarks_3d=None):
+
+        fx, fy = float(image.shape[1]), float(image.shape[0])
+        self.mat_camera = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 1]])
+
+        dist_coefs = numpy.zeros((4, 1))
+
+        if landmarks_3d is None:
+            landmarks_3d = self.model_68_points
+
         if self.r_vec is None:
-            (_, rotation_vector, translation_vector) = cv2.solvePnP(self.model_68_points, image_points, self.camera_matrix, self.dist_coeefs)
+            (_, rotation_vector, translation_vector) = cv2.solvePnP(landmarks_3d, landmarks_2d, self.mat_camera, dist_coefs)
             self.r_vec = rotation_vector
             self.t_vec = translation_vector
 
-        (_, rotation_vector, translation_vector) = cv2.solvePnP(self.model_68_points, image_points, self.camera_matrix, self.dist_coeefs, rvec=self.r_vec, tvec=self.t_vec, useExtrinsicGuess=True)
+        (_, rotation_vector, translation_vector) = cv2.solvePnP(landmarks_3d, landmarks_2d, self.mat_camera, dist_coefs, rvec=self.r_vec, tvec=self.t_vec, useExtrinsicGuess=True)
 
+        #test
+        (landmarks_2d_test, _) = cv2.projectPoints(landmarks_3d, rotation_vector, translation_vector, self.mat_camera, dist_coefs)
         return rotation_vector, translation_vector
 # --------------------------------------------------------------------------------------------------------------------
     def draw_annotation_box(self,image, rotation_vector, translation_vector, color=(0, 128, 255), line_width=1):
