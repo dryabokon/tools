@@ -331,7 +331,7 @@ def is_transform_good(src, dst,M):
 
     return True
 # ----------------------------------------------------------------------------------------------------------------------
-def rotationMatrixToEulerAngles(R):
+def rotationMatrixToEulerAngles(R,do_flip=False):
 
     Rt = numpy.transpose(R)
     shouldBeIdentity = numpy.dot(Rt, R)
@@ -353,7 +353,37 @@ def rotationMatrixToEulerAngles(R):
             y = math.atan2(-R[2, 0], sy)
             z = 0
 
-    return numpy.array([x, y, z])
+        if do_flip:
+            x*=-1
+            y*=-1
+
+    return numpy.array([x, z, y])
+#----------------------------------------------------------------------------------------------------------------------
+def quaternion_to_euler(Q):
+    x, y, z, w = Q[0],Q[1],Q[2],Q[3]
+
+    t0 = +2.0 * (w * x + y * z)
+    t1 = +1.0 - 2.0 * (x * x + y * y)
+    X = math.degrees(math.atan2(t0, t1))
+
+    t2 = +2.0 * (w * y - z * x)
+    t2 = +1.0 if t2 > +1.0 else t2
+    t2 = -1.0 if t2 < -1.0 else t2
+    Y = math.degrees(math.asin(t2))
+
+    t3 = +2.0 * (w * z + x * y)
+    t4 = +1.0 - 2.0 * (y * y + z * z)
+    Z = math.degrees(math.atan2(t3, t4))
+
+    return numpy.array((X, Z, Y))*math.pi/180
+#----------------------------------------------------------------------------------------------------------------------
+def euler_to_quaternion(rvec):
+    yaw, pitch, roll = rvec[0],rvec[1], rvec[2]
+    qx = numpy.sin(roll / 2) * numpy.cos(pitch / 2) * numpy.cos(yaw / 2) - numpy.cos(roll / 2) * numpy.sin(pitch / 2) * numpy.sin(yaw / 2)
+    qy = numpy.cos(roll / 2) * numpy.sin(pitch / 2) * numpy.cos(yaw / 2) + numpy.sin(roll / 2) * numpy.cos(pitch / 2) * numpy.sin(yaw / 2)
+    qz = numpy.cos(roll / 2) * numpy.cos(pitch / 2) * numpy.sin(yaw / 2) - numpy.sin(roll / 2) * numpy.sin(pitch / 2) * numpy.cos(yaw / 2)
+    qw = numpy.cos(roll / 2) * numpy.cos(pitch / 2) * numpy.cos(yaw / 2) + numpy.sin(roll / 2) * numpy.sin(pitch / 2) * numpy.sin(yaw / 2)
+    return numpy.array((qx, qy, qz, qw))
 #----------------------------------------------------------------------------------------------------------------------
 def eulerAnglesToRotationMatrix(theta):
 
@@ -375,6 +405,12 @@ def eulerAnglesToRotationMatrix(theta):
     R = numpy.dot(R_z, numpy.dot(R_y, R_x))
 
     return R
+#----------------------------------------------------------------------------------------------------------------------
+def calculate_eye_target_up(viewMat):
+    eye = viewMat[3,0:3].T
+    target = eye - viewMat[0:3,2]
+    up = viewMat[0:3,1]
+    return eye, target, up
 #----------------------------------------------------------------------------------------------------------------------
 def derive_transform(img1,img2,K=numpy.array([[1000,0,0],[0,1000,0],[0,0,1]])):
 

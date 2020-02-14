@@ -20,8 +20,9 @@ class detector_landmarks(object):
             self.idx_removed_eyes.remove(each)
 
         self.model_68_points = self.__get_full_model_points()
-        self.r_vec = None
-        self.t_vec = None
+        self.r_vec = -numpy.array([[0.01891013], [0.08560084], [-3.14392813]])
+        self.t_vec = -numpy.array([[-14.97821226], [-10.62040383], [-2053.03596872]])
+
 
         self.detector = dlib.get_frontal_face_detector()
         self.predictor = dlib.shape_predictor(filename_config)
@@ -221,13 +222,25 @@ class detector_landmarks(object):
 
         if self.r_vec is None:
             (_, rotation_vector, translation_vector) = cv2.solvePnP(landmarks_3d, landmarks_2d, self.mat_camera, dist_coefs)
+        else:
+            (_, rotation_vector, translation_vector) = cv2.solvePnP(landmarks_3d, landmarks_2d, self.mat_camera, dist_coefs, rvec=self.r_vec, tvec=self.t_vec, useExtrinsicGuess=True)
+        self.r_vec = rotation_vector
+        self.t_vec = translation_vector
+
+        #test
+        landmarks_2d_test, _ = cv2.projectPoints(landmarks_3d, rotation_vector, translation_vector, self.mat_camera, dist_coefs)
+
+        err = numpy.sqrt(((landmarks_2d_test-landmarks_2d)**2).mean())
+        tol = 0.1*landmarks_2d.mean()
+
+        if err>tol:
+            (_, rotation_vector, translation_vector) = cv2.solvePnP(landmarks_3d, landmarks_2d, self.mat_camera, dist_coefs)
             self.r_vec = rotation_vector
             self.t_vec = translation_vector
 
-        (_, rotation_vector, translation_vector) = cv2.solvePnP(landmarks_3d, landmarks_2d, self.mat_camera, dist_coefs, rvec=self.r_vec, tvec=self.t_vec, useExtrinsicGuess=True)
+            landmarks_2d_test, _ = cv2.projectPoints(landmarks_3d, rotation_vector, translation_vector, self.mat_camera,dist_coefs)
+            err = numpy.sqrt(((landmarks_2d_test - landmarks_2d) ** 2).mean())
 
-        #test
-        (landmarks_2d_test, _) = cv2.projectPoints(landmarks_3d, rotation_vector, translation_vector, self.mat_camera, dist_coefs)
         return rotation_vector, translation_vector
 # --------------------------------------------------------------------------------------------------------------------
     def draw_annotation_box(self,image, rotation_vector, translation_vector, color=(0, 128, 255), line_width=1):

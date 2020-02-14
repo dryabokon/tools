@@ -1,3 +1,6 @@
+#http://blog.db-in.com/cameras-on-opengl-es-2-x/
+import numpy
+import math
 import cv2
 from OpenGL.GL import *
 from OpenGL.GLU import *
@@ -13,6 +16,9 @@ import scipy
 import tools_aruco
 import pyvista
 import tools_calibrate
+
+numpy.set_printoptions(suppress=True)
+numpy.set_printoptions(precision=2)
 # ----------------------------------------------------------------------------------------------------------------------
 class ObjLoader:
     def __init__(self):
@@ -23,6 +29,7 @@ class ObjLoader:
         self.idx_texture = []
         self.idx_normal = []
         self.model = []
+        self.scale = 1
 # ----------------------------------------------------------------------------------------------------------------------
     def load_model(self, file):
         for line in open(file, 'r'):
@@ -30,9 +37,9 @@ class ObjLoader:
             values = line.split()
             if not values: continue
 
-            if values[0] == 'v' :self.coord_vert.append(values[1:4])
-            if values[0] == 'vt':self.coord_texture.append(values[1:3])
-            if values[0] == 'vn':self.coord_norm.append(values[1:4])
+            if values[0] == 'v' :self.coord_vert.append([float(v) for v in values[1:4]])
+            if values[0] == 'vt':self.coord_texture.append([float(v) for v in values[1:3]])
+            if values[0] == 'vn':self.coord_norm.append([float(v) for v in values[1:4]])
 
             if values[0] == 'f':
                 face_i = []
@@ -51,6 +58,10 @@ class ObjLoader:
         self.idx_vertex  = [y for x in self.idx_vertex for y in x]
         self.idx_texture = [y for x in self.idx_texture for y in x]
         self.idx_normal  = [y for x in self.idx_normal for y in x]
+
+        self.coord_vert = numpy.array(self.coord_vert)
+        self.scale = self.coord_vert.max()
+        self.coord_vert/=self.scale
 
         for i in self.idx_vertex :self.model.extend(self.coord_vert[i])
         for i in self.idx_texture:self.model.extend(self.coord_texture[i])
@@ -92,7 +103,7 @@ class ObjLoader:
 # ----------------------------------------------------------------------------------------------------------------------
 class render_GL3D(object):
 
-    def __init__(self,filename_obj,filename_texture=None, W=640, H=480,scale=(1,1,1),is_visible=False):
+    def __init__(self,filename_obj,filename_texture=None, W=640, H=480,is_visible=False):
 
         glutInit()
         glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH)
@@ -103,8 +114,8 @@ class render_GL3D(object):
         glfw.window_hint(glfw.VISIBLE, is_visible)
         self.window = glfw.create_window(self.W, self.H, "hidden window", None, None)
         glfw.make_context_current(self.window)
-        self.mat_color = numpy.array([192,192,192])
-        self.bg_color = numpy.array([64, 64, 64,0])/255
+        self.mat_color = numpy.array([192,128,32])
+        self.bg_color  = numpy.array([64, 64, 64,0])/255
 
 
         self.obj = ObjLoader()
@@ -113,13 +124,9 @@ class render_GL3D(object):
 
         self.__init_shader()
         self.__init_texture(self.filename_texture)
-        self.__init_mat_projection()
-        self.__init_mat_view((0,0,0),(0,0,+500))
-        self.__init_mat_model()
-        self.__init_mat_transform((scale[0],scale[1],scale[2]))
-        self.__init_mat_light((0.8,-0.5,0))
-        self.__init_runtime()
+        self.reset_view()
 
+        self.__init_runtime()
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_shader(self):
@@ -191,28 +198,32 @@ class render_GL3D(object):
         self.mat_projection = pyrr.matrix44.create_perspective_projection_from_bounds(left,right,bottom,top,near,far)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "projection"), 1, GL_FALSE, self.mat_projection)
         return
+# ------------------------------------------------------------d----------------------------------------------------------
+    def __init_mat_view_RT(self, rvec,tvec):
+        R = pyrr.matrix44.create_from_eulers(rvec)
+        T = pyrr.matrix44.create_from_translation(tvec)
+        self.mat_view = pyrr.matrix44.multiply(R,T)
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
+        #self.mat_view = tools_aruco.compose_GL_MAT(numpy.array(rvec,dtype=numpy.float), numpy.array(tvec,dtype=numpy.float),do_flip=True)
+        return
 # ----------------------------------------------------------------------------------------------------------------------
-    def __init_mat_view(self,rvec=(0,0,0), tvec=(0,0,0)):
-        self.mat_view = tools_aruco.compose_GL_MAT(numpy.array(rvec,dtype=numpy.float), numpy.array(tvec,dtype=numpy.float))
+    def __init_mat_view_ETU(self, eye, target, up):
+        self.mat_view = pyrr.matrix44.create_look_at(eye, target, up)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def __init_mat_model(self,rvec=(0,0,0), tvec=(0,0,0)):
-        self.mat_model = pyrr.Matrix44.from_y_rotation(0)
-        #self.mat_model  = tools_aruco.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float),numpy.array(tvec, dtype=numpy.float))
+    def __init_mat_model(self,rvec, tvec):
+        self.mat_model = pyrr.matrix44.create_from_eulers(rvec)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "model"), 1, GL_FALSE, self.mat_model)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def __init_mat_transform(self,scale=(1,1,1.0)):
-        self.mat_trns = pyrr.Matrix44.from_scale((scale[0],scale[1],scale[2]))
+    def __init_mat_transform(self,scale):
+        self.mat_trns = pyrr.Matrix44.from_scale((scale,scale,scale,scale))
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "transform"), 1, GL_FALSE, self.mat_trns)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_light(self,r_vec):
-
-        self.mat_light = pyrr.Matrix44.from_z_rotation(0)
-        self.mat_light[:3, :3] = tools_calibrate.eulerAnglesToRotationMatrix(r_vec)
-        glUniformMatrix4fv(glGetUniformLocation(self.shader, "light")    , 1, GL_FALSE, self.mat_light)
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "light")    , 1, GL_FALSE, pyrr.matrix44.create_from_eulers(r_vec))
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_runtime(self):
@@ -237,6 +248,24 @@ class render_GL3D(object):
 
         glClearColor(self.bg_color[0],self.bg_color[1],self.bg_color[2],self.bg_color[3])
         glEnable(GL_DEPTH_TEST)
+
+        glEnable(GL_LIGHTING)
+        glEnable(GL_LIGHT0)
+
+        #glShadeModel(GL_SMOOTH)
+        glShadeModel(GL_FLAT)
+
+        ## set material information
+        ambient = [0.0215, 0.1745, 0.0215]
+        diffuse = [0.07568, 0.61424, 0.07568]
+        specular = [0.633, 0.727811, 0.633]
+        shininess = 128 * 0.6
+
+        glMaterialfv(GL_FRONT, GL_AMBIENT, ambient)
+        glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse)
+        glMaterialfv(GL_FRONT, GL_SPECULAR, specular)
+        glMaterialfv(GL_FRONT, GL_SHININESS, shininess)
+
         return
 # ----------------------------------------------------------------------------------------------------------------------
     #projection * view * model * transform
@@ -246,18 +275,15 @@ class render_GL3D(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def __draw(self,rvec=(0,0,0),tvec=(0,0,0)):
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
-        self.__init_mat_view(rvec,tvec)
+        self.__init_mat_view_RT(rvec,tvec)
         glDrawArrays(GL_TRIANGLES, 0, len(self.obj.idx_vertex))
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def draw_GL(self):
-        #glfw.make_context_current(self.window)
-        #glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
-        #print(self.mat_view)
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+    def draw_GL(self,do_debug=False):
+        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
         glDrawArrays(GL_TRIANGLES, 0, len(self.obj.idx_vertex))
         return
-    # ----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
     def get_image(self,rvec=None,tvec=None,do_debug=False):
         self.__draw(rvec,tvec)
         image_buffer = glReadPixels(0, 0, self.W,self.H, OpenGL.GL.GL_RGB, OpenGL.GL.GL_UNSIGNED_BYTE)
@@ -270,27 +296,6 @@ class render_GL3D(object):
             self.draw_mat(self.mat_camera    , 20, 350, image)
         return image
 # ----------------------------------------------------------------------------------------------------------------------
-    def convert_hz_intrinsic_to_opengl_projection(self,K,x0,y0,width,height,znear,zfar, window_coords='y down'):
-        #https://gist.github.com/astraw/1341472#cameramatrix.txt
-        znear = float(znear)
-        zfar = float(zfar)
-        depth = zfar - znear
-        q = -(zfar + znear) / depth
-        qn = -2 * (zfar * znear) / depth
-
-        if window_coords=='y up':
-            proj = numpy.array([[ 2*K[0,0]/width, -2*K[0,1]/width ,(-2*K[0,2]+width+2*x0)/width  , 0 ],
-                                [ 0             , -2*K[1,1]/height,(-2*K[1,2]+height+2*y0)/height, 0 ],
-                                [ 0             , 0               , q                            , qn],
-                                [ 0             , 0               ,-1                            , 0 ]])
-        else:
-            assert window_coords=='y down'
-            proj = numpy.array([[ 2*K[0,0]/width, -2*K[0,1]/width, (-2*K[0,2]+width+2*x0)/width, 0 ],
-                             [  0,              2*K[1,1]/height,( 2*K[1,2]-height+2*y0)/height, 0],
-                             [0,0,q,qn],  # This row is standard glPerspective and sets near and far planes.
-                             [0,0,-1,0]]) # This row is also standard glPerspective.
-        return proj
-# ----------------------------------------------------------------------------------------------------------------------
     def draw_mat(self, M, posx, posy, image):
         for row in range(M.shape[0]):
             if M.shape[1]==4:
@@ -300,30 +305,79 @@ class render_GL3D(object):
             image = cv2.putText(image, '{0}'.format(string1), (posx, posy + 20 * row), cv2.FONT_HERSHEY_SIMPLEX, 0.4,(128, 128, 0), 1, cv2.LINE_AA)
         return image
 # ----------------------------------------------------------------------------------------------------------------------
-    def rotate_view(self,delta_angle):
-        angle_current = tools_calibrate.rotationMatrixToEulerAngles(self.mat_view[:3, :3])
-        angle_current+= delta_angle
-        #if angle_current[0] > 3.14: angle_current[0] -= 3.14
-        #if angle_current[1] > 3.14: angle_current[1] -= 3.14
-        #if angle_current[2] > 3.14: angle_current[2] -= 3.14
-        #if angle_current[0] < 3.14: angle_current[0] += 3.14
-        #if angle_current[1] < 3.14: angle_current[1] += 3.14
-        #if angle_current[2] < 3.14: angle_current[2] += 3.14
-        self.mat_view[:3,:3] = tools_calibrate.eulerAnglesToRotationMatrix(angle_current)
-        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
+    def start_rotation(self):
+        self.on_rotate = True
+        self.mat_model_checkpoint = self.mat_model
+        return
+    # ----------------------------------------------------------------------------------------------------------------------
+    def stop_rotation(self):
+        self.on_rotate = False
+        self.mat_model_checkpoint = None
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def translate_view(self, delta_translate):
+        eye, target, up = tools_calibrate.calculate_eye_target_up(self.mat_view)
+        eye *= delta_translate
+        self.__init_mat_view_ETU(eye, target, up)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def scale_model(self, scale_factor):
+        self.mat_trns*=scale_factor
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "transform"), 1, GL_FALSE, self.mat_trns)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def transform_model(self,mode):
+
+        M = pyrr.matrix44.create_identity()
+        if   mode == 'XY':M = pyrr.matrix44.create_from_z_rotation(-math.pi/2)
+        elif mode == 'XZ':M = pyrr.matrix44.create_from_y_rotation(-math.pi/2)
+        elif mode == 'YZ':M = pyrr.matrix44.create_from_x_rotation(-math.pi/2)
+        elif mode == 'xy':M = pyrr.matrix44.create_from_z_rotation(+math.pi/2)
+        elif mode == 'yz':M = pyrr.matrix44.create_from_y_rotation(+math.pi/2)
+        elif mode == 'xz':M = pyrr.matrix44.create_from_x_rotation(+math.pi/2)
+        self.mat_trns = M * self.mat_trns.max()
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "transform"), 1, GL_FALSE, self.mat_trns)
+        self.reset_view(reset_transform=False)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def __align_light(self, euler_model):
+        vec_light = self.vec_initial_light + euler_model - self.vec_initial_model
+        self.__init_mat_light(vec_light)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def __display_info(self):
+
+        S, Q, tvec = pyrr.matrix44.decompose(self.mat_model)
+        rvec = tools_calibrate.quaternion_to_euler(Q)
+
+        print('rvec', rvec * 180 / math.pi)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def rotate_model(self, delta_angle):
+
+        if self.on_rotate and self.mat_model_checkpoint is not None:
+            S, Q, tvec = pyrr.matrix44.decompose(self.mat_model_checkpoint)
+        else:
+            S, Q, tvec = pyrr.matrix44.decompose(self.mat_model)
+
+        rvec  = tools_calibrate.quaternion_to_euler(Q) + numpy.array(delta_angle)
+        rvec[0] = numpy.clip(rvec[0],0.01,math.pi-0.01)
+        self.__init_mat_model(rvec,tvec)
+        self.__align_light(rvec)
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def translate_Z_view(self,delta_translate):
-        self.mat_view[3, 2]*=delta_translate
-        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def rotate_light(self,delta_angle):
-        angle_current = tools_calibrate.rotationMatrixToEulerAngles(self.mat_light[:3, :3])
-        angle_current+= delta_angle
-        self.mat_light[:3,:3] = tools_calibrate.eulerAnglesToRotationMatrix(angle_current)
-        glUniformMatrix4fv(glGetUniformLocation(self.shader, "light")    , 1, GL_FALSE, self.mat_light)
-        #print(angle_current)
+    def reset_view(self,reset_transform=True):
+        obj_min = numpy.array(self.obj.coord_vert).astype(numpy.float).min()
+        obj_max = numpy.array(self.obj.coord_vert).astype(numpy.float).max()
+        self.vec_initial_light = (0,math.pi/2,-math.pi/2)
+        self.vec_initial_model = (math.pi/2,math.pi/2,0)
+        self.__init_mat_view_ETU(eye=(0, 0, -5 * (obj_max - obj_min)), target=(0, 0, 0), up=(0, -1, 0))
+        self.__init_mat_model(self.vec_initial_model,(0,0,0))
+        if reset_transform:
+            self.__init_mat_transform(1)
+        self.__init_mat_light(self.vec_initial_light)
+        self.__init_mat_projection()
+        self.stop_rotation()
         return
 # ----------------------------------------------------------------------------------------------------------------------

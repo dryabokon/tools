@@ -9,7 +9,7 @@ import numpy
 import tools_draw_numpy
 
 # ----------------------------------------------------------------------------------------------------------------------
-def compose_GL_MAT(rotv,tvecs):
+def compose_GL_MAT(rotv,tvecs,do_flip=False):
 
     rotv = rotv.reshape(3, 1)
     tvecs = tvecs.reshape(3, 1)
@@ -20,7 +20,7 @@ def compose_GL_MAT(rotv,tvecs):
     matrix[0:3, 0:3] = rotMat
     matrix[0:3, 3:4] = tvecs
     newMat = numpy.identity(4)
-    if True:
+    if do_flip:
         newMat[1][1] = -1
         newMat[2][2] = -1
     matrix = numpy.dot(newMat, matrix)
