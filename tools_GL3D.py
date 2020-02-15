@@ -36,7 +36,7 @@ class render_GL3D(object):
         self.window = glfw.create_window(self.W, self.H, "GL viewer", None, None)
         glfw.make_context_current(self.window)
 
-        self.init_objects(filename_obj, numpy.array([192, 128, 0])/255.0,do_normalize=self.do_normalize)
+        self.init_objects(filename_obj, numpy.array([215, 171, 151])/255.0,do_normalize=self.do_normalize)
         self.__init_shader()
 
         self.VBO = None
@@ -52,12 +52,16 @@ class render_GL3D(object):
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def append_object(self,filename_obj,mat_color):
-        self.mat_list.append(mat_color)
-        self.obj_list.append(tools_wavefront.ObjLoader())
-        self.obj_list[-1].load_model(filename_obj,mat_color)
+        #self.mat_list.append(mat_color)
+        #self.obj_list.append(tools_wavefront.ObjLoader())
+        #self.obj_list[-1].load_model(filename_obj,mat_color)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_shader(self):
+        # projection * view * model * transform
+        # model maps from an object's local coordinate space into world space,
+        # view from world space to camera space,
+        # projection from camera to screen.
         vert_shader = """#version 330
                                     in layout(location = 0) vec3 position;
                                     in layout(location = 1) vec3 color;
@@ -67,7 +71,7 @@ class render_GL3D(object):
                                     out vec3 fragNormal;
                                     void main()
                                     {
-                                        fragNormal = (light * vec4(vertNormal, 0.0f)).xyz;
+                                        fragNormal = -abs((light * view * model * transform * vec4(vertNormal, 0.0f)).xyz);
                                         gl_Position = projection * view * model * transform * vec4(position, 1.0f);
                                         inColor = color;
                                     }"""
@@ -78,14 +82,16 @@ class render_GL3D(object):
                                     out vec4 outColor;
                                     void main()
                                     {
-                                        //vec3 ambientLightIntensity  = inColor;
+                                        
                                         vec3 ambientLightIntensity  = vec3(0.1f, 0.1f, 0.1f);
                                         vec3 sunLightIntensity      = vec3(1.0f, 1.0f, 1.0f);
                                         vec3 sunLightDirection      = normalize(vec3(+0.0f, -1.0f, +0.0f));
 
+                                        
 
 
-                                        vec3 lightIntensity = ambientLightIntensity + sunLightIntensity * max(dot(fragNormal, sunLightDirection), 0.0f);
+
+                                        vec3 lightIntensity = ambientLightIntensity + sunLightIntensity * dot(fragNormal, sunLightDirection);
                                         outColor = vec4(inColor*lightIntensity, 1);
                                     }"""
 
@@ -98,8 +104,7 @@ class render_GL3D(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_VBO(self):
 
-        obj = self.obj_list[-1]
-
+        obj = self.obj_list[0]
 
         self.VBO = glGenBuffers(1)
         glBindBuffer(GL_ARRAY_BUFFER, self.VBO)
@@ -120,11 +125,6 @@ class render_GL3D(object):
         glClearColor(self.bg_color[0], self.bg_color[1], self.bg_color[2], self.bg_color[3])
         glEnable(GL_DEPTH_TEST)
 
-        # glEnable(GL_LIGHTING)
-        # glEnable(GL_LIGHT0)
-        # glShadeModel(GL_SMOOTH)
-        # glShadeModel(GL_FLAT)
-
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_projection(self):
@@ -139,9 +139,6 @@ class render_GL3D(object):
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_view_RT(self, rvec,tvec,flip=True):
-        #R = pyrr.matrix44.create_from_eulers(rvec)
-        #T = pyrr.matrix44.create_from_translation(tvec)
-        #self.mat_view = pyrr.matrix44.multiply(R, T)
         self.mat_view = tools_aruco.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float),numpy.array(tvec, dtype=numpy.float),flip)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
         return
@@ -163,14 +160,9 @@ class render_GL3D(object):
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_light(self,r_vec):
-        glUniformMatrix4fv(glGetUniformLocation(self.shader, "light")    , 1, GL_FALSE, pyrr.matrix44.create_from_eulers(r_vec))
+        self.mat_light = pyrr.matrix44.create_from_eulers(r_vec)
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "light")    , 1, GL_FALSE,self.mat_light )
         return
-# ----------------------------------------------------------------------------------------------------------------------
-
-    #projection * view * model * transform
-    # model maps from an object's local coordinate space into world space,
-    # view from world space to camera space,
-    # projection from camera to screen.
 # ----------------------------------------------------------------------------------------------------------------------
     def draw(self,rvec=None,tvec=None,flip=True):
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
@@ -234,14 +226,6 @@ class render_GL3D(object):
         self.mat_trns = M * self.mat_trns.max()
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "transform"), 1, GL_FALSE, self.mat_trns)
         self.reset_view(skip_transform=True)
-
-        #print(self.mat_trns)
-
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def __align_light(self, euler_model):
-        vec_light = self.vec_initial_light + euler_model - self.vec_initial_model
-        self.__init_mat_light(vec_light)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __display_info(self):
@@ -261,33 +245,30 @@ class render_GL3D(object):
         rvec  = tools_calibrate.quaternion_to_euler(Q) + numpy.array(delta_angle)
         rvec[0] = numpy.clip(rvec[0],0.01,math.pi-0.01)
         self.__init_mat_model(rvec,tvec)
-        #self.__align_light(rvec)
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def reset_view(self,skip_transform=False):
 
+        self.stop_rotation()
+        self.__init_mat_projection()
+        self.__init_mat_light(numpy.array((-math.pi/2, -math.pi/2,0)))
+
         if self.do_normalize:
             obj = self.obj_list[0]
-
             obj_min = numpy.array(obj.coord_vert).astype(numpy.float).min()
             obj_max = numpy.array(obj.coord_vert).astype(numpy.float).max()
-            self.vec_initial_light = (0,math.pi/2,-math.pi/2)
-            self.vec_initial_model = (math.pi/2,math.pi/2,0)
+            self.vec_model = (math.pi / 2, math.pi / 2, 0)
             self.__init_mat_view_ETU(eye=(0, 0, -5 * (obj_max - obj_min)), target=(0, 0, 0), up=(0, -1, 0))
-            self.__init_mat_model(self.vec_initial_model,(0,0,0))
+            self.__init_mat_model(self.vec_model, (0, 0, 0))
             if not skip_transform:
                 self.__init_mat_transform((1,1,1))
-            self.__init_mat_light(self.vec_initial_light)
-            self.__init_mat_projection()
-            self.stop_rotation()
         else:
             self.__init_mat_model((0,0,0), (0, 0, 0))
-            self.vec_initial_light = (0, math.pi / 2, -math.pi / 2)
-            self.__init_mat_light(self.vec_initial_light)
-            self.__init_mat_projection()
             self.__init_mat_transform(self.scale)
-            self.stop_rotation()
+
+
+
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def resize_window(self,W,H):
