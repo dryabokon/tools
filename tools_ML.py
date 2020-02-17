@@ -132,8 +132,10 @@ class tools_ML(object):
             X_train_pos = X_train_pos[:, 1:]
             X_train_neg = X_train_neg[:, 1:]
 
-        X_train_pos = X_train_pos.astype('float32')
         X_train_neg = X_train_neg.astype('float32')
+        X_train_pos = X_train_pos.astype('float32')
+
+
 
         if rand_pos != []:
             X_train_pos = X_train_pos[rand_pos]
