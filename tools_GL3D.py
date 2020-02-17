@@ -13,22 +13,76 @@ import numpy
 import pyrr
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_image
-import tools_aruco
+import tools_IO
+import tools_render_CV
 import tools_wavefront
 import tools_calibrate
 # ----------------------------------------------------------------------------------------------------------------------
 numpy.set_printoptions(suppress=True)
 numpy.set_printoptions(precision=2)
 # ----------------------------------------------------------------------------------------------------------------------
+class VBO(object):
+    def __init__(self):
+        self.n_vertex = 360000
+        self.iterator = 0
+        self.color_offset  = 3*self.n_vertex
+        self.normal_offset = self.color_offset + 3*self.n_vertex
+        self.normal_offset = self.color_offset + 3*self.n_vertex
+        self.data = numpy.zeros(9*self.n_vertex,dtype='float32')
+        self.id =   numpy.full(9*self.n_vertex,-1)
+        self.cnt = 0
+        self.marker_positions = []
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def append_object(self,filename_obj,mat_color,do_normalize_model_file,svec=(1,1,1),tvec=(0,0,0)):
+
+        self.marker_positions.append(numpy.array(tvec))
+
+        object = tools_wavefront.ObjLoader()
+        object.load_mesh(filename_obj, mat_color, do_normalize_model_file)
+        object.scale_mesh(svec)
+        object.translate_mesh(tvec)
+
+        clr = numpy.array([object.mat_color,object.mat_color,object.mat_color]).flatten()
+
+        for idxv,idxn in zip(object.idx_vertex,object.idx_normal):
+            self.data[self.iterator:                  self.iterator                  +9] = (object.coord_vert[idxv]).flatten()
+            self.data[self.iterator+self.color_offset:self.iterator+self.color_offset+9] = clr
+            self.data[self.iterator+self.normal_offset:self.iterator+self.normal_offset+9] = (object.coord_norm[idxn]).flatten()
+            self.id[self.iterator:                  self.iterator + 9] = self.cnt
+            self.iterator+=9
+
+        self.cnt+=1
+        return object
+# ----------------------------------------------------------------------------------------------------------------------
+    def remove_last_object(self):
+        if self.cnt>1:
+            self.remove_object(self.cnt-1)
+            self.marker_positions.pop()
+            return 0
+        return 1
+# ----------------------------------------------------------------------------------------------------------------------
+    def remove_object(self,id):
+        if id>0:
+            idx = numpy.where(self.id==id)
+            self.id[idx] = -1
+            self.data[idx]=0
+            self.data[[i + self.color_offset for i in idx]] = 0
+            self.data[[i + self.normal_offset for i in idx]] = 0
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def optimize_buffer(self):
+
+        return
+# ----------------------------------------------------------------------------------------------------------------------
 class render_GL3D(object):
 
-    def __init__(self,filename_obj,W=640, H=480,is_visible=True,do_normalize=True,scale=(1,1,1)):
+    def __init__(self,filename_obj,W=640, H=480,is_visible=True,do_normalize_model_file=True,do_transform_view=True,scale=(1,1,1)):
 
-        #glutInit()
-        #glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH)
         glfw.init()
         self.scale = scale
-        self.do_normalize = do_normalize
+        self.do_normalize_model_file = do_normalize_model_file
+        self.do_transform_view = do_transform_view
         self.bg_color  = numpy.array([76, 76, 76,1])/255
 
         self.W,self.H  = W,H
@@ -36,26 +90,13 @@ class render_GL3D(object):
         self.window = glfw.create_window(self.W, self.H, "GL viewer", None, None)
         glfw.make_context_current(self.window)
 
-        #self.init_objects(filename_obj, numpy.array([215, 171, 151])/255.0,do_normalize=self.do_normalize)
-        self.init_objects(filename_obj, numpy.array([188, 136, 113])/255.0,do_normalize=self.do_normalize)
         self.__init_shader()
 
-        self.VBO = None
-        self.__init_VBO()
+        self.my_VBO = VBO()
+        self.object = self.my_VBO.append_object(filename_obj, numpy.array([188, 136, 113])/255.0,self.do_normalize_model_file)
+        self.bind_VBO()
         self.reset_view()
 
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def init_objects(self, filename_obj, mat_color,do_normalize):
-        self.mat_list = [mat_color]
-        self.obj_list = [tools_wavefront.ObjLoader()]
-        self.obj_list[0].load_model(filename_obj,mat_color,do_normalize)
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def append_object(self,filename_obj,mat_color):
-        #self.mat_list.append(mat_color)
-        #self.obj_list.append(tools_wavefront.ObjLoader())
-        #self.obj_list[-1].load_model(filename_obj,mat_color)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_shader(self):
@@ -103,24 +144,21 @@ class render_GL3D(object):
         glUseProgram(self.shader)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def __init_VBO(self):
+    def bind_VBO(self):
 
-        obj = self.obj_list[0]
-
-        self.VBO = glGenBuffers(1)
-        glBindBuffer(GL_ARRAY_BUFFER, self.VBO)
-        glBufferData(GL_ARRAY_BUFFER, obj.model.itemsize * len(obj.model), obj.model, GL_STATIC_DRAW)
+        glBindBuffer(GL_ARRAY_BUFFER, glGenBuffers(1))
+        glBufferData(GL_ARRAY_BUFFER, self.my_VBO.data.itemsize * len(self.my_VBO.data), self.my_VBO.data, GL_STATIC_DRAW)
 
         # positions
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, obj.model.itemsize * 3, ctypes.c_void_p(0))
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, self.my_VBO.data.itemsize * 3, ctypes.c_void_p(0))
         glEnableVertexAttribArray(0)
 
         # colors
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, obj.model.itemsize * 3, ctypes.c_void_p(obj.color_offset))
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, self.my_VBO.data.itemsize * 3, ctypes.c_void_p(self.my_VBO.data.itemsize*self.my_VBO.color_offset))
         glEnableVertexAttribArray(1)
 
         # normals
-        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, obj.model.itemsize * 3, ctypes.c_void_p(obj.normal_offset))
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, self.my_VBO.data.itemsize * 3, ctypes.c_void_p(self.my_VBO.data.itemsize*self.my_VBO.normal_offset))
         glEnableVertexAttribArray(2)
 
         glClearColor(self.bg_color[0], self.bg_color[1], self.bg_color[2], self.bg_color[3])
@@ -140,7 +178,7 @@ class render_GL3D(object):
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_view_RT(self, rvec,tvec,flip=True):
-        self.mat_view = tools_aruco.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float),numpy.array(tvec, dtype=numpy.float),flip)
+        self.mat_view = tools_render_CV.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float),numpy.array(tvec, dtype=numpy.float),flip)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -169,13 +207,16 @@ class render_GL3D(object):
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
         if rvec is not None and tvec is not None:
             self.__init_mat_view_RT(rvec,tvec,flip)
-        glDrawArrays(GL_TRIANGLES, 0, self.obj_list[0].n_vertex)
+
+        glDrawArrays(GL_TRIANGLES, 0, self.my_VBO.iterator//3)
+
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def get_image(self, rvec=None, tvec=None, flip=True, do_debug=False):
         self.draw(rvec, tvec,flip)
         image_buffer = glReadPixels(0, 0, self.W, self.H, OpenGL.GL.GL_RGB, OpenGL.GL.GL_UNSIGNED_BYTE)
         image = numpy.frombuffer(image_buffer, dtype=numpy.uint8).reshape(self.H, self.W, 3)
+        image = image[:,:,[2,1,0]]
         image = cv2.flip(image, 0)
         if do_debug:
             self.draw_mat(self.mat_projection, 20, 20, image)
@@ -183,8 +224,7 @@ class render_GL3D(object):
             self.draw_mat(self.mat_model, 20, 220, image)
             self.draw_mat(self.mat_camera, 20, 350, image)
         return image
-
-    # ----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
     def draw_mat(self, M, posx, posy, image):
         for row in range(M.shape[0]):
             if M.shape[1]==4:
@@ -204,14 +244,50 @@ class render_GL3D(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
+    def stage_data(self,folder_out):
+        cv2.imwrite(folder_out+'screenshot.png',self.get_image(do_debug=True))
+        self.save_markers(folder_out+'markers.txt')
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def save_markers(self,filename_out):
+        tools_IO.save_mat(self.my_VBO.marker_positions[1:], filename_out)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def load_markers(self,filename_in,filename_sphere):
+        markers = tools_IO.load_mat(filename_in,dtype=numpy.float)
+        flag = self.my_VBO.remove_last_object()
+        while flag==0:
+            flag = self.my_VBO.remove_last_object()
+
+        for marker in markers:
+            self.my_VBO.append_object(filename_sphere, (0.7, 0.2, 0), do_normalize_model_file=True, svec=(0.025, 0.025, 0.025), tvec=marker)
+        self.bind_VBO()
+        return
+# ----------------------------------------------------------------------------------------------------------------------
     def start_rotation(self):
         self.on_rotate = True
         self.mat_model_checkpoint = self.mat_model
         return
-    # ----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
     def stop_rotation(self):
         self.on_rotate = False
         self.mat_model_checkpoint = None
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def start_append(self):
+        self.on_append = True
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def stop_append(self):
+        self.on_append = False
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def start_remove(self):
+        self.on_remove = True
+        return
+    # ----------------------------------------------------------------------------------------------------------------------
+    def stop_remove(self):
+        self.on_remove = False
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def translate_view(self, delta_translate):
@@ -259,17 +335,26 @@ class render_GL3D(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
+    def resize_window(self, W, H):
+        self.W = W
+        self.H = H
+        glViewport(0, 0, W, H)
+        self.transform_model('xz')
+        return
+# ----------------------------------------------------------------------------------------------------------------------
     def reset_view(self,skip_transform=False):
 
         self.stop_rotation()
         self.stop_append()
+        self.stop_remove()
         self.__init_mat_projection()
         self.__init_mat_light(numpy.array((-math.pi/2, -math.pi/2,0)))
 
-        if self.do_normalize:
-            obj = self.obj_list[0]
-            obj_min = numpy.array(obj.coord_vert).astype(numpy.float).min()
-            obj_max = numpy.array(obj.coord_vert).astype(numpy.float).max()
+        if self.do_transform_view:
+            data = self.my_VBO.data[:self.my_VBO.color_offset]
+            obj_min = data.min()
+            obj_max = data.max()
+
             self.vec_model = (math.pi / 2, math.pi / 2, 0)
             self.__init_mat_view_ETU(eye=(0, 0, -5 * (obj_max - obj_min)), target=(0, 0, 0), up=(0, -1, 0))
             self.__init_mat_model(self.vec_model, (0, 0, 0))
@@ -279,14 +364,5 @@ class render_GL3D(object):
             self.__init_mat_model((0,0,0), (0, 0, 0))
             self.__init_mat_transform(self.scale)
 
-
-
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def resize_window(self,W,H):
-        self.W = W
-        self.H = H
-        glViewport(0, 0, W, H)
-        self.transform_model('xz')
         return
 # ----------------------------------------------------------------------------------------------------------------------

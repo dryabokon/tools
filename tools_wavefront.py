@@ -3,22 +3,17 @@ import pyvista
 #----------------------------------------------------------------------------------------------------------------------
 class ObjLoader:
     def __init__(self):
-        self.coord_vert = []
-        self.model = []
-        self.scale = 1
-        self.mat_color = (1,1,1)
         return
-
-    # ----------------------------------------------------------------------------------------------------------------------
-    def load_model(self, file,mat_color=(0.5,0.5,0.5),do_normalize=True):
+# ----------------------------------------------------------------------------------------------------------------------
+    def load_mesh(self, file, mat_color=(0.5, 0.5, 0.5), do_normalize=True):
         self.mat_color = mat_color
 
-        coord_vert = []
-        coord_texture = []
-        coord_norm = []
-        idx_vertex = []
-        idx_texture = []
-        idx_normal = []
+        self.coord_vert = []
+        self.coord_texture = []
+        self.coord_norm = []
+        self.idx_vertex = []
+        self.idx_texture = []
+        self.idx_normal = []
 
 
         for line in open(file, 'r'):
@@ -27,9 +22,9 @@ class ObjLoader:
             if not values: continue
             values = numpy.array(values)
 
-            if values[0] == 'v':  coord_vert.append([float(v) for v in values[1:4]])
-            if values[0] == 'vt': coord_texture.append([float(v) for v in values[1:3]])
-            if values[0] == 'vn': coord_norm.append([float(v) for v in values[1:4]])
+            if values[0] == 'v':  self.coord_vert.append([float(v) for v in values[1:4]])
+            if values[0] == 'vt': self.coord_texture.append([float(v) for v in values[1:3]])
+            if values[0] == 'vn': self.coord_norm.append([float(v) for v in values[1:4]])
 
             if values[0] == 'f':
                 face_i = []
@@ -77,43 +72,30 @@ class ObjLoader:
                         text_i.append(int(w[1]) - 1)
                         norm_i.append(int(w[2]) - 1)
 
-                idx_vertex.append(face_i)
-                idx_texture.append(text_i)
-                idx_normal.append(norm_i)
+                self.idx_vertex.append(face_i)
+                self.idx_texture.append(text_i)
+                self.idx_normal.append(norm_i)
 
-        if len(coord_texture) == 0: coord_texture.append([0,0])
+        if len(self.coord_texture) == 0: self.coord_texture.append([0,0])
 
-        idx_vertex = [y for x in idx_vertex for y in x]
-        idx_texture = [y for x in idx_texture for y in x]
-        idx_normal = [y for x in idx_normal for y in x]
-
-        coord_vert = numpy.array(coord_vert)
+        coord_vert = numpy.array(self.coord_vert)
         if do_normalize:
             self.scale = coord_vert.max()
             coord_vert /= self.scale
 
-
-        coord_norm = numpy.array(coord_norm)
-
-        self.model = []
-        for i in idx_vertex: self.model.extend(coord_vert[i])
-        for i in idx_vertex: self.model.extend(mat_color)
-        for i in idx_normal: self.model.extend(coord_norm[i])
-
-        self.model = numpy.array(self.model, dtype='float32')
-        self.n_vertex = len(idx_vertex)
-        self.idx_vertex = idx_vertex
-        self.idx_normal = idx_normal
+        coord_norm = numpy.array(self.coord_norm)
         self.coord_vert = coord_vert
         self.coord_norm = coord_norm
-
-
-        self.color_offset = self.n_vertex * 3*4
-        self.normal_offset = (self.color_offset + self.n_vertex * 3*4)
-
         return
-
-    # ----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+    def scale_mesh(self,svec):
+        for i in range(self.coord_vert.shape[0]):self.coord_vert[i]=numpy.multiply(self.coord_vert[i],svec)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def translate_mesh(self, tvec):
+        for i in range(self.coord_vert.shape[0]):self.coord_vert[i]+= tvec
+        return
+# ----------------------------------------------------------------------------------------------------------------------
     def get_trianges(self, X):
         cloud = pyvista.PolyData(X)
 
@@ -127,9 +109,8 @@ class ObjLoader:
         else:
             del_triangles, normals = [], []
         return del_triangles, normals
-
-    # ----------------------------------------------------------------------------------------------------------------------
-    def convert(self, filename_in, filename_out):
+# ----------------------------------------------------------------------------------------------------------------------
+    def convert(self, filename_in, filename_out,do_normalize=True):
         coord_vert = []
         idx_vertex = []
         lines = open(filename_in).readlines()
@@ -162,11 +143,18 @@ class ObjLoader:
                     for triangle in triangles:
                         idx_vertex.append(I[triangle])
 
+        if do_normalize:
+            coord_vert[:, 0] -= coord_vert[:,0].mean()
+            coord_vert[:, 1] -= coord_vert[:,1].mean()
+            coord_vert[:, 2] -= coord_vert[:,2].mean()
+            coord_vert[:, 0]/= coord_vert[:, 0].max()
+            coord_vert[:, 1]/= coord_vert[:, 1].max()
+            coord_vert[:, 2]/= coord_vert[:, 2].max()
+
         self.export_mesh(filename_out, coord_vert, idx_vertex)
 
         return
-
-    # ----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
     def export_mesh(self, filename_out, X, idx_vertex=None):
         f_handle = open(filename_out, "w+")
         f_handle.write("# Obj file\n")
