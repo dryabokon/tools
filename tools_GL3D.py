@@ -13,19 +13,43 @@ import numpy
 import pyrr
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_image
-import tools_aruco
+import tools_render_CV
 import tools_wavefront
 import tools_calibrate
 # ----------------------------------------------------------------------------------------------------------------------
 numpy.set_printoptions(suppress=True)
 numpy.set_printoptions(precision=2)
 # ----------------------------------------------------------------------------------------------------------------------
+class VBO(object):
+    def __init__(self):
+        self.n_vertex = 360000
+        self.iterator = 0
+        self.color_offset  = 3*self.n_vertex
+        self.normal_offset = self.color_offset + 3*self.n_vertex
+        self.data = numpy.zeros(9*self.n_vertex,dtype='float32')
+        return
+
+    def append_object(self,filename_obj,mat_color,do_normalize,svec=(1,1,1),tvec=(0,0,0)):
+
+        object = tools_wavefront.ObjLoader()
+        object.load_mesh(filename_obj, mat_color, do_normalize)
+        object.scale_mesh(svec)
+
+        clr = numpy.array([object.mat_color,object.mat_color,object.mat_color]).flatten()
+
+        for idxv,idxn in zip(object.idx_vertex,object.idx_normal):
+            self.data[self.iterator:self.iterator+9] = (object.coord_vert[idxv]).flatten()
+            self.data[self.iterator+self.color_offset:self.iterator+self.color_offset+9] = clr
+            yyy = (object.coord_norm[idxn]).flatten()
+            self.data[self.iterator+self.normal_offset:self.iterator+self.normal_offset+9] = yyy
+            self.iterator+=9
+
+        return
+# ----------------------------------------------------------------------------------------------------------------------
 class render_GL3D(object):
 
     def __init__(self,filename_obj,W=640, H=480,is_visible=True,do_normalize=True,scale=(1,1,1)):
 
-        #glutInit()
-        #glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH)
         glfw.init()
         self.scale = scale
         self.do_normalize = do_normalize
@@ -36,25 +60,13 @@ class render_GL3D(object):
         self.window = glfw.create_window(self.W, self.H, "GL viewer", None, None)
         glfw.make_context_current(self.window)
 
-        self.init_objects(filename_obj, numpy.array([215, 171, 151])/255.0,do_normalize=self.do_normalize)
         self.__init_shader()
 
-        self.VBO = None
-        self.__init_VBO()
+        self.my_VBO = VBO()
+        self.my_VBO.append_object(filename_obj, numpy.array([215, 171, 151])/255.0,self.do_normalize)
+        self.bind_VBO()
         self.reset_view()
 
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def init_objects(self, filename_obj, mat_color,do_normalize):
-        self.mat_list = [mat_color]
-        self.obj_list = [tools_wavefront.ObjLoader()]
-        self.obj_list[0].load_model(filename_obj,mat_color,do_normalize)
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def append_object(self,filename_obj,mat_color):
-        #self.mat_list.append(mat_color)
-        #self.obj_list.append(tools_wavefront.ObjLoader())
-        #self.obj_list[-1].load_model(filename_obj,mat_color)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_shader(self):
@@ -102,24 +114,21 @@ class render_GL3D(object):
         glUseProgram(self.shader)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def __init_VBO(self):
+    def bind_VBO(self):
 
-        obj = self.obj_list[0]
-
-        self.VBO = glGenBuffers(1)
-        glBindBuffer(GL_ARRAY_BUFFER, self.VBO)
-        glBufferData(GL_ARRAY_BUFFER, obj.model.itemsize * len(obj.model), obj.model, GL_STATIC_DRAW)
+        glBindBuffer(GL_ARRAY_BUFFER, glGenBuffers(1))
+        glBufferData(GL_ARRAY_BUFFER, self.my_VBO.data.itemsize * len(self.my_VBO.data), self.my_VBO.data, GL_STATIC_DRAW)
 
         # positions
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, obj.model.itemsize * 3, ctypes.c_void_p(0))
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, self.my_VBO.data.itemsize * 3, ctypes.c_void_p(0))
         glEnableVertexAttribArray(0)
 
         # colors
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, obj.model.itemsize * 3, ctypes.c_void_p(obj.color_offset))
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, self.my_VBO.data.itemsize * 3, ctypes.c_void_p(self.my_VBO.data.itemsize*self.my_VBO.color_offset))
         glEnableVertexAttribArray(1)
 
         # normals
-        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, obj.model.itemsize * 3, ctypes.c_void_p(obj.normal_offset))
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, self.my_VBO.data.itemsize * 3, ctypes.c_void_p(self.my_VBO.data.itemsize*self.my_VBO.normal_offset))
         glEnableVertexAttribArray(2)
 
         glClearColor(self.bg_color[0], self.bg_color[1], self.bg_color[2], self.bg_color[3])
@@ -139,7 +148,7 @@ class render_GL3D(object):
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_view_RT(self, rvec,tvec,flip=True):
-        self.mat_view = tools_aruco.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float),numpy.array(tvec, dtype=numpy.float),flip)
+        self.mat_view = tools_render_CV.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float),numpy.array(tvec, dtype=numpy.float),flip)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -168,13 +177,16 @@ class render_GL3D(object):
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
         if rvec is not None and tvec is not None:
             self.__init_mat_view_RT(rvec,tvec,flip)
-        glDrawArrays(GL_TRIANGLES, 0, self.obj_list[0].n_vertex)
+
+        glDrawArrays(GL_TRIANGLES, 0, self.my_VBO.iterator//3)
+
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def get_image(self, rvec=None, tvec=None, flip=True, do_debug=False):
         self.draw(rvec, tvec,flip)
         image_buffer = glReadPixels(0, 0, self.W, self.H, OpenGL.GL.GL_RGB, OpenGL.GL.GL_UNSIGNED_BYTE)
         image = numpy.frombuffer(image_buffer, dtype=numpy.uint8).reshape(self.H, self.W, 3)
+        image = image[:,:,[2,1,0]]
         image = cv2.flip(image, 0)
         if do_debug:
             self.draw_mat(self.mat_projection, 20, 20, image)
@@ -182,8 +194,7 @@ class render_GL3D(object):
             self.draw_mat(self.mat_model, 20, 220, image)
             self.draw_mat(self.mat_camera, 20, 350, image)
         return image
-
-    # ----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
     def draw_mat(self, M, posx, posy, image):
         for row in range(M.shape[0]):
             if M.shape[1]==4:
@@ -193,11 +204,15 @@ class render_GL3D(object):
             image = cv2.putText(image, '{0}'.format(string1), (posx, posy + 20 * row), cv2.FONT_HERSHEY_SIMPLEX, 0.4,(128, 128, 0), 1, cv2.LINE_AA)
         return image
 # ----------------------------------------------------------------------------------------------------------------------
+    def stage_data(self,folder_out):
+        cv2.imwrite(folder_out+'screenshot.png',self.get_image(do_debug=True))
+        return
+# ----------------------------------------------------------------------------------------------------------------------
     def start_rotation(self):
         self.on_rotate = True
         self.mat_model_checkpoint = self.mat_model
         return
-    # ----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
     def stop_rotation(self):
         self.on_rotate = False
         self.mat_model_checkpoint = None
@@ -248,6 +263,13 @@ class render_GL3D(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
+    def resize_window(self, W, H):
+        self.W = W
+        self.H = H
+        glViewport(0, 0, W, H)
+        self.transform_model('xz')
+        return
+# ----------------------------------------------------------------------------------------------------------------------
     def reset_view(self,skip_transform=False):
 
         self.stop_rotation()
@@ -255,9 +277,10 @@ class render_GL3D(object):
         self.__init_mat_light(numpy.array((-math.pi/2, -math.pi/2,0)))
 
         if self.do_normalize:
-            obj = self.obj_list[0]
-            obj_min = numpy.array(obj.coord_vert).astype(numpy.float).min()
-            obj_max = numpy.array(obj.coord_vert).astype(numpy.float).max()
+            data = self.my_VBO.data[:self.my_VBO.color_offset]
+            obj_min = data.min()
+            obj_max = data.max()
+
             self.vec_model = (math.pi / 2, math.pi / 2, 0)
             self.__init_mat_view_ETU(eye=(0, 0, -5 * (obj_max - obj_min)), target=(0, 0, 0), up=(0, -1, 0))
             self.__init_mat_model(self.vec_model, (0, 0, 0))
@@ -267,14 +290,5 @@ class render_GL3D(object):
             self.__init_mat_model((0,0,0), (0, 0, 0))
             self.__init_mat_transform(self.scale)
 
-
-
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def resize_window(self,W,H):
-        self.W = W
-        self.H = H
-        glViewport(0, 0, W, H)
-        self.transform_model('xz')
         return
 # ----------------------------------------------------------------------------------------------------------------------
