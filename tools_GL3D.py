@@ -36,7 +36,8 @@ class render_GL3D(object):
         self.window = glfw.create_window(self.W, self.H, "GL viewer", None, None)
         glfw.make_context_current(self.window)
 
-        self.init_objects(filename_obj, numpy.array([215, 171, 151])/255.0,do_normalize=self.do_normalize)
+        #self.init_objects(filename_obj, numpy.array([215, 171, 151])/255.0,do_normalize=self.do_normalize)
+        self.init_objects(filename_obj, numpy.array([188, 136, 113])/255.0,do_normalize=self.do_normalize)
         self.__init_shader()
 
         self.VBO = None
@@ -192,6 +193,16 @@ class render_GL3D(object):
                 string1 = '%+1.2f %+1.2f %+1.2f' % (M[row, 0], M[row, 1], M[row, 2])
             image = cv2.putText(image, '{0}'.format(string1), (posx, posy + 20 * row), cv2.FONT_HERSHEY_SIMPLEX, 0.4,(128, 128, 0), 1, cv2.LINE_AA)
         return image
+
+# ----------------------------------------------------------------------------------------------------------------------
+    def start_append(self):
+        self.on_append = True
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def stop_append(self):
+        self.on_append = False
+
+        return
 # ----------------------------------------------------------------------------------------------------------------------
     def start_rotation(self):
         self.on_rotate = True
@@ -251,6 +262,7 @@ class render_GL3D(object):
     def reset_view(self,skip_transform=False):
 
         self.stop_rotation()
+        self.stop_append()
         self.__init_mat_projection()
         self.__init_mat_light(numpy.array((-math.pi/2, -math.pi/2,0)))
 
