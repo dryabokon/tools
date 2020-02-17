@@ -202,8 +202,8 @@ def get_ray(point_2d, img, mat_projection, mat_view, mat_model, mat_trns):
 # ----------------------------------------------------------------------------------------------------------------------
 def line_plane_intersection(planeNormal, planePoint, rayDirection, rayPoint, epsilon=1e-6):
     ndotu = numpy.array(planeNormal[:3]).dot(numpy.array(rayDirection[:3]))
-    if abs(ndotu) < epsilon:
-        return 0
+    if numpy.isnan(ndotu) or abs(ndotu) < epsilon :
+        return None
 
     w = numpy.array(rayPoint[:3]) - numpy.array(planePoint[:3])
     si = -numpy.array(planeNormal[:3]).dot(w) / ndotu
@@ -211,7 +211,11 @@ def line_plane_intersection(planeNormal, planePoint, rayDirection, rayPoint, eps
     return Psi
 # ----------------------------------------------------------------------------------------------------------------------
 def normalize(x):
-    y= x/numpy.sqrt((x ** 2).sum())
+    n = numpy.sqrt((x ** 2).sum())
+    if n>0:
+        y = x/n
+    else:
+        y = x
     return y
 # ----------------------------------------------------------------------------------------------------------------------
 def get_normal(triangles_3d):
@@ -224,14 +228,36 @@ def get_normal(triangles_3d):
     n = normalize(n)
     return n
 # ----------------------------------------------------------------------------------------------------------------------
-def get_ray_interception(pos, direction,triangle):
+def get_interception_ray_triangle(pos, direction, triangle):
     n = get_normal(triangle)
     collision = line_plane_intersection(n, triangle[0,:3], direction[:3], pos[:3], epsilon=1e-6)
 
-    if is_point_inside_triangle(collision,triangle):
-        return collision
+    if collision is not None:
+        if is_point_inside_triangle(collision,triangle):
+            return collision
 
     return None
+# ----------------------------------------------------------------------------------------------------------------------
+def get_interception_ray_triangles(pos, direction, coord_vert, coord_norm, idxv, idxn):
+    collisions = []
+
+    for iv,inr in zip(idxv,idxn):
+        triangle = coord_vert[iv]
+        n = coord_norm[inr[0]]#n0 = get_normal(triangle)
+
+        collision = line_plane_intersection(n, triangle[0,:3], direction[:3], pos[:3], epsilon=1e-6)
+
+        if collision is not None:
+            if is_point_inside_triangle(collision,triangle):
+                collisions.append(collision)
+
+    if len(collisions)==0:return None
+    if len(collisions)==1:return collisions[0]
+
+    X = numpy.array([collision-pos for collision in collisions])
+    X = numpy.mean(X**2,axis=1)
+    i = numpy.argmin(X)
+    return collisions[i]
 # ----------------------------------------------------------------------------------------------------------------------
 def is_point_inside_triangle(contact_point, P):
 
@@ -250,6 +276,13 @@ def is_point_inside_triangle(contact_point, P):
     line1 = normalize(V3-contact_point)
     line2 = normalize(V1-contact_point)
     dot3=numpy.dot(line1,line2)
+
+    if numpy.isnan(dot1) or numpy.isnan(dot2) or numpy.isnan(dot3):
+        return  False
+
+    dot1 = min(+1,max(dot1,-1))
+    dot2 = min(+1,max(dot2,-1))
+    dot3 = min(+1,max(dot3,-1))
 
     accumilator = math.acos(dot1) + math.acos (dot2) + math.acos(dot3)
     if accumilator < (2*math.pi - 0.01):

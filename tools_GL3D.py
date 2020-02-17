@@ -13,6 +13,7 @@ import numpy
 import pyrr
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_image
+import tools_IO
 import tools_render_CV
 import tools_wavefront
 import tools_calibrate
@@ -26,23 +27,51 @@ class VBO(object):
         self.iterator = 0
         self.color_offset  = 3*self.n_vertex
         self.normal_offset = self.color_offset + 3*self.n_vertex
+        self.normal_offset = self.color_offset + 3*self.n_vertex
         self.data = numpy.zeros(9*self.n_vertex,dtype='float32')
+        self.id =   numpy.full(9*self.n_vertex,-1)
+        self.cnt = 0
+        self.marker_positions = []
         return
-
+# ----------------------------------------------------------------------------------------------------------------------
     def append_object(self,filename_obj,mat_color,do_normalize,svec=(1,1,1),tvec=(0,0,0)):
+
+        self.marker_positions.append(numpy.array(tvec))
 
         object = tools_wavefront.ObjLoader()
         object.load_mesh(filename_obj, mat_color, do_normalize)
         object.scale_mesh(svec)
+        object.translate_mesh(tvec)
 
         clr = numpy.array([object.mat_color,object.mat_color,object.mat_color]).flatten()
 
         for idxv,idxn in zip(object.idx_vertex,object.idx_normal):
-            self.data[self.iterator:self.iterator+9] = (object.coord_vert[idxv]).flatten()
+            self.data[self.iterator:                  self.iterator                  +9] = (object.coord_vert[idxv]).flatten()
             self.data[self.iterator+self.color_offset:self.iterator+self.color_offset+9] = clr
-            yyy = (object.coord_norm[idxn]).flatten()
-            self.data[self.iterator+self.normal_offset:self.iterator+self.normal_offset+9] = yyy
+            self.data[self.iterator+self.normal_offset:self.iterator+self.normal_offset+9] = (object.coord_norm[idxn]).flatten()
+            self.id[self.iterator:                  self.iterator + 9] = self.cnt
             self.iterator+=9
+
+        self.cnt+=1
+        return object
+# ----------------------------------------------------------------------------------------------------------------------
+    def remove_last_object(self):
+        if self.cnt>1:
+            self.remove_object(self.cnt-1)
+            self.marker_positions.pop()
+            return 0
+        return 1
+# ----------------------------------------------------------------------------------------------------------------------
+    def remove_object(self,id):
+        if id>0:
+            idx = numpy.where(self.id==id)
+            self.id[idx] = -1
+            self.data[idx]=0
+            self.data[[i + self.color_offset for i in idx]] = 0
+            self.data[[i + self.normal_offset for i in idx]] = 0
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def optimize_buffer(self):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -63,7 +92,7 @@ class render_GL3D(object):
         self.__init_shader()
 
         self.my_VBO = VBO()
-        self.my_VBO.append_object(filename_obj, numpy.array([215, 171, 151])/255.0,self.do_normalize)
+        self.object = self.my_VBO.append_object(filename_obj, numpy.array([215, 171, 151])/255.0,self.do_normalize)
         self.bind_VBO()
         self.reset_view()
 
@@ -206,6 +235,22 @@ class render_GL3D(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def stage_data(self,folder_out):
         cv2.imwrite(folder_out+'screenshot.png',self.get_image(do_debug=True))
+        self.save_markers(folder_out+'markers.txt')
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def save_markers(self,filename_out):
+        tools_IO.save_mat(self.my_VBO.marker_positions[1:], filename_out)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def load_markers(self,filename_in,filename_sphere):
+        markers = tools_IO.load_mat(filename_in,dtype=numpy.float)
+        flag = self.my_VBO.remove_last_object()
+        while flag==0:
+            flag = self.my_VBO.remove_last_object()
+
+        for marker in markers:
+            self.my_VBO.append_object(filename_sphere, (0.7, 0.2, 0), do_normalize=True, svec=(0.025, 0.025, 0.025), tvec=marker)
+        self.bind_VBO()
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def start_rotation(self):
@@ -216,6 +261,22 @@ class render_GL3D(object):
     def stop_rotation(self):
         self.on_rotate = False
         self.mat_model_checkpoint = None
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def start_append(self):
+        self.on_append = True
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def stop_append(self):
+        self.on_append = False
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def start_remove(self):
+        self.on_remove = True
+        return
+    # ----------------------------------------------------------------------------------------------------------------------
+    def stop_remove(self):
+        self.on_remove = False
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def translate_view(self, delta_translate):
@@ -273,6 +334,8 @@ class render_GL3D(object):
     def reset_view(self,skip_transform=False):
 
         self.stop_rotation()
+        self.stop_append()
+        self.stop_remove()
         self.__init_mat_projection()
         self.__init_mat_light(numpy.array((-math.pi/2, -math.pi/2,0)))
 

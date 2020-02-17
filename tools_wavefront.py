@@ -89,8 +89,11 @@ class ObjLoader:
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def scale_mesh(self,svec):
-        for i in range(self.coord_vert.shape[0]):
-            self.coord_vert[i]=numpy.multiply(self.coord_vert[i],svec)
+        for i in range(self.coord_vert.shape[0]):self.coord_vert[i]=numpy.multiply(self.coord_vert[i],svec)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def translate_mesh(self, tvec):
+        for i in range(self.coord_vert.shape[0]):self.coord_vert[i]+= tvec
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def get_trianges(self, X):
