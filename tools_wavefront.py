@@ -5,7 +5,7 @@ class ObjLoader:
     def __init__(self):
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def load_mesh(self, file, mat_color=(0.5, 0.5, 0.5), do_normalize=True):
+    def load_mesh(self, file, mat_color=(0.5, 0.5, 0.5), do_autoscale=True):
         self.mat_color = mat_color
 
         self.coord_vert = []
@@ -79,9 +79,18 @@ class ObjLoader:
         if len(self.coord_texture) == 0: self.coord_texture.append([0,0])
 
         coord_vert = numpy.array(self.coord_vert)
-        if do_normalize:
-            self.scale = coord_vert.max()
-            coord_vert /= self.scale
+
+        #if do_autoscale: #min max -> -1..1
+            #min_value = coord_vert.min()
+            #coord_vert-= min_value
+            #max_value = coord_vert.max()
+            #coord_vert/= max_value
+            #coord_vert*=2
+            #coord_vert-=1
+
+        if do_autoscale:
+            max_value = coord_vert.max()
+            coord_vert/= max_value
 
         coord_norm = numpy.array(self.coord_norm)
         self.coord_vert = coord_vert
@@ -155,10 +164,14 @@ class ObjLoader:
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def export_mesh(self, filename_out, X, idx_vertex=None):
+    def export_mesh(self, filename_out, X=None, idx_vertex=None,do_transform=False):
+
+        if do_transform:
+            X[:,1]=0 - X[:,1]
+
         f_handle = open(filename_out, "w+")
         f_handle.write("# Obj file\n")
-        for x in X: f_handle.write("v %1.2f %1.2f %1.2f\n" % (x[0], x[1], x[2]))
+        for x in X: f_handle.write("v %1.2f,%1.2f,%1.2f\n" % (x[0], x[1], x[2]))
         f_handle.write("vt 0 0\n")
 
         if idx_vertex is None:

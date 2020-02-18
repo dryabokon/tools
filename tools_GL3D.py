@@ -71,15 +71,13 @@ class VBO(object):
             self.data[[i + self.normal_offset for i in idx]] = 0
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def optimize_buffer(self):
-
-        return
-# ----------------------------------------------------------------------------------------------------------------------
 class render_GL3D(object):
 
     def __init__(self,filename_obj,W=640, H=480,is_visible=True,do_normalize_model_file=True,do_transform_view=True,scale=(1,1,1)):
 
         glfw.init()
+        self.marker_scale = 0.015
+        #self.marker_scale = 1
         self.scale = scale
         self.do_normalize_model_file = do_normalize_model_file
         self.do_transform_view = do_transform_view
@@ -218,11 +216,13 @@ class render_GL3D(object):
         image = numpy.frombuffer(image_buffer, dtype=numpy.uint8).reshape(self.H, self.W, 3)
         image = image[:,:,[2,1,0]]
         image = cv2.flip(image, 0)
+
         if do_debug:
-            self.draw_mat(self.mat_projection, 20, 20, image)
-            self.draw_mat(self.mat_view, 20, 120, image)
-            self.draw_mat(self.mat_model, 20, 220, image)
-            self.draw_mat(self.mat_camera, 20, 350, image)
+            self.draw_mat(self.mat_trns,       20, 20, image)
+            self.draw_mat(self.mat_model,      20, 120, image)
+            self.draw_mat(self.mat_view,       20, 220, image)
+            self.draw_mat(self.mat_projection, 20, 320, image)
+            self.draw_mat(self.mat_camera,     20, 420, image)
         return image
 # ----------------------------------------------------------------------------------------------------------------------
     def draw_mat(self, M, posx, posy, image):
@@ -233,34 +233,32 @@ class render_GL3D(object):
                 string1 = '%+1.2f %+1.2f %+1.2f' % (M[row, 0], M[row, 1], M[row, 2])
             image = cv2.putText(image, '{0}'.format(string1), (posx, posy + 20 * row), cv2.FONT_HERSHEY_SIMPLEX, 0.4,(128, 128, 0), 1, cv2.LINE_AA)
         return image
-
-# ----------------------------------------------------------------------------------------------------------------------
-    def start_append(self):
-        self.on_append = True
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def stop_append(self):
-        self.on_append = False
-
-        return
 # ----------------------------------------------------------------------------------------------------------------------
     def stage_data(self,folder_out):
         cv2.imwrite(folder_out+'screenshot.png',self.get_image(do_debug=True))
-        self.save_markers(folder_out+'markers.txt')
+        self.save_markers(folder_out+'markers.txt',do_transform=False)
+        self.object.export_mesh(folder_out+'mesh.obj',self.object.coord_vert,self.object.idx_vertex,do_transform=False)
+
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def save_markers(self,filename_out):
-        tools_IO.save_mat(self.my_VBO.marker_positions[1:], filename_out)
+    def save_markers(self,filename_out,do_transform = False):
+        if do_transform:
+            X = self.my_VBO.marker_positions[1:].copy()
+            X = numpy.array(X)
+            X[:,1] = 0-X[:,1]
+            tools_IO.save_mat(X, filename_out)
+        else:
+            tools_IO.save_mat(self.my_VBO.marker_positions[1:], filename_out)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def load_markers(self,filename_in,filename_sphere):
+    def load_markers(self, filename_in, filename_marker_obj):
         markers = tools_IO.load_mat(filename_in,dtype=numpy.float)
         flag = self.my_VBO.remove_last_object()
         while flag==0:
             flag = self.my_VBO.remove_last_object()
 
         for marker in markers:
-            self.my_VBO.append_object(filename_sphere, (0.7, 0.2, 0), do_normalize_model_file=True, svec=(0.025, 0.025, 0.025), tvec=marker)
+            self.my_VBO.append_object(filename_marker_obj, (0.7, 0.2, 0), do_normalize_model_file=True, svec=(self.marker_scale, self.marker_scale, self.marker_scale), tvec=marker)
         self.bind_VBO()
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -347,22 +345,17 @@ class render_GL3D(object):
         self.stop_rotation()
         self.stop_append()
         self.stop_remove()
+
+        self.__init_mat_light(numpy.array((-math.pi / 2, -math.pi / 2, 0)))
         self.__init_mat_projection()
-        self.__init_mat_light(numpy.array((-math.pi/2, -math.pi/2,0)))
-
-        if self.do_transform_view:
-            data = self.my_VBO.data[:self.my_VBO.color_offset]
-            obj_min = data.min()
-            obj_max = data.max()
-
-            self.vec_model = (math.pi / 2, math.pi / 2, 0)
-            self.__init_mat_view_ETU(eye=(0, 0, -5 * (obj_max - obj_min)), target=(0, 0, 0), up=(0, -1, 0))
-            self.__init_mat_model(self.vec_model, (0, 0, 0))
-            if not skip_transform:
-                self.__init_mat_transform((1,1,1))
-        else:
-            self.__init_mat_model((0,0,0), (0, 0, 0))
+        self.__init_mat_model((0, 0, 0), (0, 0, 0))
+        if not skip_transform:
             self.__init_mat_transform(self.scale)
+
+        obj_min = self.object.coord_vert.min()
+        obj_max = self.object.coord_vert.max()
+
+        self.__init_mat_view_ETU(eye=(0, 0, -5 * (obj_max - obj_min)), target=(0, 0, 0), up=(0, -1, 0))
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
