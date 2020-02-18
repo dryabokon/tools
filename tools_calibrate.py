@@ -1,3 +1,4 @@
+from sklearn.neighbors import NearestNeighbors
 import cv2
 import numpy
 from os import listdir
@@ -564,4 +565,108 @@ def get_rvecs_tvecs(img,chess_rows, chess_cols,cameraMatrix, dist):
 
     return rvecs, tvecs
 # ---------------------------------------------------------------------------------------------------------------------
+def best_fit_transform(A, B):
+    '''
+    Calculates the least-squares best-fit transform that maps corresponding points A to B in m spatial dimensions
+    Input:
+      A: Nxm numpy array of corresponding points
+      B: Nxm numpy array of corresponding points
+    Returns:
+      T: (m+1)x(m+1) homogeneous transformation matrix that maps A on to B
+      R: mxm rotation matrix
+      t: mx1 translation vector
+    '''
 
+    assert A.shape == B.shape
+
+    # get number of dimensions
+    m = A.shape[1]
+
+    # translate points to their centroids
+    centroid_A = numpy.mean(A, axis=0)
+    centroid_B = numpy.mean(B, axis=0)
+    AA = A - centroid_A
+    BB = B - centroid_B
+
+    # rotation matrix
+    H = numpy.dot(AA.T, BB)
+    U, S, Vt = numpy.linalg.svd(H)
+    R = numpy.dot(Vt.T, U.T)
+
+    # special reflection case
+    if numpy.linalg.det(R) < 0:
+       Vt[m-1,:] *= -1
+       R = numpy.dot(Vt.T, U.T)
+
+    # translation
+    t = centroid_B.T - numpy.dot(R, centroid_A.T)
+
+    # homogeneous transformation
+    T = numpy.identity(m + 1)
+    T[:m, :m] = R
+    T[:m, m] = t
+
+    return T, R, t
+# ---------------------------------------------------------------------------------------------------------------------
+def nearest_neighbor(src, dst):
+
+    assert src.shape == dst.shape
+    neigh = NearestNeighbors(n_neighbors=1)
+    neigh.fit(dst)
+    distances, indices = neigh.kneighbors(src, return_distance=True)
+    return distances.ravel(), indices.ravel()
+# ---------------------------------------------------------------------------------------------------------------------
+def icp(A, B, init_pose=None, max_iterations=200, tolerance=0.001):
+    '''
+    The Iterative Closest Point method: finds best-fit transform that maps points A on to points B
+    Input:
+        A: Nxm numpy array of source mD points
+        B: Nxm numpy array of destination mD point
+        init_pose: (m+1)x(m+1) homogeneous transformation
+        max_iterations: exit algorithm after max_iterations
+        tolerance: convergence criteria
+    Output:
+        T: final homogeneous transformation that maps A on to B
+        distances: Euclidean distances (errors) of the nearest neighbor
+        i: number of iterations to converge
+    '''
+
+    assert A.shape == B.shape
+
+    # get number of dimensions
+    m = A.shape[1]
+
+    # make points homogeneous, copy them to maintain the originals
+    src = numpy.ones((m + 1, A.shape[0]))
+    dst = numpy.ones((m + 1, B.shape[0]))
+    src[:m,:] = numpy.copy(A.T)
+    dst[:m,:] = numpy.copy(B.T)
+
+    # apply the initial pose estimation
+    if init_pose is not None:
+        src = numpy.dot(init_pose, src)
+
+    prev_error = 0
+
+    for i in range(max_iterations):
+        # find the nearest neighbors between the current source and destination points
+        distances, indices = nearest_neighbor(src[:m,:].T, dst[:m,:].T)
+
+        # compute the transformation between the current source and nearest destination points
+        T,_,_ = best_fit_transform(src[:m,:].T, dst[:m,indices].T)
+
+        # update the current source
+        src = numpy.dot(T, src)
+
+        # check error
+        mean_error = numpy.mean(distances)
+        if numpy.abs(prev_error - mean_error) < tolerance:
+            break
+        prev_error = mean_error
+        print(numpy.mean(distances))
+
+    # calculate final transformation
+    T,_,_ = best_fit_transform(A, src[:m,:].T)
+
+    return T, distances, i
+# ---------------------------------------------------------------------------------------------------------------------

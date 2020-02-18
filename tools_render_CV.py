@@ -4,6 +4,10 @@ import numpy
 import pyrr
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_draw_numpy
+import tools_wavefront
+import tools_calibrate
+import tools_IO
+# ----------------------------------------------------------------------------------------------------------------------
 numpy.set_printoptions(suppress=True)
 numpy.set_printoptions(precision=2)
 # ----------------------------------------------------------------------------------------------------------------------
@@ -289,4 +293,32 @@ def is_point_inside_triangle(contact_point, P):
         return False
 
     return True
+# ----------------------------------------------------------------------------------------------------------------------
+def align_two_model(filename_obj1,filename_markers1,filename_obj2,filename_markers2,filename_obj_res,filename_markers_res):
+    object1 = tools_wavefront.ObjLoader()
+    object1.load_mesh(filename_obj1, do_autoscale=False)
+
+    object2 = tools_wavefront.ObjLoader()
+    object2.load_mesh(filename_obj2, do_autoscale=False)
+
+    markers1 = tools_IO.load_mat(filename_markers1, dtype=numpy.float, delim=',')
+    markers2 = tools_IO.load_mat(filename_markers2, dtype=numpy.float, delim=',')
+
+
+    if not (markers1.shape == markers2.shape):
+        return
+    T,_,_ = tools_calibrate.icp(markers1, markers2)
+
+    C = numpy.ones((68, 4))
+
+    C[:, 0:3] = markers1
+    C1 = numpy.dot(T, C.T).T
+
+    C[:, 0:3] = markers2
+    C2 = numpy.dot(T, C.T).T
+
+    i=0
+
+
+    return
 # ----------------------------------------------------------------------------------------------------------------------

@@ -171,11 +171,11 @@ class ObjLoader:
 
         f_handle = open(filename_out, "w+")
         f_handle.write("# Obj file\n")
-        for x in X: f_handle.write("v %1.2f,%1.2f,%1.2f\n" % (x[0], x[1], x[2]))
+        for x in X: f_handle.write("v %1.2f %1.2f %1.2f\n" % (x[0], x[1], x[2]))
         f_handle.write("vt 0 0\n")
 
         if idx_vertex is None:
-            del_triangeles, normals = self.get_trianges(X)
+            del_triangles, normals = self.get_trianges(X)
         else:
             del_triangles = idx_vertex
 
@@ -189,7 +189,8 @@ class ObjLoader:
                 Ny = A[2] * B[0] - A[0] * B[2]
                 Nz = A[0] * B[1] - A[1] * B[0]
                 n = -numpy.array((Nx, Ny, Nz), dtype=numpy.float)
-                n = n / numpy.sqrt((n ** 2).sum())
+                if numpy.sqrt((n ** 2).sum())>0:
+                    n = n / numpy.sqrt((n ** 2).sum())
 
             f_handle.write("vn %1.2f %1.2f %1.2f\n" % (n[0], n[1], n[2]))
 

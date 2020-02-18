@@ -3,6 +3,7 @@ import numpy
 import math
 import matplotlib.pyplot as plt
 from sklearn import metrics
+from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import normalize
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_IO
@@ -104,6 +105,11 @@ class tools_ML(object):
 
         score = self.classifier.predict(data_test)
         score = (100 * score[:, 1]).astype(int)
+
+        yyy = self.classifier.model.predict(data_test)
+        GT = numpy.array(labels_test,dtype=numpy.float)
+        GT = numpy.array(GT, dtype=numpy.int)
+        print(accuracy_score(GT,yyy))
 
         if (filename_scrs != None):
             tools_IO.save_labels(filename_scrs, labels_test, score, append, delim=delimeter)
@@ -410,6 +416,9 @@ class tools_ML(object):
         self.learn_on_pos_neg_files(filename_data_pos,filename_data_neg, '\t', idx_pos_test,idx_neg_test,has_header=has_header,has_labels_first_col=has_labels_first_col)
         self.score_feature_file(filename_data_pos,  filename_scrs = filename_scrs_pos,delimeter='\t',append= 1,rand_sel=idx_pos_train,has_header=has_header,has_labels_first_col=has_labels_first_col)
         self.score_feature_file(filename_data_neg,  filename_scrs = filename_scrs_neg,delimeter='\t',append= 1,rand_sel=idx_neg_train,has_header=has_header,has_labels_first_col=has_labels_first_col)
+
+
+
 
         X = numpy.vstack((x_pos, x_neg)).astype(numpy.float)
         Y = numpy.hstack((numpy.full(Pos, 1), numpy.full(Neg, 0)))

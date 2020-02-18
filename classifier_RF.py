@@ -13,7 +13,8 @@ class classifier_RF(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def learn(self,data_train, target_train):
         self.model = RandomForestClassifier(n_estimators=1000,max_depth=10)
-        self.model.fit(self.maybe_reshape(data_train), target_train)
+        xxx = self.maybe_reshape(data_train)
+        self.model.fit(xxx, target_train)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def predict(self, array):

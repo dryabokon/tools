@@ -53,6 +53,7 @@ class VBO(object):
             self.iterator+=9
 
         self.cnt+=1
+
         return object
 # ----------------------------------------------------------------------------------------------------------------------
     def remove_last_object(self):
@@ -179,6 +180,10 @@ class render_GL3D(object):
         self.mat_view = tools_render_CV.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float),numpy.array(tvec, dtype=numpy.float),flip)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
         return
+
+    def init_mat_view_RT(self, rvec,tvec,flip=True):
+        self.__init_mat_view_RT(rvec,tvec,flip)
+        return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_view_ETU(self, eye, target, up):
         self.mat_view = pyrr.matrix44.create_look_at(eye, target, up)
@@ -236,8 +241,8 @@ class render_GL3D(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def stage_data(self,folder_out):
         cv2.imwrite(folder_out+'screenshot.png',self.get_image(do_debug=True))
-        self.save_markers(folder_out+'markers.txt',do_transform=False)
-        self.object.export_mesh(folder_out+'mesh.obj',self.object.coord_vert,self.object.idx_vertex,do_transform=False)
+        self.save_markers(folder_out+'markers.txt',do_transform=True)
+        self.object.export_mesh(folder_out+'mesh.obj',self.object.coord_vert,self.object.idx_vertex,do_transform=True)
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -246,13 +251,17 @@ class render_GL3D(object):
             X = self.my_VBO.marker_positions[1:].copy()
             X = numpy.array(X)
             X[:,1] = 0-X[:,1]
-            tools_IO.save_mat(X, filename_out)
+            tools_IO.save_mat(X, filename_out,delim=',')
         else:
-            tools_IO.save_mat(self.my_VBO.marker_positions[1:], filename_out)
+            tools_IO.save_mat(self.my_VBO.marker_positions[1:], filename_out,delim=',')
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def load_markers(self, filename_in, filename_marker_obj):
-        markers = tools_IO.load_mat(filename_in,dtype=numpy.float)
+    def load_markers(self, filename_in, filename_marker_obj,marker_scale=None):
+
+        if marker_scale is None:
+            self.marker_scale = marker_scale
+
+        markers = tools_IO.load_mat(filename_in,dtype=numpy.float,delim=',')
         flag = self.my_VBO.remove_last_object()
         while flag==0:
             flag = self.my_VBO.remove_last_object()
