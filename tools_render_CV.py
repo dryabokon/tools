@@ -109,14 +109,18 @@ def draw_cube_numpy_MVP(img,mat_projection, mat_view, mat_model, mat_trns, color
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_points_numpy_RT(points_3d, img, camera_matrix, dist, rvec, tvec, scale=(1, 1, 1), color=(66, 0, 166)):
+def draw_points_numpy_RT(points_3d, img, camera_matrix, dist, rvec, tvec,mat_trns=None, scale=(1, 1, 1), color=(66, 0, 166)):
 
-    points_3d[:, 0]*=scale[0]
-    points_3d[:, 1]*=scale[1]
-    points_3d[:, 2]*=scale[2]
+    if mat_trns is None: mat_trns = numpy.eye(4)
+    L3D = points_3d.copy()
+    L3D[:, 0] *= scale[0]
+    L3D[:, 1] *= scale[1]
+    L3D[:, 2] *= scale[2]
+
+    L3D = numpy.array([pyrr.matrix44.apply_to_vector(mat_trns, v) for v in L3D])
 
     #points_2d, jac = cv2.projectPoints(points_3d, rvec, tvec, camera_matrix, dist)
-    points_2d, jac = project_points(points_3d, rvec, tvec, camera_matrix, dist)
+    points_2d, jac = project_points(L3D, rvec, tvec, camera_matrix, dist)
 
     points_2d = points_2d.reshape((-1,2))
     for point in points_2d:
@@ -125,6 +129,8 @@ def draw_points_numpy_RT(points_3d, img, camera_matrix, dist, rvec, tvec, scale=
     return img
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166),do_debug=False):
+
+
 
     fx, fy = float(img.shape[1]), float(img.shape[0])
     camera_matrix = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 1]])
@@ -198,9 +204,6 @@ def get_ray(point_2d, img, mat_projection, mat_view, mat_model, mat_trns):
     ray_end = pyrr.matrix44.apply_to_vector(i_mat_view , ray_end)
     ray_end = pyrr.matrix44.apply_to_vector(i_mat_model, ray_end)
     ray_end = pyrr.matrix44.apply_to_vector(i_mat_trans, ray_end)
-
-
-
 
     return ray_begin_t,ray_end
 # ----------------------------------------------------------------------------------------------------------------------
@@ -304,21 +307,31 @@ def align_two_model(filename_obj1,filename_markers1,filename_obj2,filename_marke
     markers1 = tools_IO.load_mat(filename_markers1, dtype=numpy.float, delim=',')
     markers2 = tools_IO.load_mat(filename_markers2, dtype=numpy.float, delim=',')
 
+    result_markers = markers1.copy()
+    result_vertex  = object1.coord_vert.copy()
 
-    if not (markers1.shape == markers2.shape):
-        return
-    T,_,_ = tools_calibrate.icp(markers1, markers2)
+    for dim in range(0,3):
+        min_value_s = markers1[:, dim].min()
+        min_value_t = markers2[:, dim].min()
 
-    C = numpy.ones((68, 4))
+        max_value_s = markers1[:, dim].max()
+        max_value_t = markers2[:, dim].max()
+        scale = (max_value_t - min_value_t) / (max_value_s - min_value_s)
 
-    C[:, 0:3] = markers1
-    C1 = numpy.dot(T, C.T).T
+        result_markers[:, dim]=(result_markers[:,dim]-min_value_s)*scale + min_value_t
+        result_vertex[:,dim]  =(result_vertex[:,dim] -min_value_s)*scale + min_value_t
 
-    C[:, 0:3] = markers2
-    C2 = numpy.dot(T, C.T).T
 
-    i=0
-
+    tools_IO.save_mat(result_markers, filename_markers_res,delim=',')
+    object1.export_mesh(filename_obj_res,X=result_vertex, idx_vertex=object1.idx_vertex)
 
     return
+# ----------------------------------------------------------------------------------------------------------------------
+def RT_to_mat_model_view(rvec, tvec):
+    M = compose_GL_MAT(numpy.array(rvec, dtype=numpy.float), numpy.array(tvec, dtype=numpy.float), do_flip=True)
+    S, Q, tvec_view = pyrr.matrix44.decompose(M)
+    rvec_model = tools_calibrate.quaternion_to_euler(Q)
+    mat_model = pyrr.matrix44.create_from_eulers(rvec_model)
+    mat_view = pyrr.matrix44.create_from_translation(tvec_view)
+    return mat_model, mat_view
 # ----------------------------------------------------------------------------------------------------------------------

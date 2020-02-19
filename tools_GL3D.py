@@ -74,14 +74,13 @@ class VBO(object):
 # ----------------------------------------------------------------------------------------------------------------------
 class render_GL3D(object):
 
-    def __init__(self,filename_obj,W=640, H=480,is_visible=True,do_normalize_model_file=True,do_transform_view=True,scale=(1,1,1)):
+    def __init__(self,filename_obj,W=640, H=480,is_visible=True,do_normalize_model_file=True,scale=(1,1,1)):
 
         glfw.init()
         self.marker_scale = 0.015
         #self.marker_scale = 1
         self.scale = scale
         self.do_normalize_model_file = do_normalize_model_file
-        self.do_transform_view = do_transform_view
         self.bg_color  = numpy.array([76, 76, 76,1])/255
 
         self.W,self.H  = W,H
@@ -180,10 +179,6 @@ class render_GL3D(object):
         self.mat_view = tools_render_CV.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float),numpy.array(tvec, dtype=numpy.float),flip)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
         return
-
-    def init_mat_view_RT(self, rvec,tvec,flip=True):
-        self.__init_mat_view_RT(rvec,tvec,flip)
-        return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_view_ETU(self, eye, target, up):
         self.mat_view = pyrr.matrix44.create_look_at(eye, target, up)
@@ -206,28 +201,75 @@ class render_GL3D(object):
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "light")    , 1, GL_FALSE,self.mat_light )
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def draw(self,rvec=None,tvec=None,flip=True):
-        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
-        if rvec is not None and tvec is not None:
-            self.__init_mat_view_RT(rvec,tvec,flip)
-
-        glDrawArrays(GL_TRIANGLES, 0, self.my_VBO.iterator//3)
-
+    def init_modelview0(self,rvec,tvec):
+        M = tools_render_CV.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float), numpy.array(tvec, dtype=numpy.float),do_flip=True)
+        S, Q, tvec_view = pyrr.matrix44.decompose(M)
+        rvec_model = tools_calibrate.quaternion_to_euler(Q)
+        self.__init_mat_model(rvec_model, (0, 0, 0))
+        self.mat_view = pyrr.matrix44.create_from_translation(tvec_view)
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def get_image(self, rvec=None, tvec=None, flip=True, do_debug=False):
-        self.draw(rvec, tvec,flip)
+    def init_modelview(self, rvec, tvec):
+        M0 = tools_render_CV.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float),numpy.array(tvec, dtype=numpy.float), do_flip=True)
+        M1 = tools_render_CV.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float), numpy.array(tvec, dtype=numpy.float),do_flip=False)
+
+        R = pyrr.matrix44.create_from_eulers(rvec)
+        T = pyrr.matrix44.create_from_translation(tvec)
+        M = pyrr.matrix44.multiply(R,T)
+
+        S, Q, tvec_view = pyrr.matrix44.decompose(M)
+        rvec_model = tools_calibrate.quaternion_to_euler(Q)
+        self.__init_mat_model(rvec_model, (0, 0, 0))
+
+        #self.mat_view = pyrr.matrix44.create_from_translation(tvec_view)
+        eye = tvec_view
+        target  = (0,0,0)
+        up = (0,1,0)
+        self.__init_mat_view_ETU(eye, target, up)
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+
+    def draw(self,rvec=None,tvec=None):
+        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
+        if rvec is not None and tvec is not None:
+            self.init_modelview(rvec,tvec)
+        glDrawArrays(GL_TRIANGLES, 0, self.my_VBO.iterator//3)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def get_image(self, rvec=None, tvec=None, do_debug=False):
+        self.draw(rvec, tvec)
         image_buffer = glReadPixels(0, 0, self.W, self.H, OpenGL.GL.GL_RGB, OpenGL.GL.GL_UNSIGNED_BYTE)
         image = numpy.frombuffer(image_buffer, dtype=numpy.uint8).reshape(self.H, self.W, 3)
         image = image[:,:,[2,1,0]]
-        image = cv2.flip(image, 0)
+        image = cv2.flip(image,0)
 
         if do_debug:
+            S, Q, tvec_model = pyrr.matrix44.decompose(self.mat_model)
+            rvec_model = tools_calibrate.quaternion_to_euler(Q)
+
+            S, Q, tvec_view = pyrr.matrix44.decompose(self.mat_view)
+            rvec_view= tools_calibrate.quaternion_to_euler(Q)
+
             self.draw_mat(self.mat_trns,       20, 20, image)
             self.draw_mat(self.mat_model,      20, 120, image)
             self.draw_mat(self.mat_view,       20, 220, image)
             self.draw_mat(self.mat_projection, 20, 320, image)
             self.draw_mat(self.mat_camera,     20, 420, image)
+            self.draw_vec(rvec_model               , 20, 520, image)
+            self.draw_vec(tvec_model               , 20, 540, image)
+            self.draw_vec(rvec_view, 20, 580, image)
+            self.draw_vec(tvec_view, 20, 600, image)
+
+        return image
+# ----------------------------------------------------------------------------------------------------------------------
+    def draw_vec(self, V, posx, posy, image):
+        if V.shape[0] == 4:
+            string1 = '%+1.2f %+1.2f %+1.2f %+1.2f' % (V[0], V[1], V[2], V[3])
+        else:
+            string1 = '%+1.2f %+1.2f %+1.2f' % (V[0], V[1], V[2])
+        image = cv2.putText(image, '{0}'.format(string1), (posx, posy), cv2.FONT_HERSHEY_SIMPLEX, 0.4,(128, 128, 0), 1, cv2.LINE_AA)
         return image
 # ----------------------------------------------------------------------------------------------------------------------
     def draw_mat(self, M, posx, posy, image):
@@ -241,8 +283,8 @@ class render_GL3D(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def stage_data(self,folder_out):
         cv2.imwrite(folder_out+'screenshot.png',self.get_image(do_debug=True))
-        self.save_markers(folder_out+'markers.txt',do_transform=True)
-        self.object.export_mesh(folder_out+'mesh.obj',self.object.coord_vert,self.object.idx_vertex,do_transform=True)
+        self.save_markers(folder_out+'markers.txt',do_transform=False)
+        self.object.export_mesh(folder_out+'mesh.obj',self.object.coord_vert,self.object.idx_vertex,do_transform=False)
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -336,9 +378,18 @@ class render_GL3D(object):
         else:
             S, Q, tvec = pyrr.matrix44.decompose(self.mat_model)
 
+
         rvec  = tools_calibrate.quaternion_to_euler(Q) + numpy.array(delta_angle)
-        rvec[0] = numpy.clip(rvec[0],0.01,math.pi-0.01)
+
+        rvec[0] = min(max(rvec[0],            0.01), math.pi   - 0.01)
+        rvec[2] = min(max(rvec[2], -math.pi/2+0.02), math.pi/2 - 0.02)
         self.__init_mat_model(rvec,tvec)
+
+        #S, Q, tvec = pyrr.matrix44.decompose(self.mat_model)
+        #rvec2 = tools_calibrate.quaternion_to_euler(Q)
+        #print(rvec)
+        #print(rvec2)
+        #print()
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
