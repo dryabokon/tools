@@ -17,7 +17,8 @@ class detector_landmarks(object):
         self.idx_nose = numpy.arange(27, 36, 1).tolist()
         self.idx_eyes = numpy.arange(36, 48, 1).tolist()
         self.idx_mouth = numpy.arange(48, 68, 1).tolist()
-        self.idx_removed_eyes = numpy.arange(0,68,1).tolist()
+        self.idx_removed_chin = numpy.arange(17,68,1).tolist()
+        self.idx_removed_eyes = numpy.arange(0 ,68,1).tolist()
         for each in [37,38,40,41,43,44,46,47]:
             self.idx_removed_eyes.remove(each)
 
@@ -216,9 +217,11 @@ class detector_landmarks(object):
         return model_points
 
 # --------------------------------------------------------------------------------------------------------------------
-    def get_pose(self, image,landmarks_2d, landmarks_3d,mat_trns=None):
+    def get_pose(self, image,landmarks_2d, landmarks_3d,mat_trns=None,idx_match=None):
 
         if mat_trns is None: mat_trns = numpy.eye(4)
+        if idx_match is None:
+            idx_match = numpy.arange(0 ,68,1).tolist()
 
         fx, fy = float(image.shape[1]), float(image.shape[0])
         self.mat_camera = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 1]])
@@ -228,38 +231,20 @@ class detector_landmarks(object):
         else:L3D = landmarks_3d.copy()
         L3D = numpy.array([pyrr.matrix44.apply_to_vector(mat_trns,v) for v in L3D])
 
-        if True:#self.r_vec is None:
-            (_, rotation_vector, translation_vector) = cv2.solvePnP(L3D, landmarks_2d, self.mat_camera, dist_coefs)
+
+        #self.r_vec = None
+        #self.t_vec = None
+        if self.r_vec is None:
+            (_, rotation_vector, translation_vector) = cv2.solvePnP(L3D[idx_match], landmarks_2d[idx_match], self.mat_camera, dist_coefs)
+            #(_, rotation_vector, translation_vector) = cv2.solvePnPRansac(L3D[idx_match], landmarks_2d[idx_match], self.mat_camera, dist_coefs)
         else:
             (_, rotation_vector, translation_vector) = cv2.solvePnP(L3D, landmarks_2d, self.mat_camera, numpy.zeros(4), rvec=self.r_vec, tvec=self.t_vec, useExtrinsicGuess=True)
+            #_ , rotation_vector, translation_vector,_ = cv2.solvePnPRansac(L3D, landmarks_2d, self.mat_camera, numpy.zeros(4), rvec=self.r_vec, tvec=self.t_vec, useExtrinsicGuess=True)
 
-        self.r_vec = rotation_vector.flatten()
-        self.t_vec = translation_vector.flatten()
+        self.r_vec = rotation_vector
+        self.t_vec = translation_vector
 
-        return self.r_vec, self.t_vec
-# --------------------------------------------------------------------------------------------------------------------
-    def get_mat_model(self, image, landmarks_2d, landmarks_3d, mat_trns=None, mat_view=None):
-
-        if mat_trns is None: mat_trns = numpy.eye(4)
-        if mat_view is None: mat_view = numpy.eye(4)
-
-        fx, fy = float(image.shape[1]), float(image.shape[0])
-        self.mat_camera = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 1]])
-        dist_coefs = numpy.zeros((4, 1))
-
-        if landmarks_3d is None:L3D = self.model_68_points
-        else:L3D = landmarks_3d.copy()
-        L3D = numpy.array([pyrr.matrix44.apply_to_vector(mat_trns,v) for v in L3D])
-
-
-        if self.r_vec is None:(_, rotation_vector, translation_vector) = cv2.solvePnP(L3D, landmarks_2d, self.mat_camera,dist_coefs)
-        else:(_, rotation_vector, translation_vector) = cv2.solvePnP(L3D, landmarks_2d, self.mat_camera,dist_coefs, rvec=self.r_vec, tvec=self.t_vec,useExtrinsicGuess=True)
-        self.r_vec = rotation_vector.flatten()
-        self.t_vec = translation_vector.flatten()
-
-
-
-        return mat_model
+        return self.r_vec.flatten(), self.t_vec.flatten()
 # --------------------------------------------------------------------------------------------------------------------
     def draw_annotation_box(self,image, rotation_vector, translation_vector, color=(0, 128, 255), line_width=1):
 

@@ -201,7 +201,7 @@ class render_GL3D(object):
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "light")    , 1, GL_FALSE,self.mat_light )
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def init_modelview0(self,rvec,tvec):
+    def init_modelview(self,rvec,tvec):
         M = tools_render_CV.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float), numpy.array(tvec, dtype=numpy.float),do_flip=True)
         S, Q, tvec_view = pyrr.matrix44.decompose(M)
         rvec_model = tools_calibrate.quaternion_to_euler(Q)
@@ -210,7 +210,7 @@ class render_GL3D(object):
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def init_modelview(self, rvec, tvec):
+    def __init_modelview_ubstable(self, rvec, tvec):
         M0 = tools_render_CV.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float),numpy.array(tvec, dtype=numpy.float), do_flip=True)
         M1 = tools_render_CV.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float), numpy.array(tvec, dtype=numpy.float),do_flip=False)
 
@@ -230,7 +230,6 @@ class render_GL3D(object):
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-
     def draw(self,rvec=None,tvec=None):
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
         if rvec is not None and tvec is not None:
@@ -250,17 +249,27 @@ class render_GL3D(object):
             rvec_model = tools_calibrate.quaternion_to_euler(Q)
 
             S, Q, tvec_view = pyrr.matrix44.decompose(self.mat_view)
-            rvec_view= tools_calibrate.quaternion_to_euler(Q)
+            rvec_view = tools_calibrate.quaternion_to_euler(Q)
+
 
             self.draw_mat(self.mat_trns,       20, 20, image)
             self.draw_mat(self.mat_model,      20, 120, image)
             self.draw_mat(self.mat_view,       20, 220, image)
             self.draw_mat(self.mat_projection, 20, 320, image)
             self.draw_mat(self.mat_camera,     20, 420, image)
-            self.draw_vec(rvec_model               , 20, 520, image)
-            self.draw_vec(tvec_model               , 20, 540, image)
-            self.draw_vec(rvec_view, 20, 580, image)
-            self.draw_vec(tvec_view, 20, 600, image)
+            self.draw_vec(rvec_model         , 20, 520, image)
+            self.draw_vec(rvec_view,           20, 560, image)
+            self.draw_vec(tvec_view,           20, 580, image)
+
+            image = tools_render_CV.draw_points_numpy_MVP(self.object.coord_vert, image, self.mat_projection, self.mat_view, self.mat_model, self.mat_trns)
+
+        if do_debug:
+            M = pyrr.matrix44.multiply(self.mat_view,self.mat_model)
+            S, Q, tvec = pyrr.matrix44.decompose(M)
+            rvec = tools_calibrate.quaternion_to_euler(Q)
+
+            image = tools_render_CV.draw_points_numpy_RT(self.object.coord_vert, image, self.mat_camera, numpy.zeros(4), rvec, tvec,self.mat_trns)
+
 
         return image
 # ----------------------------------------------------------------------------------------------------------------------
@@ -350,6 +359,19 @@ class render_GL3D(object):
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "transform"), 1, GL_FALSE, self.mat_trns)
         return
 # ----------------------------------------------------------------------------------------------------------------------
+    def inverce_transform_model(self,mode):
+        I = pyrr.matrix44.create_identity()
+        T = pyrr.matrix44.create_from_translation((0,0,0))
+        if mode == 'X': I[0, 0] *= -1
+        if mode == 'Y': I[1, 1] *= -1
+        if mode == 'Z': I[2, 2] *= -1
+        M = pyrr.matrix44.multiply(I, T)
+
+        self.mat_trns = pyrr.matrix44.multiply(M, self.mat_trns)
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "transform"), 1, GL_FALSE, self.mat_trns)
+        #self.reset_view(skip_transform=True)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
     def transform_model(self,mode):
 
         M = pyrr.matrix44.create_identity()
@@ -364,13 +386,6 @@ class render_GL3D(object):
         self.reset_view(skip_transform=True)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def __display_info(self):
-
-        S, Q, tvec = pyrr.matrix44.decompose(self.mat_model)
-        rvec = tools_calibrate.quaternion_to_euler(Q)
-        print('rvec', rvec * 180 / math.pi)
-        return
-# ----------------------------------------------------------------------------------------------------------------------
     def rotate_model(self, delta_angle):
 
         if self.on_rotate and self.mat_model_checkpoint is not None:
@@ -378,19 +393,17 @@ class render_GL3D(object):
         else:
             S, Q, tvec = pyrr.matrix44.decompose(self.mat_model)
 
-
         rvec  = tools_calibrate.quaternion_to_euler(Q) + numpy.array(delta_angle)
 
         rvec[0] = min(max(rvec[0],            0.01), math.pi   - 0.01)
         rvec[2] = min(max(rvec[2], -math.pi/2+0.02), math.pi/2 - 0.02)
         self.__init_mat_model(rvec,tvec)
-
-        #S, Q, tvec = pyrr.matrix44.decompose(self.mat_model)
-        #rvec2 = tools_calibrate.quaternion_to_euler(Q)
-        #print(rvec)
-        #print(rvec2)
-        #print()
-
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def rotate_view(self, delta_angle):
+        R = pyrr.matrix44.create_from_eulers((0,0,delta_angle))
+        self.mat_view = pyrr.matrix44.multiply(self.mat_view,R)
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def resize_window(self, W, H):

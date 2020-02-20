@@ -109,9 +109,11 @@ def draw_cube_numpy_MVP(img,mat_projection, mat_view, mat_model, mat_trns, color
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_points_numpy_RT(points_3d, img, camera_matrix, dist, rvec, tvec,mat_trns=None, scale=(1, 1, 1), color=(66, 0, 166)):
+def draw_points_numpy_RT0(points_3d, img, camera_matrix, dist, rvec, tvec,mat_trns=None, scale=(1, 1, 1), color=(66, 0, 166)):
 
-    if mat_trns is None: mat_trns = numpy.eye(4)
+    if mat_trns is None:
+        mat_trns = numpy.eye(4)
+
     L3D = points_3d.copy()
     L3D[:, 0] *= scale[0]
     L3D[:, 1] *= scale[1]
@@ -123,11 +125,34 @@ def draw_points_numpy_RT(points_3d, img, camera_matrix, dist, rvec, tvec,mat_trn
     points_2d, jac = project_points(L3D, rvec, tvec, camera_matrix, dist)
 
     points_2d = points_2d.reshape((-1,2))
-    for point in points_2d:
-        img = tools_draw_numpy.draw_circle(img, point[1], point[0], 4, color)
+    for point in points_2d:img = tools_draw_numpy.draw_circle(img, point[1], point[0], 4, color)
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
+def draw_points_numpy_RT(points_3d, img, camera_matrix, dist, rvec, tvec,mat_trns=None, scale=(1, 1, 1), color=(66, 0, 166)):
+
+    if mat_trns is None:
+        mat_trns = numpy.eye(4)
+
+    M = compose_GL_MAT(numpy.array(rvec, dtype=numpy.float), numpy.array(tvec, dtype=numpy.float),do_flip=True)
+
+    L3D = []
+    for v in points_3d:
+        vv = pyrr.matrix44.apply_to_vector(mat_trns, v)
+        vv = pyrr.matrix44.apply_to_vector(M, vv)
+        L3D.append(vv)
+
+    L3D = numpy.array((L3D))
+
+    #points_2d, jac = cv2.projectPoints(points_3d, rvec, tvec, camera_matrix, dist)
+    points_2d, jac = project_points(L3D, (0,0,0), (0,0,0), camera_matrix, dist)
+
+    points_2d = points_2d.reshape((-1,2))
+    for point in points_2d:img = tools_draw_numpy.draw_circle(img, point[1], point[0], 4, color)
+
+    return img
+# ----------------------------------------------------------------------------------------------------------------------
+
 def draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166),do_debug=False):
 
 
@@ -135,15 +160,22 @@ def draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, m
     fx, fy = float(img.shape[1]), float(img.shape[0])
     camera_matrix = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 1]])
 
-    points_3d_new = []
+    L3D = []
     for v in points_3d:
         vv = pyrr.matrix44.apply_to_vector(mat_trns ,v)
         vv = pyrr.matrix44.apply_to_vector(mat_model,vv)
         vv = pyrr.matrix44.apply_to_vector(mat_view ,vv)
-        points_3d_new.append(vv)
+        L3D.append(vv)
+
+    L3D = numpy.array((L3D))
+
+    # debug
+    #print('draw_points_numpy_MVP')
+    #print(L3D)
+    #print()
 
     #points_2d, jac = cv2.projectPoints(points_3d_new, (0,0,0), (0,0,0), camera_matrix, numpy.zeros(4))
-    points_2d, jac = project_points(points_3d_new, (0,0,0), (0,0,0), camera_matrix, numpy.zeros(4))
+    points_2d, jac = project_points(L3D, (0,0,0), (0,0,0), camera_matrix, numpy.zeros(4))
 
     points_2d = points_2d.reshape((-1,2))
     points_2d[:,0]=img.shape[1]-points_2d[:,0]
@@ -328,6 +360,7 @@ def align_two_model(filename_obj1,filename_markers1,filename_obj2,filename_marke
     return
 # ----------------------------------------------------------------------------------------------------------------------
 def RT_to_mat_model_view(rvec, tvec):
+
     M = compose_GL_MAT(numpy.array(rvec, dtype=numpy.float), numpy.array(tvec, dtype=numpy.float), do_flip=True)
     S, Q, tvec_view = pyrr.matrix44.decompose(M)
     rvec_model = tools_calibrate.quaternion_to_euler(Q)
