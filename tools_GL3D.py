@@ -211,7 +211,7 @@ class render_GL3D(object):
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def init_modelview(self, rvec, tvec):
-        M0 = tools_render_CV.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float),numpy.array(tvec, dtype=numpy.float), do_flip=True)
+        M0 = tools_render_CV.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float), numpy.array(tvec, dtype=numpy.float), do_flip=True)
         M1 = tools_render_CV.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float), numpy.array(tvec, dtype=numpy.float),do_flip=False)
 
         R = pyrr.matrix44.create_from_eulers(rvec)
@@ -221,13 +221,16 @@ class render_GL3D(object):
         S, Q, tvec_view = pyrr.matrix44.decompose(M)
         rvec_model = tools_calibrate.quaternion_to_euler(Q)
         self.__init_mat_model(rvec_model, (0, 0, 0))
+        self.mat_view = pyrr.matrix44.create_from_translation(tvec_view)
 
-        #self.mat_view = pyrr.matrix44.create_from_translation(tvec_view)
+        #check
+        pyrr.matrix44.multiply(R, T)
+
         eye = tvec_view
         target  = (0,0,0)
         up = (0,1,0)
-        self.__init_mat_view_ETU(eye, target, up)
-        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
+        #self.__init_mat_view_ETU(eye, target, up)
+        #glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
         return
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -261,6 +264,8 @@ class render_GL3D(object):
             self.draw_vec(tvec_model               , 20, 540, image)
             self.draw_vec(rvec_view, 20, 580, image)
             self.draw_vec(tvec_view, 20, 600, image)
+
+            image = tools_render_CV.draw_points_numpy_MVP(self.object.coord_vert, image, self.mat_projection, self.mat_view, self.mat_model, self.mat_trns)
 
         return image
 # ----------------------------------------------------------------------------------------------------------------------
@@ -415,7 +420,8 @@ class render_GL3D(object):
         obj_min = self.object.coord_vert.min()
         obj_max = self.object.coord_vert.max()
 
-        self.__init_mat_view_ETU(eye=(0, 0, -5 * (obj_max - obj_min)), target=(0, 0, 0), up=(0, -1, 0))
+        #self.__init_mat_view_ETU(eye=(0, 0, -5 * (obj_max - obj_min)), target=(0, 0, 0), up=(0, -1, 0))
+        self.__init_mat_view_ETU(eye=(0, 0, +5 * (obj_max - obj_min)), target=(0, 0, 0), up=(0, +1, 0))
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
