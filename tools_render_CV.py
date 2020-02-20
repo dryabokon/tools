@@ -11,23 +11,60 @@ import tools_IO
 numpy.set_printoptions(suppress=True)
 numpy.set_printoptions(precision=2)
 # ----------------------------------------------------------------------------------------------------------------------
-def compose_GL_MAT(rotv,tvecs,do_flip=False):
+def check_decompose(rotv, tvecs):
+    if rotv is None or tvecs is None:
+        return
+
+    modelview  = compose_model_view_from_RT(rotv, tvecs)
+    mat_model, mat_view = decompose_model_view(modelview)
+    modelview_new = pyrr.matrix44.multiply(mat_model,mat_view)
+    rotv_check, tvecs_check = decompose_model_view_to_RT(modelview_new)
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+def compose_model_view_from_RT(rotv, tvecs):
+
 
     rotv = rotv.reshape(3, 1)
     tvecs = tvecs.reshape(3, 1)
 
-    rotMat, jacobian = cv2.Rodrigues(rotv)
+    #rotMat, jacobian = cv2.Rodrigues(rotv)
+    rotMat = pyrr.matrix44.create_from_eulers(rotv.flatten())
 
-    matrix = numpy.identity(4)
-    matrix[0:3, 0:3] = rotMat
-    matrix[0:3, 3:4] = tvecs
-    newMat = numpy.identity(4)
-    if do_flip:
-        newMat[1][1] = -1
-        newMat[2][2] = -1
-    matrix = numpy.dot(newMat, matrix)
+    M = numpy.identity(4)
+    M[0:3, 0:3] = rotMat[0:3,0:3]
+    M[0:3, 3:4] = tvecs
+    return M.T
+# ----------------------------------------------------------------------------------------------------------------------
+def decompose_model_view(M):
+    S, Q, tvec_view = pyrr.matrix44.decompose(M)
+    rvec_model = tools_calibrate.quaternion_to_euler(Q)
+    mat_model = pyrr.matrix44.create_from_eulers(rvec_model)
+    mat_view = pyrr.matrix44.create_from_translation(tvec_view)
+    R = pyrr.matrix44.create_from_eulers((0,math.pi,math.pi))
+    mat_view = pyrr.matrix44.multiply(mat_view, R)
+    return mat_model, mat_view
+# ----------------------------------------------------------------------------------------------------------------------
+def decompose_model_view_to_RRTT(mat_model, mat_view):
+    S, Q, tvec_model = pyrr.matrix44.decompose(mat_model)
+    rvec_model = tools_calibrate.quaternion_to_euler(Q)
 
-    return matrix.T
+    S, Q, tvec_view = pyrr.matrix44.decompose(mat_view)
+    rvec_view = tools_calibrate.quaternion_to_euler(Q)
+
+    return rvec_model,tvec_model,rvec_view,tvec_view
+
+# ----------------------------------------------------------------------------------------------------------------------
+def decompose_model_view_to_RT(M):
+    newM = M.T
+    newM[1,:]*=-1
+    newM[2,:]*=-1
+
+    tvec = newM[0:3, 3:4]
+    R = numpy.eye(4)
+    R[0:3, 0:3] = newM[0:3, 0:3]
+    S, Q, tvec_model = pyrr.matrix44.decompose(R)
+    rvec = tools_calibrate.quaternion_to_euler(Q)
+    return rvec.flatten(), tvec.flatten()
 # ----------------------------------------------------------------------------------------------------------------------
 def project_points(points_3d, rvec, tvec, camera_matrix, dist):
     #https: // docs.opencv.org / 2.4 / modules / calib3d / doc / camera_calibration_and_3d_reconstruction.html
@@ -43,7 +80,10 @@ def project_points(points_3d, rvec, tvec, camera_matrix, dist):
     for each in points_3d:
         point_4d=numpy.array([each[0],each[1],each[2],1])
         x = numpy.dot(P, point_4d)
-        points_2d.append(x/x[2])
+        if (camera_matrix[2,2]!=0):
+            points_2d.append(x/x[2])
+        else:
+            points_2d.append(x/10)
 
     points_2d = numpy.array(points_2d)[:,:2].reshape(-1,1,2)
 
@@ -111,45 +151,51 @@ def draw_cube_numpy_MVP(img,mat_projection, mat_view, mat_model, mat_trns, color
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_points_numpy_RT(points_3d, img, camera_matrix, dist, rvec, tvec,mat_trns=None, scale=(1, 1, 1), color=(66, 0, 166)):
 
-    if mat_trns is None: mat_trns = numpy.eye(4)
-    L3D = points_3d.copy()
-    L3D[:, 0] *= scale[0]
-    L3D[:, 1] *= scale[1]
-    L3D[:, 2] *= scale[2]
+    if mat_trns is None:
+        mat_trns = numpy.eye(4)
 
-    L3D = numpy.array([pyrr.matrix44.apply_to_vector(mat_trns, v) for v in L3D])
+    M = compose_model_view_from_RT(numpy.array(rvec, dtype=numpy.float), numpy.array(tvec, dtype=numpy.float))
 
-    #points_2d, jac = cv2.projectPoints(points_3d, rvec, tvec, camera_matrix, dist)
-    points_2d, jac = project_points(L3D, rvec, tvec, camera_matrix, dist)
+    L3D = []
+    for v in points_3d:
+        vv = pyrr.matrix44.apply_to_vector(mat_trns, v)
+        vv = pyrr.matrix44.apply_to_vector(M, vv)
+        L3D.append(vv)
 
-    points_2d = points_2d.reshape((-1,2))
+    L3D = numpy.array((L3D))
+
+    points_2d, jac = cv2.projectPoints(points_3d, rvec, tvec, camera_matrix, dist)
+    points_2d, jac = project_points(L3D, (0,0,0), (0,0,0), camera_matrix, dist)
+
+    points_2d = points_2d.reshape((-1, 2))
     for point in points_2d:
-        img = tools_draw_numpy.draw_circle(img, point[1], point[0], 4, color)
+        img = tools_draw_numpy.draw_circle(img, int(point[1]), int(point[0]), 4, color)
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
+
 def draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166),do_debug=False):
-
-
 
     fx, fy = float(img.shape[1]), float(img.shape[0])
     camera_matrix = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 1]])
 
-    points_3d_new = []
+    L3D = []
     for v in points_3d:
         vv = pyrr.matrix44.apply_to_vector(mat_trns ,v)
         vv = pyrr.matrix44.apply_to_vector(mat_model,vv)
         vv = pyrr.matrix44.apply_to_vector(mat_view ,vv)
-        points_3d_new.append(vv)
+        L3D.append(vv)
+
+    L3D = numpy.array(L3D)
 
     #points_2d, jac = cv2.projectPoints(points_3d_new, (0,0,0), (0,0,0), camera_matrix, numpy.zeros(4))
-    points_2d, jac = project_points(points_3d_new, (0,0,0), (0,0,0), camera_matrix, numpy.zeros(4))
+    points_2d, jac = project_points(L3D, (0,0,0), (0,0,0), camera_matrix, numpy.zeros(4))
 
     points_2d = points_2d.reshape((-1,2))
     points_2d[:,0]=img.shape[1]-points_2d[:,0]
+
     for point in points_2d:
         img = tools_draw_numpy.draw_circle(img, int(point[1]), int(point[0]), 4, color)
-
 
     if do_debug:
         for p2,p3 in zip(points_2d,points_3d):
@@ -327,11 +373,84 @@ def align_two_model(filename_obj1,filename_markers1,filename_obj2,filename_marke
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def RT_to_mat_model_view(rvec, tvec):
-    M = compose_GL_MAT(numpy.array(rvec, dtype=numpy.float), numpy.array(tvec, dtype=numpy.float), do_flip=True)
-    S, Q, tvec_view = pyrr.matrix44.decompose(M)
-    rvec_model = tools_calibrate.quaternion_to_euler(Q)
-    mat_model = pyrr.matrix44.create_from_eulers(rvec_model)
-    mat_view = pyrr.matrix44.create_from_translation(tvec_view)
-    return mat_model, mat_view
+def my_solve_PnP(L3D, L2D, K, dist):
+    #return cv2.solvePnP(L3D, L2D, K, dist)
+
+    fx = K[0,0]
+    fy = K[1,1]
+    cx = K[0,2]
+    cy = K[1,2]
+    n = L3D.shape[0]
+
+
+    #Step 1. Construct matrix A, whose size is 2n x12.
+    A = numpy.zeros((2 * n, 12))
+    for i in range(n):
+        pt3d = L3D[i]
+        pt2d = L2D[i]
+
+        x = pt3d[0]
+        y = pt3d[1]
+        z = pt3d[2]
+        u = pt2d[0]
+        v = pt2d[1]
+
+        A[2 * i, 0] = x * fx
+        A[2 * i, 1] = y * fx
+        A[2 * i, 2] = z * fx
+        A[2 * i, 3] = fx
+        A[2 * i, 4] = 0.0
+        A[2 * i, 5] = 0.0
+        A[2 * i, 6] = 0.0
+        A[2 * i, 7] = 0.0
+        A[2 * i, 8] = x * cx - u * x
+        A[2 * i, 9] = y * cx - u * y
+        A[2 * i, 10] = z * cx - u * z
+        A[2 * i, 11] = cx - u
+        A[2 * i + 1, 0] = 0.0
+        A[2 * i + 1, 1] = 0.0
+        A[2 * i + 1, 2] = 0.0
+        A[2 * i + 1, 3] = 0.0
+        A[2 * i + 1, 4] = x * fy
+        A[2 * i + 1, 5] = y * fy
+        A[2 * i + 1, 6] = z * fy
+        A[2 * i + 1, 7] = fy
+        A[2 * i + 1, 8] = x * cy - v * x
+        A[2 * i + 1, 9] = y * cy - v * y
+        A[2 * i + 1, 10] = z * cy - v * z
+        A[2 * i + 1, 11] = cy - v
+
+    #Step 2. Solve Ax = 0 by SVD
+    u, s, vh = numpy.linalg.svd(A)
+
+    a1 = vh[0, 11]
+    a2 = vh[1, 11]
+    a3 = vh[2, 11]
+    a4 = vh[3, 11]
+    a5 = vh[4, 11]
+    a6 = vh[5, 11]
+    a7 = vh[6, 11]
+    a8 = vh[7, 11]
+    a9 = vh[8, 11]
+    a10= vh[9, 11]
+    a11= vh[10,11]
+    a12= vh[11,11]
+
+    R_bar = numpy.array([[a1, a2, a3], [a5, a6, a7], [a9, a10, a11]])
+    U_R, V_Sigma , V_R = numpy.linalg.svd(R_bar)
+    R = numpy.dot(U_R , V_R.T)
+
+
+    beta = 1.0 / ((V_Sigma[0] + V_Sigma[1] + V_Sigma[2]) / 3.0)
+
+    t_bar = numpy.array((a4, a8, a12))
+    t = beta * t_bar
+
+    R = pyrr.matrix44.create_from_matrix33(R)
+
+    S, Q, tvec_view = pyrr.matrix44.decompose(R)
+    rvec = tools_calibrate.quaternion_to_euler(Q)
+
+
+    return (0, rvec, t)
 # ----------------------------------------------------------------------------------------------------------------------

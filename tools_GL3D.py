@@ -74,11 +74,11 @@ class VBO(object):
 # ----------------------------------------------------------------------------------------------------------------------
 class render_GL3D(object):
 
-    def __init__(self,filename_obj,W=640, H=480,is_visible=True,do_normalize_model_file=True,scale=(1,1,1)):
+    def __init__(self,filename_obj,W=640, H=480,is_visible=True,do_normalize_model_file=True,scale=(1,1,1),projection_type='P'):
 
         glfw.init()
+        self.projection_type = projection_type
         self.marker_scale = 0.015
-        #self.marker_scale = 1
         self.scale = scale
         self.do_normalize_model_file = do_normalize_model_file
         self.bg_color  = numpy.array([76, 76, 76,1])/255
@@ -164,19 +164,33 @@ class render_GL3D(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def __init_mat_projection(self):
-
+    def __init_mat_projection_perspective(self):
         fx, fy = float(self.W), float(self.H)
         left, right, bottom, top = -0.5, (self.W - fx / 2) / fx, (fy / 2 - self.H) / fy, 0.5
         near, far = 1, 1000
-
         self.mat_camera = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 1]])
         self.mat_projection = pyrr.matrix44.create_perspective_projection_from_bounds(left,right,bottom,top,near,far)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "projection"), 1, GL_FALSE, self.mat_projection)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def __init_mat_view_RT(self, rvec,tvec,flip=True):
-        self.mat_view = tools_render_CV.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float),numpy.array(tvec, dtype=numpy.float),flip)
+    def __init_mat_projection_ortho(self,factor=5):
+        fx, fy = float(self.W), float(self.H)
+        near, far = 0, 100
+        left, right, bottom, top = (factor*numpy.array([-1,1,-1,1])).tolist()
+        self.mat_camera = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 0]])
+        self.mat_projection = pyrr.matrix44.create_orthogonal_projection(left, right, bottom, top, near, far)
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "projection"), 1, GL_FALSE, self.mat_projection)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def __init_mat_projection(self):
+        if self.projection_type == 'P':
+            self.__init_mat_projection_perspective()
+        else:
+            self.__init_mat_projection_ortho()
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def __init_mat_view_RT(self, rvec,tvec):
+        self.mat_view = tools_render_CV.compose_model_view_from_RT(numpy.array(rvec, dtype=numpy.float), numpy.array(tvec, dtype=numpy.float))
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -201,39 +215,14 @@ class render_GL3D(object):
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "light")    , 1, GL_FALSE,self.mat_light )
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def init_modelview0(self,rvec,tvec):
-        M = tools_render_CV.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float), numpy.array(tvec, dtype=numpy.float),do_flip=True)
-        S, Q, tvec_view = pyrr.matrix44.decompose(M)
-        rvec_model = tools_calibrate.quaternion_to_euler(Q)
-        self.__init_mat_model(rvec_model, (0, 0, 0))
-        self.mat_view = pyrr.matrix44.create_from_translation(tvec_view)
-        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
-        return
-# ----------------------------------------------------------------------------------------------------------------------
     def init_modelview(self, rvec, tvec):
-        M0 = tools_render_CV.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float), numpy.array(tvec, dtype=numpy.float), do_flip=True)
-        M1 = tools_render_CV.compose_GL_MAT(numpy.array(rvec, dtype=numpy.float), numpy.array(tvec, dtype=numpy.float),do_flip=False)
+        M = tools_render_CV.compose_model_view_from_RT(numpy.array(rvec, dtype=numpy.float), numpy.array(tvec, dtype=numpy.float))
+        self.mat_model, self.mat_view = tools_render_CV.decompose_model_view(M)
 
-        R = pyrr.matrix44.create_from_eulers(rvec)
-        T = pyrr.matrix44.create_from_translation(tvec)
-        M = pyrr.matrix44.multiply(R,T)
-
-        S, Q, tvec_view = pyrr.matrix44.decompose(M)
-        rvec_model = tools_calibrate.quaternion_to_euler(Q)
-        self.__init_mat_model(rvec_model, (0, 0, 0))
-        self.mat_view = pyrr.matrix44.create_from_translation(tvec_view)
-
-        #check
-        pyrr.matrix44.multiply(R, T)
-
-        eye = tvec_view
-        target  = (0,0,0)
-        up = (0,1,0)
-        #self.__init_mat_view_ETU(eye, target, up)
-        #glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "model"), 1, GL_FALSE, self.mat_model)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-
     def draw(self,rvec=None,tvec=None):
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
         if rvec is not None and tvec is not None:
@@ -249,23 +238,25 @@ class render_GL3D(object):
         image = cv2.flip(image,0)
 
         if do_debug:
-            S, Q, tvec_model = pyrr.matrix44.decompose(self.mat_model)
-            rvec_model = tools_calibrate.quaternion_to_euler(Q)
-
-            S, Q, tvec_view = pyrr.matrix44.decompose(self.mat_view)
-            rvec_view= tools_calibrate.quaternion_to_euler(Q)
+            rvec_model, tvec_model, rvec_view, tvec_view = tools_render_CV.decompose_model_view_to_RRTT(self.mat_model, self.mat_view)
+            modelview = pyrr.matrix44.multiply(self.mat_model, self.mat_view)
+            rvec_i, tvec_i = tools_render_CV.decompose_model_view_to_RT(modelview)
 
             self.draw_mat(self.mat_trns,       20, 20, image)
             self.draw_mat(self.mat_model,      20, 120, image)
             self.draw_mat(self.mat_view,       20, 220, image)
             self.draw_mat(self.mat_projection, 20, 320, image)
             self.draw_mat(self.mat_camera,     20, 420, image)
-            self.draw_vec(rvec_model               , 20, 520, image)
-            self.draw_vec(tvec_model               , 20, 540, image)
-            self.draw_vec(rvec_view, 20, 580, image)
-            self.draw_vec(tvec_view, 20, 600, image)
+            self.draw_vec(rvec_model         , 20, 520, image)
+            self.draw_vec(rvec_view,           20, 560, image)
+            self.draw_vec(tvec_view,           20, 580, image)
 
-            image = tools_render_CV.draw_points_numpy_MVP(self.object.coord_vert, image, self.mat_projection, self.mat_view, self.mat_model, self.mat_trns)
+            print('[ %1.2f, %1.2f, %1.2f], [%1.2f,  %1.2f,  %1.2f]'%(rvec_i[0],rvec_i[1],rvec_i[2],tvec_i[0],tvec_i[1],tvec_i[2]))
+            self.draw_vec(rvec_i,            20, 620, image)
+            self.draw_vec(tvec_i,            20, 640, image)
+
+            #image = tools_render_CV.draw_points_numpy_MVP(self.object.coord_vert, image, self.mat_projection, self.mat_view, self.mat_model, self.mat_trns)
+            image = tools_render_CV.draw_points_numpy_RT(self.object.coord_vert, image, self.mat_camera, numpy.zeros(4), rvec_i, tvec_i, self.mat_trns)
 
         return image
 # ----------------------------------------------------------------------------------------------------------------------
@@ -345,14 +336,34 @@ class render_GL3D(object):
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def translate_view(self, delta_translate):
-        eye, target, up = tools_calibrate.calculate_eye_target_up(self.mat_view)
-        eye *= delta_translate
-        self.__init_mat_view_ETU(eye, target, up)
+        S, Q, tvec_view = pyrr.matrix44.decompose(self.mat_view)
+        rvec_view = tools_calibrate.quaternion_to_euler(Q)
+        tvec_view*=delta_translate
+        self.__init_mat_view_RT(rvec_view,tvec_view)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def translate_ortho(self, delta_translate):
+        factor = 1/self.mat_projection[0,0]
+        factor*=delta_translate
+        self.__init_mat_projection_ortho(factor)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def scale_model(self, scale_factor):
         self.mat_trns*=scale_factor
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "transform"), 1, GL_FALSE, self.mat_trns)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def inverce_transform_model(self,mode):
+        I = pyrr.matrix44.create_identity()
+        T = pyrr.matrix44.create_from_translation((0,0,0))
+        if mode == 'X': I[0, 0] *= -1
+        if mode == 'Y': I[1, 1] *= -1
+        if mode == 'Z': I[2, 2] *= -1
+        M = pyrr.matrix44.multiply(I, T)
+
+        self.mat_trns = pyrr.matrix44.multiply(M, self.mat_trns)
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "transform"), 1, GL_FALSE, self.mat_trns)
+        #self.reset_view(skip_transform=True)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def transform_model(self,mode):
@@ -369,11 +380,9 @@ class render_GL3D(object):
         self.reset_view(skip_transform=True)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def __display_info(self):
-
-        S, Q, tvec = pyrr.matrix44.decompose(self.mat_model)
-        rvec = tools_calibrate.quaternion_to_euler(Q)
-        print('rvec', rvec * 180 / math.pi)
+    def standardize_rvec(self,rvec):
+        rvec[0] = min(max(rvec[0],            0.01), math.pi   - 0.01)
+        rvec[2] = min(max(rvec[2], -math.pi/2+0.02), math.pi/2 - 0.02)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def rotate_model(self, delta_angle):
@@ -383,19 +392,17 @@ class render_GL3D(object):
         else:
             S, Q, tvec = pyrr.matrix44.decompose(self.mat_model)
 
+        rvec = tools_calibrate.quaternion_to_euler(Q)
+        rvec+= numpy.array(delta_angle)
+        self.standardize_rvec(rvec)
 
-        rvec  = tools_calibrate.quaternion_to_euler(Q) + numpy.array(delta_angle)
-
-        rvec[0] = min(max(rvec[0],            0.01), math.pi   - 0.01)
-        rvec[2] = min(max(rvec[2], -math.pi/2+0.02), math.pi/2 - 0.02)
         self.__init_mat_model(rvec,tvec)
-
-        #S, Q, tvec = pyrr.matrix44.decompose(self.mat_model)
-        #rvec2 = tools_calibrate.quaternion_to_euler(Q)
-        #print(rvec)
-        #print(rvec2)
-        #print()
-
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def rotate_view(self, delta_angle):
+        R = pyrr.matrix44.create_from_eulers(delta_angle)
+        self.mat_view = pyrr.matrix44.multiply(self.mat_view,R)
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def resize_window(self, W, H):
