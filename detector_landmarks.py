@@ -239,8 +239,7 @@ class detector_landmarks(object):
         self.r_vec = None
         self.t_vec = None
         if self.r_vec is None:
-             (_, rotation_vector, translation_vector) = tools_render_CV.my_solve_PnP(L3D[idx_match], landmarks_2d[idx_match], self.mat_camera, dist_coefs)
-            #(_, rotation_vector, translation_vector) = cv2.solvePnP(L3D[idx_match], landmarks_2d[idx_match], self.mat_camera, dist_coefs)
+            (_, rotation_vector, translation_vector) = cv2.solvePnP(L3D[idx_match], landmarks_2d[idx_match], self.mat_camera, dist_coefs)
             #(_, rotation_vector, translation_vector) = cv2.solvePnPRansac(L3D[idx_match], landmarks_2d[idx_match], self.mat_camera, dist_coefs)
         else:
             (_, rotation_vector, translation_vector) = cv2.solvePnP(L3D, landmarks_2d, self.mat_camera, numpy.zeros(4), rvec=self.r_vec, tvec=self.t_vec, useExtrinsicGuess=True)
@@ -248,9 +247,9 @@ class detector_landmarks(object):
 
         self.r_vec,self.t_vec = rotation_vector, translation_vector
 
-        landmarks_2d_check, jac = cv2.projectPoints(L3D, rotation_vector, translation_vector, self.mat_camera, dist_coefs)
-        landmarks_2d_check, jac = tools_render_CV.project_points(L3D,rotation_vector, translation_vector, self.mat_camera, dist_coefs)
-        landmarks_2d_check=numpy.reshape(landmarks_2d_check,(-1,2))
+        #landmarks_2d_check, jac = cv2.projectPoints(L3D, rotation_vector, translation_vector, self.mat_camera, dist_coefs)
+        #landmarks_2d_check, jac = tools_render_CV.project_points(L3D,rotation_vector, translation_vector, self.mat_camera, dist_coefs)
+        #landmarks_2d_check=numpy.reshape(landmarks_2d_check,(-1,2))
 
         return self.r_vec.flatten(), self.t_vec.flatten()
 # --------------------------------------------------------------------------------------------------------------------

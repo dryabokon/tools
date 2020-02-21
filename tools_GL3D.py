@@ -78,6 +78,7 @@ class render_GL3D(object):
 
         glfw.init()
         self.projection_type = projection_type
+        self.is_enabled_standardize_rvec = True
         self.marker_scale = 0.015
         self.scale = scale
         self.do_normalize_model_file = do_normalize_model_file
@@ -177,7 +178,7 @@ class render_GL3D(object):
         fx, fy = float(self.W), float(self.H)
         near, far = 0, 100
         left, right, bottom, top = (factor*numpy.array([-1,1,-1,1])).tolist()
-        self.mat_camera = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 0]])
+        self.mat_camera = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 1]])
         self.mat_projection = pyrr.matrix44.create_orthogonal_projection(left, right, bottom, top, near, far)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "projection"), 1, GL_FALSE, self.mat_projection)
         return
@@ -255,8 +256,13 @@ class render_GL3D(object):
             self.draw_vec(rvec_i,            20, 620, image)
             self.draw_vec(tvec_i,            20, 640, image)
 
-            #image = tools_render_CV.draw_points_numpy_MVP(self.object.coord_vert, image, self.mat_projection, self.mat_view, self.mat_model, self.mat_trns)
-            image = tools_render_CV.draw_points_numpy_RT(self.object.coord_vert, image, self.mat_camera, numpy.zeros(4), rvec_i, tvec_i, self.mat_trns)
+            tools_render_CV.check_decompose_model_view(self.mat_model, self.mat_view)
+
+            if self.projection_type=='P':
+                image = tools_render_CV.draw_points_numpy_MVP(self.object.coord_vert, image, self.mat_projection, self.mat_view, self.mat_model, self.mat_trns)
+                #image = tools_render_CV.draw_points_numpy_RT(self.object.coord_vert, image, self.mat_camera, numpy.zeros(4), rvec_i, tvec_i, self.mat_trns)
+            else:
+                image = tools_render_CV.draw_points_numpy_MVP_ortho(self.object.coord_vert, image, self.mat_projection, self.mat_view, self.mat_model, self.mat_trns)
 
         return image
 # ----------------------------------------------------------------------------------------------------------------------
@@ -368,21 +374,26 @@ class render_GL3D(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def transform_model(self,mode):
 
-        M = pyrr.matrix44.create_identity()
+        T = pyrr.Matrix44.from_scale(self.scale)
         if   mode == 'XY':M = pyrr.matrix44.create_from_z_rotation(-math.pi/2)
         elif mode == 'XZ':M = pyrr.matrix44.create_from_y_rotation(-math.pi/2)
         elif mode == 'YZ':M = pyrr.matrix44.create_from_x_rotation(-math.pi/2)
         elif mode == 'xy':M = pyrr.matrix44.create_from_z_rotation(+math.pi/2)
         elif mode == 'yz':M = pyrr.matrix44.create_from_y_rotation(+math.pi/2)
         elif mode == 'xz':M = pyrr.matrix44.create_from_x_rotation(+math.pi/2)
-        self.mat_trns = M * self.mat_trns.max()
+        self.mat_trns = numpy.dot(T,M)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "transform"), 1, GL_FALSE, self.mat_trns)
         self.reset_view(skip_transform=True)
         return
 # ----------------------------------------------------------------------------------------------------------------------
+    def set_standardize_rvec(self,flag):
+        self.is_enabled_standardize_rvec = flag
+        return
+# ----------------------------------------------------------------------------------------------------------------------
     def standardize_rvec(self,rvec):
-        rvec[0] = min(max(rvec[0],            0.01), math.pi   - 0.01)
-        rvec[2] = min(max(rvec[2], -math.pi/2+0.02), math.pi/2 - 0.02)
+        if self.is_enabled_standardize_rvec:
+            rvec[0] = min(max(rvec[0],            0.01), math.pi   - 0.01)
+            rvec[2] = min(max(rvec[2], -math.pi/2+0.02), math.pi/2 - 0.02)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def rotate_model(self, delta_angle):

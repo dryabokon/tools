@@ -11,7 +11,7 @@ import tools_IO
 numpy.set_printoptions(suppress=True)
 numpy.set_printoptions(precision=2)
 # ----------------------------------------------------------------------------------------------------------------------
-def check_decompose(rotv, tvecs):
+def check_decompose_RT(rotv, tvecs):
     if rotv is None or tvecs is None:
         return
 
@@ -21,8 +21,15 @@ def check_decompose(rotv, tvecs):
     rotv_check, tvecs_check = decompose_model_view_to_RT(modelview_new)
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def compose_model_view_from_RT(rotv, tvecs):
+def check_decompose_model_view(mat_model, mat_view):
 
+    modelview = pyrr.matrix44.multiply(mat_model, mat_view)
+    rvec, tvec = decompose_model_view_to_RT(modelview)
+    modelview_new = compose_model_view_from_RT(rvec,tvec)
+    mat_model_check, mat_view_check = decompose_model_view(modelview)
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+def compose_model_view_from_RT(rotv, tvecs):
 
     rotv = rotv.reshape(3, 1)
     tvecs = tvecs.reshape(3, 1)
@@ -68,24 +75,50 @@ def decompose_model_view_to_RT(M):
 # ----------------------------------------------------------------------------------------------------------------------
 def project_points(points_3d, rvec, tvec, camera_matrix, dist):
     #https: // docs.opencv.org / 2.4 / modules / calib3d / doc / camera_calibration_and_3d_reconstruction.html
-    R, _ = cv2.Rodrigues(rvec)
 
-    V = numpy.zeros((3,4))
-    V[:3,:3] = R
-    V[:,3] = numpy.array(tvec).T
-    P = numpy.dot(camera_matrix,V)
+    #R, _ = cv2.Rodrigues(rvec)
+    R = pyrr.matrix44.create_from_eulers(rvec)
+
+    M=numpy.zeros((4,4))
+    M[:3,:3] = R[:3,:3]
+    M[:3,3] = numpy.array(tvec).T
+
+    P = numpy.zeros((3,4))
+    P[:3,:3] = camera_matrix
 
     points_2d = []
 
     for each in points_3d:
-        point_4d=numpy.array([each[0],each[1],each[2],1])
-        x = numpy.dot(P, point_4d)
-        if (camera_matrix[2,2]!=0):
-            points_2d.append(x/x[2])
-        else:
-            points_2d.append(x/10)
+        X = pyrr.matrix44.apply_to_vector(M, numpy.array([each[0],each[1],each[2],1]))
+        uv = numpy.dot(P, X)
+        points_2d.append(uv/uv[2])
+
 
     points_2d = numpy.array(points_2d)[:,:2].reshape(-1,1,2)
+
+    return points_2d,0
+# ----------------------------------------------------------------------------------------------------------------------
+def project_points_ortho(points_3d, rvec, tvec, camera_matrix, dist,scale_factor):
+    # R, _ = cv2.Rodrigues(rvec)
+    R = pyrr.matrix44.create_from_eulers(rvec)
+
+    M = numpy.eye(4)
+    M[:3, :3] = R[:3, :3]
+    M[:3, 3] = numpy.array(tvec).T
+
+    P = numpy.zeros((3, 4))
+    P[:3, :3] = camera_matrix
+    P[:, 3] = P[:, 2]*scale_factor
+    P[:, 2] = 0
+
+    points_2d = []
+
+    for each in points_3d:
+        X = pyrr.matrix44.apply_to_vector(M, numpy.array([each[0], each[1], each[2], 1]))
+        uv = numpy.dot(P, X)
+        points_2d.append(uv / uv[2])
+
+    points_2d = numpy.array(points_2d)[:, :2].reshape(-1, 1, 2)
 
     return points_2d,0
 # ----------------------------------------------------------------------------------------------------------------------
@@ -149,7 +182,7 @@ def draw_cube_numpy_MVP(img,mat_projection, mat_view, mat_model, mat_trns, color
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_points_numpy_RT(points_3d, img, camera_matrix, dist, rvec, tvec,mat_trns=None, scale=(1, 1, 1), color=(66, 0, 166)):
+def draw_points_numpy_RT(points_3d, img, camera_matrix, dist, rvec, tvec,mat_trns=None, color=(66, 0, 166)):
 
     if mat_trns is None:
         mat_trns = numpy.eye(4)
@@ -164,7 +197,7 @@ def draw_points_numpy_RT(points_3d, img, camera_matrix, dist, rvec, tvec,mat_trn
 
     L3D = numpy.array((L3D))
 
-    points_2d, jac = cv2.projectPoints(points_3d, rvec, tvec, camera_matrix, dist)
+    #points_2d, jac = cv2.projectPoints(points_3d, rvec, tvec, camera_matrix, dist)
     points_2d, jac = project_points(L3D, (0,0,0), (0,0,0), camera_matrix, dist)
 
     points_2d = points_2d.reshape((-1, 2))
@@ -174,7 +207,7 @@ def draw_points_numpy_RT(points_3d, img, camera_matrix, dist, rvec, tvec,mat_trn
     return img
 # ----------------------------------------------------------------------------------------------------------------------
 
-def draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166),do_debug=False):
+def draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166)):
 
     fx, fy = float(img.shape[1]), float(img.shape[0])
     camera_matrix = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 1]])
@@ -197,13 +230,39 @@ def draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, m
     for point in points_2d:
         img = tools_draw_numpy.draw_circle(img, int(point[1]), int(point[0]), 4, color)
 
-    if do_debug:
-        for p2,p3 in zip(points_2d,points_3d):
-            print(p3,p2)
-        print()
     return img
 # ----------------------------------------------------------------------------------------------------------------------
+def draw_points_numpy_MVP_ortho(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166),do_debug=False):
 
+    fx, fy = float(img.shape[1]), float(img.shape[0])
+    camera_matrix = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 1]])
+
+    L3D = []
+    for v in points_3d:
+        vv = pyrr.matrix44.apply_to_vector(mat_trns, v)
+        vv = pyrr.matrix44.apply_to_vector(mat_model, vv)
+        vv = pyrr.matrix44.apply_to_vector(mat_view, vv)
+        L3D.append(vv)
+
+    L3D = numpy.array(L3D)
+
+    scale_factor = 10*(0.2/mat_projection[0,0])
+    points_2d, jac = project_points_ortho(L3D, (0, 0, 0), (0, 0, 0), camera_matrix, numpy.zeros(4),scale_factor)
+
+    L3D_ortho =L3D.copy()
+    L3D_ortho[:,2]=1
+    camera_matrix_ortho = camera_matrix.copy()
+    camera_matrix_ortho[:,2]*=scale_factor
+
+    points_2d, jac = cv2.projectPoints(L3D_ortho, (0, 0, 0), (0, 0, 0), camera_matrix_ortho, numpy.zeros(4),scale_factor)
+    points_2d = points_2d.reshape((-1, 2))/scale_factor
+
+    points_2d[:, 0] = img.shape[1] - points_2d[:, 0]
+
+    for point in points_2d:
+        img = tools_draw_numpy.draw_circle(img, int(point[1]), int(point[0]), 4, color)
+
+    return img
 # ----------------------------------------------------------------------------------------------------------------------
 def get_ray(point_2d, img, mat_projection, mat_view, mat_model, mat_trns):
 
