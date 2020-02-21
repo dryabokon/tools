@@ -218,7 +218,7 @@ class detector_landmarks(object):
         return model_points
 
 # --------------------------------------------------------------------------------------------------------------------
-    def get_pose(self, image,landmarks_2d, landmarks_3d,mat_trns=None,idx_match=None):
+    def get_pose_perspective(self, image,landmarks_2d, landmarks_3d,mat_trns=None,idx_match=None):
 
         if mat_trns is None: mat_trns = numpy.eye(4)
         if idx_match is None:
@@ -252,6 +252,35 @@ class detector_landmarks(object):
         #landmarks_2d_check=numpy.reshape(landmarks_2d_check,(-1,2))
 
         return self.r_vec.flatten(), self.t_vec.flatten()
+# --------------------------------------------------------------------------------------------------------------------
+    def get_pose_ortho(self, image, landmarks_2d, landmarks_3d, mat_trns=None, idx_match=None):
+
+        if mat_trns  is None: mat_trns = numpy.eye(4)
+        if idx_match is None:idx_match = numpy.arange(0, 68, 1).tolist()
+
+        fx, fy = float(image.shape[1]), float(image.shape[0])
+        self.mat_camera = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 1]])
+        dist_coefs = numpy.zeros((4, 1))
+
+        if landmarks_3d is None:L3D = self.model_68_points
+        else:L3D = landmarks_3d.copy()
+
+        L3D_ortho = numpy.array([pyrr.matrix44.apply_to_vector(mat_trns, v) for v in L3D])
+        L3D_ortho[:, 2] = 1
+
+        rvec, tvec, scale_factor = tools_render_CV.find_ortho_fit(L3D_ortho,landmarks_2d,fx,fy)
+        rvec = numpy.reshape(rvec, (1, 3))
+        tvec = numpy.reshape(tvec, (1, 3))
+
+        camera_matrix_ortho = self.mat_camera.copy()
+        camera_matrix_ortho[:, 2] *= scale_factor
+        camera_matrix_ortho /= scale_factor
+
+        landmarks_2d_check, jac = cv2.projectPoints(L3D_ortho, rvec, tvec,camera_matrix_ortho, numpy.zeros(4))
+        landmarks_2d_check = landmarks_2d_check.reshape((-1, 2))
+
+
+        return rvec.flatten(), tvec.flatten(), scale_factor
 # --------------------------------------------------------------------------------------------------------------------
     def draw_annotation_box(self,image, rotation_vector, translation_vector, color=(0, 128, 255), line_width=1):
 

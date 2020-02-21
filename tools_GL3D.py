@@ -178,7 +178,10 @@ class render_GL3D(object):
         fx, fy = float(self.W), float(self.H)
         near, far = 0, 100
         left, right, bottom, top = (factor*numpy.array([-1,1,-1,1])).tolist()
+
         self.mat_camera = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 1]])
+        self.mat_camera[:, 2] *= factor
+        self.mat_camera/= factor
         self.mat_projection = pyrr.matrix44.create_orthogonal_projection(left, right, bottom, top, near, far)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "projection"), 1, GL_FALSE, self.mat_projection)
         return
@@ -201,7 +204,9 @@ class render_GL3D(object):
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_model(self,rvec, tvec):
-        self.mat_model = pyrr.matrix44.create_from_eulers(rvec)
+        R = self.mat_model = pyrr.matrix44.create_from_eulers(rvec)
+        T = self.mat_model = pyrr.matrix44.create_from_translation(tvec)
+        self.mat_model = pyrr.matrix44.multiply(R,T)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "model"), 1, GL_FALSE, self.mat_model)
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -216,7 +221,7 @@ class render_GL3D(object):
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "light")    , 1, GL_FALSE,self.mat_light )
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def init_modelview(self, rvec, tvec):
+    def init_perspective_view(self, rvec, tvec):
         M = tools_render_CV.compose_model_view_from_RT(numpy.array(rvec, dtype=numpy.float), numpy.array(tvec, dtype=numpy.float))
         self.mat_model, self.mat_view = tools_render_CV.decompose_model_view(M)
 
@@ -224,47 +229,62 @@ class render_GL3D(object):
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "model"), 1, GL_FALSE, self.mat_model)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def draw(self,rvec=None,tvec=None):
+    def init_ortho_view(self, rvec, tvec, scale_factor):
+        self.init_perspective_view(rvec, tvec)
+        self.__init_mat_projection_ortho(scale_factor)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def draw(self):
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
-        if rvec is not None and tvec is not None:
-            self.init_modelview(rvec,tvec)
         glDrawArrays(GL_TRIANGLES, 0, self.my_VBO.iterator//3)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def get_image(self, rvec=None, tvec=None, do_debug=False):
-        self.draw(rvec, tvec)
+    def get_image(self, do_debug=False):
+        self.draw()
         image_buffer = glReadPixels(0, 0, self.W, self.H, OpenGL.GL.GL_RGB, OpenGL.GL.GL_UNSIGNED_BYTE)
         image = numpy.frombuffer(image_buffer, dtype=numpy.uint8).reshape(self.H, self.W, 3)
-        image = image[:,:,[2,1,0]]
-        image = cv2.flip(image,0)
-
-        if do_debug:
-            rvec_model, tvec_model, rvec_view, tvec_view = tools_render_CV.decompose_model_view_to_RRTT(self.mat_model, self.mat_view)
-            modelview = pyrr.matrix44.multiply(self.mat_model, self.mat_view)
-            rvec_i, tvec_i = tools_render_CV.decompose_model_view_to_RT(modelview)
-
-            self.draw_mat(self.mat_trns,       20, 20, image)
-            self.draw_mat(self.mat_model,      20, 120, image)
-            self.draw_mat(self.mat_view,       20, 220, image)
-            self.draw_mat(self.mat_projection, 20, 320, image)
-            self.draw_mat(self.mat_camera,     20, 420, image)
-            self.draw_vec(rvec_model         , 20, 520, image)
-            self.draw_vec(rvec_view,           20, 560, image)
-            self.draw_vec(tvec_view,           20, 580, image)
-
-            print('[ %1.2f, %1.2f, %1.2f], [%1.2f,  %1.2f,  %1.2f]'%(rvec_i[0],rvec_i[1],rvec_i[2],tvec_i[0],tvec_i[1],tvec_i[2]))
-            self.draw_vec(rvec_i,            20, 620, image)
-            self.draw_vec(tvec_i,            20, 640, image)
-
-            tools_render_CV.check_decompose_model_view(self.mat_model, self.mat_view)
-
-            if self.projection_type=='P':
-                image = tools_render_CV.draw_points_numpy_MVP(self.object.coord_vert, image, self.mat_projection, self.mat_view, self.mat_model, self.mat_trns)
-                #image = tools_render_CV.draw_points_numpy_RT(self.object.coord_vert, image, self.mat_camera, numpy.zeros(4), rvec_i, tvec_i, self.mat_trns)
-            else:
-                image = tools_render_CV.draw_points_numpy_MVP_ortho(self.object.coord_vert, image, self.mat_projection, self.mat_view, self.mat_model, self.mat_trns)
-
+        image = cv2.flip(image[:,:,[2,1,0]],0)
+        if do_debug:image = self.draw_debug_info(image)
         return image
+# ----------------------------------------------------------------------------------------------------------------------
+    def get_image_perspective(self, rvec, tvec, do_debug=False):
+        self.init_perspective_view(rvec,tvec)
+        return self.get_image(do_debug)
+# ----------------------------------------------------------------------------------------------------------------------
+    def get_image_ortho(self,rvec, tvec, scale_factor,do_debug=False):
+        self.init_ortho_view(rvec, tvec, scale_factor)
+        return self.get_image(do_debug)
+# ----------------------------------------------------------------------------------------------------------------------
+
+    def draw_debug_info(self,image):
+
+        result = image.copy()
+        rvec_model, tvec_model, rvec_view, tvec_view = tools_render_CV.decompose_model_view_to_RRTT(self.mat_model, self.mat_view)
+        modelview = pyrr.matrix44.multiply(self.mat_model, self.mat_view)
+
+        if self.projection_type=='P':
+            rvec_i, tvec_i = tools_render_CV.decompose_model_view_to_RT(modelview)
+            print('[ %1.2f, %1.2f, %1.2f], [%1.2f,  %1.2f,  %1.2f]' % (rvec_i[0], rvec_i[1], rvec_i[2], tvec_i[0], tvec_i[1], tvec_i[2]))
+            result = tools_render_CV.draw_points_numpy_MVP(self.object.coord_vert, result, self.mat_projection,self.mat_view, self.mat_model, self.mat_trns)
+        else:
+            rvec_i, tvec_i = tools_render_CV.decompose_model_view_to_RT(modelview,do_flip=True)
+            scale_factor = 1 / self.mat_projection[0, 0]
+            print('[ %1.2f, %1.2f, %1.2f], [%1.2f,  %1.2f,  %1.2f], %1.2f' % (rvec_i[0], rvec_i[1], rvec_i[2], tvec_i[0], tvec_i[1], tvec_i[2], scale_factor))
+            self.draw_vec(numpy.array((scale_factor,0,0,0)), 20, 660, result)
+            result = tools_render_CV.draw_points_numpy_MVP_ortho(self.object.coord_vert, result, self.mat_projection, self.mat_view, self.mat_model, self.mat_trns)
+
+        self.draw_mat(self.mat_trns,       20, 20, result)
+        self.draw_mat(self.mat_model,      20, 120, result)
+        self.draw_mat(self.mat_view,       20, 220, result)
+        self.draw_mat(self.mat_projection, 20, 320, result)
+        self.draw_mat(self.mat_camera,     20, 420, result)
+        self.draw_vec(rvec_model         , 20, 520, result)
+        self.draw_vec(rvec_view,           20, 560, result)
+        self.draw_vec(tvec_view,           20, 580, result)
+        self.draw_vec(rvec_i,            20, 620, result)
+        self.draw_vec(tvec_i,            20, 640, result)
+
+        return result
 # ----------------------------------------------------------------------------------------------------------------------
     def draw_vec(self, V, posx, posy, image):
         if V.shape[0] == 4:
@@ -284,7 +304,7 @@ class render_GL3D(object):
         return image
 # ----------------------------------------------------------------------------------------------------------------------
     def stage_data(self,folder_out):
-        cv2.imwrite(folder_out+'screenshot.png',self.get_image(do_debug=True))
+        cv2.imwrite(folder_out + 'screenshot.png',self.get_image(do_debug=True))
         self.save_markers(folder_out+'markers.txt',do_transform=False)
         self.object.export_mesh(folder_out+'mesh.obj',self.object.coord_vert,self.object.idx_vertex,do_transform=False)
 
@@ -317,12 +337,22 @@ class render_GL3D(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def start_rotation(self):
         self.on_rotate = True
-        self.mat_model_checkpoint = self.mat_model
+        self.mat_model_rotation_checkpoint = self.mat_model
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def stop_rotation(self):
         self.on_rotate = False
-        self.mat_model_checkpoint = None
+        self.mat_model_rotation_checkpoint = None
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def start_translation(self):
+        self.on_translate = True
+        self.mat_model_translation_checkpoint = self.mat_model
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def stop_translation(self):
+        self.on_translate = False
+        self.mat_model_translation_checkpoint = None
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def start_append(self):
@@ -398,8 +428,8 @@ class render_GL3D(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def rotate_model(self, delta_angle):
 
-        if self.on_rotate and self.mat_model_checkpoint is not None:
-            S, Q, tvec = pyrr.matrix44.decompose(self.mat_model_checkpoint)
+        if self.on_rotate and self.mat_model_rotation_checkpoint is not None:
+            S, Q, tvec = pyrr.matrix44.decompose(self.mat_model_rotation_checkpoint)
         else:
             S, Q, tvec = pyrr.matrix44.decompose(self.mat_model)
 
@@ -410,6 +440,29 @@ class render_GL3D(object):
         self.__init_mat_model(rvec,tvec)
         return
 # ----------------------------------------------------------------------------------------------------------------------
+    def translate_model(self, delta_pos):
+
+        if self.on_translate and self.mat_model_translation_checkpoint is not None:
+            S, Q, tvec = pyrr.matrix44.decompose(self.mat_model_translation_checkpoint)
+        else:
+            S, Q, tvec = pyrr.matrix44.decompose(self.mat_model)
+
+        rvec = tools_calibrate.quaternion_to_euler(Q)
+
+        S, Q, tvec_vew = pyrr.matrix44.decompose(self.mat_view)
+        rvec_view = tools_calibrate.quaternion_to_euler(Q)
+
+        if (rvec_view[0]==0):
+            delta_pos = numpy.multiply(delta_pos,(1,-1,0))
+        else:
+            delta_pos = numpy.multiply(delta_pos,(1,1,0))
+
+        tvec = tvec + numpy.array(delta_pos)
+        self.__init_mat_model(rvec, tvec)
+
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+
     def rotate_view(self, delta_angle):
         R = pyrr.matrix44.create_from_eulers(delta_angle)
         self.mat_view = pyrr.matrix44.multiply(self.mat_view,R)
@@ -428,6 +481,7 @@ class render_GL3D(object):
         self.stop_rotation()
         self.stop_append()
         self.stop_remove()
+        self.stop_translation()
 
         self.__init_mat_light(numpy.array((-math.pi / 2, -math.pi / 2, 0)))
         self.__init_mat_projection()

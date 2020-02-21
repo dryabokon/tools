@@ -15,31 +15,31 @@ def check_decompose_RT(rotv, tvecs):
     if rotv is None or tvecs is None:
         return
 
-    modelview  = compose_model_view_from_RT(rotv, tvecs)
-    mat_model, mat_view = decompose_model_view(modelview)
-    modelview_new = pyrr.matrix44.multiply(mat_model,mat_view)
-    rotv_check, tvecs_check = decompose_model_view_to_RT(modelview_new)
+    #modelview  = compose_model_view_from_RT(rotv, tvecs)
+    #mat_model, mat_view = decompose_model_view(modelview)
+    #modelview_new = pyrr.matrix44.multiply(mat_model,mat_view)
+    #rotv_check, tvecs_check = decompose_model_view_to_RT(modelview_new)
     return
 # ----------------------------------------------------------------------------------------------------------------------
 def check_decompose_model_view(mat_model, mat_view):
 
-    modelview = pyrr.matrix44.multiply(mat_model, mat_view)
-    rvec, tvec = decompose_model_view_to_RT(modelview)
-    modelview_new = compose_model_view_from_RT(rvec,tvec)
-    mat_model_check, mat_view_check = decompose_model_view(modelview)
+    #modelview = pyrr.matrix44.multiply(mat_model, mat_view)
+    #rvec, tvec = decompose_model_view_to_RT(modelview)
+    #modelview_new = compose_model_view_from_RT(rvec,tvec)
+    #mat_model_check, mat_view_check = decompose_model_view(modelview)
     return
 # ----------------------------------------------------------------------------------------------------------------------
 def compose_model_view_from_RT(rotv, tvecs):
 
-    rotv = rotv.reshape(3, 1)
-    tvecs = tvecs.reshape(3, 1)
+    #rotv = numpy.array(rotv).reshape(3, 1)
+    #tvecs = numpy.array(tvecs).reshape(3, 1)
 
     #rotMat, jacobian = cv2.Rodrigues(rotv)
-    rotMat = pyrr.matrix44.create_from_eulers(rotv.flatten())
+    rotMat = pyrr.matrix44.create_from_eulers(rotv[:3])
 
     M = numpy.identity(4)
     M[0:3, 0:3] = rotMat[0:3,0:3]
-    M[0:3, 3:4] = tvecs
+    M[0:3, 3:4] = numpy.array(tvecs[:3]).reshape(3, 1)
     return M.T
 # ----------------------------------------------------------------------------------------------------------------------
 def decompose_model_view(M):
@@ -61,10 +61,11 @@ def decompose_model_view_to_RRTT(mat_model, mat_view):
     return rvec_model,tvec_model,rvec_view,tvec_view
 
 # ----------------------------------------------------------------------------------------------------------------------
-def decompose_model_view_to_RT(M):
+def decompose_model_view_to_RT(M,do_flip=True):
     newM = M.T
-    newM[1,:]*=-1
-    newM[2,:]*=-1
+    if do_flip:
+        newM[1,:]*=-1
+        newM[2,:]*=-1
 
     tvec = newM[0:3, 3:4]
     R = numpy.eye(4)
@@ -243,22 +244,30 @@ def draw_points_numpy_MVP_ortho(points_3d, img, mat_projection, mat_view, mat_mo
         vv = pyrr.matrix44.apply_to_vector(mat_model, vv)
         vv = pyrr.matrix44.apply_to_vector(mat_view, vv)
         L3D.append(vv)
-
     L3D = numpy.array(L3D)
+    scale_factor = 10 * (0.2 / mat_projection[0, 0])
 
-    scale_factor = 10*(0.2/mat_projection[0,0])
-    points_2d, jac = project_points_ortho(L3D, (0, 0, 0), (0, 0, 0), camera_matrix, numpy.zeros(4),scale_factor)
+    method = 2
+    if method==1:
+        points_2d, jac = project_points_ortho(L3D, (0, 0, 0), (0, 0, 0), camera_matrix, numpy.zeros(4),scale_factor)
+        points_2d = points_2d.reshape((-1, 2))
+    else: #method 2
+        L3D_ortho =L3D.copy()
+        L3D_ortho[:,2]=1
+        camera_matrix_ortho = camera_matrix.copy()
+        camera_matrix_ortho[:,2]*=scale_factor
+        camera_matrix_ortho/=scale_factor
+        points_2d, jac = cv2.projectPoints(L3D_ortho, (0, 0, 0), (0, 0, 0), camera_matrix_ortho, numpy.zeros(4))
+        points_2d = points_2d.reshape((-1, 2))
 
-    L3D_ortho =L3D.copy()
-    L3D_ortho[:,2]=1
-    camera_matrix_ortho = camera_matrix.copy()
-    camera_matrix_ortho[:,2]*=scale_factor
+        #check
 
-    points_2d, jac = cv2.projectPoints(L3D_ortho, (0, 0, 0), (0, 0, 0), camera_matrix_ortho, numpy.zeros(4),scale_factor)
-    points_2d = points_2d.reshape((-1, 2))/scale_factor
+        (_, rotation_vector, translation_vector) = cv2.solvePnP(L3D_ortho, points_2d,camera_matrix_ortho, numpy.zeros(4))
+        points_2d_check, jac = cv2.projectPoints(L3D_ortho, (0, 0, 0), (0, 0, 0), camera_matrix_ortho,numpy.zeros(4), scale_factor)
+        points_2d_check = points_2d_check.reshape((-1, 2))/scale_factor
 
-    points_2d[:, 0] = img.shape[1] - points_2d[:, 0]
 
+    points_2d[:, 1] = img.shape[0] - points_2d[:, 1]
     for point in points_2d:
         img = tools_draw_numpy.draw_circle(img, int(point[1]), int(point[0]), 4, color)
 
@@ -512,4 +521,47 @@ def my_solve_PnP(L3D, L2D, K, dist):
 
 
     return (0, rvec, t)
+# ----------------------------------------------------------------------------------------------------------------------
+def fit_homography(X_source,X_target):
+    H = tools_calibrate.get_homography_by_keypoints(X_source, X_target)
+    result  = cv2.perspectiveTransform(X_source.reshape(-1, 1, 2),H).reshape((-1,2))
+    return H, result
+# ----------------------------------------------------------------------------------------------------------------------
+def fit_affine(X_source,X_target):
+    A = tools_calibrate.get_transform_by_keypoints(numpy.array(X_source), numpy.array(X_target))
+    result = cv2.transform(X_source.reshape(-1, 1, 2), A).reshape((-1,2))
+    return A, result
+# ----------------------------------------------------------------------------------------------------------------------
+def fit_euclid(X_source,X_target):
+    E, _ = cv2.estimateAffinePartial2D(numpy.array(X_source), numpy.array(X_target))
+    result = cv2.transform(X_source.reshape(-1, 1, 2), E).reshape((-1,2))
+    return E, result
+# ----------------------------------------------------------------------------------------------------------------------
+def find_ortho_fit(X3D, X_target, fx, fy):
+
+    do_debug = True
+
+    rvec, tvec, scale_factor = [-1.58, 3.14, 0.22], [-0.11, -0.38, 9.75], 1.73
+    X_source = X3D[:,:2]
+    for dim in range(2):
+        min_value_s = X_source[:, dim].min()
+        min_value_t = X_target[:, dim].min()
+        max_value_s = X_source[:, dim].max()
+        max_value_t = X_target[:, dim].max()
+        scale = (max_value_t - min_value_t) / (max_value_s - min_value_s)
+        X_source[:, dim] = (X_source[:, dim] - min_value_s) * scale + min_value_t
+
+    H, result = fit_euclid(X_source, X_target)
+
+    if do_debug:
+        image = numpy.full((1024, 1024, 3), 255)
+        for x in X_target: cv2.circle(image,  (int(x[0]), int(x[1])), 4, (0, 128, 255), -1)
+        for x in X_source: cv2.circle(image, (int(x[0]), int(x[1])), 2, (200, 200, 200), -1)
+        for x in result:   cv2.circle(image, (int(x[0]), int(x[1])), 4, (0, 32, 190), -1)
+        cv2.imwrite('./images/output/fit.png', image)
+
+    loss = ((result-X_target)**2).mean()
+    print(loss)
+
+    return rvec, tvec, scale_factor
 # ----------------------------------------------------------------------------------------------------------------------

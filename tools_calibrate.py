@@ -275,8 +275,8 @@ def get_homography_by_keypoints_desc(points_source,des_source, points_destin,des
         M = get_homography_by_keypoints(src, dst)
         if M is None:
             return M
-        if not is_homography_good(src, dst,M):
-            M = None
+        #if not is_homography_good(src, dst,M):
+        #    M = None
 
     return M
 # ---------------------------------------------------------------------------------------------------------------------
