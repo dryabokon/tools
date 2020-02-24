@@ -1,10 +1,10 @@
-from sklearn.neighbors import NearestNeighbors
 import cv2
 import numpy
 from os import listdir
 from glob import glob
 import fnmatch
 import math
+import pyrr
 #----------------------------------------------------------------------------------------------------------------------
 import tools_draw_numpy
 import tools_image
@@ -331,81 +331,6 @@ def is_transform_good(src, dst,M):
         if dims2[i][0][1] >dst_w+10: return False
 
     return True
-# ----------------------------------------------------------------------------------------------------------------------
-def rotationMatrixToEulerAngles(R,do_flip=False):
-
-    Rt = numpy.transpose(R)
-    shouldBeIdentity = numpy.dot(Rt, R)
-    I = numpy.identity(3, dtype=R.dtype)
-    n = numpy.linalg.norm(I - shouldBeIdentity)
-
-    if True or (n < 1e-6):
-
-        sy = math.sqrt(R[0, 0] * R[0, 0] + R[1, 0] * R[1, 0])
-
-        singular = sy < 1e-6
-
-        if not singular:
-            x = math.atan2(R[2, 1], R[2, 2])
-            y = math.atan2(-R[2, 0], sy)
-            z = math.atan2(R[1, 0], R[0, 0])
-        else:
-            x = math.atan2(-R[1, 2], R[1, 1])
-            y = math.atan2(-R[2, 0], sy)
-            z = 0
-
-        if do_flip:
-            x*=-1
-            y*=-1
-
-    return numpy.array([x, z, y])
-#----------------------------------------------------------------------------------------------------------------------
-def quaternion_to_euler(Q):
-    x, y, z, w = Q[0],Q[1],Q[2],Q[3]
-
-    t0 = +2.0 * (w * x + y * z)
-    t1 = +1.0 - 2.0 * (x * x + y * y)
-    X = math.degrees(math.atan2(t0, t1))
-
-    t2 = +2.0 * (w * y - z * x)
-    t2 = +1.0 if t2 > +1.0 else t2
-    t2 = -1.0 if t2 < -1.0 else t2
-    Y = math.degrees(math.asin(t2))
-
-    t3 = +2.0 * (w * z + x * y)
-    t4 = +1.0 - 2.0 * (y * y + z * z)
-    Z = math.degrees(math.atan2(t3, t4))
-
-    return numpy.array((X, Z, Y))*math.pi/180
-#----------------------------------------------------------------------------------------------------------------------
-def euler_to_quaternion(rvec):
-    yaw, pitch, roll = rvec[0],rvec[1], rvec[2]
-    qx = numpy.sin(roll / 2) * numpy.cos(pitch / 2) * numpy.cos(yaw / 2) - numpy.cos(roll / 2) * numpy.sin(pitch / 2) * numpy.sin(yaw / 2)
-    qy = numpy.cos(roll / 2) * numpy.sin(pitch / 2) * numpy.cos(yaw / 2) + numpy.sin(roll / 2) * numpy.cos(pitch / 2) * numpy.sin(yaw / 2)
-    qz = numpy.cos(roll / 2) * numpy.cos(pitch / 2) * numpy.sin(yaw / 2) - numpy.sin(roll / 2) * numpy.sin(pitch / 2) * numpy.cos(yaw / 2)
-    qw = numpy.cos(roll / 2) * numpy.cos(pitch / 2) * numpy.cos(yaw / 2) + numpy.sin(roll / 2) * numpy.sin(pitch / 2) * numpy.sin(yaw / 2)
-    return numpy.array((qx, qy, qz, qw))
-#----------------------------------------------------------------------------------------------------------------------
-def eulerAnglesToRotationMatrix(theta):
-
-    R_x = numpy.array([[1, 0, 0],
-                    [0, math.cos(theta[0]), -math.sin(theta[0])],
-                    [0, math.sin(theta[0]), math.cos(theta[0])]
-                    ])
-
-    R_y = numpy.array([[math.cos(theta[1]), 0, math.sin(theta[1])],
-                    [0, 1, 0],
-                    [-math.sin(theta[1]), 0, math.cos(theta[1])]
-                    ])
-
-    R_z = numpy.array([[math.cos(theta[2]), -math.sin(theta[2]), 0],
-                    [math.sin(theta[2]), math.cos(theta[2]), 0],
-                    [0, 0, 1]
-                    ])
-
-    R = numpy.dot(R_z, numpy.dot(R_y, R_x))
-
-    return R
 #----------------------------------------------------------------------------------------------------------------------
 def calculate_eye_target_up(viewMat):
     eye = viewMat[3,0:3].T
@@ -415,7 +340,7 @@ def calculate_eye_target_up(viewMat):
 #----------------------------------------------------------------------------------------------------------------------
 def derive_transform(img1,img2,K=numpy.array([[1000,0,0],[0,1000,0],[0,0,1]])):
 
-    H = get_sift_homography(img1, img2).astype('float')
+    H = get_homography_by_keypoints(img1, img2).astype('float')
     n, R, T, normal = cv2.decomposeHomographyMat(H, K)
     R = numpy.array(R[0])
     T = numpy.array(T[0])
@@ -443,21 +368,6 @@ def get_inverse_homography(H):
     v,HH = cv2.invert(H)
     HH /= HH[2, 2]
     return HH
-#----------------------------------------------------------------------------------------------------------------------
-def bend_homography(H,alpha,K=numpy.array([[1000,0,0],[0,1000,0],[0,0,1]])):
-    n, R, T, normal = cv2.decomposeHomographyMat(H, K)
-
-    R= R[0]
-    T= T[0]
-    normal = normal[0]
-
-    angles = rotationMatrixToEulerAngles(R)*alpha
-    R = eulerAnglesToRotationMatrix(angles)
-    T = T*alpha
-
-    H = compose_homography(R, T, normal, K)
-
-    return H
 # ---------------------------------------------------------------------------------------------------------------------
 def align_two_images_translation(img1, img2,detector='SIFT',matchtype='knn',borderMode=cv2.BORDER_REPLICATE, background_color=(0, 255, 255)):
 
@@ -551,7 +461,7 @@ def align_two_images_ECC(im1, im2,mode = cv2.MOTION_AFFINE):
         aligned = cv2.warpAffine(im2, warp_matrix, (im2_gray.shape[1], im2_gray.shape[0]),borderMode=cv2.BORDER_REPLICATE, flags=cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP)
         return im1, aligned
 # ---------------------------------------------------------------------------------------------------------------------
-def get_rvecs_tvecs(img,chess_rows, chess_cols,cameraMatrix, dist):
+def get_rvecs_tvecs_for_chessboard(img, chess_rows, chess_cols, cameraMatrix, dist):
     corners_3d = numpy.zeros((chess_rows * chess_cols, 3), numpy.float32)
     corners_3d[:, :2] = numpy.mgrid[0:chess_cols, 0:chess_rows].T.reshape(-1, 2)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -564,109 +474,4 @@ def get_rvecs_tvecs(img,chess_rows, chess_cols,cameraMatrix, dist):
         _, rvecs, tvecs, inliers = cv2.solvePnPRansac(corners_3d, corners_2d, cameraMatrix, dist)
 
     return rvecs, tvecs
-# ---------------------------------------------------------------------------------------------------------------------
-def best_fit_transform(A, B):
-    '''
-    Calculates the least-squares best-fit transform that maps corresponding points A to B in m spatial dimensions
-    Input:
-      A: Nxm numpy array of corresponding points
-      B: Nxm numpy array of corresponding points
-    Returns:
-      T: (m+1)x(m+1) homogeneous transformation matrix that maps A on to B
-      R: mxm rotation matrix
-      t: mx1 translation vector
-    '''
-
-    assert A.shape == B.shape
-
-    # get number of dimensions
-    m = A.shape[1]
-
-    # translate points to their centroids
-    centroid_A = numpy.mean(A, axis=0)
-    centroid_B = numpy.mean(B, axis=0)
-    AA = A - centroid_A
-    BB = B - centroid_B
-
-    # rotation matrix
-    H = numpy.dot(AA.T, BB)
-    U, S, Vt = numpy.linalg.svd(H)
-    R = numpy.dot(Vt.T, U.T)
-
-    # special reflection case
-    if numpy.linalg.det(R) < 0:
-       Vt[m-1,:] *= -1
-       R = numpy.dot(Vt.T, U.T)
-
-    # translation
-    t = centroid_B.T - numpy.dot(R, centroid_A.T)
-
-    # homogeneous transformation
-    T = numpy.identity(m + 1)
-    T[:m, :m] = R
-    T[:m, m] = t
-
-    return T, R, t
-# ---------------------------------------------------------------------------------------------------------------------
-def nearest_neighbor(src, dst):
-
-    assert src.shape == dst.shape
-    neigh = NearestNeighbors(n_neighbors=1)
-    neigh.fit(dst)
-    distances, indices = neigh.kneighbors(src, return_distance=True)
-    return distances.ravel(), indices.ravel()
-# ---------------------------------------------------------------------------------------------------------------------
-def icp(A, B, init_pose=None, max_iterations=200, tolerance=0.001):
-    '''
-    The Iterative Closest Point method: finds best-fit transform that maps points A on to points B
-    Input:
-        A: Nxm numpy array of source mD points
-        B: Nxm numpy array of destination mD point
-        init_pose: (m+1)x(m+1) homogeneous transformation
-        max_iterations: exit algorithm after max_iterations
-        tolerance: convergence criteria
-    Output:
-        T: final homogeneous transformation that maps A on to B
-        distances: Euclidean distances (errors) of the nearest neighbor
-        i: number of iterations to converge
-    '''
-
-    assert A.shape == B.shape
-
-    # get number of dimensions
-    m = A.shape[1]
-
-    # make points homogeneous, copy them to maintain the originals
-    src = numpy.ones((m + 1, A.shape[0]))
-    dst = numpy.ones((m + 1, B.shape[0]))
-    src[:m,:] = numpy.copy(A.T)
-    dst[:m,:] = numpy.copy(B.T)
-
-    # apply the initial pose estimation
-    if init_pose is not None:
-        src = numpy.dot(init_pose, src)
-
-    prev_error = 0
-
-    for i in range(max_iterations):
-        # find the nearest neighbors between the current source and destination points
-        distances, indices = nearest_neighbor(src[:m,:].T, dst[:m,:].T)
-
-        # compute the transformation between the current source and nearest destination points
-        T,_,_ = best_fit_transform(src[:m,:].T, dst[:m,indices].T)
-
-        # update the current source
-        src = numpy.dot(T, src)
-
-        # check error
-        mean_error = numpy.mean(distances)
-        if numpy.abs(prev_error - mean_error) < tolerance:
-            break
-        prev_error = mean_error
-        print(numpy.mean(distances))
-
-    # calculate final transformation
-    T,_,_ = best_fit_transform(A, src[:m,:].T)
-
-    return T, distances, i
 # ---------------------------------------------------------------------------------------------------------------------

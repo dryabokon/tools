@@ -10,6 +10,7 @@ import tools_GL
 import tools_IO
 import pyrr
 import tools_render_CV
+import tools_pr_geom
 # --------------------------------------------------------------------------------------------------------------------
 class detector_landmarks(object):
     def __init__(self,filename_config,filename_3dmarkers=None):
@@ -253,34 +254,19 @@ class detector_landmarks(object):
 
         return self.r_vec.flatten(), self.t_vec.flatten()
 # --------------------------------------------------------------------------------------------------------------------
-    def get_pose_ortho(self, image, landmarks_2d, landmarks_3d, mat_trns=None, idx_match=None):
+    def get_pose_ortho(self, image, landmarks_2d, landmarks_3d, mat_trns=None,do_debug=False):
 
-        if mat_trns  is None: mat_trns = numpy.eye(4)
-        if idx_match is None:idx_match = numpy.arange(0, 68, 1).tolist()
-
-        fx, fy = float(image.shape[1]), float(image.shape[0])
-        self.mat_camera = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 1]])
-        dist_coefs = numpy.zeros((4, 1))
+        if mat_trns is None: mat_trns = numpy.eye(4)
+        fx, fy = image.shape[1], image.shape[0]
 
         if landmarks_3d is None:L3D = self.model_68_points
         else:L3D = landmarks_3d.copy()
+        L3D = numpy.array([pyrr.matrix44.apply_to_vector(mat_trns, v) for v in L3D])
 
-        L3D_ortho = numpy.array([pyrr.matrix44.apply_to_vector(mat_trns, v) for v in L3D])
-        L3D_ortho[:, 2] = 1
-
-        rvec, tvec, scale_factor = tools_render_CV.find_ortho_fit(L3D_ortho,landmarks_2d,fx,fy)
-        rvec = numpy.reshape(rvec, (1, 3))
-        tvec = numpy.reshape(tvec, (1, 3))
-
-        camera_matrix_ortho = self.mat_camera.copy()
-        camera_matrix_ortho[:, 2] *= scale_factor
-        camera_matrix_ortho /= scale_factor
-
-        landmarks_2d_check, jac = cv2.projectPoints(L3D_ortho, rvec, tvec,camera_matrix_ortho, numpy.zeros(4))
-        landmarks_2d_check = landmarks_2d_check.reshape((-1, 2))
-
-
-        return rvec.flatten(), tvec.flatten(), scale_factor
+        rvec, tvec, scale_factor,modelview = tools_render_CV.find_ortho_fit(L3D,landmarks_2d,fx,fy,do_debug=do_debug)
+        #loss = tools_render_CV.check_projection_ortho_modelview(L3D, landmarks_2d, modelview, fx,fy, scale_factor, do_debug=True)
+        #loss = tools_render_CV.check_projection_ortho(L3D, landmarks_2d, rvec, tvec, fx,fy,scale_factor, do_debug=True)
+        return rvec, tvec, scale_factor
 # --------------------------------------------------------------------------------------------------------------------
     def draw_annotation_box(self,image, rotation_vector, translation_vector, color=(0, 128, 255), line_width=1):
 
@@ -315,5 +301,20 @@ class detector_landmarks(object):
         cv2.line(result, tuple(point_2d[1]), tuple(point_2d[6]), color, line_width, cv2.LINE_AA)
         cv2.line(result, tuple(point_2d[2]), tuple(point_2d[7]), color, line_width, cv2.LINE_AA)
         cv2.line(result, tuple(point_2d[3]), tuple(point_2d[8]), color, line_width, cv2.LINE_AA)
+        return result
+# --------------------------------------------------------------------------------------------------------------------
+    def draw_annotation_box_v2(self,image, rvec, tvec,scale):
+
+        result = image.copy()
+        color = (0, 128, 255)
+
+        points_3d = numpy.array([[-1, -1, -1], [-1, +1, -1], [+1, +1, -1], [+1, -1, -1], [-1, -1, +1], [-1, +1, +1], [+1, +1, +1],[+1, -1, +1]], dtype=numpy.float32)
+        points_3d[:4] *= 1.5
+
+        points_2d, _ = tools_pr_geom.project_points_ortho(points_3d, rvec.flatten(), tvec.flatten(),numpy.zeros(4), image.shape[1], image.shape[0], scale)
+        points_2d = numpy.reshape(points_2d,(-1, 2)).astype(numpy.int)
+        #for x in point_2d: cv2.circle(result, (int(x[0]), int(x[1])), 4, (0, 32, 190), -1)
+
+        for i, j in zip((0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3), (1, 2, 3, 0, 5, 6, 7, 4, 4, 5, 6, 7)):cv2.line(result, (points_2d[i, 0], points_2d[i, 1]), (points_2d[j, 0], points_2d[j, 1]), color, 2)
         return result
 # --------------------------------------------------------------------------------------------------------------------
