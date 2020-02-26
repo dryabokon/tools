@@ -93,6 +93,8 @@ class render_GL3D(object):
 
         self.my_VBO = VBO()
         self.object = self.my_VBO.append_object(filename_obj, numpy.array([188, 136, 113])/255.0,self.do_normalize_model_file)
+
+
         self.bind_VBO()
         self.reset_view()
 
@@ -340,7 +342,7 @@ class render_GL3D(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def load_markers(self, filename_in, filename_marker_obj,marker_scale=None):
 
-        if marker_scale is None:
+        if marker_scale is not None:
             self.marker_scale = marker_scale
 
         markers = tools_IO.load_mat(filename_in,dtype=numpy.float,delim=',')
@@ -392,6 +394,10 @@ class render_GL3D(object):
     def translate_view(self, delta_translate):
         S, Q, tvec_view = pyrr.matrix44.decompose(self.mat_view)
         rvec_view = tools_pr_geom.quaternion_to_euler(Q)
+
+        rvec_view-=(math.pi, 0, 0)
+        tvec_view*=(-1,-1,-1)
+
         tvec_view*=delta_translate
         self.__init_mat_view_RT(rvec_view,tvec_view)
         return
@@ -518,7 +524,10 @@ class render_GL3D(object):
         obj_max = self.object.coord_vert.max()
 
         #self.__init_mat_view_ETU(eye=(0, 0, -5 * (obj_max - obj_min)), target=(0, 0, 0), up=(0, -1, 0))
-        self.__init_mat_view_ETU(eye=(0, 0, +5 * (obj_max - obj_min)), target=(0, 0, 0), up=(0, +1, 0))
+        #self.__init_mat_view_ETU(eye=(0, 0, +5 * (obj_max - obj_min)), target=(0, 0, 0), up=(0, +1, 0))
+        self.__init_mat_view_RT((0,0,0),(0,0,+5 * (obj_max - obj_min)))
+
+        S, Q, tvec_view = pyrr.matrix44.decompose(self.mat_view)
 
         return
 # ----------------------------------------------------------------------------------------------------------------------

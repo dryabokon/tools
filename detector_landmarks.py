@@ -11,6 +11,7 @@ import tools_IO
 import pyrr
 import tools_render_CV
 import tools_pr_geom
+import tools_pr_geom
 # --------------------------------------------------------------------------------------------------------------------
 class detector_landmarks(object):
     def __init__(self,filename_config,filename_3dmarkers=None):
@@ -246,10 +247,10 @@ class detector_landmarks(object):
             (_, rotation_vector, translation_vector) = cv2.solvePnP(L3D, landmarks_2d, self.mat_camera, numpy.zeros(4), rvec=self.r_vec, tvec=self.t_vec, useExtrinsicGuess=True)
             #_ , rotation_vector, translation_vector,_ = cv2.solvePnPRansac(L3D, landmarks_2d, self.mat_camera, numpy.zeros(4), rvec=self.r_vec, tvec=self.t_vec, useExtrinsicGuess=True)
 
-        self.r_vec,self.t_vec = rotation_vector, translation_vector
+        self.r_vec,self.t_vec = -rotation_vector, translation_vector
 
         #landmarks_2d_check, jac = cv2.projectPoints(L3D, rotation_vector, translation_vector, self.mat_camera, dist_coefs)
-        #landmarks_2d_check, jac = tools_render_CV.project_points(L3D,rotation_vector, translation_vector, self.mat_camera, dist_coefs)
+        #landmarks_2d_check, jac = tools_pr_geom.project_points(L3D,rotation_vector, translation_vector, self.mat_camera, dist_coefs)
         #landmarks_2d_check=numpy.reshape(landmarks_2d_check,(-1,2))
 
         return self.r_vec.flatten(), self.t_vec.flatten()
@@ -264,7 +265,7 @@ class detector_landmarks(object):
         L3D = numpy.array([pyrr.matrix44.apply_to_vector(mat_trns, v) for v in L3D])
 
         rvec, tvec, scale_factor,modelview = tools_render_CV.find_ortho_fit(L3D,landmarks_2d,fx,fy,do_debug=do_debug)
-        #loss = tools_render_CV.check_projection_ortho_modelview(L3D, landmarks_2d, modelview, fx,fy, scale_factor, do_debug=True)
+        loss = tools_render_CV.check_projection_ortho_modelview(L3D, landmarks_2d, modelview, fx,fy, scale_factor, do_debug=True)
         #loss = tools_render_CV.check_projection_ortho(L3D, landmarks_2d, rvec, tvec, fx,fy,scale_factor, do_debug=True)
         return rvec, tvec, scale_factor
 # --------------------------------------------------------------------------------------------------------------------

@@ -323,7 +323,7 @@ def fit_rvec_tvec(modelview):
 # ----------------------------------------------------------------------------------------------------------------------
 def fit_scale_factor(X4D, X_target, a0, a1, a2, fx, fy,do_debug=False):
 
-    method = 'A'
+
 
     R = pyrr.matrix44.create_from_eulers((a0,a2,a1)).T
     P = tools_pr_geom.compose_projection_mat(fx,fy,(7,7))
@@ -332,16 +332,13 @@ def fit_scale_factor(X4D, X_target, a0, a1, a2, fx, fy,do_debug=False):
     X_projection = pyrr.matrix44.multiply(PR, X4D.T).T[:, :2]
 
     E, result_E = tools_pr_geom.fit_affine(X_projection, X_target)
-    #H, result_H = tools_pr_geom.fit_homography(X_projection, X_target)
+
     M = numpy.eye(4)
 
-    if method=='A':
-        M[:2, :2] = E[:, :2]
-        M[:2,  3] = E[:,  2]
-    else:
-        M[:2, :2] = H[:2, :2]
-        M[:2,  3] = H[:2,  2]
-        M[ 3, :2] = H[2, :2]
+
+    M[:2, :2] = E[:, :2]
+    M[:2,  3] = E[:,  2]
+
 
     MPR = pyrr.matrix44.multiply(M, PR)
 
@@ -351,7 +348,6 @@ def fit_scale_factor(X4D, X_target, a0, a1, a2, fx, fy,do_debug=False):
         image = numpy.full((int(fy), int(fx), 3), 255)
         for x in X_target       : cv2.circle(image, (int(x[0]), int(x[1])), 4, (0, 128, 255), -1)
         for x in result_E       : cv2.circle(image, (int(x[0]), int(x[1])), 4, (0, 32, 190), -1)
-        for x in result_H       : cv2.circle(image, (int(x[0]), int(x[1])), 4, (128, 128, 128), -1)
         #for x in X_projection  : cv2.circle(image, (int(x[0]), int(x[1])), 3, (128, 128, 128), -1)
 
         cv2.imwrite('./images/output/fit_%03d_%03d.png'%(a0*180/math.pi,a1*180/math.pi), image)

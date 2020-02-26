@@ -97,6 +97,10 @@ class ObjLoader:
         self.coord_norm = coord_norm
         return
 # ----------------------------------------------------------------------------------------------------------------------
+    def remove_triangele(self):
+
+        return
+# ----------------------------------------------------------------------------------------------------------------------
     def scale_mesh(self,svec):
         for i in range(self.coord_vert.shape[0]):self.coord_vert[i]=numpy.multiply(self.coord_vert[i],svec)
         return
@@ -119,7 +123,7 @@ class ObjLoader:
             del_triangles, normals = [], []
         return del_triangles, normals
 # ----------------------------------------------------------------------------------------------------------------------
-    def convert(self, filename_in, filename_out,do_normalize=True):
+    def convert(self, filename_in, filename_out,do_normalize=True,cutoff=None):
         coord_vert = []
         idx_vertex = []
         lines = open(filename_in).readlines()
@@ -160,11 +164,11 @@ class ObjLoader:
             coord_vert[:, 1]/= coord_vert[:, 1].max()
             coord_vert[:, 2]/= coord_vert[:, 2].max()
 
-        self.export_mesh(filename_out, coord_vert, idx_vertex)
+        self.export_mesh(filename_out, coord_vert, idx_vertex,do_transform=False,cutoff=cutoff)
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def export_mesh(self, filename_out, X=None, idx_vertex=None,do_transform=False):
+    def export_mesh(self, filename_out, X=None, idx_vertex=None,do_transform=False,cutoff=None):
 
         if do_transform:
             X[:,1]=0 - X[:,1]
@@ -195,8 +199,13 @@ class ObjLoader:
             f_handle.write("vn %1.2f %1.2f %1.2f\n" % (n[0], n[1], n[2]))
 
         for n, t in enumerate(del_triangles):
-            f_handle.write(
-                "f %d/%d/%d %d/%d/%d %d/%d/%d\n" % (t[0] + 1, 1, n + 1, t[1] + 1, 1, n + 1, t[2] + 1, 1, n + 1))
+            if cutoff is not None:
+                x = numpy.array([X[t[0]],X[t[1]],X[t[2]]])
+                if x[:,2].mean()<cutoff:
+                    continue
+
+
+            f_handle.write("f %d/%d/%d %d/%d/%d %d/%d/%d\n" % (t[0] + 1, 1, n + 1, t[1] + 1, 1, n + 1, t[2] + 1, 1, n + 1))
 
         f_handle.close()
         return

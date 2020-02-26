@@ -283,11 +283,11 @@ def project_points(points_3d, rvec, tvec, camera_matrix, dist):
     #https: // docs.opencv.org / 2.4 / modules / calib3d / doc / camera_calibration_and_3d_reconstruction.html
 
     #R, _ = cv2.Rodrigues(rvec)
-    R = pyrr.matrix44.create_from_eulers(rvec)
+    R = pyrr.matrix44.create_from_eulers(numpy.array(rvec).flatten())
 
     M=numpy.zeros((4,4))
     M[:3,:3] = R[:3,:3]
-    M[:3,3] = numpy.array(tvec).T
+    M[:3,3] = numpy.array(numpy.array(tvec).flatten()).T
 
     P = numpy.zeros((3,4))
     P[:3,:3] = camera_matrix
