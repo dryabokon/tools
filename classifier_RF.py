@@ -12,7 +12,7 @@ class classifier_RF(object):
             return numpy.reshape(X, (X.shape[0], -1))
 # ----------------------------------------------------------------------------------------------------------------------
     def learn(self,data_train, target_train):
-        self.model = RandomForestClassifier(n_estimators=1000,max_depth=10)
+        self.model = RandomForestClassifier(n_estimators=100,max_depth=5)
         xxx = self.maybe_reshape(data_train)
         self.model.fit(xxx, target_train)
         return

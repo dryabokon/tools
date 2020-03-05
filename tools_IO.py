@@ -755,11 +755,19 @@ def plot_multiple_series(filename_fact, list_filenames, target_column=0,caption=
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
-def get_roc_data_from_scores_file(path_scores):
+def get_roc_data_from_scores_file(path_scores,has_header=False):
 
-    data = load_mat(path_scores, numpy.chararray, ' ')
-    labels = (data [:, 0]).astype('float32')
-    scores = data[:, 1:].astype('float32')
+    X = load_mat(path_scores, numpy.chararray, '\t')
+
+    if has_header:
+        header = numpy.array(X[0,:],dtype=numpy.str)
+        X  = X[1:,:]
+    else:
+        header = None
+        X = X[:,:]
+
+    labels = (X[:, 0]).astype('float32')
+    scores = X[:, 1:].astype('float32')
 
     fpr, tpr, thresholds = metrics.roc_curve(labels, scores)
     roc_auc = auc(fpr, tpr)

@@ -1,3 +1,4 @@
+import cv2
 import os
 import numpy
 import math
@@ -7,7 +8,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import normalize
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_IO
-import tools_CNN_view
+#import tools_CNN_view
 # ----------------------------------------------------------------------------------------------------------------------
 class tools_ML(object):
     def __init__(self,Classifier):
@@ -80,39 +81,24 @@ class tools_ML(object):
 
         return (X, Y, all_filenames)
 # ---------------------------------------------------------------------------------------------------------------------
-    def score_feature_file(self, file_test, filename_scrs=None, delimeter='\t', append=0, rand_sel=[],has_header=True,has_labels_first_col=False):
+    def score_feature_file(self, file_test, filename_scrs=None, delimeter='\t', append=0, rand_sel=None,has_header=True,has_labels_first_col=False):
 
         if not os.path.isfile(file_test):return
-
         data_test = tools_IO.load_mat(file_test, numpy.chararray, delimeter)
-        if has_header:
-            data_test = data_test[1:, :]
+        header, Y_test, X_test= self.preprocess_header(data_test,has_header=has_header,has_labels_first_col=has_labels_first_col)
 
-        if has_labels_first_col:
-            data_test = data_test[:, 1:]
-            labels_test = (data_test[:, 0]).astype(numpy.str)
-        else:
-            labels_test = numpy.full(data_test.shape[0],'0',dtype=numpy.chararray)
+        Y_test = numpy.array(Y_test, dtype=numpy.float)
+        Y_test = numpy.array(Y_test, dtype=numpy.int)
 
-        if data_test[0, -1] == b'':
-            data_test = data_test[:, :-1]
+        if rand_sel is not None:
+            X_test = X_test[rand_sel]
+            Y_test = Y_test[rand_sel]
 
-        data_test = data_test.astype('float32')
-
-        if rand_sel != []:
-            data_test = data_test[rand_sel]
-            labels_test = labels_test[rand_sel]
-
-        score = self.classifier.predict(data_test)
+        score = self.classifier.predict(X_test)
         score = (100 * score[:, 1]).astype(int)
 
-        yyy = self.classifier.model.predict(data_test)
-        GT = numpy.array(labels_test,dtype=numpy.float)
-        GT = numpy.array(GT, dtype=numpy.int)
-        print(accuracy_score(GT,yyy))
-
         if (filename_scrs != None):
-            tools_IO.save_labels(filename_scrs, labels_test, score, append, delim=delimeter)
+            tools_IO.save_labels(filename_scrs, Y_test, score, append, delim=delimeter)
         return
 # ---------------------------------------------------------------------------------------------------------------------
     def train_test(self, X, Y, idx_train, idx_test,path_output=None):
@@ -190,7 +176,7 @@ class tools_ML(object):
 
         return
 # ---------------------------------------------------------------------------------------------------------------------
-    def get_th(self,filename_scores_pos, filename_scores_neg,delim='\t'):
+    def get_th_pos_neg(self, filename_scores_pos, filename_scores_neg, delim='\t'):
 
         data = tools_IO.load_mat(filename_scores_pos, numpy.chararray, delim)[1:, :]
         scores1 = (data[:, 1:]).astype('float32')
@@ -209,6 +195,22 @@ class tools_ML(object):
 
         return th
 # ---------------------------------------------------------------------------------------------------------------------
+    def get_th_train(self, filename_scores_train,delim='\t',has_header=True):
+        X = tools_IO.load_mat(filename_scores_train, numpy.chararray, '\t')
+
+        if has_header:
+            X = X[1:, :]
+        else:
+            X = X[:, :]
+
+        labels = (X[:, 0]).astype('float32')
+        scores = X[:, 1:].astype('float32')
+
+        fpr, tpr, thresholds = metrics.roc_curve(labels, scores)
+        v = numpy.argmax(tpr + (1 - fpr))
+        th = thresholds[v]
+        return th
+    # ---------------------------------------------------------------------------------------------------------------------
     def stage_train_stats(self, path_output, labels_fact, labels_train_pred, labels_test_pred, labels_train_prob, labels_test_prob, patterns,X=None,Y=None,verbose=False):
 
         labels_pred   = numpy.hstack((labels_train_pred, labels_test_pred))
@@ -255,7 +257,7 @@ class tools_ML(object):
 
 
         (X, Y, filenames) = self.prepare_tensors_from_image_folders(path_input, patterns,mask= mask,limit=limit_instances,resize_W=resize_W, resize_H =resize_H,grayscaled = grayscaled)
-        X = tools_CNN_view.normalize(X.astype(numpy.float32))
+        #X = tools_CNN_view.normalize(X.astype(numpy.float32))
         idx_train = numpy.sort(numpy.random.choice(X.shape[0], int(X.shape[0] / 2), replace=False))
         idx_test  = numpy.array([x for x in range(0, X.shape[0]) if x not in idx_train])
 
@@ -355,7 +357,7 @@ class tools_ML(object):
         fig = plt.figure(figsize=(12, 6))
         fig.subplots_adjust(hspace=0.01)
 
-        th = self.get_th(filename_scrs_pos, filename_scrs_neg, delim='\t')
+        th = self.get_th_pos_neg(filename_scrs_pos, filename_scrs_neg, delim='\t')
         tools_IO.plot_2D_scores(plt.subplot(1, 3, 1), fig, filename_data_pos, filename_data_neg,filename_data_grid, filename_scores_grid, th, noice_needed=1,caption=self.classifier.name + ' %1.2f' % auc)
         tools_IO.display_distributions(plt.subplot(1, 3, 2), fig, filename_scrs_pos, filename_scrs_neg, delim='\t')
         tools_IO.display_roc_curve_from_descriptions(plt.subplot(1, 3, 3), fig, filename_scrs_pos, filename_scrs_neg,delim='\t')
@@ -376,6 +378,97 @@ class tools_ML(object):
             print('%1.2f %s'%(C[idx[i]],str(H[idx[i]])))
         return
 # ---------------------------------------------------------------------------------------------------------------------
+    def preprocess_header(self,X,has_header,has_labels_first_col):
+
+        header, first_col = None,None
+
+        if has_header:
+            header = numpy.array(X[0,:],dtype=numpy.str)
+            result  = X[1:,:]
+        else:
+            header = None
+            result = X[:,:]
+
+        if has_labels_first_col:
+            first_col = result[:, 0]
+            result = result[:, 1:]
+            if header is not None:
+                header = header [1:]
+
+        result = numpy.array(result,dtype=numpy.float)
+
+        return header, first_col, result
+# ---------------------------------------------------------------------------------------------------------------------
+    def plot_results_pos_neg(self, x_pos, x_neg, header, filename_scrs_pos, filename_scrs_neg, filename_out):
+
+
+        X = numpy.vstack((x_pos, x_neg)).astype(numpy.float)
+        Y = numpy.hstack((numpy.full(x_pos.shape[0], 1), numpy.full(x_neg.shape[0], 0)))
+
+        fig = plt.figure(figsize=(12, 6))
+        fig.subplots_adjust(hspace=0.01)
+        tools_IO.display_roc_curve_from_descriptions(plt.subplot(2, 2, 3), fig, filename_scrs_pos, filename_scrs_neg, delim='\t')
+        tools_IO.display_distributions(plt.subplot(2, 2, 2), fig, filename_scrs_pos, filename_scrs_neg, delim='\t')
+        #tools_IO.plot_features_PCA(plt.subplot(2, 2, 1),X,Y,['pos','neg'])
+        if header is not None:
+            tools_IO.plot_feature_importance(plt.subplot(2,2,4),fig,X,Y,header)
+        plt.tight_layout()
+        plt.savefig(filename_out)
+        return
+# ---------------------------------------------------------------------------------------------------------------------
+    def plot_results_train_test(self,filename_scores_train,filename_scores_test,filename_out,has_header=False):
+
+        fig = plt.figure(figsize=(12, 6))
+        fig.subplots_adjust(hspace=0.01)
+
+        tpr, fpr, auc = tools_IO.get_roc_data_from_scores_file(filename_scores_train,has_header=has_header)
+        tools_IO.plot_tp_fp(plt.subplot(1, 2, 1),fig,tpr,fpr,auc,caption='Train',filename_out=None)
+
+        tpr, fpr, auc = tools_IO.get_roc_data_from_scores_file(filename_scores_test, has_header=has_header)
+        tools_IO.plot_tp_fp(plt.subplot(1, 2, 2), fig, tpr, fpr, auc, caption='Test', filename_out=None)
+
+        plt.tight_layout()
+        plt.savefig(filename_out)
+
+        return
+# ---------------------------------------------------------------------------------------------------------------------
+    def draw_GT_pred(self,filename_scrs, filename_out, th, has_header=True):
+
+
+        X = tools_IO.load_mat(filename_scrs, numpy.chararray, '\t')
+
+        if has_header:
+            X = X[1:, :]
+        else:
+            X = X[:, :]
+
+        labels = (X[:, 0]).astype('float32')
+        scores = X[:, 1:].astype('float32')
+
+        H = 100
+        color_GT = (64, 128, 0)
+        color_pred  =(190, 128, 0)
+
+        image = numpy.full((H, X.shape[0], 3), 0xC0)
+        for c,label in enumerate(labels):
+            if label<=0:
+                image[70:75,c]= color_GT
+            else:
+                image[20:25,c] = color_GT
+
+
+        for c,score in enumerate(scores):
+            if score<=th:
+                image[76:81,c]=color_pred
+            else:
+                image[14:19,c] = color_pred
+
+        #image = cv2.flip(image,0)
+
+        cv2.imwrite(filename_out,image)
+
+        return
+# ---------------------------------------------------------------------------------------------------------------------
     def E2E_features_2_classes_multi_dim(self, folder_out, filename_data_pos, filename_data_neg,has_header=True,has_labels_first_col=True):
 
         tools_IO.remove_files(folder_out)
@@ -385,29 +478,15 @@ class tools_ML(object):
 
         data_pos = tools_IO.load_mat(filename_data_pos, numpy.chararray, '\t')
         data_neg = tools_IO.load_mat(filename_data_neg, numpy.chararray, '\t')
-        if has_header:
-            header = numpy.array(data_pos[0,:],dtype=numpy.str)
-            x_pos  = data_pos[1:,:]
-            x_neg  = data_neg[1:,:]
-        else:
-            header = None
-            x_pos = data_pos[:,:]
-            x_neg = data_neg[:,:]
 
-        if has_labels_first_col:
-            x_pos = x_pos[:, 1:]
-            x_neg = x_neg[:, 1:]
-            if header is not None:
-                header = header [1:]
-
-        Pos = x_pos.shape[0]
-        Neg = x_neg.shape[0]
+        header,first_col, x_pos = self.preprocess_header(data_pos, has_header, has_labels_first_col)
+        header,first_col, x_neg = self.preprocess_header(data_neg, has_header, has_labels_first_col)
 
         numpy.random.seed(125)
-        idx_pos_train = numpy.random.choice(Pos, int(Pos/2),replace=False)
-        idx_neg_train = numpy.random.choice(Neg, int(Neg/2),replace=False)
-        idx_pos_test = [x for x in range(0, Pos) if x not in idx_pos_train]
-        idx_neg_test = [x for x in range(0, Neg) if x not in idx_neg_train]
+        idx_pos_train = numpy.random.choice(x_pos.shape[0], int(x_pos.shape[0]/2),replace=False)
+        idx_neg_train = numpy.random.choice(x_neg.shape[0], int(x_neg.shape[0]/2),replace=False)
+        idx_pos_test = [x for x in range(0, x_pos.shape[0]) if x not in idx_pos_train]
+        idx_neg_test = [x for x in range(0, x_neg.shape[0]) if x not in idx_neg_train]
 
         self.learn_on_pos_neg_files(filename_data_pos,filename_data_neg, delimeter='\t', rand_pos=idx_pos_train,rand_neg=idx_neg_train,has_header=has_header,has_labels_first_col=has_labels_first_col)
         self.score_feature_file(filename_data_pos, filename_scrs  =filename_scrs_pos,delimeter='\t', append=0, rand_sel=idx_pos_test,has_header=has_header,has_labels_first_col=has_labels_first_col)
@@ -417,25 +496,69 @@ class tools_ML(object):
         self.score_feature_file(filename_data_pos,  filename_scrs = filename_scrs_pos,delimeter='\t',append= 1,rand_sel=idx_pos_train,has_header=has_header,has_labels_first_col=has_labels_first_col)
         self.score_feature_file(filename_data_neg,  filename_scrs = filename_scrs_neg,delimeter='\t',append= 1,rand_sel=idx_neg_train,has_header=has_header,has_labels_first_col=has_labels_first_col)
 
+        self.plot_results_pos_neg(x_pos, x_neg, header, filename_scrs_pos, filename_scrs_neg, folder_out + 'fig_roc.png')
+
+        return# tpr, fpr, auc
+# ---------------------------------------------------------------------------------------------------------------------
+    def E2E_features_2_classes_multi_dim_train_test(self,folder_out, filename_train, filename_test,has_header=True,has_labels_first_col=True):
+        tools_IO.remove_files(folder_out)
+
+        data_train = tools_IO.load_mat(filename_train, numpy.chararray, '\t')
+        data_test  = tools_IO.load_mat(filename_test, numpy.chararray, '\t')
+
+        header, Y_train, X_train = self.preprocess_header(data_train, has_header, has_labels_first_col=False)
+        header, Y_test , X_test  = self.preprocess_header(data_test, has_header, has_labels_first_col=False)
+
+        data_pos, data_neg = [],[]
+        idx_pos_train, idx_neg_train, idx_pos_test, idx_neg_test = [], [], [], []
+        cnt_pos_train, cnt_neg_train, cnt_pos_test, cnt_neg_test = 0,0,0,0
 
 
+        for x in X_train:
+            if x[0]>0:
+                data_pos.append(x)
+                idx_pos_train.append(cnt_pos_train)
+                cnt_pos_train+=1
+            else:
+                data_neg.append(x)
+                idx_neg_train.append(cnt_neg_train)
+                cnt_neg_train+=1
 
-        X = numpy.vstack((x_pos, x_neg)).astype(numpy.float)
-        Y = numpy.hstack((numpy.full(Pos, 1), numpy.full(Neg, 0)))
+        offset_pos = len(data_pos)
+        offset_neg = len(data_neg)
 
-        tpr, fpr, auc = tools_IO.get_roc_data_from_scores_file_v2(filename_scrs_pos, filename_scrs_neg,delim='\t')
+        for x in X_test:
+            if x[0]>0:
+                data_pos.append(x)
+                idx_pos_test.append(offset_pos+cnt_pos_test)
+                cnt_pos_test+=1
+            else:
+                data_neg.append(x)
+                idx_neg_test.append(offset_neg+cnt_neg_test)
+                cnt_neg_test+=1
 
-        fig = plt.figure(figsize=(12, 6))
-        fig.subplots_adjust(hspace=0.01)
-        tools_IO.display_roc_curve_from_descriptions(plt.subplot(2, 2, 3), fig, filename_scrs_pos, filename_scrs_neg, delim='\t')
-        tools_IO.display_distributions(plt.subplot(2, 2, 2), fig, filename_scrs_pos, filename_scrs_neg, delim='\t')
-        tools_IO.plot_features_PCA(plt.subplot(2, 2, 1),X,Y,['pos','neg'])
-        if header is not None:
-            tools_IO.plot_feature_importance(plt.subplot(2,2,4),fig,X,Y,header)
-        plt.tight_layout()
-        plt.savefig(folder_out + 'fig_roc.png')
+        data_pos = numpy.array(data_pos)
+        data_neg = numpy.array(data_neg)
+        idx_pos_train,idx_neg_train,idx_pos_test,idx_neg_test = numpy.array(idx_pos_train),numpy.array(idx_pos_train),numpy.array(idx_pos_test),numpy.array(idx_neg_test)
 
-        #self.check_corr(X, Y, header)
+        filename_data_pos = folder_out + 'temp_pos.txt'
+        filename_data_neg = folder_out + 'temp_neg.txt'
+        tools_IO.save_mat(data_pos, filename_data_pos)
+        tools_IO.save_mat(data_neg, filename_data_neg)
 
-        return tpr, fpr, auc
+        self.learn_on_pos_neg_files(filename_data_pos,filename_data_neg, delimeter='\t', rand_pos=idx_pos_train,rand_neg=idx_neg_train,has_header=has_header,has_labels_first_col=has_labels_first_col)
+
+        filename_scrs_train = folder_out + 'scores_train_' + self.classifier.name + '.txt'
+        filename_scrs_test  = folder_out + 'scores_test_' + self.classifier.name + '.txt'
+        self.score_feature_file(filename_train, filename_scrs=filename_scrs_train, delimeter='\t', append=0,has_header=has_header, has_labels_first_col=has_labels_first_col)
+        self.score_feature_file(filename_test , filename_scrs=filename_scrs_test , delimeter='\t', append=0,has_header=has_header, has_labels_first_col=has_labels_first_col)
+
+        self.plot_results_train_test(filename_scrs_train,filename_scrs_test,folder_out + 'fig_roc_train.png',has_header=True)
+
+        th = self.get_th_train(filename_scrs_train,has_header=True)
+
+        self.draw_GT_pred(filename_scrs_train,folder_out + 'GT_train.png',th,has_header=True)
+        self.draw_GT_pred(filename_scrs_test, folder_out + 'GT_test.png', th, has_header=True)
+
+        return
 # ---------------------------------------------------------------------------------------------------------------------
