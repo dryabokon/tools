@@ -17,6 +17,11 @@ class Soccer_Field_Processor(object):
     def __init__(self):
         self.folder_out = './data/output/'
         self.blur_kernel = 2
+
+        self.color_amber = (0, 168, 255)
+        self.color_white = (255, 255, 255)
+        self.color_red = (0, 32, 255)
+        self.color_blue= (255, 128, 0)
         return
 # ---------------------------------------------------------------------------------------------------------------------
     def line_length(self,x1, y1, x2, y2):return numpy.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
@@ -52,8 +57,8 @@ class Soccer_Field_Processor(object):
 
         for line in lines:
             for x1, y1, x2, y2 in line:
-                result = cv2.line(result, (x1, y1), (x2, y2), (0, 32, 255), 1)
-                skeleton = cv2.line(skeleton, (x1, y1), (x2, y2), (255, 255, 255), 1)
+                result = cv2.line(result, (x1, y1), (x2, y2), self.color_red, 1)
+                skeleton = cv2.line(skeleton, (x1, y1), (x2, y2), self.color_while, 1)
 
         if do_debug:
             cv2.imwrite(self.folder_out + '1-blur.png', blur)
@@ -73,6 +78,7 @@ class Soccer_Field_Processor(object):
         filtered = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 27, 0)
         ske = skeletonize(filtered>0).astype(numpy.uint8)
 
+
         graph = sknw.build_sknw(ske)
         for (s, e) in graph.edges():
             ps = graph[s][e]['pts']
@@ -80,8 +86,8 @@ class Soccer_Field_Processor(object):
             yy = ps[:, 0]
             if self.line_length(xx[0],yy[0],xx[-1],yy[-1]) > int(L/20.0):
                 for i in range(len(xx)-1):
-                    result = cv2.line(result, (xx[i],yy[i]), (xx[i+1],yy[i+1]), (0, 168, 255),thickness=4)
-                    skeleton = cv2.line(skeleton, (xx[i], yy[i]), (xx[i + 1], yy[i + 1]), (255, 255, 255), thickness=4)
+                    result = cv2.line(result, (xx[i],yy[i]), (xx[i+1],yy[i+1]), self.color_amber,thickness=4)
+                    skeleton = cv2.line(skeleton, (xx[i], yy[i]), (xx[i + 1], yy[i + 1]), self.color_white, thickness=4)
                 cv2.circle(result, (xx[0] , yy[ 0]), 2, (0, 0, 255), -1)
                 cv2.circle(result, (xx[-1], yy[-1]), 2, (0, 0, 255), -1)
 
@@ -91,12 +97,16 @@ class Soccer_Field_Processor(object):
             cv2.imwrite(self.folder_out + '3-lines_skelet.png', result)
             cv2.imwrite(self.folder_out + '4-skelenon.png', skeleton)
 
+
+
         return skeleton
 # ---------------------------------------------------------------------------------------------------------------------
     def get_hough_lines(self, image, do_debug=False):
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         edges = cv2.Canny(gray, 50, 150, apertureSize=3)
         lines = cv2.HoughLines(edges, 1, numpy.pi / 180, int(image.shape[0]*0.1))
+        #linesp = cv2.HoughLinesP(edges, 1, numpy.pi / 180, int(image.shape[0]*0.1))
+
         L = max(image.shape[0], image.shape[1])
 
         result_lines = []
@@ -116,59 +126,159 @@ class Soccer_Field_Processor(object):
             y2 = int(y0 - L* a)
 
             result_lines.append([x1, y1, x2, y2])
-            cv2.line(result_image, (x1, y1), (x2, y2), (255, 128, 0), 4)
+            cv2.line(result_image, (x1, y1), (x2, y2), self.color_blue, 4)
 
         if do_debug:
             result_image = tools_image.put_layer_on_image(result_image,image,(0,0,0))
-            cv2.imwrite(self.folder_out + 'lines_hough.png', result_image)
+            cv2.imwrite(self.folder_out + '6-lines_hough.png', result_image)
         return result_lines
 # ----------------------------------------------------------------------------------------------------------------------
-    def filter_lines(self,H,W,lines,N,a_min,a_max,do_debug=False):
+    def get_lines_params(self,lines, skeleton):
 
-        image_map = numpy.full((H,180,3),0,dtype=numpy.uint8)
-        result_image = numpy.full((H, W, 3), 0, dtype=numpy.uint8)
-        candidate_lines,result_lines = [],[]
-
-        if lines is None or len(lines)==0:
-            return result_lines
-
+        w, a, c = [], [], []
+        if lines is None or len(lines)==0:return w, a, c
 
         for x1, y1, x2, y2 in lines:
-            if x2==x1:continue
+            if x2==x1:
+                w.append(0)
+                a.append(90)
+                c.append(0)
+                continue
             angle = 90+math.atan((y2-y1)/(x2-x1))*180/math.pi
-            if angle<=a_min or angle>=a_max:continue
-            inters_mid_hor = y1 + (y2 - y1) * (W / 2 - x1) / (x2 - x1)
-            candidate_lines.append([angle,inters_mid_hor])
+            cross = y1 + (y2 - y1) * (self.W / 2 - x1) / (x2 - x1)
+            a.append(angle)
+            c.append(cross)
 
-            if do_debug:
-                cv2.circle(image_map,(int(angle),int(inters_mid_hor)),3,(255,255,255),-1)
-                cv2.line(result_image, (x1, y1), (x2, y2), (255, 128, 0), 4)
+            B = []
+            for x in range(0,self.W):
+                y = int(y1 + (y2 - y1) * (x - x1) / (x2 - x1))
+                if y>=0 and y <self.H:B.append(skeleton[y,x,0])
 
-        if len(candidate_lines)<6:
-            return result_lines
+            w.append(numpy.array(B).mean())
 
-        candidate_lines=numpy.array(candidate_lines)
-        kmeans_model = KMeans(n_clusters=5).fit(candidate_lines)
-        centers = numpy.array(kmeans_model.cluster_centers_)[:N]
-        idx = numpy.argsort(centers[:,1])
-        centers = centers[idx,:]
+        return numpy.array(w),numpy.array(a),numpy.array(c)
+# ----------------------------------------------------------------------------------------------------------------------
+    def get_longest_line(self, lines, weights, angles, crosses, do_debug=False):
 
+        if lines is None or len(lines)==0:return []
+        idx = numpy.argsort(-numpy.array(weights))[0]
 
-        for center in centers:
-            x1,x2=0,W-1
-            dy=W/2*math.tan((90-center[0])*math.pi/180)
-            y1=center[1]+dy
-            y2=center[1]-dy
-            result_lines.append([x1,y1,x2,y2])
-            if do_debug:
-                cv2.line(result_image, (int(x1), int(y1)), (int(x2), int(y2)), (0, 12, 255), 4)
+        result_lines = []
+        for line, weight, angle, cross in zip(lines,weights,angles,crosses):
+            x1, y1, x2, y2 = line
+            if angles[idx] < 90:
+                if angle<90:
+                    if cross>crosses[idx]:
+                        result_lines.append(line)
+                else:
+                    result_lines.append(line)
+
 
         if do_debug:
-            for center in centers:cv2.circle(image_map, (int(center[0]), int(center[1])), 3, (0, 12, 255), -1)
-            cv2.imwrite(self.folder_out + 'map.png',image_map)
-            cv2.imwrite(self.folder_out + 'lns.png', result_image)
+            result_image = numpy.full((self.H,self.W,3),0,numpy.uint8)
+            result_image = self.draw_lines(result_image, result_lines,color=self.color_blue,w=2)
+            result_image = self.draw_lines(result_image, [lines[idx]], color=self.color_amber, w=2)
+            cv2.imwrite(self.folder_out + '5-longest_lines.png', result_image)
 
-        result_lines = numpy.array(result_lines)
+        return [lines[idx]]
+# ----------------------------------------------------------------------------------------------------------------------
+    def trim_lines(self,lines):
+        result = []
+        for line in lines:
+            x1, y1, x2, y2 = line
+
+            y_begin = int(y1 + (y2 - y1) * (0 - x1) / (x2 - x1))
+            if y_begin>=0 and y_begin<self.W:
+                x1, y1 = 0,y_begin
+
+
+
+
+
+
+
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def clean_skeleton(self,skeleton, line,do_debug=False):
+        result = skeleton.copy()
+
+        x1, y1, x2, y2 = line[0]
+        angle = 90 + math.atan((y2 - y1) / (x2 - x1)) * 180 / math.pi
+
+        if angle<90:
+            pts = numpy.array([[x1, y1-5], [x2, y2-5], [0, 0]],dtype=numpy.int)
+        else:
+            pts = numpy.array([[x1, y1-5], [x2, y2-5], [self.W, 0]],dtype=numpy.int)
+
+        cv2.drawContours(result, [pts], 0, (0, 0, 0),-1)
+        if do_debug:
+            cv2.imwrite(self.folder_out + '5-skelenon_clean.png', result)
+
+        return result
+# ----------------------------------------------------------------------------------------------------------------------
+    def get_centers(self,candidates,max_C=4):
+
+        kmeans_model = KMeans(n_clusters=2*max_C).fit(numpy.array(candidates))
+
+
+        best_N = 2
+        N_candidates = numpy.arange(2, max_C + 1, 1)
+        for N in N_candidates:
+            centers = numpy.array(kmeans_model.cluster_centers_)[:N]
+            centers = centers[numpy.argsort(centers[:,1]),:]
+
+            d = []
+            for i in range(len(centers)-1):
+                for j in range(i+1,len(centers)):
+                    xxx = (numpy.array(centers[i]) - numpy.array(centers[j]))
+                    d.append( math.sqrt((xxx**2).mean()) )
+
+            dmin = numpy.array(d).min()
+            dmax = numpy.array(d).max()
+            if dmax/dmin < 5:
+                best_N = N
+
+        kmeans_model = KMeans(n_clusters=best_N*2).fit(numpy.array(candidates))
+        centers = numpy.array(kmeans_model.cluster_centers_)[:best_N]
+        centers = centers[numpy.argsort(centers[:, 1]), :]
+
+        idx_out = []
+        for center in centers:
+            d = [((numpy.array(candidate)-numpy.array(center))**2).mean() for candidate in candidates]
+            idx_out.append(numpy.argsort(d)[0])
+
+        return centers, idx_out
+# ----------------------------------------------------------------------------------------------------------------------
+    def filter_lines(self,lines,lines_weights, line_angles, lines_crosses,a_min,a_max,do_debug=False):
+
+        image_map = numpy.full((self.H,180,3),0,dtype=numpy.uint8)
+        result_image = numpy.full((self.H, self.W, 3), 0, dtype=numpy.uint8)
+        candidates, idx_in, result_lines = [],[],[]
+
+        if lines is None or len(lines)==0:return result_lines
+
+        for line,weight,angle,cross,i in zip(lines,lines_weights, line_angles, lines_crosses,numpy.arange(0,len(lines),1)):
+
+            if angle<=a_min or angle>=a_max:continue
+            candidates.append([angle,cross])
+            idx_in.append(i)
+
+            if do_debug:
+                cv2.circle(image_map,(int(angle),int(cross)),3,self.color_white,-1)
+                self.draw_lines(result_image,[line],self.color_blue, 4)
+
+        if len(candidates)<=2:
+            return result_lines
+
+        centers,idxs_out = self.get_centers(candidates)
+        result_lines = numpy.array(lines)[numpy.array(idx_in)[idxs_out]]
+
+        if do_debug:
+            result_image = self.draw_lines(result_image, numpy.array(lines)[idx_in], self.color_blue, 4)
+            result_image = self.draw_lines(result_image, result_lines, self.color_red, 4)
+            for center in centers:cv2.circle(image_map, (int(center[0]), int(center[1])), 3, (0, 12, 255), -1)
+            #cv2.imwrite(self.folder_out + 'map_%02d.png'%a_min,image_map)
+            cv2.imwrite(self.folder_out + 'lns_%02d.png'%a_min, result_image)
 
         return result_lines
 # ----------------------------------------------------------------------------------------------------------------------
@@ -181,7 +291,20 @@ class Soccer_Field_Processor(object):
 
         return numpy.array([[xA, yA,xD, yD],[xA, yA,xB, yB],[xB, yB,xC, yC],[xC, yC,xD, yD]])
 # ----------------------------------------------------------------------------------------------------------------------
-    def draw_lines(self,image, lines,color=(0,0,255),w=4):
+    def lines_to_rects(self,lines1,lines2,skeleton):
+
+        for i1 in range(len(lines1)-1):
+            for i2 in range(i1+1,len(lines1)):
+                for j1 in range(len(lines2) - 1):
+                    for j2 in range(j1 + 1, len(lines2)):
+                        rect = self.four_lines_to_rect(lines1[i1],lines2[j1],lines1[i2],lines2[j2])
+                        w,a,c = self.get_lines_params(rect,skeleton)
+                        hhh=0
+
+
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def draw_lines(self,image, lines,color=(255,255,255),w=4):
 
         result = image.copy()
         for x1,y1,x2,y2 in lines:
@@ -190,18 +313,29 @@ class Soccer_Field_Processor(object):
         return result
 # ----------------------------------------------------------------------------------------------------------------------
     def process_left_view(self,image, do_debug=False):
+        self.H,self.W = image.shape[:2]
         skeleton = self.skelenonize_slow(image, do_debug=do_debug)
-        all_lines = self.get_hough_lines(skeleton, do_debug=do_debug)
-        left_lines_long = self.filter_lines(image.shape[0], image.shape[1], all_lines, 3, 50, 82, do_debug=do_debug)
-        left_lines_short = self.filter_lines(image.shape[0], image.shape[1], all_lines, 4, 91, 120, do_debug=do_debug)
-        if len(left_lines_long)==3 and len(left_lines_short)==4:
-            goal_lines = self.four_lines_to_rect(left_lines_long[0], left_lines_short[1], left_lines_long[1],left_lines_short[2])
-            pen_lines = self.four_lines_to_rect(left_lines_long[0], left_lines_short[0], left_lines_long[2], left_lines_short[3])
-            result = self.draw_lines(tools_image.desaturate(image, 0.9), goal_lines, color=(0, 180, 255))
-            result = self.draw_lines(result, pen_lines, color=(0, 180, 255))
-            result = self.draw_lines(result, [left_lines_long[0]], color=(0, 180, 255))
-        else:
-            return image
+        lines_coord = self.get_hough_lines(skeleton, do_debug=do_debug)
+        lines_weights,line_angles,lines_crosses = self.get_lines_params(lines_coord, skeleton)
+
+        longest_line = self.get_longest_line(lines_coord, lines_weights, line_angles, lines_crosses, do_debug=do_debug)
+        skeleton = self.clean_skeleton(skeleton,longest_line,do_debug=do_debug)
+        lines_coord = self.get_hough_lines(skeleton, do_debug=do_debug)
+        lines_weights, line_angles, lines_crosses = self.get_lines_params(lines_coord, skeleton)
+
+
+        lines_long  = self.filter_lines(lines_coord,lines_weights, line_angles, lines_crosses, 50,  82, do_debug=do_debug)
+        lines_short = self.filter_lines(lines_coord,lines_weights, line_angles, lines_crosses, 91, 120, do_debug=do_debug)
+
+        lines_long = self.trim_lines(lines_long)
+        lines_short = self.trim_lines(lines_short)
+
+        lines_rects = self.lines_to_rects(lines_long,lines_short,skeleton)
+
+        result = self.draw_lines(tools_image.desaturate(image, 0.9), lines_long, color=self.color_red)
+        result = self.draw_lines(result, lines_short, color=self.color_amber)
+
+
         return result
 # ----------------------------------------------------------------------------------------------------------------------
     def process_folder(self,folder_in, folder_out):
