@@ -41,7 +41,7 @@ def draw_cube_numpy(img, camera_matrix, dist, rvec, tvec, scale=(1,1,1),color=(2
     points_3d[:,1]*=scale[1]
     points_3d[:,2]*=scale[2]
 
-    #points_2d, jac = cv2.projectPoints(pooints_3d, rvec, tvec, camera_matrix, dist)
+    #points_2d, jac = cv2.projectPoints(points_3d, rvec, tvec, camera_matrix, dist)
     points_2d, jac = tools_pr_geom.project_points(points_3d, rvec, tvec, camera_matrix, dist)
 
     points_2d = points_2d.reshape((-1,2))
@@ -330,27 +330,22 @@ def fit_scale_factor(X4D, X_target, a0, a1, a2, fx, fy,do_debug=False):
     PR = pyrr.matrix44.multiply(P, R)
 
     X_projection = pyrr.matrix44.multiply(PR, X4D.T).T[:, :2]
-
     E, result_E = tools_pr_geom.fit_affine(X_projection, X_target)
-
     M = numpy.eye(4)
-
-
     M[:2, :2] = E[:, :2]
     M[:2,  3] = E[:,  2]
-
 
     MPR = pyrr.matrix44.multiply(M, PR)
 
     # check
     X_target_check = pyrr.matrix44.multiply(MPR, X4D.T).T
     if do_debug:
-        image = numpy.full((int(fy), int(fx), 3), 255)
-        for x in X_target       : cv2.circle(image, (int(x[0]), int(x[1])), 4, (0, 128, 255), -1)
+        image = numpy.full((int(fy), int(fx), 3), 20)
+        for x in X_target       : cv2.circle(image, (int(x[0]), int(x[1])), 16, (0, 128, 255), 4)
         for x in result_E       : cv2.circle(image, (int(x[0]), int(x[1])), 4, (0, 32, 190), -1)
         #for x in X_projection  : cv2.circle(image, (int(x[0]), int(x[1])), 3, (128, 128, 128), -1)
 
-        cv2.imwrite('./images/output/fit_%03d_%03d.png'%(a0*180/math.pi,a1*180/math.pi), image)
+        cv2.imwrite('./data/output/fit_%03d_%03d.png'%(a0*180/math.pi,a1*180/math.pi), image)
 
 
     MT, MR, MK = tools_pr_geom.decompose_into_TRK(MPR)

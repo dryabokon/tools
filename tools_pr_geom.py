@@ -48,68 +48,6 @@ def best_fit_transform(A, B):
 
     return T, R, t
 # ---------------------------------------------------------------------------------------------------------------------
-def nearest_neighbor(src, dst):
-
-    assert src.shape == dst.shape
-    neigh = NearestNeighbors(n_neighbors=1)
-    neigh.fit(dst)
-    distances, indices = neigh.kneighbors(src, return_distance=True)
-    return distances.ravel(), indices.ravel()
-# ---------------------------------------------------------------------------------------------------------------------
-def icp(A, B, init_pose=None, max_iterations=200, tolerance=0.001):
-    '''
-    The Iterative Closest Point method: finds best-fit transform that maps points A on to points B
-    Input:
-        A: Nxm numpy array of source mD points
-        B: Nxm numpy array of destination mD point
-        init_pose: (m+1)x(m+1) homogeneous transformation
-        max_iterations: exit algorithm after max_iterations
-        tolerance: convergence criteria
-    Output:
-        T: final homogeneous transformation that maps A on to B
-        distances: Euclidean distances (errors) of the nearest neighbor
-        i: number of iterations to converge
-    '''
-
-    assert A.shape == B.shape
-
-    # get number of dimensions
-    m = A.shape[1]
-
-    # make points homogeneous, copy them to maintain the originals
-    src = numpy.ones((m + 1, A.shape[0]))
-    dst = numpy.ones((m + 1, B.shape[0]))
-    src[:m,:] = numpy.copy(A.T)
-    dst[:m,:] = numpy.copy(B.T)
-
-    # apply the initial pose estimation
-    if init_pose is not None:
-        src = numpy.dot(init_pose, src)
-
-    prev_error = 0
-
-    for i in range(max_iterations):
-        # find the nearest neighbors between the current source and destination points
-        distances, indices = nearest_neighbor(src[:m,:].T, dst[:m,:].T)
-
-        # compute the transformation between the current source and nearest destination points
-        T,_,_ = best_fit_transform(src[:m,:].T, dst[:m,indices].T)
-
-        # update the current source
-        src = numpy.dot(T, src)
-
-        # check error
-        mean_error = numpy.mean(distances)
-        if numpy.abs(prev_error - mean_error) < tolerance:
-            break
-        prev_error = mean_error
-        print(numpy.mean(distances))
-
-    # calculate final transformation
-    T,_,_ = best_fit_transform(A, src[:m,:].T)
-
-    return T, distances, i
-# ---------------------------------------------------------------------------------------------------------------------
 def fit_homography(X_source,X_target):
     method = cv2.RANSAC
     #method = cv2.LMEDS
@@ -153,19 +91,65 @@ def fit_translation(X_source,X_target):
     loss = ((result - X_target) ** 2).mean()
     return E, result
 # ----------------------------------------------------------------------------------------------------------------------
-def fit_custom(X_source,X_target):
+def fit_pnp(landmarks_3d,landmarks_2d,fx, fy,aperture_x=0.5,aperture_y=0.5):
 
+    mat_camera = numpy.array([[fx, 0, fx*aperture_x], [0, fy, fy*aperture_y], [0, 0, 1]])
 
+    (_, r_vec, t_vec) = cv2.solvePnP(landmarks_3d, landmarks_2d,mat_camera, numpy.zeros(4))
 
-    return
+    landmarks_2d_check, jac = cv2.projectPoints(landmarks_3d, r_vec, t_vec, mat_camera, numpy.zeros(4))
+    landmarks_2d_check = numpy.reshape(landmarks_2d_check, (-1, 2))
+
+    return r_vec, t_vec, landmarks_2d_check
+# ----------------------------------------------------------------------------------------------------------------------
+def fit_manual(X3D,target_2d,fx, fy,xref=None,lref=None,do_debug=True):
+
+    P = compose_projection_mat(fx, fy, (200, 200))
+
+    n_steps = 90
+    rotation_range = numpy.arange(0, 2*math.pi, 2*math.pi / n_steps)
+    rotation_range[0] = 0
+
+    X4D = numpy.full((X3D.shape[0], 4), 1)
+    X4D[:, :3] = X3D
+
+    X4Dref = numpy.full((xref.shape[0], 4), 1)
+    X4Dref[:, :3] = xref
+
+    X4Dlines = numpy.full((2*lref.shape[0], 4), 1)
+    X4Dlines[:, :2] = lref.reshape(-1,2)
+
+    M = None
+    a2=0,0
+    for a0 in rotation_range:
+        R = pyrr.matrix44.create_from_eulers((0,a0,0))
+        T = pyrr.matrix44.create_from_translation((0,0,0)).T
+        M = pyrr.matrix44.multiply(T, R)
+        PRT = pyrr.matrix44.multiply(P, M)
+        projection_2d     = (pyrr.matrix44.multiply(PRT, X4D.T).T)[:, :2]
+        projection_2d_ref = (pyrr.matrix44.multiply(PRT, X4Dref.T).T)[:, :2]
+        projection_2d_lin = (pyrr.matrix44.multiply(PRT, X4Dlines.T).T)[:, :2]
+
+        E, result_E  = fit_euclid(projection_2d, target_2d)
+        result_E     = cv2.transform(projection_2d.reshape(-1, 1, 2), E).reshape((-1, 2))
+        result_E_ref = cv2.transform(projection_2d_ref.reshape(-1, 1, 2), E).reshape((-1, 2))
+        result_E_lin = cv2.transform(projection_2d_lin.reshape(-1, 1, 2), E).reshape((-1, 2))
+
+        if do_debug:
+            image = numpy.full((int(fy), int(fx), 3), 20)
+            for x in target_2d   : cv2.circle(image, (int(x[0]), int(x[1])), 16, (0, 128, 255), 4)
+            for x in result_E    : cv2.circle(image, (int(x[0]), int(x[1])), 4, (0, 32, 190), -1)
+            for x in result_E_ref: cv2.circle(image, (int(x[0]), int(x[1])), 4, (128, 128, 128), -1)
+            for i in numpy.arange(0,result_E_lin.shape[0]-1,2):cv2.line(image, (int(result_E_lin[i,0]), int(result_E_lin[i,1])),(int(result_E_lin[i+1,0]), int(result_E_lin[i+1,1])), (128, 128, 128), 2)
+            cv2.imwrite('./data/output/fit_%03d.png' % int(a0*180/math.pi), image)
+
+    return M
 # ----------------------------------------------------------------------------------------------------------------------
 def compose_projection_mat(fx, fy, scale_factor):
     P = numpy.array([[fx, 0, 0, fx / 2], [0, fy, 0, fy / 2], [0, 0, 1, 0], [0, 0, 0, 1]])
     P[:, 3] *= scale_factor[0]
     P /= scale_factor[0]
-
     #P = numpy.array([[fx/scale_factor[0], 0, 0, fx / 2], [0, fy/scale_factor[1], 0, fy / 2], [0, 0, 1, 0], [0, 0, 0, 1]])
-
     return P
 # ----------------------------------------------------------------------------------------------------------------------
 def decompose_into_TRK(M):
@@ -279,28 +263,73 @@ def eulerAnglesToRotationMatrix(theta):
 
     return R
 # ----------------------------------------------------------------------------------------------------------------------
+def apply_matrix(M,X):
+    if X.shape[1]==3:
+        X4D = numpy.full((X.shape[0], 4), 1,dtype=numpy.float)
+        X4D[:, :3] = X
+    else:
+        X4D = X
+
+    Y1 = pyrr.matrix44.multiply(M, X4D.T).T
+    Y2 = numpy.array([pyrr.matrix44.apply_to_vector(M.T, x) for x in X4D])
+
+    return Y1
+# ----------------------------------------------------------------------------------------------------------------------
+def apply_rotation(rvec,X):
+    #R = pyrr.matrix44.create_from_eulers(rvec) - this does not work correctily
+    R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(rvec)[0])
+    Y = apply_matrix(R, X)
+    return Y
+# ----------------------------------------------------------------------------------------------------------------------
+def apply_translation(tvec,X):
+    T = pyrr.matrix44.create_from_translation(tvec).T
+    Y = apply_matrix(T,X)
+    return Y
+# ----------------------------------------------------------------------------------------------------------------------
+def apply_RT(rvec,tvec,X):
+    #R = pyrr.matrix44.create_from_eulers(rvec) - this does not work correctily
+    R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(rvec)[0])
+    T = pyrr.matrix44.create_from_translation(tvec).T
+    M = pyrr.matrix44.multiply(T,R)
+    Y = apply_matrix(M,X)
+    return Y
+# ----------------------------------------------------------------------------------------------------------------------
+def compose_RT_mat(rvec,tvec):
+
+    R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(rvec)[0])
+    T = pyrr.matrix44.create_from_translation(tvec).T
+    M = pyrr.matrix44.multiply(T, R)
+
+    return M
+# ----------------------------------------------------------------------------------------------------------------------
 def project_points(points_3d, rvec, tvec, camera_matrix, dist):
     #https: // docs.opencv.org / 2.4 / modules / calib3d / doc / camera_calibration_and_3d_reconstruction.html
 
-    #R, _ = cv2.Rodrigues(rvec)
-    R = pyrr.matrix44.create_from_eulers(numpy.array(rvec).flatten())
+    method =2
+    if method==1:
+        R, _ = cv2.Rodrigues(rvec)
+        M = numpy.c_[R, tvec.T]
+        PM = numpy.dot(camera_matrix, M)
+        points_2d = []
+        for each in points_3d:
+            point_4d=numpy.array([each[0],each[1],each[2],1])
+            x = numpy.dot(PM, point_4d)
+            points_2d.append(x/x[2])
+        points_2d = numpy.array(points_2d)[:,:2].reshape(-1,1,2)
 
-    M=numpy.zeros((4,4))
-    M[:3,:3] = R[:3,:3]
-    M[:3,3] = numpy.array(numpy.array(tvec).flatten()).T
+    else:
+        P = numpy.zeros((3, 4))
+        P[:3, :3] = camera_matrix
 
-    P = numpy.zeros((3,4))
-    P[:3,:3] = camera_matrix
+        R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(rvec)[0])
+        T = pyrr.matrix44.create_from_translation(numpy.array(tvec).flatten()).T
+        M = pyrr.matrix44.multiply(T,R)
+        PM = pyrr.matrix44.multiply(P, M)
 
-    points_2d = []
-
-    for each in points_3d:
-        X = pyrr.matrix44.apply_to_vector(M, numpy.array([each[0],each[1],each[2],1]))
-        uv = numpy.dot(P, X)
-        points_2d.append(uv/uv[2])
-
-
-    points_2d = numpy.array(points_2d)[:,:2].reshape(-1,1,2)
+        points_2d = apply_matrix(PM, points_3d)
+        points_2d[:, 0] = points_2d[:, 0] / points_2d[:, 2]
+        points_2d[:, 1] = points_2d[:, 1] / points_2d[:, 2]
+        points_2d = numpy.array(points_2d)[:, :2].reshape(-1, 1, 2)
 
     return points_2d,0
 # ----------------------------------------------------------------------------------------------------------------------

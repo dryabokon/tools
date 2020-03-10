@@ -78,23 +78,14 @@ class ObjLoader:
 
         if len(self.coord_texture) == 0: self.coord_texture.append([0,0])
 
-        coord_vert = numpy.array(self.coord_vert)
-
-        #if do_autoscale: #min max -> -1..1
-            #min_value = coord_vert.min()
-            #coord_vert-= min_value
-            #max_value = coord_vert.max()
-            #coord_vert/= max_value
-            #coord_vert*=2
-            #coord_vert-=1
+        self.coord_texture = numpy.array(self.coord_texture)
+        self.coord_vert = numpy.array(self.coord_vert)
+        self.coord_norm = numpy.array(self.coord_norm)
 
         if do_autoscale:
-            max_value = coord_vert.max()
-            coord_vert/= max_value
+            max_value = self.coord_vert.max()
+            self.coord_vert/= max_value
 
-        coord_norm = numpy.array(self.coord_norm)
-        self.coord_vert = coord_vert
-        self.coord_norm = coord_norm
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def remove_triangele(self):
@@ -168,7 +159,7 @@ class ObjLoader:
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def export_mesh(self, filename_out, X=None, idx_vertex=None,do_transform=False,cutoff=None):
+    def export_mesh(self, filename_out, X, coord_texture=None, idx_vertex=None,do_transform=False,cutoff=None):
 
         if do_transform:
             X[:,1]=0 - X[:,1]
@@ -176,7 +167,11 @@ class ObjLoader:
         f_handle = open(filename_out, "w+")
         f_handle.write("# Obj file\n")
         for x in X: f_handle.write("v %1.2f %1.2f %1.2f\n" % (x[0], x[1], x[2]))
-        f_handle.write("vt 0 0\n")
+
+        if coord_texture is None:
+            f_handle.write("vt 0 0\n")
+        else:
+            for t in coord_texture: f_handle.write("vt %1.2f %1.2f\n" % (t[0], t[1]))
 
         if idx_vertex is None:
             del_triangles, normals = self.get_trianges(X)
@@ -204,8 +199,10 @@ class ObjLoader:
                 if x[:,2].mean()<cutoff:
                     continue
 
+            tx=(1,1,1)
+            if coord_texture is not None:tx=(t[0]+1,t[1]+1,t[2]+1)
 
-            f_handle.write("f %d/%d/%d %d/%d/%d %d/%d/%d\n" % (t[0] + 1, 1, n + 1, t[1] + 1, 1, n + 1, t[2] + 1, 1, n + 1))
+            f_handle.write("f %d/%d/%d %d/%d/%d %d/%d/%d\n" % (t[0]+1, tx[0], n + 1, t[1] + 1, tx[1], n + 1, t[2] + 1, tx[2], n + 1))
 
         f_handle.close()
         return

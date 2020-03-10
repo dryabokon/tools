@@ -22,15 +22,16 @@ numpy.set_printoptions(precision=2)
 # ----------------------------------------------------------------------------------------------------------------------
 class VBO(object):
     def __init__(self):
-        self.n_vertex = 360000
-        self.iterator = 0
-        self.color_offset  = 3*self.n_vertex
-        self.normal_offset = self.color_offset + 3*self.n_vertex
-        self.normal_offset = self.color_offset + 3*self.n_vertex
-        self.data = numpy.zeros(9*self.n_vertex,dtype='float32')
-        self.id =   numpy.full(9*self.n_vertex,-1)
+        self.n_faces = 6000
+        self.id = numpy.full(9 * self.n_faces, -1)
         self.cnt = 0
         self.marker_positions = []
+        self.iterator = 0
+        self.color_offset  =                       3*3*self.n_faces
+        self.normal_offset = self.color_offset   + 3*3*self.n_faces
+        self.texture_offset = self.normal_offset + 3*3*self.n_faces
+        self.data = numpy.full(self.texture_offset+3*2*self.n_faces, 0.0,dtype='float32')
+
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def append_object(self,filename_obj,mat_color,do_normalize_model_file,svec=(1,1,1),tvec=(0,0,0)):
@@ -44,12 +45,16 @@ class VBO(object):
 
         clr = numpy.array([object.mat_color,object.mat_color,object.mat_color]).flatten()
 
-        for idxv,idxn in zip(object.idx_vertex,object.idx_normal):
-            self.data[self.iterator:                  self.iterator                  +9] = (object.coord_vert[idxv]).flatten()
-            self.data[self.iterator+self.color_offset:self.iterator+self.color_offset+9] = clr
-            self.data[self.iterator+self.normal_offset:self.iterator+self.normal_offset+9] = (object.coord_norm[idxn]).flatten()
-            self.id[self.iterator:                  self.iterator + 9] = self.cnt
+        i=0
+        for idxv,idxn,idxt in zip(object.idx_vertex,object.idx_normal,object.idx_texture):
+            self.data[self.iterator:                    self.iterator                    +9] = (object.coord_vert[idxv]).flatten()
+            self.data[self.iterator+self.color_offset  :self.iterator+self.color_offset  +9] = clr
+            self.data[self.iterator+self.normal_offset :self.iterator+self.normal_offset +9] = (object.coord_norm[idxn]).flatten()
+            self.data[2*self.iterator//3+self.texture_offset:2*self.iterator//3+self.texture_offset+6] = (object.coord_texture[idxt]).flatten()
+
             self.iterator+=9
+            self.id[self.iterator:                  self.iterator + 9] = self.cnt
+
 
         self.cnt+=1
 
@@ -69,13 +74,13 @@ class VBO(object):
             self.data[idx]=0
             self.data[[i + self.color_offset for i in idx]] = 0
             self.data[[i + self.normal_offset for i in idx]] = 0
+
         return
 # ----------------------------------------------------------------------------------------------------------------------
 class render_GL3D(object):
 
-    def __init__(self,filename_obj,W=640, H=480,is_visible=True,do_normalize_model_file=True,scale=(1,1,1),projection_type='P'):
+    def __init__(self,filename_obj,filename_texture=None,W=640, H=480,is_visible=True,do_normalize_model_file=True,scale=(1,1,1),projection_type='P'):
 
-        glfw.init()
         glfw.init()
         self.projection_type = projection_type
         self.is_enabled_standardize_rvec = True
@@ -83,6 +88,7 @@ class render_GL3D(object):
         self.scale = scale
         self.do_normalize_model_file = do_normalize_model_file
         self.bg_color  = numpy.array([76, 76, 76,1])/255
+        self.mat_color = numpy.array([188, 136, 113]) / 255.0
 
         self.W,self.H  = W,H
         glfw.window_hint(glfw.VISIBLE, is_visible)
@@ -92,7 +98,8 @@ class render_GL3D(object):
         self.__init_shader()
 
         self.my_VBO = VBO()
-        self.object = self.my_VBO.append_object(filename_obj, numpy.array([188, 136, 113])/255.0,self.do_normalize_model_file)
+        self.object = self.my_VBO.append_object(filename_obj,self.mat_color,self.do_normalize_model_file)
+        self.__init_texture(filename_texture)
 
 
         self.bind_VBO()
@@ -109,58 +116,96 @@ class render_GL3D(object):
                                     in layout(location = 0) vec3 position;
                                     in layout(location = 1) vec3 color;
                                     in layout(location = 2) vec3 vertNormal;
+                                    in layout(location = 3) vec2 inTextureCoords;
+                                    
                                     uniform mat4 transform,view,model,projection,light;
                                     out vec3 inColor;
                                     out vec3 fragNormal;
+                                    out vec2 textureCoords;
+                                    
                                     void main()
                                     {
                                         fragNormal = -abs((light * view * model * transform * vec4(vertNormal, 0.0f)).xyz);
                                         gl_Position = projection * view * model * transform * vec4(position, 1.0f);
                                         inColor = color;
+                                        textureCoords = inTextureCoords;
                                     }"""
 
         frag_shader = """#version 330
                                     in vec3 inColor;
                                     in vec3 fragNormal;
+                                    in vec2 textureCoords;
                                     out vec4 outColor;
+                                    uniform sampler2D samplerTexture;
                                     void main()
                                     {
-                                        
                                         vec3 ambientLightIntensity  = vec3(0.1f, 0.1f, 0.1f);
                                         vec3 sunLightIntensity      = vec3(1.0f, 1.0f, 1.0f);
                                         vec3 sunLightDirection      = normalize(vec3(+0.0f, -1.0f, +0.0f));
-
-                                        
-
-
+                                        vec4 texel = texture(samplerTexture, textureCoords);
 
                                         vec3 lightIntensity = ambientLightIntensity + sunLightIntensity * dot(fragNormal, sunLightDirection);
-                                        outColor = vec4(inColor*lightIntensity, 1);
+                                        vec4 materialColor = vec4(inColor*lightIntensity, 1);
+                                        
+                                        //outColor = materialColor;
+                                        //outColor = texel;
+                                        //outColor = vec4(texel.rgb * lightIntensity, 1);
+                                        outColor = vec4(texel.rgb * materialColor, 1);
+                                        
+                                        
                                     }"""
-
-
 
         self.shader = OpenGL.GL.shaders.compileProgram(OpenGL.GL.shaders.compileShader(vert_shader, GL_VERTEX_SHADER),
                                                        OpenGL.GL.shaders.compileShader(frag_shader, GL_FRAGMENT_SHADER))
         glUseProgram(self.shader)
         return
 # ----------------------------------------------------------------------------------------------------------------------
+    def __init_texture(self, filename_texture=None):
+
+        if filename_texture is not None:
+            texture_image = cv2.imread(filename_texture)[:,:,[2,1,0]]
+
+        else:
+            texture_image = numpy.full((255, 255, 3), 0, dtype=numpy.uint8)
+            texture_image[:, :, 0] = int(self.mat_color[0]*255)
+            texture_image[:, :, 1] = int(self.mat_color[1]*255)
+            texture_image[:, :, 2] = int(self.mat_color[2]*255)
+
+
+        # glBindTexture(GL_TEXTURE_2D, glGenTextures(1))
+        glBindTexture(GL_TEXTURE_2D, 0)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texture_image.shape[1], texture_image.shape[0], 0, GL_RGB,GL_UNSIGNED_BYTE, texture_image.flatten())
+        glEnable(GL_TEXTURE_2D)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
     def bind_VBO(self):
 
         glBindBuffer(GL_ARRAY_BUFFER, glGenBuffers(1))
-        glBufferData(GL_ARRAY_BUFFER, self.my_VBO.data.itemsize * len(self.my_VBO.data), self.my_VBO.data, GL_STATIC_DRAW)
+
+        item_size= self.my_VBO.data.itemsize
+
+        glBufferData(GL_ARRAY_BUFFER, item_size * len(self.my_VBO.data), self.my_VBO.data, GL_STATIC_DRAW)
 
         # positions
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, self.my_VBO.data.itemsize * 3, ctypes.c_void_p(0))
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, item_size*3, ctypes.c_void_p(0))
         glEnableVertexAttribArray(0)
 
         # colors
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, self.my_VBO.data.itemsize * 3, ctypes.c_void_p(self.my_VBO.data.itemsize*self.my_VBO.color_offset))
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, item_size*3, ctypes.c_void_p(item_size*self.my_VBO.color_offset))
         glEnableVertexAttribArray(1)
 
         # normals
-        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, self.my_VBO.data.itemsize * 3, ctypes.c_void_p(self.my_VBO.data.itemsize*self.my_VBO.normal_offset))
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, item_size*3, ctypes.c_void_p(item_size*self.my_VBO.normal_offset))
         glEnableVertexAttribArray(2)
+
+        #textures
+        glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, item_size*2,ctypes.c_void_p(item_size*self.my_VBO.texture_offset))
+        glEnableVertexAttribArray(3)
 
         glClearColor(self.bg_color[0], self.bg_color[1], self.bg_color[2], self.bg_color[3])
         glEnable(GL_DEPTH_TEST)
@@ -195,29 +240,18 @@ class render_GL3D(object):
             self.__init_mat_projection_ortho()
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def __init_mat_view_RT(self, rvec,tvec):
-        do_flip=True
-
+    def __init_mat_view_RT(self, rvec,tvec,do_flip=True):
         if do_flip:
-            R = pyrr.matrix44.create_from_eulers(numpy.array(rvec))
-            T = pyrr.matrix44.create_from_translation(numpy.array(tvec))
-            self.mat_view = pyrr.matrix44.multiply(R, T).T
+            R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(rvec)[0])
+            T = pyrr.matrix44.create_from_translation(numpy.array(tvec)).T
+            self.mat_view = pyrr.matrix44.multiply(T, R).T
             flip = numpy.identity(4)
             flip[1][1] = -1
             flip[2][2] = -1
-            self.mat_view = numpy.dot(flip, self.mat_view).T
-        else:
-            R = pyrr.matrix44.create_from_eulers(rvec)
-            T = pyrr.matrix44.create_from_translation(-numpy.array(tvec))
-            self.mat_view = pyrr.matrix44.multiply(R, T)
+            self.mat_view = numpy.dot(self.mat_view,flip)
 
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
 
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def __init_mat_view_ETU(self, eye, target, up):
-        self.mat_view = pyrr.matrix44.create_look_at(eye, target, up)
-        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_model(self,rvec, tvec):
@@ -228,7 +262,6 @@ class render_GL3D(object):
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_transform(self,scale_vec):
-
         self.mat_trns = pyrr.Matrix44.from_scale(scale_vec)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "transform"), 1, GL_FALSE, self.mat_trns)
         return
@@ -251,27 +284,20 @@ class render_GL3D(object):
         if do_debug:image = self.draw_debug_info(image)
         return image
 # ----------------------------------------------------------------------------------------------------------------------
-    def get_image_perspective(self, rvec, tvec, do_debug=False):
-        R = pyrr.matrix44.create_from_eulers(rvec)
-        T = pyrr.matrix44.create_from_translation(tvec)
-        M = pyrr.matrix44.multiply(R, T)
-        self.mat_model, self.mat_view = tools_pr_geom.decompose_model_view(M)
+    def init_perspective_view(self, rvec, tvec,scale=(1,1,1)):
+        R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(numpy.array(rvec))[0])
+        T = pyrr.matrix44.create_from_translation(tvec).T
+        M = pyrr.matrix44.multiply(T, R).T
+        self.mat_model = M
 
-        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "model"), 1, GL_FALSE, self.mat_model)
-
-        return self.get_image(do_debug)
-# ----------------------------------------------------------------------------------------------------------------------
-    def init_ortho_view(self,rvec,tvec,scale_factor):
-        rvec = numpy.array(rvec)
-        self.__init_mat_projection_ortho(scale_factor)
-        self.__init_mat_model(rvec,tvec)
-        self.__init_mat_view_RT((0,0,0),(0,0,+1))
+        self.__init_mat_view_RT((0, 0, 0), (0, 0, 0))
+        self.__init_mat_transform(scale)
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def get_image_ortho(self,rvec, tvec, scale_factor,do_debug=False):
-        self.init_ortho_view(rvec, tvec, scale_factor)
+    def get_image_perspective(self, rvec, tvec, scale=(1,1,1),do_debug=False):
+        self.init_perspective_view(rvec, tvec, scale)
         return self.get_image(do_debug)
 # ----------------------------------------------------------------------------------------------------------------------
     def draw_debug_info(self,image):
@@ -526,8 +552,6 @@ class render_GL3D(object):
         #self.__init_mat_view_ETU(eye=(0, 0, -5 * (obj_max - obj_min)), target=(0, 0, 0), up=(0, -1, 0))
         #self.__init_mat_view_ETU(eye=(0, 0, +5 * (obj_max - obj_min)), target=(0, 0, 0), up=(0, +1, 0))
         self.__init_mat_view_RT((0,0,0),(0,0,+5 * (obj_max - obj_min)))
-
-        S, Q, tvec_view = pyrr.matrix44.decompose(self.mat_view)
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
