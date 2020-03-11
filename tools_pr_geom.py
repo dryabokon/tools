@@ -172,6 +172,14 @@ def decompose_into_TRK(M):
 
     return T,R,K
 # ----------------------------------------------------------------------------------------------------------------------
+def decompose_to_rvec_tvec(mat,do_flip=False):
+    S, Q, tvec = pyrr.matrix44.decompose(mat.copy())
+    rvec = quaternion_to_euler(Q)
+    if do_flip:
+        rvec -= (math.pi, 0, 0)
+        tvec *= -1
+    return rvec,tvec
+# ----------------------------------------------------------------------------------------------------------------------
 def decompose_model_view(M):
     S, Q, tvec_view = pyrr.matrix44.decompose(M)
     rvec_model = quaternion_to_euler(Q)
@@ -215,6 +223,25 @@ def rotationMatrixToEulerAngles(R,do_flip=False):
             y*=-1
 
     return numpy.array([x, z, y])
+#----------------------------------------------------------------------------------------------------------------------
+def mat_view_to_ETU(mat):
+
+
+    S = mat[0, :3]
+    U = mat[1, :3]
+    F = mat[2, :3]
+    X = mat[3, :3]
+
+    #E = -mat[3, :3]
+    # mat[:3,3]  = (-numpy.dot(S, eye), -numpy.dot(U, eye), numpy.dot(F, eye))
+
+    E = numpy.array((numpy.dot(S, X), numpy.dot(U, X), numpy.dot(F, X)))
+    T = E + F
+    #T/=math.sqrt((T**2).sum())
+
+
+
+    return E,T,U
 #----------------------------------------------------------------------------------------------------------------------
 def quaternion_to_euler(Q):
     x, y, z, w = Q[0],Q[1],Q[2],Q[3]
@@ -264,6 +291,12 @@ def eulerAnglesToRotationMatrix(theta):
     return R
 # ----------------------------------------------------------------------------------------------------------------------
 def apply_matrix(M,X):
+
+    X = numpy.array(X)
+    if len(X.shape)==1:
+
+        X=numpy.array([X])
+
     if X.shape[1]==3:
         X4D = numpy.full((X.shape[0], 4), 1,dtype=numpy.float)
         X4D[:, :3] = X
@@ -272,6 +305,9 @@ def apply_matrix(M,X):
 
     Y1 = pyrr.matrix44.multiply(M, X4D.T).T
     Y2 = numpy.array([pyrr.matrix44.apply_to_vector(M.T, x) for x in X4D])
+
+    if X.shape[0]==1:
+        Y1=Y1[0]
 
     return Y1
 # ----------------------------------------------------------------------------------------------------------------------
@@ -288,18 +324,22 @@ def apply_translation(tvec,X):
 # ----------------------------------------------------------------------------------------------------------------------
 def apply_RT(rvec,tvec,X):
     #R = pyrr.matrix44.create_from_eulers(rvec) - this does not work correctily
-    R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(rvec)[0])
+    R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(numpy.array(rvec,dtype=numpy.float))[0])
     T = pyrr.matrix44.create_from_translation(tvec).T
     M = pyrr.matrix44.multiply(T,R)
     Y = apply_matrix(M,X)
     return Y
 # ----------------------------------------------------------------------------------------------------------------------
-def compose_RT_mat(rvec,tvec):
-
-    R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(rvec)[0])
-    T = pyrr.matrix44.create_from_translation(tvec).T
-    M = pyrr.matrix44.multiply(T, R)
-
+def compose_RT_mat(rvec,tvec,do_flip=True,do_rodriges=False):
+    R = pyrr.matrix44.create_from_eulers(rvec).T
+    if do_rodriges: R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(rvec)[0])
+    T = pyrr.matrix44.create_from_translation(numpy.array(tvec)).T
+    M = pyrr.matrix44.multiply(T, R).T
+    flip = numpy.identity(4)
+    if do_flip:
+        flip[1][1] = -1
+        flip[2][2] = -1
+    M = numpy.dot(M, flip)
     return M
 # ----------------------------------------------------------------------------------------------------------------------
 def project_points(points_3d, rvec, tvec, camera_matrix, dist):
