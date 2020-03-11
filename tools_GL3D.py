@@ -63,6 +63,7 @@ class VBO(object):
     def remove_last_object(self):
         if self.cnt>1:
             self.remove_object(self.cnt-1)
+            self.cnt-=1
             self.marker_positions.pop()
             return 0
         return 1
@@ -149,9 +150,8 @@ class render_GL3D(object):
                                         
                                         //outColor = materialColor;
                                         //outColor = texel;
-                                        //outColor = vec4(texel.rgb * lightIntensity, 1);
-                                        outColor = vec4(texel.rgb * materialColor, 1);
-                                        
+                                        //outColor = texel* materialColor;
+                                        outColor = vec4(texel.rgb * lightIntensity, 1);
                                         
                                     }"""
 
@@ -163,7 +163,8 @@ class render_GL3D(object):
     def __init_texture(self, filename_texture=None):
 
         if filename_texture is not None:
-            texture_image = cv2.imread(filename_texture)[:,:,[2,1,0]]
+            texture_image = cv2.imread(filename_texture)
+            texture_image = cv2.cvtColor(texture_image, cv2.COLOR_BGR2RGB)
 
         else:
             texture_image = numpy.full((255, 255, 3), 0, dtype=numpy.uint8)
@@ -240,6 +241,15 @@ class render_GL3D(object):
             self.__init_mat_projection_ortho()
         return
 # ----------------------------------------------------------------------------------------------------------------------
+    def init_mat_view_ETU(self, eye, target, up):
+        self.eye = numpy.array(eye)
+        self.target = numpy.array(target)
+        self.up = numpy.array(up)
+
+        self.mat_view = pyrr.matrix44.create_look_at(eye, target, up)
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_view_RT(self, rvec,tvec,do_flip=True):
         if do_flip:
             R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(rvec)[0])
@@ -285,13 +295,25 @@ class render_GL3D(object):
         return image
 # ----------------------------------------------------------------------------------------------------------------------
     def init_perspective_view(self, rvec, tvec,scale=(1,1,1)):
-        R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(numpy.array(rvec))[0])
+        R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(numpy.array(rvec,dtype=numpy.float))[0])
         T = pyrr.matrix44.create_from_translation(tvec).T
         M = pyrr.matrix44.multiply(T, R).T
         self.mat_model = M
 
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "model"), 1, GL_FALSE, self.mat_model)
         self.__init_mat_view_RT((0, 0, 0), (0, 0, 0))
+        self.__init_mat_transform(scale)
+
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def init_perspective_view_soccer(self, rvec, tvec, scale=(1, 1, 1)):
+        R = pyrr.matrix44.create_from_eulers(rvec)
+        T = pyrr.matrix44.create_from_translation(tvec).T
+        M = pyrr.matrix44.multiply(T, R).T
+        self.mat_view = M
+
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
+        self.__init_mat_model((0, 0, 0), (0, 0, 0))
         self.__init_mat_transform(scale)
 
         return
@@ -417,7 +439,7 @@ class render_GL3D(object):
         self.on_remove = False
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def translate_view(self, delta_translate):
+    def translate_view0(self, delta_translate):
         S, Q, tvec_view = pyrr.matrix44.decompose(self.mat_view)
         rvec_view = tools_pr_geom.quaternion_to_euler(Q)
 
@@ -428,6 +450,17 @@ class render_GL3D(object):
         self.__init_mat_view_RT(rvec_view,tvec_view)
         return
 # ----------------------------------------------------------------------------------------------------------------------
+    def translate_view(self, delta_pos):
+
+        delta_pos = (0,0,delta_pos*0.1)
+
+        S, Q, tvec = pyrr.matrix44.decompose(self.mat_view)
+        rvec = tools_pr_geom.quaternion_to_euler(Q)
+
+        tvec = tvec + numpy.array(delta_pos)
+        self.__init_mat_view_RT(rvec, -tvec)
+# ----------------------------------------------------------------------------------------------------------------------
+
     def translate_ortho(self, delta_translate):
         factor = 2/self.mat_projection[0,0]
         factor*=delta_translate
@@ -519,11 +552,26 @@ class render_GL3D(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-
     def rotate_view(self, delta_angle):
         R = pyrr.matrix44.create_from_eulers(delta_angle)
         self.mat_view = pyrr.matrix44.multiply(self.mat_view,R)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def rotate_eye(self, delta_angle):
+
+        t = tools_pr_geom.apply_translation(-self.eye, self.target)
+        t = tools_pr_geom.apply_rotation(delta_angle, t)
+        new_target = numpy.array(tools_pr_geom.apply_translation(+self.eye, t)[0,:3])
+
+        #new_target/= math.sqrt ((new_target**2).sum())
+
+        u = self.up
+        u = tools_pr_geom.apply_rotation(delta_angle, u)
+        new_up = numpy.array(tools_pr_geom.apply_translation(+self.eye, u)[0, :3])
+        #new_up/= math.sqrt ((new_up**2).sum())
+
+        self.init_mat_view_ETU(self.eye,new_target,new_up)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def resize_window(self, W, H):
@@ -552,6 +600,7 @@ class render_GL3D(object):
         #self.__init_mat_view_ETU(eye=(0, 0, -5 * (obj_max - obj_min)), target=(0, 0, 0), up=(0, -1, 0))
         #self.__init_mat_view_ETU(eye=(0, 0, +5 * (obj_max - obj_min)), target=(0, 0, 0), up=(0, +1, 0))
         self.__init_mat_view_RT((0,0,0),(0,0,+5 * (obj_max - obj_min)))
+
 
         return
 # ----------------------------------------------------------------------------------------------------------------------

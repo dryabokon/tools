@@ -264,6 +264,9 @@ def eulerAnglesToRotationMatrix(theta):
     return R
 # ----------------------------------------------------------------------------------------------------------------------
 def apply_matrix(M,X):
+    if len(X.shape)==1:
+        X = numpy.array([X])
+
     if X.shape[1]==3:
         X4D = numpy.full((X.shape[0], 4), 1,dtype=numpy.float)
         X4D[:, :3] = X

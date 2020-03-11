@@ -388,6 +388,8 @@ class Soccer_Field_Processor(object):
     def draw_playground_pnp(self, r_vec,t_vec,w=1, R=4):
 
         image = numpy.full((self.H, self.W, 3), 64, numpy.uint8)
+        fx, fy = self.W,self.H
+        self.mat_camera = numpy.array([[fx, 0, fx*self.aperture_x], [0, fy, fy*self.aperture_y], [0, 0, 1]])
         if r_vec is None or t_vec is None: return image
 
         landmarks_GT, lines_GT = self.get_GT()
@@ -454,11 +456,11 @@ class Soccer_Field_Processor(object):
         fx, fy = self.W, self.H
         self.mat_camera = numpy.array([[fx, 0, fx*self.aperture_x], [0, fy, fy*self.aperture_y], [0, 0, 1]])
 
-        #skeleton = self.skelenonize_slow(image)
-        #cv2.imwrite(self.folder_out + 'skeleton.png',skeleton)
+        skeleton = self.skelenonize_slow(image)
+        cv2.imwrite(self.folder_out + 'skeleton.png',skeleton)
         skeleton = cv2.imread(self.folder_out + 'skeleton.png')
 
-        '''
+
         lines_coord = self.get_hough_lines(skeleton)
         lines_weights,line_angles,lines_crosses = self.get_lines_params(lines_coord, skeleton)
 
@@ -470,8 +472,7 @@ class Soccer_Field_Processor(object):
             temp = self.draw_lines(skeleton.copy(), lines_long, self.color_red, 4)
             cv2.imwrite(self.folder_out + 'hypotesis.png', temp)
 
-        '''
-        #tools_IO.save_mat(lines_long,self.folder_out + 'lines_long.txt')
+        tools_IO.save_mat(lines_long,self.folder_out + 'lines_long.txt')
         lines_long = tools_IO.load_mat(self.folder_out + 'lines_long.txt',dtype=numpy.int)
         if len(lines_long.shape)==1:lines_long = [lines_long]
 
