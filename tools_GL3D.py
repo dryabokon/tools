@@ -242,33 +242,42 @@ class render_GL3D(object):
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def init_mat_view_ETU(self, eye, target, up):
-        self.eye = numpy.array(eye)
-        self.target = numpy.array(target)
-        self.up = numpy.array(up)
-
-        self.mat_view = pyrr.matrix44.create_look_at(eye, target, up)
+        self.mat_view = pyrr.matrix44.create_look_at(-numpy.array(eye,dtype=numpy.float), -numpy.array(target,dtype=numpy.float), numpy.array(up,dtype=numpy.float))
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def __init_mat_view_RT(self, rvec,tvec,do_flip=True):
-        if do_flip:
-            R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(rvec)[0])
-            T = pyrr.matrix44.create_from_translation(numpy.array(tvec)).T
-            self.mat_view = pyrr.matrix44.multiply(T, R).T
-            flip = numpy.identity(4)
-            flip[1][1] = -1
-            flip[2][2] = -1
-            self.mat_view = numpy.dot(self.mat_view,flip)
 
-        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
+        #check
+        #rvec, tvec = tools_pr_geom.decompose_to_rvec_tvec(self.mat_view, do_flip=True)
+        #print(numpy.array(rvec), numpy.array(tvec))
+        E,T,U = tools_pr_geom.mat_view_to_ETU(self.mat_view)
+        print(numpy.array(eye,dtype=float),numpy.array(target,dtype=float),numpy.array(up,dtype=float))
+        print(numpy.array(E),numpy.array(T),numpy.array(U))
+
+        print()
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def __init_mat_model(self,rvec, tvec):
-        R = self.mat_model = pyrr.matrix44.create_from_eulers(rvec)
-        T = self.mat_model = pyrr.matrix44.create_from_translation(tvec)
-        self.mat_model = pyrr.matrix44.multiply(R,T)
+    def __init_mat_view_RT(self, rvec,tvec,do_flip=True,do_rodriges=False):
+        self.mat_view = tools_pr_geom.compose_RT_mat(rvec,tvec,do_flip,do_rodriges)
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
+
+        #check
+        #rvec_view, tvec_view = tools_pr_geom.decompose_to_rvec_tvec(self.mat_view,do_flip=do_flip)
+        #print(rvec,tvec)
+        #print(rvec_view,tvec_view)
+        #print()
+
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def __init_mat_model(self,rvec, tvec,do_rodriges=False):
+        self.mat_model = tools_pr_geom.compose_RT_mat(rvec, tvec, do_flip=False, do_rodriges=do_rodriges)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "model"), 1, GL_FALSE, self.mat_model)
+
+        # check
+        #rvec_model, tvec_model = tools_pr_geom.decompose_to_rvec_tvec(self.mat_model)
+        #print(rvec,tvec)
+        #print(rvec_model,tvec_model)
+        #print()
+
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_transform(self,scale_vec):
@@ -295,27 +304,9 @@ class render_GL3D(object):
         return image
 # ----------------------------------------------------------------------------------------------------------------------
     def init_perspective_view(self, rvec, tvec,scale=(1,1,1)):
-        R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(numpy.array(rvec,dtype=numpy.float))[0])
-        T = pyrr.matrix44.create_from_translation(tvec).T
-        M = pyrr.matrix44.multiply(T, R).T
-        self.mat_model = M
-
-        glUniformMatrix4fv(glGetUniformLocation(self.shader, "model"), 1, GL_FALSE, self.mat_model)
+        self.__init_mat_model(rvec,tvec,do_rodriges=True)
         self.__init_mat_view_RT((0, 0, 0), (0, 0, 0))
         self.__init_mat_transform(scale)
-
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def init_perspective_view_soccer(self, rvec, tvec, scale=(1, 1, 1)):
-        R = pyrr.matrix44.create_from_eulers(rvec)
-        T = pyrr.matrix44.create_from_translation(tvec).T
-        M = pyrr.matrix44.multiply(T, R).T
-        self.mat_view = M
-
-        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
-        self.__init_mat_model((0, 0, 0), (0, 0, 0))
-        self.__init_mat_transform(scale)
-
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def get_image_perspective(self, rvec, tvec, scale=(1,1,1),do_debug=False):
@@ -405,22 +396,26 @@ class render_GL3D(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def start_rotation(self):
         self.on_rotate = True
-        self.mat_model_rotation_checkpoint = self.mat_model
+        self.mat_model_rotation_checkpoint = self.mat_model.copy()
+        self.mat_view_rotation_checkpoint = self.mat_view.copy()
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def stop_rotation(self):
         self.on_rotate = False
         self.mat_model_rotation_checkpoint = None
+        self.mat_view_rotation_checkpoint = None
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def start_translation(self):
         self.on_translate = True
-        self.mat_model_translation_checkpoint = self.mat_model
+        self.mat_model_translation_checkpoint = self.mat_model.copy()
+        self.mat_view_translation_checkpoint = self.mat_view.copy()
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def stop_translation(self):
         self.on_translate = False
         self.mat_model_translation_checkpoint = None
+        self.mat_view_translation_checkpoint = None
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def start_append(self):
@@ -439,28 +434,42 @@ class render_GL3D(object):
         self.on_remove = False
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def translate_view0(self, delta_translate):
-        S, Q, tvec_view = pyrr.matrix44.decompose(self.mat_view)
-        rvec_view = tools_pr_geom.quaternion_to_euler(Q)
+    def translate_view_by_scale(self, scale):
+        rvec,tvec = tools_pr_geom.decompose_to_rvec_tvec(self.mat_view,do_flip=True)
+        tvec*=scale
+        self.__init_mat_view_RT(rvec,tvec)
 
-        rvec_view-=(math.pi, 0, 0)
-        tvec_view*=(-1,-1,-1)
-
-        tvec_view*=delta_translate
-        self.__init_mat_view_RT(rvec_view,tvec_view)
+        #E,T,U = tools_pr_geom.mat_view_to_ETU(self.mat_view)
+        #F = T-E
+        #E*=delta_translate
+        #T = E+F
+        #self.init_mat_view_ETU(E, T, U)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def translate_view(self, delta_pos):
+    def translate_view0(self, delta_translate):
 
-        delta_pos = (0,0,delta_pos*0.1)
+        if self.on_translate and self.mat_view_translation_checkpoint is not None:
+            E,T,U = tools_pr_geom.mat_view_to_ETU(self.mat_view_translation_checkpoint)
+        else:
+            E, T, U = tools_pr_geom.mat_view_to_ETU(self.mat_view)
 
-        S, Q, tvec = pyrr.matrix44.decompose(self.mat_view)
-        rvec = tools_pr_geom.quaternion_to_euler(Q)
-
-        tvec = tvec + numpy.array(delta_pos)
-        self.__init_mat_view_RT(rvec, -tvec)
+        E+=delta_translate
+        T+=delta_translate
+        self.init_mat_view_ETU(E, T, U)
+        return
 # ----------------------------------------------------------------------------------------------------------------------
+    def translate_view(self, delta_translate):
 
+        if self.on_translate and self.mat_view_translation_checkpoint is not None:
+            rvec, tvec = tools_pr_geom.decompose_to_rvec_tvec(self.mat_view_translation_checkpoint,do_flip=True)
+        else:
+            rvec, tvec = tools_pr_geom.decompose_to_rvec_tvec(self.mat_view,do_flip=True)
+
+        tvec-=delta_translate
+
+        self.__init_mat_view_RT(rvec, tvec,do_flip=True)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
     def translate_ortho(self, delta_translate):
         factor = 2/self.mat_projection[0,0]
         factor*=delta_translate
@@ -519,9 +528,9 @@ class render_GL3D(object):
     def rotate_model(self, delta_angle):
 
         if self.on_rotate and self.mat_model_rotation_checkpoint is not None:
-            S, Q, tvec = pyrr.matrix44.decompose(self.mat_model_rotation_checkpoint)
+            S, Q, tvec = pyrr.matrix44.decompose(self.mat_model_rotation_checkpoint.copy())
         else:
-            S, Q, tvec = pyrr.matrix44.decompose(self.mat_model)
+            S, Q, tvec = pyrr.matrix44.decompose(self.mat_model.copy())
 
         rvec = tools_pr_geom.quaternion_to_euler(Q)
         rvec+= numpy.array(delta_angle)
@@ -533,45 +542,27 @@ class render_GL3D(object):
     def translate_model(self, delta_pos):
 
         if self.on_translate and self.mat_model_translation_checkpoint is not None:
-            S, Q, tvec = pyrr.matrix44.decompose(self.mat_model_translation_checkpoint)
+            rvec, tvec = tools_pr_geom.decompose_to_rvec_tvec(self.mat_model_translation_checkpoint.copy())
         else:
-            S, Q, tvec = pyrr.matrix44.decompose(self.mat_model)
+            rvec, tvec = tools_pr_geom.decompose_to_rvec_tvec(self.mat_model.copy())
 
-        rvec = tools_pr_geom.quaternion_to_euler(Q)
-
-        S, Q, tvec_vew = pyrr.matrix44.decompose(self.mat_view)
-        rvec_view = tools_pr_geom.quaternion_to_euler(Q)
-
-        if (rvec_view[0]==0):
-            delta_pos = numpy.multiply(delta_pos,(1,-1,0))
-        else:
-            delta_pos = numpy.multiply(delta_pos,(1,1,0))
-
-        tvec = tvec + numpy.array(delta_pos)
+        tvec += numpy.array(delta_pos)
         self.__init_mat_model(rvec, tvec)
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def rotate_view(self, delta_angle):
-        R = pyrr.matrix44.create_from_eulers(delta_angle)
-        self.mat_view = pyrr.matrix44.multiply(self.mat_view,R)
-        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def rotate_eye(self, delta_angle):
+        if self.on_rotate and self.mat_view_rotation_checkpoint is not None:
+            E,T,U = tools_pr_geom.mat_view_to_ETU(self.mat_view_rotation_checkpoint.copy())
+        else:
+            E, T, U = tools_pr_geom.mat_view_to_ETU(self.mat_view.copy())
 
-        t = tools_pr_geom.apply_translation(-self.eye, self.target)
-        t = tools_pr_geom.apply_rotation(delta_angle, t)
-        new_target = numpy.array(tools_pr_geom.apply_translation(+self.eye, t)[0,:3])
+        F = T-E
+        Fnew = tools_pr_geom.apply_rotation(numpy.array(delta_angle,dtype=float), F)[:3]
+        Unew = tools_pr_geom.apply_rotation(numpy.array(delta_angle,dtype=float), U)[:3]
+        Tnew = E+Fnew
 
-        #new_target/= math.sqrt ((new_target**2).sum())
-
-        u = self.up
-        u = tools_pr_geom.apply_rotation(delta_angle, u)
-        new_up = numpy.array(tools_pr_geom.apply_translation(+self.eye, u)[0, :3])
-        #new_up/= math.sqrt ((new_up**2).sum())
-
-        self.init_mat_view_ETU(self.eye,new_target,new_up)
+        self.init_mat_view_ETU(E, Tnew, Unew)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def resize_window(self, W, H):
@@ -597,9 +588,9 @@ class render_GL3D(object):
         obj_min = self.object.coord_vert.min()
         obj_max = self.object.coord_vert.max()
 
-        #self.__init_mat_view_ETU(eye=(0, 0, -5 * (obj_max - obj_min)), target=(0, 0, 0), up=(0, -1, 0))
-        #self.__init_mat_view_ETU(eye=(0, 0, +5 * (obj_max - obj_min)), target=(0, 0, 0), up=(0, +1, 0))
-        self.__init_mat_view_RT((0,0,0),(0,0,+5 * (obj_max - obj_min)))
+        #self.init_mat_view_ETU(eye=(0, 0, +5 * (obj_max - obj_min)), target=(0, 0, 0), up=(0, -1, 0))
+        #self.__init_mat_view_RT((0,0,0),(0,0,+5 * (obj_max - obj_min)))
+        self.init_mat_view_ETU(eye=(0, 200, 100), target=(0, 0, 0), up=(0, +1, -2))
 
 
         return
