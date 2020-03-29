@@ -33,7 +33,7 @@ def draw_axis(img, camera_matrix, dist, rvec, tvec, axis_length):
     img = tools_draw_numpy.draw_line(img, axis_2d_start[0, 1], axis_2d_start[0, 0], axis_2d_end[2, 1],axis_2d_end[2, 0], (255, 0, 0))
     return img
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_cube_numpy(img, camera_matrix, dist, rvec, tvec, scale=(1,1,1),color=(255,128,0),):
+def draw_cube_numpy(img, camera_matrix, dist, rvec, tvec, scale=(1,1,1),color=(255,128,0)):
 
     points_3d = numpy.array([[-1, -1, -1], [-1, +1, -1], [+1, +1, -1], [+1, -1, -1],[-1, -1, +1], [-1, +1, +1], [+1, +1, +1], [+1, -1, +1]],dtype = numpy.float32)
 
@@ -41,8 +41,11 @@ def draw_cube_numpy(img, camera_matrix, dist, rvec, tvec, scale=(1,1,1),color=(2
     points_3d[:,1]*=scale[1]
     points_3d[:,2]*=scale[2]
 
-    #points_2d, jac = cv2.projectPoints(points_3d, rvec, tvec, camera_matrix, dist)
-    points_2d, jac = tools_pr_geom.project_points(points_3d, rvec, tvec, camera_matrix, dist)
+    method = 'xx'
+    if method=='cv':
+        points_2d, jac = cv2.projectPoints(points_3d, rvec, tvec, camera_matrix, dist)
+    else:
+        points_2d, jac = tools_pr_geom.project_points(points_3d, rvec, tvec, camera_matrix, dist)
 
     points_2d = points_2d.reshape((-1,2))
     for i,j in zip((0,1,2,3,4,5,6,7,0,1,2,3),(1,2,3,0,5,6,7,4,4,5,6,7)):
@@ -74,21 +77,21 @@ def draw_cube_numpy_MVP(img,mat_projection, mat_view, mat_model, mat_trns, color
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166)):
 
-    fx, fy = float(img.shape[1]), float(img.shape[0])
-    camera_matrix = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 1]])
+    aperture = 0.5 * (1 - mat_projection[2][0])
+    camera_matrix_3x3 = tools_pr_geom.compose_projection_mat_3x3(img.shape[1], img.shape[0], aperture,aperture)
+
     M = pyrr.matrix44.multiply(mat_view.T,pyrr.matrix44.multiply(mat_model.T,mat_trns.T))
     X4D = numpy.full((points_3d.shape[0], 4), 1,dtype=numpy.float)
     X4D[:, :3] = points_3d[:,:]
     L3D = pyrr.matrix44.multiply(M, X4D.T).T[:,:3]
 
-    #points_2d, jac = cv2.projectPoints(points_3d_new, (0,0,0), (0,0,0), camera_matrix, numpy.zeros(4))
-    points_2d, jac = tools_pr_geom.project_points(L3D, (0,0,0), (0,0,0), camera_matrix, numpy.zeros(4))
-
+    points_2d, jac = cv2.projectPoints(L3D, (0,0,0), (0,0,0), camera_matrix_3x3, numpy.zeros(4,dtype=float))
     points_2d = points_2d.reshape((-1,2))
-    points_2d[:,0]=img.shape[1]-points_2d[:,0]
+    for point in points_2d:img = tools_draw_numpy.draw_circle(img, int(point[1]), int(point[0]), 4, color)
 
-    for point in points_2d:
-        img = tools_draw_numpy.draw_circle(img, int(point[1]), int(point[0]), 4, color)
+    points_2d, jac = tools_pr_geom.project_points(L3D, (0,0,0), (0,0,0), camera_matrix_3x3, numpy.zeros(4))
+    points_2d = points_2d.reshape((-1,2))
+    for point in points_2d:img = tools_draw_numpy.draw_circle(img, int(point[1]), int(point[0]), 2, (255,255,255))
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
@@ -195,6 +198,45 @@ def line_plane_intersection(planeNormal, planePoint, rayDirection, rayPoint, eps
     si = -numpy.array(planeNormal[:3]).dot(w) / ndotu
     Psi = w + si * numpy.array(rayDirection[:3]) + numpy.array(planePoint[:3])
     return Psi
+# ----------------------------------------------------------------------------------------------------------------------
+def line_line_intersection(line1, line2):
+
+
+    a1 = (line1[1] - line1[3]) / (line1[0] - line1[2])
+    b1 =  line1[1] - a1 * line1[0]
+
+    a2 = (line2[1] - line2[3]) / (line2[0] - line2[2])
+    b2 =  line2[1] - a2 * line2[0]
+
+    if (numpy.abs(a1 - a2) < 1e-8):
+        return None,None
+
+    x = (b2 - b1) / (a1 - a2)
+    y = a1 * x + b1
+    return x, y
+# ----------------------------------------------------------------------------------------------------------------------
+def is_point_above_line(point,line,tol=0.01):
+    res = numpy.cross(point - line[:2], point - line[2:]) < tol
+    return res
+# ----------------------------------------------------------------------------------------------------------------------
+def reflect_point_line(point,line):
+    #https://math.stackexchange.com/questions/1013230/how-to-find-coordinates-of-reflected-point
+
+    p,q=point[0],point[1]
+
+    # 1*y = Ax + B
+    A =(line[1] - line[3]) / (line[0] - line[2])
+    B = line[1] - A * line[0]
+
+    # y = -b/a * x - c/a
+    a=-1
+    c=B
+    b=A
+
+    x= (p*(a**2 -b**2)-2*b*(a*q+c))/(a**2+b**2)
+    y= (q*(b**2 -a**2)-2*a*(b*p+c))/(a**2+b**2)
+
+    return x, y
 # ----------------------------------------------------------------------------------------------------------------------
 def normalize(x):
     n = numpy.sqrt((x ** 2).sum())
@@ -326,7 +368,7 @@ def fit_scale_factor(X4D, X_target, a0, a1, a2, fx, fy,do_debug=False):
 
 
     R = pyrr.matrix44.create_from_eulers((a0,a2,a1)).T
-    P = tools_pr_geom.compose_projection_mat(fx,fy,(7,7))
+    P = tools_pr_geom.compose_projection_ortho_mat(fx, fy, (7, 7))
     PR = pyrr.matrix44.multiply(P, R)
 
     X_projection = pyrr.matrix44.multiply(PR, X4D.T).T[:, :2]
@@ -352,7 +394,7 @@ def fit_scale_factor(X4D, X_target, a0, a1, a2, fx, fy,do_debug=False):
     scale_factor = (fx/MK[0, 0], fy/MK[1, 1])
 
 
-    newP = tools_pr_geom.compose_projection_mat(fx, fy, scale_factor)
+    newP = tools_pr_geom.compose_projection_ortho_mat(fx, fy, scale_factor)
     newPR = pyrr.matrix44.multiply(newP, MR.T)
 
     X_target_4D = numpy.full((X_target.shape[0],4),1,dtype=numpy.float)

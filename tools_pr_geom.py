@@ -5,37 +5,48 @@ import numpy
 from sklearn.neighbors import NearestNeighbors
 from scipy.linalg import polar
 # ---------------------------------------------------------------------------------------------------------------------
-def fit_homography(X_source,X_target):
+def debug_projection(X_source, X_target,result,colors=None,prefix='_'):
+    if colors is None:colors = [(int(128),int(128),int(128))]*len(X_source)
+
+    padding = 10
+
+    xmin = int(min(X_source[:,0].min(), X_target[:,0].min(),result[:,0].min()))-padding
+    xmax = int(max(X_source[:,0].max(), X_target[:,0].max(),result[:,0].max()))+padding
+    ymin = int(min(X_source[:,1].min(), X_target[:,1].min(),result[:,1].min()))-padding
+    ymax = int(max(X_source[:,1].max(), X_target[:,1].max(),result[:,1].max()))+padding
+
+    image = numpy.full((ymax-ymin,xmax-xmin,3),32,dtype=numpy.uint8)
+    for i,(x,y) in enumerate(X_source):cv2.circle(image, (int(x-xmin),int(y-ymin)), 6,(int(colors[i][0]),int(colors[i][1]),int(colors[i][2])), -1)
+    for i,(x,y) in enumerate(X_target):cv2.circle(image, (int(x-xmin),int(y-ymin)),16,(int(colors[i][0]),int(colors[i][1]),int(colors[i][2])),  3)
+    for i,(x, y) in enumerate(result) :cv2.circle(image, (int(x-xmin),int(y-ymin)), 6,  (int(colors[i][0]),int(colors[i][1]),int(colors[i][2])), -1)
+
+    cv2.imwrite('./images/output/fit_%02d.png'%prefix,image)
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+def fit_homography(X_source,X_target,colors=None,do_debug=None):
     method = cv2.RANSAC
     #method = cv2.LMEDS
     #method = cv2.RHO
     H, mask = cv2.findHomography(X_source, X_target, method, 3.0)
 
     result  = cv2.perspectiveTransform(X_source.reshape(-1, 1, 2),H).reshape((-1,2))
-
     loss =  ((result-X_target)**2).mean()
+    if do_debug: debug_projection(X_source, X_target, result, colors,prefix=do_debug)
 
     return H, result
 # ----------------------------------------------------------------------------------------------------------------------
-def fit_affine(X_source,X_target):
+def fit_affine(X_source,X_target,colors=None,do_debug=False):
     A, _ = cv2.estimateAffine2D(numpy.array(X_source), numpy.array(X_target), confidence=0.95)
     result = cv2.transform(X_source.reshape(-1, 1, 2), A).reshape((-1,2))
     loss = ((result - X_target) ** 2).mean()
+    if do_debug: debug_projection(X_source, X_target, result, colors)
     return A, result
 # ----------------------------------------------------------------------------------------------------------------------
-def fit_euclid(X_source,X_target):
+def fit_euclid(X_source,X_target,colors=None,do_debug=False):
     E, _ = cv2.estimateAffinePartial2D(numpy.array(X_source), numpy.array(X_target))
     result = cv2.transform(X_source.reshape(-1, 1, 2), E).reshape((-1,2))
-
-    #M=numpy.eye(4,dtype=numpy.float)
-    #M[:2,:2]=E[:,:2]
-    #M[:2, 3]=E[:,2]
-
-    #X4D = numpy.full((X_source.shape[0],4),1,dtype=numpy.float)
-    #X4D[:,:2]=X_source
-    #result2 = pyrr.matrix44.multiply(M,X4D.T).T
-
     loss = ((result - X_target) ** 2).mean()
+    if do_debug:debug_projection(X_source, X_target,result,colors)
 
     return E, result
 # ----------------------------------------------------------------------------------------------------------------------
@@ -48,20 +59,16 @@ def fit_translation(X_source,X_target):
     loss = ((result - X_target) ** 2).mean()
     return E, result
 # ----------------------------------------------------------------------------------------------------------------------
-def fit_pnp(landmarks_3d,landmarks_2d,fx, fy,aperture_x=0.5,aperture_y=0.5):
-
-    mat_camera = numpy.array([[fx, 0, fx*aperture_x], [0, fy, fy*aperture_y], [0, 0, 1]])
-
-    (_, r_vec, t_vec) = cv2.solvePnP(landmarks_3d, landmarks_2d,mat_camera, numpy.zeros(4))
-
-    landmarks_2d_check, jac = cv2.projectPoints(landmarks_3d, r_vec, t_vec, mat_camera, numpy.zeros(4))
+def fit_pnp(landmarks_3d,landmarks_2d,mat_camera_3x3):
+    (_, r_vec, t_vec) = cv2.solvePnP(landmarks_3d, landmarks_2d,mat_camera_3x3, numpy.zeros(4))
+    landmarks_2d_check, jac = cv2.projectPoints(landmarks_3d, r_vec, t_vec, mat_camera_3x3, numpy.zeros(4))
     landmarks_2d_check = numpy.reshape(landmarks_2d_check, (-1, 2))
 
     return r_vec, t_vec, landmarks_2d_check
 # ----------------------------------------------------------------------------------------------------------------------
 def fit_manual(X3D,target_2d,fx, fy,xref=None,lref=None,do_debug=True):
 
-    P = compose_projection_mat(fx, fy, (200, 200))
+    P = compose_projection_ortho_mat(fx, fy, (200, 200))
 
     n_steps = 90
     rotation_range = numpy.arange(0, 2*math.pi, 2*math.pi / n_steps)
@@ -102,7 +109,15 @@ def fit_manual(X3D,target_2d,fx, fy,xref=None,lref=None,do_debug=True):
 
     return M
 # ----------------------------------------------------------------------------------------------------------------------
-def compose_projection_mat(fx, fy, scale_factor):
+def compose_projection_mat_3x3(fx, fy, aperture_x=0.5,aperture_y=0.5):
+    mat_camera = numpy.array([[fx, 0, 0.5*fx*(aperture_x/0.5)], [0, fy, 0.5*fy*(aperture_y/0.5)], [0, 0, (0.5*(aperture_x+aperture_y)/0.5)]])
+    return mat_camera
+# ----------------------------------------------------------------------------------------------------------------------
+def compose_projection_mat_4x4(fx, fy, aperture_x=0.5,aperture_y=0.5):
+    mat_camera = numpy.array([[fx, 0, 0.5*fx*(aperture_x/0.5),0], [0, fy, 0.5*fy*(aperture_y/0.5),0],[0,0,1,0],[0,0,0,1]])
+    return mat_camera
+# ----------------------------------------------------------------------------------------------------------------------
+def compose_projection_ortho_mat(fx, fy, scale_factor):
     P = numpy.array([[fx, 0, 0, fx / 2], [0, fy, 0, fy / 2], [0, 0, 1, 0], [0, 0, 0, 1]])
     P[:, 3] *= scale_factor[0]
     P /= scale_factor[0]
@@ -297,28 +312,42 @@ def compose_RT_mat(rvec,tvec,do_flip=True,do_rodriges=False):
     M = numpy.dot(M, flip)
     return M
 # ----------------------------------------------------------------------------------------------------------------------
-def project_points(points_3d, rvec, tvec, camera_matrix, dist):
+def perspective_transform(points_2d,homography):
+    method =0
+
+    if method==0:
+        res = cv2.perspectiveTransform(points_2d, homography)
+
+    X = points_2d.reshape((-1,2))
+    Y = numpy.full((X.shape[0],4),1,dtype=numpy.float)
+    Y[:,:2]=X
+    M = pyrr.matrix44.create_from_matrix33(homography)
+
+    Z = apply_matrix(M, Y)
+    Z[:, 0] = Z[:, 0] / Z[:, 2]
+    Z[:, 1] = Z[:, 1] / Z[:, 2]
+    #points_2d = numpy.array(points_2d)[:, :2].reshape(-1, 1, 2)
+
+
+    return res
+# ----------------------------------------------------------------------------------------------------------------------
+def project_points(points_3d, rvec, tvec, camera_matrix_3x3, dist):
     #https: // docs.opencv.org / 2.4 / modules / calib3d / doc / camera_calibration_and_3d_reconstruction.html
 
-    method =2
-    if method==1:
-        R, _ = cv2.Rodrigues(rvec)
-        M = numpy.c_[R, tvec.T]
-        PM = numpy.dot(camera_matrix, M)
-        points_2d = []
-        for each in points_3d:
-            point_4d=numpy.array([each[0],each[1],each[2],1])
-            x = numpy.dot(PM, point_4d)
-            points_2d.append(x/x[2])
-        points_2d = numpy.array(points_2d)[:,:2].reshape(-1,1,2)
+    #print(camera_matrix_3x3)
+    #print(rvec, tvec)
+    #print()
 
-    else:
-        P = numpy.zeros((3, 4))
-        P[:3, :3] = camera_matrix
+    method = 2
+    if method==0:
+        points_2d, jac = cv2.projectPoints(points_3d, rvec, tvec, camera_matrix_3x3, numpy.zeros(4))
 
-        R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(rvec)[0])
-        T = pyrr.matrix44.create_from_translation(numpy.array(tvec).flatten()).T
-        M = pyrr.matrix44.multiply(T,R)
+    if method ==2:
+        P = compose_projection_mat_4x4(camera_matrix_3x3[0,0],camera_matrix_3x3[1,1],camera_matrix_3x3[0,2]/camera_matrix_3x3[0,0],camera_matrix_3x3[1, 2] / camera_matrix_3x3[1,1])
+
+        R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(numpy.array(rvec,dtype=float).flatten())[0])
+        T = pyrr.matrix44.create_from_translation(numpy.array(tvec,dtype=float).flatten()).T
+        M = pyrr.matrix44.multiply(T, R)
         PM = pyrr.matrix44.multiply(P, M)
 
         points_2d = apply_matrix(PM, points_3d)
@@ -333,7 +362,7 @@ def project_points_ortho(points_3d, rvec, tvec, dist,fx,fy,scale_factor):
     R = pyrr.matrix44.create_from_eulers(rvec).T
     T = pyrr.matrix44.create_from_translation(tvec).T
     RT = pyrr.matrix44.multiply(T, R)
-    P = compose_projection_mat(fx,fy,scale_factor)
+    P = compose_projection_ortho_mat(fx, fy, scale_factor)
 
     PRTS = pyrr.matrix44.multiply(P,RT)
     X4D = numpy.full((points_3d.shape[0],4),1,dtype=numpy.float)
@@ -345,7 +374,7 @@ def project_points_ortho(points_3d, rvec, tvec, dist,fx,fy,scale_factor):
 # ----------------------------------------------------------------------------------------------------------------------
 def project_points_ortho_modelview(points_3d, modelview, dist,fx,fy,scale_factor):
 
-    P = compose_projection_mat(fx, fy, scale_factor)
+    P = compose_projection_ortho_mat(fx, fy, scale_factor)
 
     PRT = pyrr.matrix44.multiply(P,modelview)
     X4D = numpy.full((points_3d.shape[0],4),1,dtype=numpy.float)

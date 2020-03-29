@@ -27,19 +27,24 @@ class Soccer_Field_Processor(object):
     def __init__(self):
         self.folder_out = './images/output/'
         self.blur_kernel = 2
-        self.GT_Z = 500
-        self.aperture_x = 0.5
-        self.aperture_y = 0.5
+        self.GT_Z = 0
+        self.knn_th_max_min = 10
+        self.method = 'homography' #'pnp'
 
-        self.mat_camera = None
+        self.w_fild = 100
+        self.h_fild = 65
+        self.w_penl = 18
+        self.h_penl = 44
+        self.w_goal = 6
+        self.h_goal = 20
 
-        self.color_amber = (0, 124, 207)
-        self.color_white = (255, 255, 255)
-        self.color_red = (17, 6, 124)
-        self.color_bright_red = (0, 32, 255)
-        self.color_green= (117, 134, 129)
-        self.color_black = (0,0,0)
-        self.color_gray= (20, 20, 20)
+        self.color_amber      = (0  , 124, 207)
+        self.color_white      = (255, 255, 255)
+        self.color_red        = (17 ,   6, 124)
+        self.color_bright_red = (0  ,  32, 255)
+        self.color_green      = (117, 134, 129)
+        self.color_black      = (0  ,  0,    0)
+        self.color_gray       = (20 , 20,   20)
         return
 # ---------------------------------------------------------------------------------------------------------------------
     def line_length(self,x1, y1, x2, y2):return numpy.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
@@ -57,34 +62,6 @@ class Soccer_Field_Processor(object):
         x = det(d, xdiff) / div
         y = det(d, ydiff) / div
         return x, y
-# ---------------------------------------------------------------------------------------------------------------------
-    def skelenonize_fast(self, image,do_debug=None):
-
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        blur = tools_filter.sliding_2d(gray, self.blur_kernel, self.blur_kernel, stat='avg', mode='reflect').astype(numpy.uint8)
-        threshholded = 255 - cv2.adaptiveThreshold(255 - blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY,11, 0)
-
-        #edges = cv2.Canny(threshholded, 10, 50, apertureSize=3)
-        edges = (255 * skeletonize(threshholded / 255)).astype(numpy.uint8)
-
-        lines = cv2.HoughLinesP(edges, 1, numpy.pi / 180, 40, int(image.shape[0]*0.1))
-
-        result = image.copy()
-        result = tools_image.desaturate(result)
-        skeleton = numpy.zeros(image.shape, dtype=numpy.uint8)
-
-        for line in lines:
-            for x1, y1, x2, y2 in line:
-                result = cv2.line(result, (x1, y1), (x2, y2), self.color_red, 1)
-                skeleton = cv2.line(skeleton, (x1, y1), (x2, y2), self.color_while, 1)
-
-        if do_debug is not None:
-            cv2.imwrite(self.folder_out + '1-blur.png', blur)
-            cv2.imwrite(self.folder_out + '2-threshholded.png', threshholded)
-            cv2.imwrite(self.folder_out + '3-edges.png', edges)
-            cv2.imwrite(self.folder_out + '4-res.png', result)
-            cv2.imwrite(self.folder_out + '5-skeleton.png', skeleton)
-        return skeleton
 # ---------------------------------------------------------------------------------------------------------------------
     def skelenonize_slow(self, image, do_debug=None):
 
@@ -257,7 +234,7 @@ class Soccer_Field_Processor(object):
 
             dmin = numpy.array(d).min()
             dmax = numpy.array(d).max()
-            if dmax/dmin < 10:
+            if dmax/dmin < self.knn_th_max_min:
                 best_N = N
 
         kmeans_model = KMeans(n_clusters=best_N).fit(numpy.array(candidates))
@@ -272,7 +249,24 @@ class Soccer_Field_Processor(object):
 
         return idx_out
 # ----------------------------------------------------------------------------------------------------------------------
-    def filter_lines(self,skeleton,lines,lines_weights, line_angles, lines_crosses,a_min,a_max,do_debug=None):
+    def remove_intersected_line(self,lines, weights):
+
+        N = len(lines)
+        if N<=1:return False, lines, weights
+
+        idx = numpy.argsort(weights)
+        flag = False
+
+        for i in range(N-1):
+            for j in range(i+1,N):
+                x,y = tools_render_CV.line_line_intersection(lines[idx[i]],lines[idx[j]])
+                if x is not None and x>=0 and x<self.W and y>=0 and y<self.H:
+                    return True,numpy.delete(lines,idx[i],axis=0),numpy.delete(weights,idx[i],axis=0)
+
+
+        return flag,lines, weights
+# ----------------------------------------------------------------------------------------------------------------------
+    def filter_lines_by_angle_pos(self, skeleton, lines, lines_weights, line_angles, lines_crosses, a_min, a_max, do_debug=None):
 
         result_image = numpy.full((self.H, self.W, 3), 0, dtype=numpy.uint8)
         candidates, idx_in, result_lines = [],[],[]
@@ -286,13 +280,21 @@ class Soccer_Field_Processor(object):
 
         if len(candidates)>2:
             idxs_out = self.get_centers(candidates,numpy.array(lines_weights)[idx_in])
-            result_lines = numpy.array(lines)[numpy.array(idx_in)[idxs_out]]
+            result_lines   = numpy.array(lines        )[numpy.array(idx_in)[idxs_out]]
             result_crosses = numpy.array(lines_crosses)[numpy.array(idx_in)[idxs_out]]
+            result_weights = numpy.array(lines_weights)[numpy.array(idx_in)[idxs_out]]
 
             idx = numpy.argsort(result_crosses)
             result_lines = result_lines[idx]
+            result_weights = result_weights[idx]
+
+            success = True
+            while success:
+                success, result_lines, result_weights = self.remove_intersected_line(result_lines, result_weights)
+
         else:
             result_lines = numpy.array(lines)[idx_in]
+
 
         if do_debug is not None:
             result_image = self.draw_lines(result_image, numpy.array(lines)[idx_in], self.color_green, 4)
@@ -302,6 +304,16 @@ class Soccer_Field_Processor(object):
 
         return result_lines
 # ----------------------------------------------------------------------------------------------------------------------
+    def get_colors(self,N,do_blend=False):
+        colors = []
+        for i in range(0, N):
+            hue = int(255 * i / (N-1))
+            color = cv2.cvtColor(numpy.array([hue, 255, 225], dtype=numpy.uint8).reshape(1, 1, 3), cv2.COLOR_HSV2BGR)[0][0]
+            if do_blend:color = (0.25 * numpy.array((255, 255, 255)) + 0.75 * numpy.array(color))
+            colors.append((int(color[0]), int(color[1]), int(color[2])))
+
+        return colors
+    # ----------------------------------------------------------------------------------------------------------------------
     def draw_lines(self,image, lines,color=(255,255,255),w=4):
 
         result = image.copy()
@@ -310,124 +322,133 @@ class Soccer_Field_Processor(object):
 
         return result
 # ----------------------------------------------------------------------------------------------------------------------
-    def draw_GT_lines(self, image, lines, ids, w=4):
+    def draw_GT_lines(self, image, lines, ids, w=4,put_text=False):
 
-        colors = []
-        for i in range(0, 16):
-            color = cv2.cvtColor(numpy.array([int(255 * i / 19), 255, 225], dtype=numpy.uint8).reshape(1, 1, 3), cv2.COLOR_HSV2BGR)[0][0]
-
-            color = (0.25*numpy.array((255,255,255))+0.75*numpy.array(color))
-            colors.append((int(color[0]), int(color[1]), int(color[2])))
-
+        colors = self.get_colors(16,do_blend=True)
+        H, W = image.shape[:2]
         result = image.copy()
-        for line, id in zip(lines, ids):cv2.line(result, (int(line[0]), int(line[1])), (int(line[2]), int(line[3])), colors[id], w)
+        for line, id in zip(lines, ids):
+            if line[0] is None or line[1] is None or line[2] is None or line[3] is None:continue
+            cv2.line(result, (int(line[0]), int(line[1])), (int(line[2]), int(line[3])), colors[id], w)
+            if put_text:
+                x,y = int(line[0]+line[2])//2, int(line[1]+line[3])//2
+                cv2.putText(result, '{0}'.format(id),(min(W - 10, max(10, x)), min(H - 5, max(10, y))),cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
 
         return result
 # ----------------------------------------------------------------------------------------------------------------------
-    def draw_GT_landmarks(self, image, landmarks, ids,R=8,fill=-1):
+    def draw_GT_lmrks(self, image, landmarks, ids, R=8, fill=-1, put_text=False):
         result = image.copy()
         if landmarks is None:return result
 
-        colors = []
-        for i in range(0,36):
-            hue = int(255*i/35)
-            color = cv2.cvtColor(numpy.array([hue, 255, 225], dtype=numpy.uint8).reshape(1, 1, 3), cv2.COLOR_HSV2BGR)[0][0]
-            colors.append((int(color[0]), int(color[1]), int(color[2])))
+        H,W = image.shape[:2]
+        colors = self.get_colors(36)
 
-
-        for lm,id in zip(landmarks,ids):cv2.circle(result, (int(lm[0]), int(lm[1])), R, colors[id], fill)
+        for lm,id in zip(landmarks,ids):
+            if lm[0] is None or lm[1] is None: continue
+            cv2.circle(result, (int(lm[0]), int(lm[1])), R, colors[id], fill)
+            if put_text:
+                cv2.putText(result, '{0}'.format(id), (min(W-10,max(10,int(lm[0]))), min(H-5,max(10,int(lm[1])))), cv2.FONT_HERSHEY_SIMPLEX, 0.4,(128, 128, 128), 1, cv2.LINE_AA)
 
         return result
 # ----------------------------------------------------------------------------------------------------------------------
-    def draw_playground(self,w=8, R=6):
+    def draw_playground_predict(self, image, landmarks, ids, w=8, R=8):
+        result = image.copy()
+        if landmarks is None: return result
+
+        colors = self.get_colors(36)
+        all_landmarks = numpy.full((36,2),-1,dtype=numpy.int)
+        all_landmarks[ids]=landmarks[:]
+
+        idxs = [[0,18,19,1],[2, 8, 9, 3],[4,16,17,5],[26,20,21,27],[34,22,23,35]]
+
+        for idx in idxs:
+            cv2.polylines(result, [all_landmarks[idx]], isClosed=True, color=(0,0,190),thickness=w)
+            #cv2.fillPoly(result, [points], color=(255,0,0),lineType=cv2.LINE_AA)
+
+        for lm,id in zip(landmarks,ids):
+            cv2.circle(result, (int(lm[0]), int(lm[1])), R, colors[id], thickness=-1)
+
+        return result
+# ----------------------------------------------------------------------------------------------------------------------
+    def draw_playground_GT(self, w=8, R=6):
         scale = 4
 
+        padding = 10
+
         L_GT, lines_GT = self.get_GT()
-        W = L_GT[:,0].max() - L_GT[:,0].min()
-        H = L_GT[:,1].max() - L_GT[:,1].min()
+        W = L_GT[:,0].max() - L_GT[:,0].min() + padding
+        H = L_GT[:,1].max() - L_GT[:,1].min() + padding
 
-        lines_GT[:,0]-=L_GT[:,0].min()
-        lines_GT[:,2]-=L_GT[:, 0].min()
-        lines_GT[:,1]-=L_GT[:,1].min()
-        lines_GT[:,3]-=L_GT[:, 1].min()
+        lines_GT[:,0]-=L_GT[:,0].min()-padding//2
+        lines_GT[:,2]-=L_GT[:,0].min()-padding//2
+        lines_GT[:,1]-=L_GT[:,1].min()-padding//2
+        lines_GT[:,3]-=L_GT[:,1].min()-padding//2
 
-        L_GT[:,0]-=L_GT[:,0].min()
-        L_GT[:,1]-=L_GT[:,1].min()
+        L_GT[:,0]-=L_GT[:,0].min()-padding//2
+        L_GT[:,1]-=L_GT[:,1].min()-padding//2
 
         image = numpy.full((int(H*scale), int(W*scale), 3), 64, numpy.uint8)
 
-        image = self.draw_GT_lines(image, scale*lines_GT, ids=numpy.arange(0, len(lines_GT), 1), w=w)
-        image = self.draw_GT_landmarks(image, scale*L_GT, ids=numpy.arange(0, len(L_GT), 1), R=R)
+        image = self.draw_GT_lines(image, scale*lines_GT, ids=numpy.arange(0, len(lines_GT), 1), w=w, put_text=True)
+        image = self.draw_GT_lmrks(image, scale * L_GT  , ids=numpy.arange(0, len(L_GT)    , 1), R=R, put_text=True)
         return image
 # ----------------------------------------------------------------------------------------------------------------------
-    def draw_playground_homography(self, H, W, homography, w=1, R=4):
-        image = numpy.full((H, W, 3), 64, numpy.uint8)
+    def draw_playground_homography(self, H, W, homography, check_reflect=False, w=1, R=4):
+        image = numpy.full((H, W, 3), 0, numpy.uint8)
         if homography is None: return image
-        L_GT, lines_GT = self.get_GT()
+        lmrks_GT, lines_GT = self.get_GT()
 
-        lines_GT  = cv2.perspectiveTransform(lines_GT.reshape(-1, 1, 2), homography).reshape((-1, 4))
-        L_GT      = cv2.perspectiveTransform(L_GT.reshape(-1, 1, 2), homography).reshape((-1, 2))
+        lines_GT_trans = cv2.perspectiveTransform(lines_GT.reshape((-1, 1, 2)), homography).reshape((-1, 4))
+        lmrks_GT_trans = cv2.perspectiveTransform(lmrks_GT.reshape((-1, 1, 2)), homography).reshape((-1, 2))
 
-        image = self.draw_GT_lines(image, lines_GT, ids=numpy.arange(0, len(lines_GT), 1), w=w)
-        image = self.draw_GT_landmarks(image, L_GT, ids=numpy.arange(0, len(L_GT)    , 1), R=R)
-        return image
-# ----------------------------------------------------------------------------------------------------------------------
-    def draw_playground_euclide(self, E, w=1, R=4):
-        image = numpy.full((self.H, self.W, 3), 64, numpy.uint8)
-        if E is None:return image
+        if check_reflect:
+            lines_GT_trans_corrected, lmrks_GT_trans_corrected = [], []
+            baseline = lines_GT_trans[3]
+            for i in range(len(lines_GT_trans)):
+                x1,y1 = lines_GT_trans[i][0:2]
+                if tools_render_CV.is_point_above_line((x1,y1),baseline,tol=-10):
+                    x1,y1 = None,None
+                x2,y2 = lines_GT_trans[i][2:]
+                if tools_render_CV.is_point_above_line((x2,y2), baseline,tol=-10):
+                    x2,y2 = None, None
+                lines_GT_trans_corrected.append([x1,y1,x2,y2])
+            for i in range(len(lmrks_GT_trans)):
+                x,y = lmrks_GT_trans[i]
+                if tools_render_CV.is_point_above_line((x,y), baseline,tol=-10):
+                    x,y = None,None
+                lmrks_GT_trans_corrected.append([x,y])
 
-        L_GT, lines_GT = self.get_GT()
+            lines_GT_trans = numpy.array(lines_GT_trans_corrected)
+            lmrks_GT_trans = numpy.array(lmrks_GT_trans_corrected)
 
-        lines_GT = cv2.transform(lines_GT.reshape(-1, 1, 2), E).reshape((-1, 4))
-        L_GT = cv2.transform(L_GT.reshape(-1, 1, 2), E).reshape((-1, 2))
-
-        image = self.draw_GT_lines(image, lines_GT, ids=numpy.arange(0, 16, 1), w=w)
-        image = self.draw_GT_landmarks(image, L_GT, ids=numpy.arange(0, 36, 1), R=R)
-        return image
-# ----------------------------------------------------------------------------------------------------------------------
-    def draw_playground_pnp(self, r_vec,t_vec,w=1, R=4):
-
-        image = numpy.full((self.H, self.W, 3), 64, numpy.uint8)
-        fx, fy = self.W,self.H
-        self.mat_camera = numpy.array([[fx, 0, fx*self.aperture_x], [0, fy, fy*self.aperture_y], [0, 0, 1]])
-        if r_vec is None or t_vec is None: return image
-
-        landmarks_GT, lines_GT = self.get_GT()
-        landmarks_GT3 = numpy.full((landmarks_GT.shape[0], 3), self.GT_Z, dtype=numpy.float)
-        landmarks_GT3[:, :2] = landmarks_GT
-        #landmarks_GT, jac = cv2.projectPoints(landmarks_GT3, r_vec, t_vec, self.mat_camera, numpy.zeros(4))
-        landmarks_GT, jac = tools_pr_geom.project_points(landmarks_GT3, r_vec, t_vec, self.mat_camera, numpy.zeros(4))
-
-        landmarks_GT = numpy.reshape(landmarks_GT, (-1, 2))
-        image = self.draw_GT_landmarks(image, landmarks_GT, ids=numpy.arange(0, 36, 1), R=R)
-
-        lines_GT3 = numpy.full((2*lines_GT.shape[0], 3), self.GT_Z, dtype=numpy.float)
-        lines_GT3[:, :2] = lines_GT.reshape(-1, 2)
-        #lines_GT, jac = cv2.projectPoints(lines_GT3, r_vec, t_vec, self.mat_camera, numpy.zeros(4))
-        lines_GT, jac = tools_pr_geom.project_points(lines_GT3, r_vec, t_vec, self.mat_camera, numpy.zeros(4))
-        lines_GT = numpy.reshape(lines_GT, (-1, 4))
-        image = self.draw_GT_lines(image, lines_GT, ids=numpy.arange(0, 16, 1), w=w)
+        image = self.draw_GT_lines(image, lines_GT_trans, ids=numpy.arange(0, len(lines_GT), 1), w=w)
+        image = self.draw_GT_lmrks(image, lmrks_GT_trans, ids=numpy.arange(0, len(lmrks_GT), 1), R=R)
 
         return image
 # ----------------------------------------------------------------------------------------------------------------------
-    def draw_playground_viewmat(self, M,scale,w=1, R=4):
-        image = numpy.full((self.H, self.W, 3), 64, numpy.uint8)
-        landmarks_GT, lines_GT = self.get_GT()
-        landmarks_GT4 = numpy.full((landmarks_GT.shape[0], 4), 1, dtype=numpy.float)
-        landmarks_GT4[:, :2] = landmarks_GT
-        P = tools_pr_geom.compose_projection_mat(self.W,self.H,(scale,scale))
-        PRT = pyrr.matrix44.multiply(P, M)
+    def draw_playground_homography_v2(self, H, W, homography,do_reflect=False, w=1, R=4):
 
-        X4Dlines = numpy.full((2 * lines_GT.shape[0], 4), 1,dtype=numpy.float)
-        X4Dlines[:, :2] = lines_GT.reshape(-1, 2)
-        lines_GT = (pyrr.matrix44.multiply(PRT, X4Dlines.T).T)[:, :2]
-        lines_GT = lines_GT.reshape(-1,4)
-        image = self.draw_GT_lines(image, lines_GT, ids=numpy.arange(0, 16, 1), w=w)
+        image = numpy.full((H, W, 3), 0, numpy.uint8)
+        if homography is None: return image
+        lmrks_GT, lines_GT = self.get_GT()
 
-        landmarks_GT = (pyrr.matrix44.multiply(PRT, landmarks_GT4.T).T)[:, :2]
-        image = self.draw_GT_landmarks(image, landmarks_GT, ids=numpy.arange(0, 36, 1), R=R)
+        lines_GT_trans = cv2.perspectiveTransform(lines_GT.reshape((-1, 1, 2)), homography).reshape((-1, 4))
+        lmrks_GT_trans = cv2.perspectiveTransform(lmrks_GT.reshape((-1, 1, 2)), homography).reshape((-1, 2))
 
-        return image
+        padding = 10
+        xmin = int(lines_GT_trans[:,0].min())-padding
+        xmax = int(lines_GT_trans[:,0].max())+padding
+        ymin = int(lines_GT_trans[:,1].min())-padding
+        ymax = int(lines_GT_trans[:,1].max())+padding
+        image_debug = numpy.full((ymax-ymin,xmax-xmin,3),32,dtype=numpy.uint8)
+        colors = self.get_colors(16, do_blend=True)
+
+        for line, id in zip(lines_GT_trans, numpy.arange(0,16,1)):
+            cv2.line(image_debug, (int(line[0]-xmin), int(line[1])-ymin), (int(line[2]-xmin), int(line[3])-ymin), colors[id], w)
+
+        image_debug = cv2.resize(image_debug,(image_debug.shape[1]//4,image_debug.shape[0]//4))
+
+        return image_debug
 # ----------------------------------------------------------------------------------------------------------------------
     def export_playground(self,filename_obj_out,filename_texture_out):
         Obj = tools_wavefront.ObjLoader()
@@ -447,18 +468,62 @@ class Soccer_Field_Processor(object):
 
         Obj.export_mesh(filename_obj_out,landmarks_GT3,coord_texture)
 
-        cv2.imwrite(filename_texture_out, self.draw_playground())
+        cv2.imwrite(filename_texture_out, self.draw_playground_GT())
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def process_view(self, image, do_debug=None):
-        self.H,self.W = image.shape[:2]
-        fx, fy = self.W, self.H
-        self.mat_camera = numpy.array([[fx, 0, fx*self.aperture_x], [0, fy, fy*self.aperture_y], [0, 0, 1]])
+    def process_lines_long(self, lines_long, skeleton, do_debug=None):
 
-        skeleton = self.skelenonize_slow(image)
-        cv2.imwrite(self.folder_out + 'skeleton.png',skeleton)
-        skeleton = cv2.imread(self.folder_out + 'skeleton.png')
+        best_loss = None
+        best_transform = None
+        best_params = None
+
+        if len(lines_long.shape) == 1: lines_long = [lines_long]
+
+        for i, line_long in enumerate(lines_long):
+            lines_long_hypot = self.get_hypot_lines_long(skeleton, [line_long])
+            lines_short_hypot = self.get_hypot_lines_short(skeleton, [line_long])
+            angle = self.get_angle(lines_long_hypot[0][0], lines_long_hypot[0][1], lines_long_hypot[0][2],lines_long_hypot[0][3])
+
+            long_combinations = self.create_long_lines_combinations(lines_long_hypot, angle)
+            short_combinations = self.create_short_lines_combinations(lines_short_hypot, angle)
+
+            cmb = -1
+            for long_combination in long_combinations:
+                for short_combination in short_combinations:
+                    cmb += 1
+                    comb = numpy.zeros((16, 4))
+                    for c in range(16):
+                        if numpy.count_nonzero(long_combination[c]) > 0: comb[c] = long_combination[c]
+                        if numpy.count_nonzero(short_combination[c])> 0: comb[c] = short_combination[c]
+
+                    landmarks, landm_ids = self.get_landmarks_field(comb)
+
+                    if self.method=='homography':
+                        H,params,landmarks_fit  = self.get_homography(landmarks, landm_ids)
+                    else:
+                        H,params,landmarks_fit = self.get_pose_pnp(landmarks, landm_ids)
+
+                    loss = ((landmarks_fit - landmarks) ** 2).mean()
+                    if best_loss is None or loss < best_loss:
+                        best_transform, best_params, best_loss = H, params, loss
+
+                    if do_debug is not None:
+                        image_comb = self.draw_GT_lines(skeleton.copy(), comb, numpy.arange(0, 16, 1), w=6)
+                        image_comb = self.draw_GT_lmrks(image_comb, landmarks, landm_ids, 16, 3)
+                        image_comb = self.draw_GT_lmrks(image_comb, landmarks_fit, landm_ids, 6, -1)
+                        cv2.imwrite(self.folder_out + 'comb_%03d_%03d_%d.png' % (i,cmb,loss), image_comb)
+
+        return best_transform,best_params
+# ----------------------------------------------------------------------------------------------------------------------
+    def process_view(self, image, do_debug=None):
+
+        self.H,self.W = image.shape[:2]
+        #skeleton = self.skelenonize_slow(image)
+
+        if do_debug is not None:
+            #cv2.imwrite(self.folder_out + 'skeleton.png',skeleton)
+            skeleton = cv2.imread(self.folder_out + 'skeleton.png')
 
 
         lines_coord = self.get_hough_lines(skeleton)
@@ -466,7 +531,7 @@ class Soccer_Field_Processor(object):
 
         longest_line = self.get_longest_line(lines_coord, lines_weights, line_angles, lines_crosses)
         angle = self.get_angle(longest_line[0][0],longest_line[0][1],longest_line[0][2],longest_line[0][3])
-        lines_long = self.filter_lines(skeleton,lines_coord,lines_weights, line_angles, lines_crosses, angle-10, angle+10)
+        lines_long = self.filter_lines_by_angle_pos(skeleton, lines_coord, lines_weights, line_angles, lines_crosses, angle - 10, angle + 10)
 
         if do_debug is not None:
             temp = self.draw_lines(skeleton.copy(), lines_long, self.color_red, 4)
@@ -474,47 +539,21 @@ class Soccer_Field_Processor(object):
 
         tools_IO.save_mat(lines_long,self.folder_out + 'lines_long.txt')
         lines_long = tools_IO.load_mat(self.folder_out + 'lines_long.txt',dtype=numpy.int)
-        if len(lines_long.shape)==1:lines_long = [lines_long]
 
-        for i,line_long in enumerate(lines_long):
-            lines_long_hypot  = self.get_hypot_lines_long(skeleton, [line_long])
-            lines_short_hypot = self.get_hypot_lines_short(skeleton, [line_long])
-            angle = self.get_angle(lines_long_hypot[0][0], lines_long_hypot[0][1], lines_long_hypot[0][2], lines_long_hypot[0][3])
+        homography, params = self.process_lines_long(lines_long, skeleton, do_debug)
 
-            long_combinations = self.create_long_lines_combinations(lines_long_hypot,angle)
-            short_combinations = self.create_short_lines_combinations(lines_short_hypot, angle)
+        self.set_playground_params(params)
+        playground = self.draw_playground_homography(self.H, self.W, homography, check_reflect=True, w=3, R=6)
+        result = tools_image.put_layer_on_image(tools_image.desaturate(image), playground, background_color=(0, 0, 0))
 
-            cmb=0
-            for long_combination in long_combinations:
-                for short_combination in short_combinations:
-                    cmb+=1
-                    comb = numpy.zeros((16, 4))
-                    for c in range(16):
-                        if numpy.count_nonzero(long_combination[c])>0 :comb[c] = long_combination[c]
-                        if numpy.count_nonzero(short_combination[c])>0:comb[c] = short_combination[c]
-
-                    landmarks,landm_ids = self.get_landmarks_field(comb)
-
-                    r_vec, t_vec, landmarks_fit = self.get_pose_pnp(landmarks, landm_ids)
-                    temp = self.draw_GT_lines(skeleton.copy(), comb, numpy.arange(0, 16, 1), w=6)
-                    temp = self.draw_GT_landmarks(temp, landmarks, landm_ids, 16, 3)
-                    temp = self.draw_GT_landmarks(temp, landmarks_fit, landm_ids, 6, -1)
-                    cv2.imwrite(self.folder_out + 'lines_%03d.png' % cmb, temp)
-
-                    playground = self.draw_playground_pnp(r_vec, t_vec, w=2, R=6)
-                    cv2.imwrite(self.folder_out + 'projection_%03d.png' % cmb, playground)
-                    print('[ %1.2f, %1.2f, %1.2f], [%1.2f,  %1.2f,  %1.2f]' % (r_vec[0], r_vec[1], r_vec[2], t_vec[0], t_vec[1], t_vec[2] ))
-
-
-
-        return
+        return result
 # ----------------------------------------------------------------------------------------------------------------------
     def get_hypot_lines_long(self, skeleton, longest_line, do_debug=None):
         skeleton = self.clean_skeleton(skeleton, longest_line, mode='up')
         lines_coord = self.get_hough_lines(skeleton)
         lines_weights, line_angles, lines_crosses = self.get_lines_params(lines_coord, skeleton)
         angle = self.get_angle(longest_line[0][0], longest_line[0][1], longest_line[0][2], longest_line[0][3])
-        lines_long = self.filter_lines(skeleton, lines_coord, lines_weights, line_angles, lines_crosses, angle - 5,angle + 5, do_debug=do_debug)
+        lines_long = self.filter_lines_by_angle_pos(skeleton, lines_coord, lines_weights, line_angles, lines_crosses, angle - 5, angle + 5, do_debug=do_debug)
         return lines_long
 # ----------------------------------------------------------------------------------------------------------------------
     def get_hypot_lines_short(self, skeleton, longest_line, do_debug=None):
@@ -524,9 +563,10 @@ class Soccer_Field_Processor(object):
         else:angle_min,angle_max = 92,90+45
         lines_coord = self.get_hough_lines(skeleton)
         lines_weights, line_angles, lines_crosses = self.get_lines_params(lines_coord, skeleton)
-        lines_short = self.filter_lines(skeleton, lines_coord, lines_weights, line_angles, lines_crosses, angle_min,angle_max, do_debug=do_debug)
+        lines_short = self.filter_lines_by_angle_pos(skeleton, lines_coord, lines_weights, line_angles, lines_crosses, angle_min, angle_max, do_debug=do_debug)
         return lines_short
 # ----------------------------------------------------------------------------------------------------------------------
+    # lines
     # 0,1,2,3  - outer bounds
     # 4,5,6    - left  penalty area
     # 7,8,9    - left  goal area
@@ -545,15 +585,28 @@ class Soccer_Field_Processor(object):
         return list_of_lines
 # ----------------------------------------------------------------------------------------------------------------------
     def get_GT(self):
-        W,H = 100,60
+        scale_factor = 0.05
+        w_fild = self.w_fild
+        h_fild = self.h_fild
+        w_penl = self.w_penl
+        h_penl = self.h_penl
+        w_goal = self.w_goal
+        h_goal = self.h_goal
 
-        lines = [[-W/2,-H/2,+W/2,-H/2],[+W/2,-H/2,+W/2,+H/2],[+W/2,+H/2,-W/2,+H/2],[-W/2,+H/2,-W/2,-H/2],
-                 [-W / 2, -20, -W / 2 + 16.5, -20], [-W / 2 + 16.5, -20, -W / 2 + 16.5, +20],[-W / 2 + 16.5, +20, -W / 2, +20],
-                 [-W / 2, -9.15, -W / 2 + 5.5, -9.15], [-W / 2 + 5.5, -9.15, -W / 2 + 5.5, +9.15],[-W / 2 + 5.5, +9.15, -W / 2, +9.15],
-                 [+W / 2, -20, +W / 2 - 16.5, -20], [+W / 2 - 16.5, -20, +W / 2 - 16.5, +20],[+W / 2 - 16.5, +20, +W / 2, +20],
-                 [+W / 2, -9.15, +W / 2 - 5.5, -9.15], [+W / 2 - 5.5, -9.15, +W / 2 - 5.5, +9.15],[+W / 2 - 5.5, +9.15, +W / 2, +9.15]]
+        lines = [[-w_fild/2, -h_fild/2, +w_fild/2,          -h_fild/2], [+w_fild/2,          -h_fild/2, +w_fild/2         , +h_fild/2],[+w_fild/2         , +h_fild/2, -w_fild/2, +h_fild/2],[-w_fild/2,+h_fild/2,-w_fild/2,-h_fild/2],
+                 [-w_fild/2, -h_penl/2, -w_fild/2 + w_penl, -h_penl/2], [-w_fild/2 + w_penl, -h_penl/2, -w_fild/2 + w_penl, +h_penl/2],[-w_fild/2 + w_penl, +h_penl/2, -w_fild/2, +h_penl/2],
+                 [-w_fild/2, -h_goal/2, -w_fild/2 + w_goal, -h_goal/2], [-w_fild/2 + w_goal, -h_goal/2, -w_fild/2 + w_goal, +h_goal/2],[-w_fild/2 + w_goal, +h_goal/2, -w_fild/2, +h_goal/2],
+                 [+w_fild/2, -h_penl/2, +w_fild/2 - w_penl, -h_penl/2], [+w_fild/2 - w_penl, -h_penl/2, +w_fild/2 - w_penl, +h_penl/2],[+w_fild/2 - w_penl, +h_penl/2, +w_fild/2, +h_penl/2],
+                 [+w_fild/2, -h_goal/2, +w_fild/2 - w_goal, -h_goal/2], [+w_fild/2 - w_goal, -h_goal/2, +w_fild/2 - w_goal, +h_goal/2],[+w_fild/2 - w_goal, +h_goal/2, +w_fild/2, +h_goal/2]]
 
         lines = numpy.array(lines)
+
+        #lines[:,0]+=w_fild/2
+        #lines[:,1]+=h_fild/2
+        #lines[:,2]+=w_fild/2
+        #lines[:,3]+=h_fild/2
+
+        lines = scale_factor*numpy.array(lines)
 
         landmarks = []
         for l1, l2 in self.get_list_of_lines():
@@ -562,16 +615,17 @@ class Soccer_Field_Processor(object):
         landmarks = numpy.array(landmarks)
         return landmarks, lines
 # ----------------------------------------------------------------------------------------------------------------------
-    def get_landmarks_field(self,lines):
+    def get_landmarks_field(self,lines,visible_only=False):
 
         landmarks,ids = [],[]
         i=0
         for l1, l2 in self.get_list_of_lines():
             if numpy.count_nonzero(lines[l1])>0 and numpy.count_nonzero(lines[l2])>0:
                 cross = self.line_intersection(lines[l1].reshape(2, 2), lines[l2].reshape(2, 2))
-                if cross[0] is not None and cross[1] is not None and cross[0]>=0 and cross[0]<=self.W and cross[1]>=0 and cross[1]<self.H:
-                    ids.append(i)
-                    landmarks.append(cross)
+                if cross[0] is not None and cross[1] is not None:
+                    if (not visible_only) or (cross[0]>=0 and cross[0]<=self.W and cross[1]>=0 and cross[1]<self.H):
+                        ids.append(i)
+                        landmarks.append(cross)
             i+=1
 
         landmarks=numpy.array(landmarks)
@@ -583,7 +637,7 @@ class Soccer_Field_Processor(object):
         C = []
         if len(lines_long)==3:
             if angle < 90:
-                idx_target3 = [[3, 5, 8]]
+                idx_target3 = [[3, 8, 5]]
                 idx_target2 = [[3, 5], [3, 8], [5, 8]]
             else:
                 idx_target3 = [[1, 14, 11]]
@@ -615,8 +669,10 @@ class Soccer_Field_Processor(object):
 
         if len(lines_short) == 4:
             idx_src = [[0, 1, 2, 3]]
-            if angle < 90:idx_target = [[0, 4, 7, 9]]
-            else:idx_target = [[0, 10, 13, 15]]
+            if angle < 90:
+                idx_target = [[0, 4, 7, 9],[4, 7, 9, 6]]
+            else:
+                idx_target = [[0, 10, 13, 15]]
 
         C.append(self.assign_lines(lines_short, idx_src, idx_target))
         C = numpy.array(C).reshape((-1, 16, 4))
@@ -633,41 +689,64 @@ class Soccer_Field_Processor(object):
         result = numpy.array(result).reshape((-1,16,4))
         return result
 # ----------------------------------------------------------------------------------------------------------------------
+    def set_playground_params(self,params):
+        self.h_fild = params
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def get_playground_params(self):
+        params = self.h_fild
+        return params
+# ----------------------------------------------------------------------------------------------------------------------
     def get_pose_pnp(self, landmarks, ids):
+
+        best_H, best_loss,result = None, None,None
+        best_params = self.get_playground_params()
+        if len(ids) <= 3: return best_H,best_params,result
+
         landmarks_GT, lines_GT = self.get_GT()
-        r_vec, t_vec, result = None, None, None
+        landmarks_GT3 = numpy.full((landmarks_GT.shape[0], 3), self.GT_Z, dtype=numpy.float)
+        landmarks_GT3[:, :2] = landmarks_GT
+
+        for params_h in numpy.arange(70 - 5, 70 + 6, 0.25):
+            self.set_playground_params(params_h)
+            for aperture in numpy.arange(0.50, 2.60, 0.01):
+                mat_camera_3x3 = tools_pr_geom.compose_projection_mat_3x3(self.W, self.H, aperture, aperture)
+                r_vec, t_vec, result = tools_pr_geom.fit_pnp(landmarks_GT3[ids], landmarks, mat_camera_3x3)
+                loss = numpy.sqrt(((result - landmarks) ** 2).mean())
+                if best_loss is None or loss < best_loss:
+                    best_loss = loss
+                    best_H = r_vec, t_vec, aperture
+                    best_params = params_h
+
+        self.set_playground_params(best_params)
+
+        return best_H, best_params, result
+# ----------------------------------------------------------------------------------------------------------------------
+    def get_homography(self, landmarks, ids, do_debug=None):
+        best_H, best_loss,result = None, None,None
+        best_params = self.get_playground_params()
+        if len(ids) <= 3: return best_H,best_params,result
 
 
-        if len(ids) > 3:
-            landmarks_GT3 = numpy.full((landmarks_GT.shape[0],3),self.GT_Z,dtype=numpy.float)
-            landmarks_GT3[:,:2]=landmarks_GT
-            r_vec, t_vec, result = tools_pr_geom.fit_pnp(landmarks_GT3[ids], landmarks,self.W,self.H,aperture_x=self.aperture_x,aperture_y=self.aperture_y)
-        return r_vec, t_vec,result
-# ----------------------------------------------------------------------------------------------------------------------
-    def get_pose_homography(self, landmarks, ids):
-        landmarks_GT,lines_GT = self.get_GT()
-        H, result = None, None
-        if len(ids)>3:
-            H, result = tools_pr_geom.fit_homography(landmarks_GT[ids],landmarks)
-        return H, result
-# ----------------------------------------------------------------------------------------------------------------------
-    def get_pose_euclide(self, landmarks, ids):
-        landmarks_GT, lines_GT = self.get_GT()
-        E, result = None, None
-        if len(ids) > 3:
-            E, result = tools_pr_geom.fit_euclid(landmarks_GT[ids], landmarks)
-        return E, result
-# ----------------------------------------------------------------------------------------------------------------------
-    def get_pose_manual(self,landmarks, ids):
-        landmarks_GT, lines_GT = self.get_GT()
-        H, result = None, None
-        if len(ids) > 3:
-            landmarks_GT3 = numpy.full((landmarks_GT.shape[0], 3), 1, dtype=numpy.float)
-            landmarks_GT3[:, :2] = landmarks_GT
-            iref= self.get_list_of_lines()
-            viewmat = tools_pr_geom.fit_manual(landmarks_GT3[ids], landmarks, self.W, self.H,xref=landmarks_GT3,lref=lines_GT,do_debug=True)
+        cnt=0
+        for params_h in numpy.arange(70 - 5, 70 + 6, 0.25):
+            self.set_playground_params(params_h)
 
-        return viewmat
+            landmarks_GT, lines_GT = self.get_GT()
+            homography, result = tools_pr_geom.fit_homography(landmarks_GT[ids], landmarks,numpy.array(self.get_colors(36))[ids])
+            loss =  ((result-landmarks)**2).mean()
+            if best_loss is None or loss < best_loss:
+                best_H, best_loss= homography, loss
+                best_params = params_h
+            cnt += 1
+
+        self.set_playground_params(best_params)
+
+        if do_debug is not None:
+            image = self.draw_playground_homography(self.H, self.W, best_H, w=3, R=6)
+            cv2.imwrite(self.folder_out+'fit_best_%02d.png'%do_debug,image)
+
+        return best_H, best_params, result
 # ----------------------------------------------------------------------------------------------------------------------
     def process_folder(self,folder_in, folder_out):
         tools_IO.remove_files(folder_out, create=True)
@@ -678,5 +757,6 @@ class Soccer_Field_Processor(object):
             result = self.process_view(image)
             cv2.imwrite(folder_out + local_filename, result)
             print(local_filename)
+
         return
 # ----------------------------------------------------------------------------------------------------------------------

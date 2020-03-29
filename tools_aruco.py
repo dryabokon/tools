@@ -41,8 +41,8 @@ def detect_marker_and_draw_axes(frame,marker_length,camera_matrix, dist):
         res = frame.copy()
         aruco.drawDetectedMarkers(res, corners)
         rvec, tvec, _ = aruco.estimatePoseSingleMarkers(corners[0], marker_length, camera_matrix, dist)
-        #aruco.drawAxis(frame,camera_matrix,dist,rvec[0], tvec[0], marker_length / 2)
-        res= tools_render_CV.draw_axis(frame, camera_matrix, dist, rvec[0], tvec[0], marker_length / 2)
+        #aruco.drawAxis(res, camera_matrix, dist, rvec[0], tvec[0], marker_length / 2)
+        res = tools_render_CV.draw_axis(res, camera_matrix, dist, rvec[0], tvec[0], marker_length / 2)
 
     return res, rvec, tvec
 # ----------------------------------------------------------------------------------------------------------------------
