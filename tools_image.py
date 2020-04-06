@@ -84,13 +84,17 @@ def smart_resize_point(original_x, original_y, original_w, original_h, target_w,
 # ---------------------------------------------------------------------------------------------------------------------
 def canvas_extrapolate(img,new_height,new_width):
 
-    newimage = numpy.zeros((new_height,new_width,3),numpy.uint8)
+    if len(img.shape)==3:
+        newimage = numpy.zeros((new_height,new_width,3),numpy.uint8)
+    else:
+        newimage = numpy.zeros((new_height, new_width), numpy.uint8)
+
     shift_x = int((newimage.shape[0] - img.shape[0]) / 2)
     shift_y = int((newimage.shape[1] - img.shape[1]) / 2)
-    newimage[shift_x:shift_x + img.shape[0], shift_y:shift_y + img.shape[1],:] = img[:,:,:]
+    newimage[shift_x:shift_x + img.shape[0], shift_y:shift_y + img.shape[1]] = img[:,:]
 
-    newimage[:shift_x, shift_y:shift_y + img.shape[1],:] = img[0, :,:]
-    newimage[shift_x + img.shape[0]:, shift_y:shift_y + img.shape[1],:] = img[-1, :,:]
+    newimage[:shift_x, shift_y:shift_y + img.shape[1]] = img[0, :]
+    newimage[shift_x + img.shape[0]:, shift_y:shift_y + img.shape[1]] = img[-1, :]
 
     for row in range(0, newimage.shape[0]):
         newimage[row, :shift_y] = newimage[row, shift_y]
@@ -114,6 +118,14 @@ def de_vignette(img):
 
     newimage = numpy.clip(newimage,0,255)
     return newimage.astype(img.dtype)
+# ---------------------------------------------------------------------------------------------------------------------
+def draw_padding(image,top, left, bottom, right,color):
+    result = image.copy()
+    result[:top, :] = color
+    result[-bottom:, :] = color
+    result[:, :left] = color
+    result[:, -right:] = color
+    return result
 # ---------------------------------------------------------------------------------------------------------------------
 def fade_header(img,color,top):
     newimage = img.copy()
@@ -149,6 +161,12 @@ def fade_left_right(img,left,right):
 
 
     return newimage
+# ---------------------------------------------------------------------------------------------------------------------
+def rotate_image(image, angle):
+  image_center = tuple(numpy.array(image.shape[1::-1]) / 2)
+  rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
+  result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
+  return result
 # ---------------------------------------------------------------------------------------------------------------------
 def crop_image(img, top, left, bottom, right,extrapolate_border=False):
 
@@ -254,7 +272,10 @@ def desaturate_2d(image):
     return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 #--------------------------------------------------------------------------------------------------------------------------
 def saturate(image):
-    return cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+    if len(image.shape)==2:
+        return cv2.cvtColor(image.astype(numpy.uint8), cv2.COLOR_GRAY2BGR)
+    else:
+        return image
 #--------------------------------------------------------------------------------------------------------------------------
 def desaturate(image,level=1.0):
 
@@ -278,6 +299,13 @@ def hsv2bgr(hsv):
 # ----------------------------------------------------------------------------------------------------------------------
 def bgr2hsv(brg):
     return cv2.cvtColor(numpy.array([brg[0], brg[1], brg[2]], dtype=numpy.uint8).reshape(1, 1, 3), cv2.COLOR_BGR2HSV)
+# ----------------------------------------------------------------------------------------------------------------------
+def gre2jet(rgb):
+    return cv2.applyColorMap(numpy.array(rgb, dtype=numpy.uint8).reshape((1, 1, 3)), cv2.COLORMAP_JET).reshape(3)
+# ----------------------------------------------------------------------------------------------------------------------
+def gre2viridis(rgb):
+    colormap = numpy.flip((numpy.array(cm.cmaps_listed['viridis'].colors) * 256).astype(int), axis=1)
+    return colormap[rgb[0]]
 # ----------------------------------------------------------------------------------------------------------------------
 def hitmap2d_to_viridis(hitmap_2d):
     colormap = (numpy.array(cm.cmaps_listed['viridis'].colors)*256).astype(int)

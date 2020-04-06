@@ -1,6 +1,8 @@
+from scipy import fftpack
 import numpy
 import scipy.interpolate
 import pandas as pd
+import matplotlib.pyplot as plt
 # ---------------------------------------------------------------------------------------------------------------------
 import tools_IO
 # ---------------------------------------------------------------------------------------------------------------------
@@ -116,3 +118,70 @@ def approximate_periodical(signal,phase,timerange=None):
 
     return sign_approx
 # --------------------------------------------------------------------------------------------------------------------
+def generate_signal_2d(H,W,A,freq):
+    image = numpy.zeros((H,W))
+    for r in range(H):
+        image[r] = generate_signal(numpy.arange(0,W,1),A,freq)
+
+    image-=image.min()
+    image = image*255/image.max()
+    return image
+# --------------------------------------------------------------------------------------------------------------------
+def generate_signal(time_vec, A, freq):
+    noise = 0.05 * numpy.random.randn(time_vec.size)
+    X = numpy.zeros(len(time_vec))
+    for a,f in zip(A,freq):
+        X+= a*numpy.sin(2*numpy.pi*f*time_vec)
+    return X + noise
+# ----------------------------------------------------------------------------------------------------------------------
+def get_AF(X,time_step=1):
+    if len(X.shape)==1:
+        power = numpy.abs(fftpack.fft(X))
+        sample_freq = fftpack.fftfreq(X.size, d=time_step)
+    else:
+        power,sample_freq = [],[]
+        for c in range(X.shape[1]):
+            x = X[:, c]
+            power.append(numpy.abs(fftpack.fft(x)))
+            sample_freq.append(fftpack.fftfreq(x.size, d=time_step))
+        power = numpy.max(numpy.array(power),axis=0)
+        sample_freq = numpy.max(numpy.array(sample_freq), axis=0)
+
+    idx = numpy.where(sample_freq > 0)
+    power = power[idx]
+    sample_freq = sample_freq[idx]
+    power = 255 * power / power.max()
+    return sample_freq, power
+# ----------------------------------------------------------------------------------------------------------------------
+
+def plt_FFT_power(sample_freq, power,frequency_based=True,filename_out=None):
+
+    plt.figure(figsize=(6, 5))
+    if frequency_based:
+        plt.plot(sample_freq, power)
+        #plt.xlim(left=0,right=0.5)
+        plt.xlabel('Frequency [Hz]')
+    else:
+        periods = 1/sample_freq
+        plt.plot(periods, power)
+        plt.xlim(left=1,right=30)
+        plt.ylim(bottom=-0,top=260)
+        plt.xlabel('Period')
+        plt.grid()
+
+    plt.ylabel('plower')
+    if filename_out is not None:
+        plt.savefig(filename_out)
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+def plt_signal(time_vec,X,filename_out=None):
+    plt.figure(figsize=(6, 5))
+    plt.plot(time_vec, X, label='Original signal')
+    if filename_out is not None:
+        plt.savefig(filename_out)
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+def get_powerful_freq(sample_freq, power):
+    idx = numpy.argsort(-power)
+    return numpy.abs(sample_freq[idx[0]])
+# ----------------------------------------------------------------------------------------------------------------------

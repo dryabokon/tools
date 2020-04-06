@@ -48,8 +48,8 @@ def calc_hit_field_basic(image_base, image_pattern, rotation_tol = 0, rotation_s
     #method = cv2.TM_SQDIFF_NORMED
     #method = cv2.TM_CCORR
     #method = cv2.TM_CCORR_NORMED
-    #method = cv2.TM_CCOEFF
-    method = cv2.TM_CCOEFF_NORMED
+    method = cv2.TM_CCOEFF
+#   #method = cv2.TM_CCOEFF_NORMED
 
     hitmap_gray = cv2.matchTemplate(image_base, image_pattern, method=method)
     min = hitmap_gray.min()

@@ -2,6 +2,7 @@ import cv2
 import time
 import tools_IO
 from pytube import YouTube
+import numpy
 #--------------------------------------------------------------------------------------------------------------------------
 def capture_image_to_disk(out_filename):
 
@@ -87,6 +88,7 @@ def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_se
     success, image = vidcap.read()
     count = 0
     while success:
+        #image = numpy.transpose(image,(1, 0, 2))
         cv2.imwrite(folder_out+prefix+'frame%06d.jpg' % count, image)
         success, image = vidcap.read()
         current_time = vidcap.get(cv2.CAP_PROP_POS_MSEC)

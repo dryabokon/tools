@@ -75,33 +75,29 @@ def fill_zeros(A):
     A[idx]=0
     return B
 # --------------------------------------------------------------------------------------------------------------------
-def sliding_2d(A,h,w,stat='avg',mode='reflect'):
+def sliding_2d(A,h_neg,h_pos,w_neg,w_pos, stat='avg',mode='constant'):
 
-    B = numpy.pad(A,(h,w),mode)
+    B = numpy.pad(A,((-h_neg,h_pos),(-w_neg,w_pos)),mode)
     B = numpy.roll(B, 1, axis=0)
     B = numpy.roll(B, 1, axis=1)
 
     C1 = numpy.cumsum(B , axis=0)
     C2 = numpy.cumsum(C1, axis=1)
 
-    up = numpy.roll(C2, h, axis=0)
-    S1 = numpy.roll(up, w, axis=1)
-    S2 = numpy.roll(up,-w, axis=1)
+    up = numpy.roll(C2, h_pos, axis=0)
+    S1 = numpy.roll(up, w_pos, axis=1)
+    S2 = numpy.roll(up, w_neg, axis=1)
 
-    dn = numpy.roll(C2,-h, axis=0)
-    S3 = numpy.roll(dn, w, axis=1)
-    S4 = numpy.roll(dn, -w, axis=1)
+    dn = numpy.roll(C2, h_neg, axis=0)
+    S3 = numpy.roll(dn, w_pos, axis=1)
+    S4 = numpy.roll(dn, w_neg, axis=1)
 
     if stat=='avg':
-        R = (S1-S2-S3+S4)/((2*w)*(2*h))
+        R = (S1-S2-S3+S4)/((w_pos-w_neg)*(h_pos-h_neg))
     else:
         R = (S1 - S2 - S3 + S4)
 
-    return R[h:-h,w:-w]
-# --------------------------------------------------------------------------------------------------------------------
-def sliding_sum_2d_slow(A,h,w):
-    sum_large = ndimage.convolve(A.astype(numpy.float), numpy.ones((2*h+1, 2*w+1)),mode='constant') / ((1+2*h)*(1+2*w))
-    return sum_large
-# --------------------------------------------------------------------------------------------------------------------
+    R = R[-h_neg:-h_pos, -w_neg:-w_pos]
 
-
+    return R
+# --------------------------------------------------------------------------------------------------------------------
