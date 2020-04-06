@@ -120,8 +120,10 @@ def approximate_periodical(signal,phase,timerange=None):
 # --------------------------------------------------------------------------------------------------------------------
 def generate_signal_2d(H,W,A,freq):
     image = numpy.zeros((H,W))
+
     for r in range(H):
-        image[r] = generate_signal(numpy.arange(0,W,1),A,freq)
+        noise = 10.0 * numpy.random.randn(W)
+        image[r] = generate_signal(numpy.arange(0,W,1),A,freq) + noise
 
     image-=image.min()
     image = image*255/image.max()

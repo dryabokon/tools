@@ -7,6 +7,7 @@ from PIL import Image, ImageDraw
 import tools_image
 import tools_IO
 import operator
+import tools_signal
 # ----------------------------------------------------------------------------------------------------------------
 class Skelenonizer(object):
     def __init__(self):
