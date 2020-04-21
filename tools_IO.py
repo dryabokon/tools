@@ -9,13 +9,6 @@ from sklearn import metrics, datasets
 from sklearn.metrics import confusion_matrix, auc
 import cv2
 import math
-import matplotlib.cm as cm
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from sklearn.manifold import TSNE
-#from PIL import Image
-from xgboost import XGBClassifier
-from xgboost import plot_importance
 import pickle
 import operator
 # ----------------------------------------------------------------------------------------------------------------------
@@ -33,7 +26,6 @@ def remove_file(filename):
         os.remove(filename)
 # ----------------------------------------------------------------------------------------------------------------------
 def remove_files(path,create=False):
-
 
     if not os.path.exists(path):
         if create:
@@ -165,6 +157,19 @@ def save_data_to_feature_file_float(filename,array,target):
     return
 
 # ----------------------------------------------------------------------------------------------------------------------
+def count_columns(filename,delim='\t'):
+
+    C = []
+    with open(filename, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if len(line) > 0:
+                line = line.split(delim)
+                C.append(len(line))
+
+    C = numpy.array(C)
+    return C.max()
+# ----------------------------------------------------------------------------------------------------------------------
 def count_lines(filename):
     f = open(filename, 'rb')
     lines = 0
@@ -180,6 +185,34 @@ def count_lines(filename):
 
     return lines
 # ----------------------------------------------------------------------------------------------------------------------
+def get_lines(filename,delim='\t',start=None,end=None):
+
+    lines = []
+    with open(filename, 'r') as f:
+        for i,line in enumerate(f):
+            line = line.strip()
+            if len(line) > 0:
+                if (start is not None and i < start):
+                    continue
+                if  (end is not None and i>=end):
+                    continue
+                lines.append(line.split(delim))
+
+    return lines
+# ----------------------------------------------------------------------------------------------------------------------
+def get_columns(filename,delim='\t',start=None,end=None):
+
+    columns = []
+    with open(filename, 'r') as f:
+        for i,line in enumerate(f):
+            line = line.strip()
+            if len(line) > 0 :
+                columns.append(line.split(delim)[start:end])
+
+    columns = numpy.array(columns)
+
+    return columns
+# ----------------------------------------------------------------------------------------------------------------------
 def load_mat(filename, dtype=numpy.chararray, delim='\t', lines=None):
     mat  = numpy.genfromtxt(filename, dtype=dtype, delimiter=delim)
     return mat
@@ -192,22 +225,6 @@ def load_mat_var_size(filename,dtype=numpy.int,delim='\t'):
             if len(line) > 0:
                 l.append(line.split(delim))
     return l
-# ----------------------------------------------------------------------------------------------------------------------
-def get_column(list_of_list,col):
-    res=[]
-    for i in range (0,len(list_of_list)):
-        if (col<len(list_of_list[i])):
-            res.append(list_of_list[i][col])
-        else:
-            res.append('-')
-    return res
-# ----------------------------------------------------------------------------------------------------------------------
-def remove_column(list_of_list,col):
-    res=[]
-    for i in range (0,len(list_of_list)):
-        lst = list_of_list[i][0:col] + list_of_list[i][col+1::]
-        res.append(lst)
-    return res
 # ----------------------------------------------------------------------------------------------------------------------
 def my_print_sting(strng, space=[]):
     if (strng.ndim != 1):
@@ -704,9 +721,14 @@ def max_element_by_value(dct):
 # ---------------------------------------------------------------------------------------------------------------------
 def max_element_by_key(dct):
     return max(dct.items(), key=operator.itemgetter(0))
+
 # ---------------------------------------------------------------------------------------------------------------------
 def get_colors(N, shuffle = False,colormap = 'jet'):
     colors = []
+    if N==1:
+        colors.append(numpy.array([255, 0, 0]))
+        return colors
+
     for i in range(0, N):
         l = int(255 * i / (N - 1))
         colors.append(numpy.array([l,l,l]))
@@ -718,10 +740,36 @@ def get_colors(N, shuffle = False,colormap = 'jet'):
         colors = [tools_image.gre2viridis(c) for c in colors]
 
 
-    colors = numpy.array(colors)
+    colors = numpy.array(colors,dtype=numpy.uint8)
 
     if shuffle:
         idx = numpy.random.choice(len(colors), len(colors))
         colors = colors[idx]
     return colors
+# ----------------------------------------------------------------------------------------------------------------------
+def switch_comumns(filename_in,filename_out,idx,has_header=False,delim='\t',max_line=None):
+    g = open(filename_out, 'w')
+
+    with open(filename_in, 'r') as f:
+        for i, line in enumerate(f):
+
+            if has_header and i == 0:
+                g.write("%s\n" % line)
+                continue
+
+            line = line.strip()
+            if len(line) > 0:
+                X = numpy.array(line.split(delim),dtype=numpy.int)
+                X=X[idx]
+
+                for x in X:
+                    g.write("%d\t" % x)
+
+                g.write("\n")
+                if (max_line is not None) and (i>=max_line-1):
+                    break
+
+    g.close()
+
+    return
 # ----------------------------------------------------------------------------------------------------------------------

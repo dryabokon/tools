@@ -2,21 +2,19 @@
 import os
 import numpy
 import math
-from photutils import find_peaks as find_peaks_2d
-from astropy.stats import sigma_clipped_stats
-from skimage.feature import peak_local_max
-from skimage.measure import compare_ssim
+#from photutils import find_peaks as find_peaks_2d
+#from astropy.stats import sigma_clipped_stats
+#from skimage.feature import peak_local_max
+#from skimage.measure import compare_ssim
 from scipy.stats import  entropy
 from scipy import signal
 import cv2
-import matplotlib.cm as cm
 from scipy.misc import toimage
 from scipy import ndimage
-from scipy.signal import gaussian, fftconvolve
+from scipy.signal import fftconvolve
 #----------------------------------------------------------------------------------------------------------------------
 import tools_IO
 import tools_draw_numpy
-import tools_calibrate
 import tools_alg_match
 import tools_image
 #----------------------------------------------------------------------------------------------------------------------

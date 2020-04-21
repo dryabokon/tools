@@ -163,10 +163,13 @@ def fade_left_right(img,left,right):
     return newimage
 # ---------------------------------------------------------------------------------------------------------------------
 def rotate_image(image, angle):
-  image_center = tuple(numpy.array(image.shape[1::-1]) / 2)
-  rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
-  result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
-  return result
+    image_center = tuple(numpy.array(image.shape[1::-1]) / 2)
+    rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
+    result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
+    return result
+# ---------------------------------------------------------------------------------------------------------------------
+def transpone_image(image):
+    return numpy.transpose(image,(1,0,2))
 # ---------------------------------------------------------------------------------------------------------------------
 def crop_image(img, top, left, bottom, right,extrapolate_border=False):
 
@@ -269,6 +272,8 @@ def rgb2bgr(image):
     #return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 # --------------------------------------------------------------------------------------------------------------------------
 def desaturate_2d(image):
+    if len(image.shape)==2:
+        return image
     return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 #--------------------------------------------------------------------------------------------------------------------------
 def saturate(image):
@@ -278,13 +283,15 @@ def saturate(image):
         return image
 #--------------------------------------------------------------------------------------------------------------------------
 def desaturate(image,level=1.0):
+    if len(image.shape) == 3:
+        hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+        hsv = hsv.astype(numpy.float)
+        hsv[:,:,1]*=(1-level)
+        hsv = hsv.astype(numpy.uint8)
 
-    hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
-    hsv = hsv.astype(numpy.float)
-    hsv[:,:,1]*=(1-level)
-    hsv = hsv.astype(numpy.uint8)
-
-    result = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+        result = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+    else:
+        result = cv2.cvtColor(image.astype(numpy.uint8), cv2.COLOR_GRAY2BGR)
 
     return result
 #--------------------------------------------------------------------------------------------------------------------------
@@ -606,14 +613,63 @@ def plot_images(path_input,mask):
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def get_screenshot():
+def convolve_with_mask(image_large,image_mask):
 
-    user32 = ctypes.windll.user32
-    user32.SetProcessDPIAware()
-    [w, h] = [user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)]
+    if image_large.max()>1:image_large=image_large/255
+    image_large = image_large.astype(numpy.uint8)
 
-    im = ImageGrab.grab((0, 0, w, h))
-    image = numpy.array(im)
-    image = rgb2bgr(image)
-    return image
+    if image_mask.max() > 1: image_mask = image_mask / 255
+    image_mask = image_mask.astype(numpy.uint8)
+
+    mask_white = image_mask.copy()
+    mask_white[:, :] = 0
+    mask_white[image_mask>0]=255
+
+    N_white = numpy.count_nonzero(mask_white)
+    N_black = numpy.count_nonzero(255-mask_white)
+
+    loss_white = cv2.matchTemplate(255-255*image_large, 255*image_mask, method=cv2.TM_SQDIFF, mask=mask_white)
+    loss_black = cv2.matchTemplate(255-255*image_large, 255*image_mask, method=cv2.TM_SQDIFF, mask=255-mask_white)
+
+    hitmap_gray= 255*(loss_white/N_white)*(loss_black/N_black)
+    hitmap_gray = canvas_extrapolate(hitmap_gray, image_large.shape[0], image_large.shape[1])
+
+    return hitmap_gray
+# ----------------------------------------------------------------------------------------------------------------------
+def do_patch(img, patch_size=128, boarder=12, color=True):
+
+    OUT_PATCH_SIZE = patch_size - 2 * boarder
+    img_h, img_w = img.shape[:2]
+
+    top, bottom, left, right = boarder, boarder + patch_size, boarder, boarder + patch_size
+    ext_img = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_REFLECT)
+
+    input_patch_im = []
+
+    for y in range(0, img_h, OUT_PATCH_SIZE):
+        for x in range(0, img_w, OUT_PATCH_SIZE):
+            if not color:
+                input_patch_im.append(numpy.expand_dims(numpy.asarray(ext_img[y:y + patch_size, x:x + patch_size], dtype=img.dtype), axis=2))
+            else:
+                input_patch_im.append((numpy.asarray(ext_img[y:y + patch_size, x:x + patch_size], dtype=img.dtype)))
+
+    return numpy.array(input_patch_im)
+# ----------------------------------------------------------------------------------------------------------------------
+def do_stitch(img_h, img_w, patches, boarder=12, color=True):
+    patch_size = patches.shape[1]
+
+    out_patch_size = patch_size - 2 * boarder
+    if color:
+        output_img = numpy.zeros((img_h + out_patch_size, img_w + out_patch_size, 3), dtype="uint8")
+    else:
+        output_img = numpy.zeros((img_h + out_patch_size, img_w + out_patch_size, 1), dtype="uint8")
+    idx = 0
+    for y in range(0, img_h, out_patch_size):
+        for x in range(0, img_w, out_patch_size):
+            patch = patches[idx,:,:]
+            patch = patch[boarder: boarder + out_patch_size, boarder: boarder + out_patch_size]
+            output_img[y: y + out_patch_size, x: x + out_patch_size] = patch
+            idx = idx + 1
+
+    return output_img[0:img_h,0:img_w]
 # ----------------------------------------------------------------------------------------------------------------------

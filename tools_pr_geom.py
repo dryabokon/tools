@@ -2,8 +2,8 @@ import math
 import cv2
 import pyrr
 import numpy
-from sklearn.neighbors import NearestNeighbors
 from scipy.linalg import polar
+from zhou_accv_2018 import p3l,p3p
 # ---------------------------------------------------------------------------------------------------------------------
 def debug_projection(X_source, X_target,result,colors=None,prefix='_'):
     if colors is None:colors = [(int(128),int(128),int(128))]*len(X_source)
@@ -65,6 +65,21 @@ def fit_pnp(landmarks_3d,landmarks_2d,mat_camera_3x3):
     landmarks_2d_check = numpy.reshape(landmarks_2d_check, (-1, 2))
 
     return r_vec, t_vec, landmarks_2d_check
+# ----------------------------------------------------------------------------------------------------------------------
+def fit_p3l(lines_3d,lines_2d,mat_camera_3x3):
+
+    points3d_start = lines_3d[:, :3]
+    points3d_end   = lines_3d[:, 3:]
+
+    points3d = (points3d_start + points3d_end ) / 2
+    directions3d = (points3d_end  - points3d_start)
+    norms = numpy.linalg.norm(directions3d, axis=1)[:, None]
+    directions3d = directions3d / norms
+
+    directions3d*=numpy.array([1,-1,1])[:,None]
+
+    poses = p3l(lines_2d.reshape((3,2,2)), (points3d, directions3d), mat_camera_3x3)
+    return poses
 # ----------------------------------------------------------------------------------------------------------------------
 def fit_manual(X3D,target_2d,fx, fy,xref=None,lref=None,do_debug=True):
 
@@ -145,7 +160,11 @@ def decompose_into_TRK(M):
     return T,R,K
 # ----------------------------------------------------------------------------------------------------------------------
 def decompose_to_rvec_tvec(mat,do_flip=False):
-    S, Q, tvec = pyrr.matrix44.decompose(mat.copy())
+    if mat.shape[0]==3:
+        M = pyrr.matrix44.create_from_matrix33(mat.copy())
+    else:
+        M = mat.copy()
+    S, Q, tvec = pyrr.matrix44.decompose(M)
     rvec = quaternion_to_euler(Q)
     if do_flip:
         rvec -= (math.pi, 0, 0)
@@ -328,32 +347,26 @@ def perspective_transform(points_2d,homography):
     Z[:, 1] = Z[:, 1] / Z[:, 2]
     #points_2d = numpy.array(points_2d)[:, :2].reshape(-1, 1, 2)
 
-
     return res
 # ----------------------------------------------------------------------------------------------------------------------
 def project_points(points_3d, rvec, tvec, camera_matrix_3x3, dist):
     #https: // docs.opencv.org / 2.4 / modules / calib3d / doc / camera_calibration_and_3d_reconstruction.html
 
-    #print(camera_matrix_3x3)
-    #print(rvec, tvec)
-    #print()
+    P = compose_projection_mat_4x4(camera_matrix_3x3[0,0],camera_matrix_3x3[1,1],camera_matrix_3x3[0,2]/camera_matrix_3x3[0,0],camera_matrix_3x3[1, 2] / camera_matrix_3x3[1,1])
 
-    method = 2
-    if method==0:
-        points_2d, jac = cv2.projectPoints(points_3d, rvec, tvec, camera_matrix_3x3, numpy.zeros(4))
+    if len(rvec.shape)==2 and rvec.shape[0]==3 and rvec.shape[1]==3:
+        R = pyrr.matrix44.create_from_matrix33(rvec)
+    else:
+        R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(numpy.array(rvec, dtype=float).flatten())[0])
 
-    if method ==2:
-        P = compose_projection_mat_4x4(camera_matrix_3x3[0,0],camera_matrix_3x3[1,1],camera_matrix_3x3[0,2]/camera_matrix_3x3[0,0],camera_matrix_3x3[1, 2] / camera_matrix_3x3[1,1])
+    T = pyrr.matrix44.create_from_translation(numpy.array(tvec,dtype=float).flatten()).T
+    M = pyrr.matrix44.multiply(T, R)
+    PM = pyrr.matrix44.multiply(P, M)
 
-        R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(numpy.array(rvec,dtype=float).flatten())[0])
-        T = pyrr.matrix44.create_from_translation(numpy.array(tvec,dtype=float).flatten()).T
-        M = pyrr.matrix44.multiply(T, R)
-        PM = pyrr.matrix44.multiply(P, M)
-
-        points_2d = apply_matrix(PM, points_3d)
-        points_2d[:, 0] = points_2d[:, 0] / points_2d[:, 2]
-        points_2d[:, 1] = points_2d[:, 1] / points_2d[:, 2]
-        points_2d = numpy.array(points_2d)[:, :2].reshape(-1, 1, 2)
+    points_2d = apply_matrix(PM, points_3d)
+    points_2d[:, 0] = points_2d[:, 0] / points_2d[:, 2]
+    points_2d[:, 1] = points_2d[:, 1] / points_2d[:, 2]
+    points_2d = numpy.array(points_2d)[:, :2].reshape(-1, 1, 2)
 
     return points_2d,0
 # ----------------------------------------------------------------------------------------------------------------------
@@ -385,84 +398,4 @@ def project_points_ortho_modelview(points_3d, modelview, dist,fx,fy,scale_factor
 
     return points_2d ,0
 # ----------------------------------------------------------------------------------------------------------------------
-def my_solve_PnP(L3D, L2D, K, dist):
-    #return cv2.solvePnP(L3D, L2D, K, dist)
 
-    fx = K[0,0]
-    fy = K[1,1]
-    cx = K[0,2]
-    cy = K[1,2]
-    n = L3D.shape[0]
-
-
-    #Step 1. Construct matrix A, whose size is 2n x12.
-    A = numpy.zeros((2 * n, 12))
-    for i in range(n):
-        pt3d = L3D[i]
-        pt2d = L2D[i]
-
-        x = pt3d[0]
-        y = pt3d[1]
-        z = pt3d[2]
-        u = pt2d[0]
-        v = pt2d[1]
-
-        A[2 * i, 0] = x * fx
-        A[2 * i, 1] = y * fx
-        A[2 * i, 2] = z * fx
-        A[2 * i, 3] = fx
-        A[2 * i, 4] = 0.0
-        A[2 * i, 5] = 0.0
-        A[2 * i, 6] = 0.0
-        A[2 * i, 7] = 0.0
-        A[2 * i, 8] = x * cx - u * x
-        A[2 * i, 9] = y * cx - u * y
-        A[2 * i, 10] = z * cx - u * z
-        A[2 * i, 11] = cx - u
-        A[2 * i + 1, 0] = 0.0
-        A[2 * i + 1, 1] = 0.0
-        A[2 * i + 1, 2] = 0.0
-        A[2 * i + 1, 3] = 0.0
-        A[2 * i + 1, 4] = x * fy
-        A[2 * i + 1, 5] = y * fy
-        A[2 * i + 1, 6] = z * fy
-        A[2 * i + 1, 7] = fy
-        A[2 * i + 1, 8] = x * cy - v * x
-        A[2 * i + 1, 9] = y * cy - v * y
-        A[2 * i + 1, 10] = z * cy - v * z
-        A[2 * i + 1, 11] = cy - v
-
-    #Step 2. Solve Ax = 0 by SVD
-    u, s, vh = numpy.linalg.svd(A)
-
-    a1 = vh[0, 11]
-    a2 = vh[1, 11]
-    a3 = vh[2, 11]
-    a4 = vh[3, 11]
-    a5 = vh[4, 11]
-    a6 = vh[5, 11]
-    a7 = vh[6, 11]
-    a8 = vh[7, 11]
-    a9 = vh[8, 11]
-    a10= vh[9, 11]
-    a11= vh[10,11]
-    a12= vh[11,11]
-
-    R_bar = numpy.array([[a1, a2, a3], [a5, a6, a7], [a9, a10, a11]])
-    U_R, V_Sigma , V_R = numpy.linalg.svd(R_bar)
-    R = numpy.dot(U_R , V_R.T)
-
-
-    beta = 1.0 / ((V_Sigma[0] + V_Sigma[1] + V_Sigma[2]) / 3.0)
-
-    t_bar = numpy.array((a4, a8, a12))
-    t = beta * t_bar
-
-    R = pyrr.matrix44.create_from_matrix33(R)
-
-    S, Q, tvec_view = pyrr.matrix44.decompose(R)
-    rvec = quaternion_to_euler(Q)
-
-
-    return (0, rvec, t)
-# ----------------------------------------------------------------------------------------------------------------------

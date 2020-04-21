@@ -29,7 +29,7 @@ def plot_tp_fp(plt,fig,tpr,fpr,roc_auc,caption='',filename_out=None):
     plt.legend(loc="lower right")
     plt.grid(which='major', color='lightgray', linestyle='--')
     #fig.canvas.set_window_title(caption + ('AUC = %0.4f' % roc_auc))
-    plt.set_title(caption)
+    #plt.set_title(caption)
 
     if filename_out is not None:
         plt.savefig(filename_out)
@@ -224,23 +224,102 @@ def plot_2D_samples_from_folder(foldername,caption='',add_noice=0):
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def plot_2D_scores_multi_Y(plt,X,Y,labels=None):
+def plot_2D_features_multi_Y(plt, X, Y, labels=None, filename_out=None):
 
     colors_list = list(('red', 'blue', 'green', 'orange', 'cyan', 'purple','black','gray','pink','darkblue'))
     patches = []
 
-    i=0
-    for each in numpy.unique(Y):
+    for i,each in enumerate(numpy.unique(Y)):
         idx = numpy.where(Y==each)
-        plt.plot(X[idx, 0], X[idx, 1], 'ro', color=colors_list[i%len(colors_list)], alpha=0.4)
+        plt.plot(X[idx, 0], X[idx, 1], 'ro', color=colors_list[i%len(colors_list)], alpha=0.4,markeredgewidth=0)
         if labels is not None:
             patches.append(mpatches.Patch(color=colors_list[i%len(colors_list)],label=labels[i]))
-        i+=1
 
     plt.grid()
 
     if labels is not None:
         plt.legend(handles=patches)
+
+    plt.tight_layout()
+    if filename_out is not None:
+        plt.savefig(filename_out)
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+def plot_2D_features_pos_neg(X, Y, filename_out=None):
+
+    dict_pos,dict_neg ={},{}
+    for x in X[Y>0]:
+        if tuple(x) not in dict_pos:
+            dict_pos[tuple(x)]=1
+        else:
+            dict_pos[tuple(x)]+=1
+
+    for x in X[Y<=0]:
+        if tuple(x) not in dict_neg:
+            dict_neg[tuple(x)]=1
+        else:
+            dict_neg[tuple(x)]+=1
+
+    col_neg = (0, 0.5, 1)
+    col_pos = (1, 0.5, 0)
+    col_gray = (0.5, 0.5, 0.5)
+
+    min_size = 4
+    max_size = 20
+    norm = max(tools_IO.max_element_by_value(dict_pos)[1],tools_IO.max_element_by_value(dict_neg)[1])/max_size
+
+    for x in dict_pos:
+        if tuple(x) not in dict_neg:
+            sz = dict_pos[tuple(x)] / norm
+            plt.plot(x[0], x[1], 'ro', color=col_pos, markeredgewidth=0,markersize=max(min_size,sz))
+        else:
+            sz = (dict_pos[tuple(x)]+dict_neg[tuple(x)]) / norm
+            plt.plot(x[0], x[1], 'ro', color=col_gray, markeredgewidth=0, markersize=max(min_size, sz))
+
+            if dict_pos[tuple(x)]<dict_neg[tuple(x)]:
+                sz = (dict_neg[tuple(x)]-dict_pos[tuple(x)]) / norm
+                plt.plot(x[0], x[1], 'ro', color=col_neg, markeredgewidth=0, markersize=max(min_size, sz))
+            else:
+                sz = (-dict_neg[tuple(x)]+dict_pos[tuple(x)]) / norm
+                plt.plot(x[0], x[1], 'ro', color=col_pos, markeredgewidth=0, markersize=max(min_size, sz))
+
+    for x in dict_neg:
+        if tuple(x) not in dict_pos:
+            sz = dict_neg[tuple(x)] / norm
+            plt.plot(x[0], x[1], 'ro', color=col_neg, markeredgewidth=0,markersize=max(min_size,sz))
+
+    plt.grid()
+
+    plt.tight_layout()
+    if filename_out is not None:
+        plt.savefig(filename_out)
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+def plot_1D_features_pos_neg(plt, X, Y, labels=None, filename_out=None):
+
+    patches = []
+
+    plt.xlim([-1, X.max()+1])
+    bins = numpy.arange(-0.5,X.max()+0.5,1)
+
+    for i,y in enumerate(numpy.unique(Y)):
+        if int(y)<=0:
+            col = (0, 0.5, 1)
+        else:
+            col = (1, 0.5, 0)
+        plt.hist(X[Y==y], bins=bins,color=col,alpha=0.4,width=0.9,align='mid')
+
+        if labels is not None:
+            patches.append(mpatches.Patch(color=col,label=y))
+
+    plt.grid()
+
+    if labels is not None:
+        plt.legend(handles=patches)
+
+    plt.tight_layout()
+    if filename_out is not None:
+        plt.savefig(filename_out)
     return
 # ----------------------------------------------------------------------------------------------------------------------
 def plot_2D_scores(plt,fig,filename_data_pos,filename_data_neg,filename_data_grid,filename_scores_grid,th,noice_needed=0,caption='',filename_out=None):
@@ -509,14 +588,17 @@ def plot_learning_rates2(plt,fig,filename_mat):
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def plot_features_PCA(plt,features,Y,patterns):
+def plot_features_PCA(plt,features,Y,patterns,filename_out=None):
 
     X_TSNE = TSNE(n_components=2).fit_transform(features)
-    plot_2D_scores_multi_Y(plt, X_TSNE, Y, labels=patterns)
+    plot_2D_features_multi_Y(plt, X_TSNE, Y, labels=patterns)
+
+    if filename_out is not None:
+        plt.savefig(filename_out)
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def plot_feature_importance(plt,fig,X,Y,header):
+def plot_feature_importance(plt,fig,X,Y,header,filename_out=None):
 
     model = XGBClassifier()
     model.fit(X, Y)
@@ -539,7 +621,9 @@ def plot_feature_importance(plt,fig,X,Y,header):
     N=5
     ax = fig.gca()
     ax.pie(values[:N],  labels=header[:N], autopct='%1.1f%%',shadow=False, startangle=90)
-    plt.set_title('Feature importance')
+    #plt.set_title('Feature importance')
+    if filename_out is not None:
+        plt.savefig(filename_out)
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -598,19 +682,19 @@ def plot_histo(dict_H, filename_out=None, colors=None):
     minw = tools_IO.min_element_by_key(dict_H)[0]
     maxw = tools_IO.max_element_by_key(dict_H)[0]
 
-    norm = tools_IO.max_element_by_value(dict_H)[1]
+    norm = sum(dict_H.values())
 
     xticks = numpy.arange(minw,maxw+1)
     Y = numpy.array([100 * dict_H[x] / norm for x in xticks])
 
     fig = plt.figure(figsize=(6, 12))
-    barlist = plt.bar(xticks, Y,width=0.5)
+    barlist = plt.bar(xticks, Y,width=0.75)
     if colors is not None and len(colors)==len(dict_H):
         for i in range(len(colors)):
             barlist[i].set_color((colors[i,2]/255,colors[i,1]/255,colors[i,0]/255))
     plt.xticks(xticks)
     plt.xlim(left=minw-1, right=maxw+1)
-    plt.ylim(bottom=0, top=110)
+    plt.ylim(bottom=0, top=40)
     #plt.grid()
     plt.tight_layout()
     if filename_out is not None:
@@ -655,4 +739,19 @@ def fig2data(fig):
     buf.shape = (w, h, 4)
     buf = numpy.roll(buf, 3, axis=2)
     return buf
+# ----------------------------------------------------------------------------------------------------------------------
+def pairplot(X,Y,folder_out):
+
+    for i in range(X.shape[1]):
+        plt.clf()
+        plot_1D_features_pos_neg(plt, X[:, i], Y, labels=Y, filename_out=folder_out + 'plt_%02d_%02d.png' % (i, i))
+
+
+    for i in range(X.shape[1]-1):
+        for j in range(i+1,X.shape[1]):
+            plt.clf()
+            #plot_2D_features_pos_neg(X[:, [i, j]], Y, filename_out=folder_out + 'plt_%02d_%02d.png' % (i, j))
+
+
+    return
 # ----------------------------------------------------------------------------------------------------------------------

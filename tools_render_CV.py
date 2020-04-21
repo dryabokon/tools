@@ -36,22 +36,35 @@ def draw_axis(img, camera_matrix, dist, rvec, tvec, axis_length):
 def draw_cube_numpy(img, camera_matrix, dist, rvec, tvec, scale=(1,1,1),color=(255,128,0)):
 
     points_3d = numpy.array([[-1, -1, -1], [-1, +1, -1], [+1, +1, -1], [+1, -1, -1],[-1, -1, +1], [-1, +1, +1], [+1, +1, +1], [+1, -1, +1]],dtype = numpy.float32)
+    colors = tools_IO.get_colors(8)
 
     points_3d[:,0]*=scale[0]
     points_3d[:,1]*=scale[1]
     points_3d[:,2]*=scale[2]
 
-    method = 'xx'
+    if len(rvec.shape)==2 and rvec.shape[0]==3 and rvec.shape[1]==3:
+        method = 'xx'
+    else:
+        method = 'cv'
+
     if method=='cv':
-        points_2d, jac = cv2.projectPoints(points_3d, rvec, tvec, camera_matrix, dist)
+        points_2d, jac = cv2.projectPoints(points_3d, numpy.array(rvec,dtype=float).reshape((3,1)), numpy.array(tvec,dtype=float).reshape((3,1)), camera_matrix, dist)
     else:
         points_2d, jac = tools_pr_geom.project_points(points_3d, rvec, tvec, camera_matrix, dist)
 
-    points_2d = points_2d.reshape((-1,2))
+    result = img.copy()
+    points_2d = points_2d.reshape((-1,2)).astype(int)
     for i,j in zip((0,1,2,3,4,5,6,7,0,1,2,3),(1,2,3,0,5,6,7,4,4,5,6,7)):
-        img = tools_draw_numpy.draw_line(img, points_2d[i, 1], points_2d[i, 0], points_2d[j, 1],points_2d[j, 0], color)
+        cv2.line(result,(points_2d[i, 0], points_2d[i, 1]),(points_2d[j, 0],points_2d[j, 1]),color,thickness=2)
 
-    return img
+    for i in (0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3):
+        cv2.circle(result,(points_2d[i, 0], points_2d[i, 1]),5,colors[i].tolist(),thickness=-1)
+
+    clr = (255, 255, 255)
+    for i in (0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3):
+        cv2.putText(result, '{0} {1} {2}'.format(points_3d[i,0],points_3d[i,1],points_3d[i,2]), (points_2d[i, 0], points_2d[i, 1]),cv2.FONT_HERSHEY_SIMPLEX, 0.5, clr, 1, cv2.LINE_AA)
+
+    return result
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_cube_numpy_MVP(img,mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166)):
 
@@ -215,6 +228,23 @@ def line_line_intersection(line1, line2):
     y = a1 * x + b1
     return x, y
 # ----------------------------------------------------------------------------------------------------------------------
+def line_intersection(l1, l2):
+    def det(a, b): return a[0] * b[1] - a[1] * b[0]
+
+    line1 = ((l1[0],l1[1]),(l1[2],l1[3]))
+    line2 = ((l2[0],l2[1]),(l2[2],l2[3]))
+
+    xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
+    ydiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1])
+
+    x, y = None,None
+    div = det(xdiff, ydiff)
+    if div == 0:return x, y
+    d = (det(*line1), det(*line2))
+    x = det(d, xdiff) / div
+    y = det(d, ydiff) / div
+    return x, y
+# ---------------------------------------------------------------------------------------------------------------------
 def is_point_above_line(point,line,tol=0.01):
     res = numpy.cross(point - line[:2], point - line[2:]) < tol
     return res

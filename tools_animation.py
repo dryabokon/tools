@@ -44,7 +44,6 @@ def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png', frame
 
     for i in range(0,images.shape[0]):
         images[i] = cv2.cvtColor(images[i], cv2.COLOR_BGR2RGB)
-        #images[i] = tools_image.desaturate(images[i],level=0.7)
 
     if not do_reverce:
         imageio.mimsave(filename_out, images, 'GIF', duration=1/framerate)
@@ -92,11 +91,11 @@ def crop_images_in_folder(path_input,path_output,top, left, bottom, right,mask='
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
-def merge_images_in_folders(path_input1,path_input2,path_output,mask='*.jpg'):
+def merge_images_in_folders(path_input1,path_input2,path_output,mask='*.png,*.jpg',rotate_first=False):
     tools_IO.remove_files(path_output,create=True)
 
-    fileslist1 = fnmatch.filter(listdir(path_input1), mask)
-    fileslist2 = fnmatch.filter(listdir(path_input2), mask)
+    fileslist1 = tools_IO.get_filenames(path_input1,mask)
+    fileslist2 = tools_IO.get_filenames(path_input2,mask)
 
     fileslist1.sort()
     fileslist2.sort()
@@ -106,10 +105,45 @@ def merge_images_in_folders(path_input1,path_input2,path_output,mask='*.jpg'):
         image2 = cv2.imread(path_input2 + filename2)
         if image1 is None or image2 is None: continue
 
-        shape= image1.shape
-        image = numpy.zeros((shape[0],shape[1]*2,shape[2]),dtype=numpy.uint8)
-        image[:,:shape[1]] = image1
-        image[:,shape[1]:] = image2
+        if rotate_first:
+            image1 = numpy.transpose(image1,[1,0,2])
+
+        shape1 = image1.shape
+        shape2 = image2.shape
+
+        image2_resized = cv2.resize(image2, (int(shape1[0] * shape2[1] / shape2[0]),shape1[0]))
+        image = numpy.zeros((shape1[0], shape1[1] + image2_resized.shape[1], shape1[2]), dtype=numpy.uint8)
+
+        image[:,:shape1[1]] = tools_image.desaturate(image1)
+        image[:,shape1[1]:] =image2_resized
+        cv2.imwrite(path_output+filename1,image)
+
+    return
+# ---------------------------------------------------------------------------------------------------------------------
+def merge_images_in_folders_temp(path_input1,path_input2,path_output,mask='*.png,*.jpg'):
+    tools_IO.remove_files(path_output,create=True)
+
+    fileslist1 = tools_IO.get_filenames(path_input1,mask)
+    fileslist2 = tools_IO.get_filenames(path_input2,mask)
+
+    fileslist1.sort()
+    fileslist2.sort()
+
+    for filename1,filename2 in zip(fileslist1,fileslist2):
+        image1 = cv2.imread(path_input1 + filename1)
+        image2 = cv2.imread(path_input2 + filename2)
+        if image1 is None or image2 is None: continue
+
+        image1 = cv2.resize(image1, (640,320))
+        image2 = cv2.resize(image2, (640, 320))
+        red = 0*image2.copy()
+        red[:,:,2]=255
+
+        weight=image2.copy()/255
+
+        image = cv2.add(image1*(1 - weight), red * (weight))
+
+
         cv2.imwrite(path_output+filename1,image)
 
     return

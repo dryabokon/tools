@@ -8,6 +8,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import normalize
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_IO
+import tools_plot
 #import tools_CNN_view
 # ----------------------------------------------------------------------------------------------------------------------
 class tools_ML(object):
@@ -422,10 +423,10 @@ class tools_ML(object):
         fig.subplots_adjust(hspace=0.01)
 
         tpr, fpr, auc = tools_IO.get_roc_data_from_scores_file(filename_scores_train,has_header=has_header)
-        tools_IO.plot_tp_fp(plt.subplot(1, 2, 1),fig,tpr,fpr,auc,caption='Train',filename_out=None)
+        tools_plot.plot_tp_fp(plt.subplot(1, 2, 1),fig,tpr,fpr,auc,caption='Train',filename_out=None)
 
         tpr, fpr, auc = tools_IO.get_roc_data_from_scores_file(filename_scores_test, has_header=has_header)
-        tools_IO.plot_tp_fp(plt.subplot(1, 2, 2), fig, tpr, fpr, auc, caption='Test', filename_out=None)
+        tools_plot.plot_tp_fp(plt.subplot(1, 2, 2), fig, tpr, fpr, auc, caption='Test', filename_out=None)
 
         plt.tight_layout()
         plt.savefig(filename_out)
@@ -501,6 +502,7 @@ class tools_ML(object):
         return# tpr, fpr, auc
 # ---------------------------------------------------------------------------------------------------------------------
     def E2E_features_2_classes_multi_dim_train_test(self,folder_out, filename_train, filename_test,has_header=True,has_labels_first_col=True):
+
         tools_IO.remove_files(folder_out)
 
         data_train = tools_IO.load_mat(filename_train, numpy.chararray, '\t')
@@ -552,6 +554,7 @@ class tools_ML(object):
         filename_scrs_test  = folder_out + 'scores_test_' + self.classifier.name + '.txt'
         self.score_feature_file(filename_train, filename_scrs=filename_scrs_train, delimeter='\t', append=0,has_header=has_header, has_labels_first_col=has_labels_first_col)
         self.score_feature_file(filename_test , filename_scrs=filename_scrs_test , delimeter='\t', append=0,has_header=has_header, has_labels_first_col=has_labels_first_col)
+
 
         self.plot_results_train_test(filename_scrs_train,filename_scrs_test,folder_out + 'fig_roc_train.png',has_header=True)
 

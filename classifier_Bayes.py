@@ -12,54 +12,74 @@ class classifier_Bayes(object):
         self.freq0 = []
         self.ctgr1 = []
         self.freq1 = []
+        self.model = []
+        return
 # ----------------------------------------------------------------------------------------------------------------
     def maybe_reshape(self,X):
         if numpy.ndim(X) == 2:
             return X
         else:
-            return numpy.reshape(X,(X.shape[0],-1))
+            return numpy.reshape(X,(-1,X.shape[0]))
 # ----------------------------------------------------------------------------------------------------------------
     def learn(self, X, Y):
 
-        XX= self.maybe_reshape(X)
+        self.domains = []
 
-        X0 = numpy.array(XX[Y <= 0]).astype(int)
-        X1 = numpy.array(XX[Y > 0]).astype(int)
+        for c in range(X.shape[1]):
+            domain = {}
+            feature = X[:, c]
+            cnt = 1
+            for val in feature:
+                if val not in domain:
+                    domain[val] = cnt
+                    cnt += 1
+            self.domains.append(domain)
 
-        for j in range(0, XX.shape[1]):
-            ct0 = numpy.unique(X0[:, j])
-            ct1 = numpy.unique(X1[:, j])
-            ct0 = numpy.hstack((ct0,1000000))
-            ct1 = numpy.hstack((ct1,1000000))
-            fr0 = numpy.histogram(X0[:, j], bins=ct0)[0]/X0.shape[0]
-            fr1 = numpy.histogram(X1[:, j], bins=ct1)[0]/X1.shape[0]
+        self.dct_pos = [{} for i in range(X.shape[1])]
+        self.dct_neg = [{} for i in range(X.shape[1])]
 
-            self.freq0.append(fr0)
-            self.freq1.append(fr1)
-            self.ctgr0.append(ct0)
-            self.ctgr1.append(ct1)
+        for x in X[Y.astype(int)>0]:
+            for i,v in enumerate(x):
+                if v in self.dct_pos[i]:
+                    self.dct_pos[i][v] += 1
+                else:
+                    self.dct_pos[i][v] = 1
+
+        for x in X[Y.astype(int)<=0]:
+            for i,v in enumerate(x):
+                if v in self.dct_neg[i]:
+                    self.dct_neg[i][v] += 1
+                else:
+                    self.dct_neg[i][v] = 1
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def predict(self, array):
-
-        X = self.maybe_reshape(array)
-
-        pred_score_train=numpy.zeros((X.shape[0], 2))
-
-        for j in range(0, X.shape[1]):
-            for n in range(0,pred_score_train.shape[0]):
-                idx0 = IO.smart_index(self.ctgr0[j], int(X[n, j]))
-                idx1 = IO.smart_index(self.ctgr1[j], int(X[n, j]))
-                p0 = 0.0001
-                p1 = 0.0001
-                if idx0>=0:
-                    p0=self.freq0[j][idx0][0]
-                if idx1>=0:
-                    p1=self.freq1[j][idx1][0]
-
-                pred_score_train[n,1] += -math.log(p0)+math.log(p1)
-
-
-        return pred_score_train
+    def sigmoid(self, Z):
+        return 1 / (1 + numpy.exp(-Z))
 # ----------------------------------------------------------------------------------------------------------------------
+    def predict_one(self, x):
+
+        score =0
+        for i,v in enumerate(x):
+            p0 = 0.0001
+            p1 = 0.0001
+            if v in self.dct_neg[i]:
+                p0 = self.dct_neg[i][v]
+            if v in self.dct_pos[i]:
+                p1 = self.dct_pos[i][v]
+
+            score += -math.log(p0)+math.log(p1)
+
+        return numpy.array([[0, score]])
+# ----------------------------------------------------------------------------------------------------------------------
+    def predict(self, array):
+        if len(array.shape)==2 and array.shape[0]>1:
+            result = []
+            for x in array:
+                result.append(self.predict_one(x)[0])
+            result = numpy.array(result)
+        else:
+            result = self.predict_one(array)
+        return result
+# ----------------------------------------------------------------------------------------------------------------------
+

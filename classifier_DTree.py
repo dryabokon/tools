@@ -1,31 +1,32 @@
+#graphwiz!!
+from sklearn import tree
+import nltk
 import numpy
-from sklearn import svm
-from sklearn import preprocessing
+import graphviz
+from IPython.display import display
 # --------------------------------------------------------------------------------------------------------------------
-class classifier_SVM(object):
-    def __init__(self,kernel='rbf'):
-        self.kernel = kernel
-        self.name = 'SVM'
-        if self.kernel == 'rbf':
-            self.model = svm.SVC(probability=True,gamma=2, C=1)
-        else:
-            self.model = svm.SVC(probability=True,kernel='linear')
+class classifier_DT(object):
+    def __init__(self):
+        self.name = "DT"
+        self.model = tree.DecisionTreeClassifier(max_depth=11)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def maybe_reshape(self, X):
         if numpy.ndim(X) == 2:
-            return X.astype(numpy.float32)
+            return X
         else:
             return numpy.reshape(X, (-1,X.shape[0]))
 # ----------------------------------------------------------------------------------------------------------------------
     def learn(self,data_train, target_train):
-        X = self.maybe_reshape(data_train)
-        X = preprocessing.normalize(X,axis=1)
-        self.model.fit(X, target_train)
+        self.model.fit(self.maybe_reshape(data_train), target_train)
+
+        #dot_data = tree.export_graphviz(self.model,filled=True)
+        #graph = graphviz.Source(dot_data)
+        #graph.format = "png"
+        #graph.render('./data/output/tree.png')
+
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def predict(self,array):
-        X = self.maybe_reshape(array)
-        X = preprocessing.normalize(X,axis=1)
-        return self.model.predict_proba(X)
+    def predict(self, array):
+        return self.model.predict_proba(self.maybe_reshape(array))
 # ----------------------------------------------------------------------------------------------------------------------
