@@ -245,6 +245,19 @@ def line_intersection(l1, l2):
     y = det(d, ydiff) / div
     return x, y
 # ---------------------------------------------------------------------------------------------------------------------
+def do_lines_intersect(line1, line2):
+    ax1, ay1, ax2, ay2 = line1
+    bx1, by1, bx2, by2 = line2
+
+    v1 = (bx2 - bx1) * (ay1 - by1) - (by2 - by1) * (ax1 - bx1)
+    v2 = (bx2 - bx1) * (ay2 - by1) - (by2 - by1) * (ax2 - bx1)
+    v3 = (ax2 - ax1) * (by1 - ay1) - (ay2 - ay1) * (bx1 - ax1)
+    v4 = (ax2 - ax1) * (by2 - ay1) - (ay2 - ay1) * (bx2 - ax1)
+    if (numpy.sign(v1)!=numpy.sign(v2)) and(numpy.sign(v3)!=numpy.sign(v4)):
+        return True
+    else:
+        return False
+#----------------------------------------------------------------------------------------------------------------------
 def is_point_above_line(point,line,tol=0.01):
     res = numpy.cross(point - line[:2], point - line[2:]) < tol
     return res
@@ -477,4 +490,222 @@ def find_ortho_fit(X3D, X_target, fx, fy,do_debug = False):
         cv2.imwrite('./images/output/fit.png', image)
 
     return best_rvec, best_tvec, best_scale, best_modelview
+# ----------------------------------------------------------------------------------------------------------------------
+def distance_between_lines(line1, line2, clampAll=False, clampA0=False, clampA1=False, clampB0=False, clampB1=False):
+
+    #Return the closest points on each segment and their distance
+
+    if len(line1)==4:
+        a0, a1 = numpy.hstack((line1[:2],0)), numpy.hstack((line1[2:],0))
+        b0, b1 = numpy.hstack((line2[:2],0)), numpy.hstack((line2[2:],0))
+    else:
+        a0, a1 = line1[:3], line1[3:]
+        b0, b1 = line2[:3], line2[3:]
+
+    # If clampAll=True, set all clamps to True
+    if clampAll:
+        clampA0=True
+        clampA1=True
+        clampB0=True
+        clampB1=True
+
+
+    # Calculate denomitator
+    A = a1 - a0
+    B = b1 - b0
+    magA = numpy.linalg.norm(A)
+    magB = numpy.linalg.norm(B)
+
+    _A = A / magA
+    _B = B / magB
+
+    cross = numpy.cross(_A, _B);
+    denom = numpy.linalg.norm(cross) ** 2
+
+
+    # If lines are parallel (denom=0) test if lines overlap.
+    # If they don't overlap then there is a closest point solution.
+    # If they do overlap, there are infinite closest positions, but there is a closest distance
+    if not denom:
+        d0 = numpy.dot(_A, (b0 - a0))
+
+        # Overlap only possible with clamping
+        if clampA0 or clampA1 or clampB0 or clampB1:
+            d1 = numpy.dot(_A, (b1 - a0))
+
+            # Is segment B before A?
+            if d0 <= 0 >= d1:
+                if clampA0 and clampB1:
+                    if numpy.absolute(d0) < numpy.absolute(d1):
+                        return a0, b0, numpy.linalg.norm(a0 - b0)
+                    return a0, b1, numpy.linalg.norm(a0 - b1)
+
+
+            # Is segment B after A?
+            elif d0 >= magA <= d1:
+                if clampA1 and clampB0:
+                    if numpy.absolute(d0) < numpy.absolute(d1):
+                        return a1, b0, numpy.linalg.norm(a1 - b0)
+                    return a1, b1, numpy.linalg.norm(a1 - b1)
+
+
+        # Segments overlap, return distance between parallel segments
+        return None, None, numpy.linalg.norm(((d0 * _A) + a0) - b0)
+
+
+
+    # Lines criss-cross: Calculate the projected closest points
+    t = (b0 - a0);
+    detA = numpy.linalg.det([t, _B, cross])
+    detB = numpy.linalg.det([t, _A, cross])
+
+    t0 = detA/denom;
+    t1 = detB/denom;
+
+    pA = a0 + (_A * t0) # Projected closest point on segment A
+    pB = b0 + (_B * t1) # Projected closest point on segment B
+
+
+    # Clamp projections
+    if clampA0 or clampA1 or clampB0 or clampB1:
+        if clampA0 and t0 < 0:
+            pA = a0
+        elif clampA1 and t0 > magA:
+            pA = a1
+
+        if clampB0 and t1 < 0:
+            pB = b0
+        elif clampB1 and t1 > magB:
+            pB = b1
+
+        # Clamp projection A
+        if (clampA0 and t0 < 0) or (clampA1 and t0 > magA):
+            dot = numpy.dot(_B, (pA - b0))
+            if clampB0 and dot < 0:
+                dot = 0
+            elif clampB1 and dot > magB:
+                dot = magB
+            pB = b0 + (_B * dot)
+
+        # Clamp projection B
+        if (clampB0 and t1 < 0) or (clampB1 and t1 > magB):
+            dot = numpy.dot(_A, (pB - a0))
+            if clampA0 and dot < 0:
+                dot = 0
+            elif clampA1 and dot > magA:
+                dot = magA
+            pA = a0 + (_A * dot)
+
+
+    return pA, pB, numpy.linalg.norm(pA - pB)
+# ----------------------------------------------------------------------------------------------------------------------
+def distance_point_to_line(line, point):
+    p1 = numpy.array(line)[:2]
+    p2 = numpy.array(line)[2:]
+    d= numpy.cross(p2 - p1, point - p1) / numpy.linalg.norm(p2 - p1)
+    return numpy.abs(d)
+# ----------------------------------------------------------------------------------------------------------------------
+def distance_segment_to_line(segm,line,do_debug=False):
+    point1 = segm[:2]
+    point2 = segm[2:]
+    h1 = distance_point_to_line(line, point1)
+    h2 = distance_point_to_line(line, point2)
+
+    p1,p2,d = distance_between_lines(line,segm,clampB0=True, clampB1=True)
+
+    tol = 0.01
+
+    if d<tol is not None:
+        result = (h1**2 + h2**2)/(h1+h2)/2
+    else:
+        result = (h1+h2)/2
+
+    if do_debug:
+        color_blue = (255, 128, 0)
+        color_red = (20, 0, 255)
+        image = numpy.full((1000,1000,3),64,dtype=numpy.uint8)
+        cv2.line(image,(int(line[0]),int(line[1])),(int(line[2]),int(line[3])),color=color_red)
+        cv2.line(image,(int(segm[0]),int(segm[1])),(int(segm[2]),int(segm[3])),color=color_blue)
+        cv2.imwrite('./images/output/inter.png',image)
+
+    return result
+# ----------------------------------------------------------------------------------------------------------------------
+def trim_line_by_box(line,box):
+
+    x1,y1,x2,y2 = line
+    result = numpy.array(line,dtype=int)
+    tol = 0.01
+
+    is_1_in = (x1 >= box[0] and x1 < box[2] and y1 >= box[1] and y1 < box[3])
+    is_2_in = (x2>=box[0] and x2<box[2] and y2>=box[1] and y2<box[3])
+
+    if (is_2_in) and (is_1_in):
+        return line
+
+    if (not is_1_in) and (is_2_in):
+        for segm in [(box[0], box[1], box[2], box[1]), (box[2], box[1], box[2], box[3]),(box[2], box[3], box[0], box[3]), (box[0], box[3], box[0], box[1])]:
+            p1, p2, d = distance_between_lines(segm, line,clampA0=True, clampA1=True,clampB0=False,clampB1=True)
+            if numpy.abs(d) < tol:
+                result[0], result[1] = p2[0], p2[1]
+                return result
+
+    if (not is_2_in) and (is_1_in):
+        for segm in [(box[0],box[1],box[2],box[1]),(box[2],box[1],box[2],box[3]),(box[2],box[3],box[0],box[3]),(box[0],box[3],box[0],box[1])]:
+            p1,p2,d = distance_between_lines(segm, line, clampA0=True, clampA1=True,clampB0=True,clampB1=False)
+            if numpy.abs(d)<tol:
+                result[2],result[3] = p2[0],p2[1]
+                return result
+
+    i=0
+    d12 = numpy.linalg.norm(numpy.array((line[0], line[1])) - numpy.array((line[2], line[3])))
+
+    segms = [(box[0], box[1], box[2], box[1]), (box[2], box[1], box[2], box[3]), (box[2], box[3], box[0], box[3]),
+     (box[0], box[3], box[0], box[1])]
+    i = 0
+    for segm in segms:
+        p1,p2,d = distance_between_lines(segm, line, clampA0=True, clampA1=True,clampB0=False,clampB1=False)
+
+        if numpy.abs(d) < tol:
+            #check if result inside candidate
+            d1 = numpy.linalg.norm( numpy.array((p1[0], p1[1])) - numpy.array((line[0], line[1])) )
+            d2 = numpy.linalg.norm( numpy.array((p1[0], p1[1])) - numpy.array((line[2], line[3])) )
+            if numpy.abs(d1+d2-d12)<tol:
+                result[i], result[i+1] = p1[0], p1[1]
+                i+=2
+
+    if i==4:
+        return result
+
+    return (numpy.nan,numpy.nan,numpy.nan,numpy.nan)
+# ----------------------------------------------------------------------------------------------------------------------
+def get_ratio_4_lines(vert1, horz1,vert2, horz2,do_debug=False):
+    p11, p12, dist = distance_between_lines(vert1, horz1, clampAll=False)
+    p21, p22, dist = distance_between_lines(vert1, horz2, clampAll=False)
+    p31, p32, dist = distance_between_lines(vert2, horz1, clampAll=False)
+    p41, p42, dist = distance_between_lines(vert2, horz2, clampAll=False)
+    rect = (p11[:2], p21[:2], p31[:2], p41[:2])
+
+    lenx1 = numpy.linalg.norm((rect[0] - rect[1]))
+    lenx2 = numpy.linalg.norm((rect[2] - rect[3]))
+
+    leny1 = numpy.linalg.norm((rect[1] - rect[3]))
+    leny2 = numpy.linalg.norm((rect[2] - rect[0]))
+
+    ratio = (leny1 + leny2)/(lenx1 + lenx2)
+
+    if do_debug:
+        color_blue = (255, 128, 0)
+        color_red = (20, 0, 255)
+        color_gray = (180, 180, 180)
+        image = numpy.full((1080, 1920, 3), 64, dtype=numpy.uint8)
+        cv2.line(image, (int(vert1[0]), int(vert1[1])), (int(vert1[2]), int(vert1[3])), color_red, thickness=4)
+        cv2.line(image, (int(vert2[0]), int(vert2[1])), (int(vert2[2]), int(vert2[3])), color_red, thickness=4)
+        cv2.line(image, (int(horz1[0]), int(horz1[1])), (int(horz1[2]), int(horz1[3])), color_blue, thickness=4)
+        cv2.line(image, (int(horz2[0]), int(horz2[1])), (int(horz2[2]), int(horz2[3])), color_blue, thickness=4)
+
+        image = tools_draw_numpy.draw_convex_hull(image, rect, color=color_gray, transperency=0.25)
+        cv2.imwrite('./images/output/06_ratio.png', image)
+
+
+    return ratio
 # ----------------------------------------------------------------------------------------------------------------------

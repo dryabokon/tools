@@ -2,6 +2,7 @@ import cv2
 from scipy.spatial import ConvexHull
 import numpy
 from skimage.draw import circle, line_aa,ellipse
+from PIL import Image, ImageDraw
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_ellipse(array_bgr, row, col, r_radius, c_radius, color_brg, alpha_transp=0):
     color_brg = numpy.array(color_brg)
@@ -50,10 +51,22 @@ def draw_rect(array_bgr, row_up, col_left, row_down, col_right, color_bgr, alpha
     return res_rgb
 
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_convex_hull(im, points, color=(255,255,255)):
+def draw_convex_hull(image, points, color=(255,255,255),transperency=0.0):
 
-    hull = ConvexHull(numpy.array(points))
-    cntrs = points[hull.vertices].reshape(1,-1, 1, 2).astype(numpy.int)
-    res = cv2.drawContours(im, cntrs,-1,color,thickness=-1)
+    hull = ConvexHull(numpy.array(points,dtype=numpy.int))
+    cntrs = numpy.array(points,dtype=numpy.int)[hull.vertices].reshape(1,-1, 1, 2).astype(numpy.int)
+    res = cv2.drawContours(image.copy(), cntrs,-1,color,thickness=-1)
+
+    if transperency>0:
+        res = numpy.add(res*(1-transperency),image*(transperency))
+
     return res
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_polygon(image,color=(255, 0, 0, 125)):
+    pImage = Image.fromarray(image)
+    draw = ImageDraw.Draw(pImage, 'RGBA')
+    draw.polygon([(50, 0), (100, 100), (0, 100)],color)
+    del draw
+    result = numpy.array(pImage)
+    return result
 # ----------------------------------------------------------------------------------------------------------------------

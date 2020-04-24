@@ -48,6 +48,21 @@ class Hough(object):
 
         return lines, weights
 # ----------------------------------------------------------------------------------------------------------------------
+    def sort_lines_and_weights(self,lines,weights):
+        xmin = min(lines[:,0].max(),lines[:,2].min())
+        xmax = max(lines[:,0].min(),lines[:,2].max())
+        ymin = min(lines[:,1].max(),lines[:,3].min())
+        ymax = max(lines[:,1].min(),lines[:,3].max())
+
+        middle = numpy.array([(xmin+xmax)//2,ymin,(xmin+xmax)//2,ymax])
+        inter=[]
+        for line in lines:
+            inter.append(tools_render_CV.line_intersection(middle,line))
+
+        inter = numpy.array(inter)
+        idx = numpy.argsort(inter[:,1])
+        return lines[idx], weights[idx]
+# ----------------------------------------------------------------------------------------------------------------------
     def get_lines_ski(self,image,the_range,min_weight,max_count=10):
 
         gray = tools_image.desaturate_2d(image)
@@ -88,6 +103,8 @@ class Hough(object):
                 ths.append(th)
             else:
                 break
+
+        lines,weights = self.sort_lines_and_weights(numpy.array(lines),numpy.array(weights))
 
         return lines, weights
 # ----------------------------------------------------------------------------------------------------------------------

@@ -295,8 +295,8 @@ def apply_matrix(M,X):
     Y1 = pyrr.matrix44.multiply(M, X4D.T).T
     Y2 = numpy.array([pyrr.matrix44.apply_to_vector(M.T, x) for x in X4D])
 
-    if X.shape[0]==1:
-        Y1=Y1[0]
+    #if X.shape[0]==1:
+    #    Y1=Y1[0]
 
     return Y1
 # ----------------------------------------------------------------------------------------------------------------------
@@ -398,4 +398,3 @@ def project_points_ortho_modelview(points_3d, modelview, dist,fx,fy,scale_factor
 
     return points_2d ,0
 # ----------------------------------------------------------------------------------------------------------------------
-
