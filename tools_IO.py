@@ -25,17 +25,17 @@ def remove_file(filename):
     if os.path.isfile(filename):
         os.remove(filename)
 # ----------------------------------------------------------------------------------------------------------------------
-def remove_files(path,create=False):
+def remove_files(path,list_of_masks='*.*',create=False):
 
     if not os.path.exists(path):
         if create:
             os.mkdir(path)
         return
 
-    filelist = [f for f in os.listdir(path)]
-    for f in filelist:
+    filenames = get_filenames(path, list_of_masks)
+    for f in filenames:
         if os.path.isdir(path + f):
-            # shutil.rmtree(path + f)
+            #shutil.rmtree(path + f)
             continue
         else:
             os.remove(path + f)
@@ -132,12 +132,13 @@ def save_raw_vec(vec, filename,mode=(os.O_RDWR|os.O_APPEND),fmt='%d',delim=' '):
 
     f_handle = os.open(filename,mode)
 
+    L = len(vec)
     s = ""
-    for i in range(0, vec.shape[0]-1):
+    for i in range(L-1):
         value = ((fmt+delim) % vec[i]).encode()
         os.write(f_handle,value)
 
-    value = ((fmt+'\n') % vec[vec.shape[0]-1]).encode()
+    value = ((fmt+'\n') % vec[L-1]).encode()
     os.write(f_handle, value)
     os.close(f_handle)
 

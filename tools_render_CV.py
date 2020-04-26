@@ -237,7 +237,7 @@ def line_intersection(l1, l2):
     xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
     ydiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1])
 
-    x, y = None,None
+    x, y = numpy.nan,numpy.nan
     div = det(xdiff, ydiff)
     if div == 0:return x, y
     d = (det(*line1), det(*line2))
@@ -630,6 +630,22 @@ def distance_segment_to_line(segm,line,do_debug=False):
 
     return result
 # ----------------------------------------------------------------------------------------------------------------------
+def line_box_intersection(line, box):
+    segms = [(box[0], box[1], box[2], box[1]), (box[2], box[1], box[2], box[3]), (box[2], box[3], box[0], box[3]),
+             (box[0], box[3], box[0], box[1])]
+
+    result = numpy.array(line, dtype=int)
+    tol = 0.01
+    i=0
+    for segm in segms:
+        p1, p2, d = distance_between_lines(segm, line, clampA0=True, clampA1=True, clampB0=False, clampB1=False)
+        if numpy.abs(d) < tol:
+            result[i], result[i + 1] = p1[0], p1[1]
+            i+=2
+
+    return result
+
+# ----------------------------------------------------------------------------------------------------------------------
 def trim_line_by_box(line,box):
 
     x1,y1,x2,y2 = line
@@ -642,27 +658,27 @@ def trim_line_by_box(line,box):
     if (is_2_in) and (is_1_in):
         return line
 
+    segments = [(box[0], box[1], box[2], box[1]), (box[2], box[1], box[2], box[3]), (box[2], box[3], box[0], box[3]),(box[0], box[3], box[0], box[1])]
+
     if (not is_1_in) and (is_2_in):
-        for segm in [(box[0], box[1], box[2], box[1]), (box[2], box[1], box[2], box[3]),(box[2], box[3], box[0], box[3]), (box[0], box[3], box[0], box[1])]:
+        for segm in segments:
             p1, p2, d = distance_between_lines(segm, line,clampA0=True, clampA1=True,clampB0=False,clampB1=True)
             if numpy.abs(d) < tol:
                 result[0], result[1] = p2[0], p2[1]
                 return result
 
     if (not is_2_in) and (is_1_in):
-        for segm in [(box[0],box[1],box[2],box[1]),(box[2],box[1],box[2],box[3]),(box[2],box[3],box[0],box[3]),(box[0],box[3],box[0],box[1])]:
+        for segm in segments:
             p1,p2,d = distance_between_lines(segm, line, clampA0=True, clampA1=True,clampB0=True,clampB1=False)
             if numpy.abs(d)<tol:
                 result[2],result[3] = p2[0],p2[1]
                 return result
 
-    i=0
+
     d12 = numpy.linalg.norm(numpy.array((line[0], line[1])) - numpy.array((line[2], line[3])))
 
-    segms = [(box[0], box[1], box[2], box[1]), (box[2], box[1], box[2], box[3]), (box[2], box[3], box[0], box[3]),
-     (box[0], box[3], box[0], box[1])]
     i = 0
-    for segm in segms:
+    for segm in segments:
         p1,p2,d = distance_between_lines(segm, line, clampA0=True, clampA1=True,clampB0=False,clampB1=False)
 
         if numpy.abs(d) < tol:
@@ -672,7 +688,8 @@ def trim_line_by_box(line,box):
             if numpy.abs(d1+d2-d12)<tol:
                 result[i], result[i+1] = p1[0], p1[1]
                 i+=2
-
+                if i == 4:
+                    return result
     if i==4:
         return result
 
@@ -691,7 +708,7 @@ def get_ratio_4_lines(vert1, horz1,vert2, horz2,do_debug=False):
     leny1 = numpy.linalg.norm((rect[1] - rect[3]))
     leny2 = numpy.linalg.norm((rect[2] - rect[0]))
 
-    ratio = (leny1 + leny2)/(lenx1 + lenx2)
+    ratio_xy = (lenx1 + lenx2)/(leny1 + leny2)
 
     if do_debug:
         color_blue = (255, 128, 0)
@@ -707,5 +724,5 @@ def get_ratio_4_lines(vert1, horz1,vert2, horz2,do_debug=False):
         cv2.imwrite('./images/output/06_ratio.png', image)
 
 
-    return ratio
+    return ratio_xy
 # ----------------------------------------------------------------------------------------------------------------------

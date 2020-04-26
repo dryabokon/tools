@@ -3,6 +3,7 @@ import pandas as pd
 import numpy
 from numpy.lib.stride_tricks import as_strided
 from filterpy.kalman import KalmanFilter
+from pykalman import KalmanFilter
 from scipy.signal import medfilt
 import scipy.interpolate
 from scipy import ndimage
@@ -47,9 +48,11 @@ def do_filter_dummy(X,N):
     res = X.copy()
     return res
 # ----------------------------------------------------------------------------------------------------------------------
-def do_filter_kalman(X,noise_level = 1,Q = 0.001):
+def do_filter_kalman_1D(X, noise_level = 1, Q = 0.001):
+    #dim_x = X.shape[1]*2
+    dim_x=2
 
-    fk = KalmanFilter(dim_x=2, dim_z=1)
+    fk = KalmanFilter(dim_x=dim_x, dim_z=1)
     fk.x = numpy.array([0., 1.])  # state (x and dx)
     fk.F = numpy.array([[1., 1.], [0., 1.]])
 
@@ -60,8 +63,25 @@ def do_filter_kalman(X,noise_level = 1,Q = 0.001):
 
     X_fildered, cov, _, _ = fk.batch_filter(X)
 
-    return X_fildered[:,0]
+    return X_fildered
 
+# ----------------------------------------------------------------------------------------------------------------------
+def do_filter_kalman_2D(X):
+    initial_state_mean = [X[0, 0], 0, X[0, 1], 0]
+
+    transition_matrix = [[1, 1, 0, 0],
+                         [0, 1, 0, 0],
+                         [0, 0, 1, 1],
+                         [0, 0, 0, 1]]
+
+    observation_matrix = [[1, 0, 0, 0],
+                          [0, 0, 1, 0]]
+
+    KF = KalmanFilter(transition_matrices=transition_matrix, observation_matrices=observation_matrix,initial_state_mean=initial_state_mean)
+
+    KF = KF.em(X, n_iter=5)
+    (smoothed_state_means, smoothed_state_covariances) = KF.smooth(X)
+    return smoothed_state_means[:,[0,2]]
 # ----------------------------------------------------------------------------------------------------------------------
 def fill_zeros(A):
 

@@ -23,25 +23,26 @@ class Hough(object):
 
         return result
 # ----------------------------------------------------------------------------------------------------------------------
-    def get_lines_cv(self, image,the_range,min_weight,max_count=10):
+    def get_lines_cv(self, skeleton,the_range,min_weight,max_count=10):
 
-        gray = tools_image.desaturate_2d(image)#edges = cv2.Canny(gray, 50, 150, apertureSize=3)
-        candidates = cv2.HoughLines(gray, 10, (numpy.pi/180)/20, threshold=0,min_theta=the_range[0],max_theta=the_range[-1])
+        candidates = cv2.HoughLines(skeleton, 10, (numpy.pi/180)/20, threshold=0,min_theta=the_range[0],max_theta=the_range[-1])
         #candidates= cv2.HoughLinesP(gray, 1, numpy.pi / 180, int(image.shape[0]*0.1),minLineLength=20)
-        L = max(image.shape[0], image.shape[1])
+        L = max(skeleton.shape[0], skeleton.shape[1])
 
         lines, weights = [],[]
-        for line in candidates[:max_count]:
-            rho, theta = line[0][0],line[0][1]
-            a = numpy.cos(theta)
-            b = numpy.sin(theta)
-            x0 = a * rho
-            y0 = b * rho
-            x1 = int(x0 - L* b)
-            y1 = int(y0 + L* a)
-            x2 = int(x0 + L* b)
-            y2 = int(y0 - L* a)
-            lines.append([x1, y1, x2, y2])
+        for line in candidates:
+            if len(lines) < max_count:
+                rho, theta = line[0][0],line[0][1]
+                a = numpy.cos(theta)
+                b = numpy.sin(theta)
+                x0 = a * rho
+                y0 = b * rho
+                x1 = int(x0 - L* b)
+                y1 = int(y0 + L* a)
+                x2 = int(x0 + L* b)
+                y2 = int(y0 - L* a)
+                if self.line_exists((x1, y1, x2, y2), lines): continue
+                lines.append([x1, y1, x2, y2])
 
 
         weights = numpy.full(len(lines),255)
@@ -49,6 +50,9 @@ class Hough(object):
         return lines, weights
 # ----------------------------------------------------------------------------------------------------------------------
     def sort_lines_and_weights(self,lines,weights):
+        if len(lines)<=1:
+            return lines,weights
+
         xmin = min(lines[:,0].max(),lines[:,2].min())
         xmax = max(lines[:,0].min(),lines[:,2].max())
         ymin = min(lines[:,1].max(),lines[:,3].min())
@@ -63,10 +67,9 @@ class Hough(object):
         idx = numpy.argsort(inter[:,1])
         return lines[idx], weights[idx]
 # ----------------------------------------------------------------------------------------------------------------------
-    def get_lines_ski(self,image,the_range,min_weight,max_count=10):
+    def get_lines_ski(self,skeleton,the_range,min_weight,max_count=10):
 
-        gray = tools_image.desaturate_2d(image)
-        hspace, angles, dist = hough_line(gray,the_range)
+        hspace, angles, dist = hough_line(skeleton,the_range)
         #hspace, angles, dist = probabilistic_hough_line(gray,theta=the_range)
 
         hspace = numpy.array(hspace,dtype=numpy.float)
@@ -75,8 +78,7 @@ class Hough(object):
         idx_all = numpy.dstack(numpy.unravel_index(numpy.argsort(-hspace.ravel()), (hspace.shape[0], hspace.shape[1])))[0]
 
         lines,weights = [],[]
-        x0y0, ths = [],[]
-        L = (image.shape[0] + image.shape[1]) // 2
+        L = (skeleton.shape[0] + skeleton.shape[1]) // 2
 
         for n,idx in enumerate(idx_all):
             w = hspace[idx[0], idx[1]]
@@ -95,12 +97,10 @@ class Hough(object):
                 x2 = (x0 + L * b)
                 y2 = (y0 - L * a)
 
-                if self.is_boarder_line((x1,y1,x2,y2),image.shape[0],image.shape[1]):continue
-                if self.line_exists((x0,y0),th,x0y0, ths):continue
+                if self.is_boarder_line((x1,y1,x2,y2),skeleton.shape[0],skeleton.shape[1]):continue
+                if self.line_exists((x1, y1, x2, y2),lines):continue
                 lines.append((x1, y1, x2, y2))
                 weights.append(w)
-                x0y0.append((x0,y0))
-                ths.append(th)
             else:
                 break
 
@@ -127,11 +127,21 @@ class Hough(object):
             return True
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def line_exists(self,point,angle,points,angles):
+    def line_exists0(self,point,angle,points,angles):
 
         for p,a in zip(points,angles):
             delta_p = numpy.abs(numpy.array(p)-numpy.array(point))
             if delta_p.max()<10 and numpy.abs(a*180/numpy.pi - 180*angle/numpy.pi)<2:
+                return True
+
+        return False
+# ----------------------------------------------------------------------------------------------------------------------
+    def line_exists(self,candidate,lines):
+
+        tol = 10
+        for line in lines:
+            d = tools_render_CV.distance_between_lines(candidate, line, clampA0=True, clampA1=True, clampB0=False,clampB1=False)[2]
+            if d<tol:
                 return True
 
         return False

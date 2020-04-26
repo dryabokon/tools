@@ -31,8 +31,9 @@ class Skelenonizer(object):
 # ----------------------------------------------------------------------------------------------------------------
     def morph(self,image,kernel_h=3,kernel_w=3,iters=1):
         kernel = numpy.ones((3, 3), numpy.uint8)
-        result = cv2.erode(image, kernel,iterations=iters)
-        result = cv2.dilate(result, kernel,iterations=iters)
+        result = cv2.dilate(image, kernel, iterations=iters)
+        result = cv2.erode(result, kernel,iterations=iters)
+
         return result
 # ----------------------------------------------------------------------------------------------------------------
     def line_length(self, x1, y1, x2, y2):
