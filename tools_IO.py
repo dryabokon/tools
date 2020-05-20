@@ -215,7 +215,15 @@ def get_columns(filename,delim='\t',start=None,end=None):
     return columns
 # ----------------------------------------------------------------------------------------------------------------------
 def load_mat(filename, dtype=numpy.chararray, delim='\t', lines=None):
-    mat  = numpy.genfromtxt(filename, dtype=dtype, delimiter=delim)
+    N = count_lines(filename)
+    mat = []
+
+    if N==0:
+        return mat
+    elif N==1:
+        mat  = numpy.array([numpy.genfromtxt(filename, dtype=dtype, delimiter=delim)])
+    else:
+        mat = numpy.genfromtxt(filename, dtype=dtype, delimiter=delim)
     return mat
 # ----------------------------------------------------------------------------------------------------------------------
 def load_mat_var_size(filename,dtype=numpy.int,delim='\t'):

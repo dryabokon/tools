@@ -4,7 +4,7 @@ import numpy
 from skimage.draw import circle, line_aa,ellipse
 from PIL import Image, ImageDraw
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_ellipse(array_bgr, row, col, r_radius, c_radius, color_brg, alpha_transp=0):
+def draw_ellipse0(array_bgr, row, col, r_radius, c_radius, color_brg, alpha_transp=0):
     color_brg = numpy.array(color_brg)
     res_rgb = array_bgr.copy()
     if alpha_transp > 0:
@@ -21,8 +21,6 @@ def draw_circle(array_bgr, row, col, rad, color_brg, alpha_transp=0):
     else:
         res_rgb[circle(int(row), int(col), int(rad), shape=array_bgr.shape)] = color_brg
     return res_rgb
-
-
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_line(array_bgr, row1, col1, row2, col2, color_bgr, alpha_transp=0):
     res_rgb = array_bgr.copy()
@@ -71,6 +69,28 @@ def draw_convex_hull(image,points,color=(255, 0, 0),transperency=0.0):
     polypoints = [(point[0],point[1]) for point in cntrs]
 
     draw.polygon(polypoints, (color[0], color[1], color[2], int(255-transperency * 255)))
+
+    result = numpy.array(pImage)
+    del draw
+    return result
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_rectangle(image,p1,p2,color=(255, 0, 0),transperency=0.0):
+
+    pImage = Image.fromarray(image)
+    draw = ImageDraw.Draw(pImage, 'RGBA')
+
+    draw.rectangle((p1,p2), fill=(color[0], color[1], color[2], int(transperency * 255)),outline= (color[0], color[1], color[2],255))
+
+    result = numpy.array(pImage)
+    del draw
+    return result
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_ellipse(image,p,color=(255, 0, 0),transperency=0.0):
+
+    pImage = Image.fromarray(image)
+    draw = ImageDraw.Draw(pImage, 'RGBA')
+
+    draw.ellipse((int(p[0]),int(p[1]),int(p[2]),int(p[3])), fill=(color[0], color[1], color[2], int(255-transperency*255)),outline= (color[0], color[1], color[2],255))
 
     result = numpy.array(pImage)
     del draw
