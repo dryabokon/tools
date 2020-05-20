@@ -333,6 +333,33 @@ def hitmap2d_to_viridis(hitmap_2d):
 
     return hitmap_RGB_jet
 # ----------------------------------------------------------------------------------------------------------------------
+def hitmap2d_to_colormap(hitmap_2d,cmap=plt.cm.Set3,interpolate_colors=False):
+
+    method=2
+
+    if not interpolate_colors:
+        colors = 255*numpy.array([cmap(i/256) for i in range(256)])
+        colors = colors[:,[2,1,0]]
+    else:
+        M = len(cmap.colors)
+        colors = []
+        N = 256
+        for i in range(N):
+            i1 = (M - 1) * i // (N - 1)
+            alpha = float((M - 1) * i / (N - 1)) - i1
+            colors.append(numpy.array(cmap(i1)) * (1 - alpha) + numpy.array(cmap(i1 + 1)) * (alpha))
+        colors = 255*numpy.array(colors)[:,[2,1,0]]
+
+    hitmap_RGB= numpy.zeros((hitmap_2d.shape[0], hitmap_2d.shape[1], 3)).astype(numpy.uint8)
+
+    for r in range (0,hitmap_RGB.shape[0]):
+        for c in range(0, hitmap_RGB.shape[1]):
+            clr = int(hitmap_2d[r, c])
+            hitmap_RGB[r,c] = colors[clr]
+
+    return  hitmap_RGB
+# ----------------------------------------------------------------------------------------------------------------------
+
 def fill_border(array,row_top,col_left,row_bottom,col_right):
     array[:row_top,:]=array[row_top,:]
     array[row_bottom:, :] = array[row_bottom-1, :]

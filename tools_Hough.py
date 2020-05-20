@@ -23,7 +23,19 @@ class Hough(object):
 
         return result
 # ----------------------------------------------------------------------------------------------------------------------
-    def get_lines_cv(self, skeleton,the_range,min_weight,max_count=10):
+    def get_angle_range(self, angle_base, angle_delta, steps):
+        if angle_base is None:
+            angle_base = 90
+
+        start = (angle_base - angle_delta) * numpy.pi / 180
+        stop = (angle_base + angle_delta) * numpy.pi / 180
+        step = steps * numpy.pi / 180
+        res = numpy.arange(start, stop, step)
+        return res
+# ----------------------------------------------------------------------------------------------------------------------
+    def get_lines_cv(self, skeleton,the_range=None,min_weight=50,max_count=10):
+        if the_range is None:
+            the_range = self.get_angle_range(90,90,90)
 
         candidates = cv2.HoughLines(skeleton, 10, (numpy.pi/180)/20, threshold=0,min_theta=the_range[0],max_theta=the_range[-1])
         #candidates= cv2.HoughLinesP(gray, 1, numpy.pi / 180, int(image.shape[0]*0.1),minLineLength=20)
@@ -126,15 +138,6 @@ class Hough(object):
         if y1 >=H*0.95 and y2>=H*0.95:
             return True
         return
-# ----------------------------------------------------------------------------------------------------------------------
-    def line_exists0(self,point,angle,points,angles):
-
-        for p,a in zip(points,angles):
-            delta_p = numpy.abs(numpy.array(p)-numpy.array(point))
-            if delta_p.max()<10 and numpy.abs(a*180/numpy.pi - 180*angle/numpy.pi)<2:
-                return True
-
-        return False
 # ----------------------------------------------------------------------------------------------------------------------
     def line_exists(self,candidate,lines):
 

@@ -59,19 +59,24 @@ def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png', frame
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
-def folder_to_video(path_input,filename_out,mask='*.jpg',resize_W=320,resize_H=240):
+def folder_to_video(path_input,filename_out,mask='*.jpg',resize_W=320,resize_H=240,do_reverce=False):
     fileslist = fnmatch.filter(listdir(path_input), mask)
     fileslist.sort()
 
-    #image = cv2.imread(os.path.join(path_input, fileslist[0]))
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(filename_out,fourcc, 20.0, (resize_W,resize_H))
 
 
-    for i,filename in enumerate(fileslist):
+    for filename in fileslist:
         image = cv2.imread(os.path.join(path_input, filename))
         image = cv2.resize(image,(resize_W,resize_H),interpolation=cv2.INTER_CUBIC)
         out.write(image)
+
+    if do_reverce:
+        for filename in reversed(fileslist):
+            image = cv2.imread(os.path.join(path_input, filename))
+            image = cv2.resize(image, (resize_W, resize_H), interpolation=cv2.INTER_CUBIC)
+            out.write(image)
 
     out.release()
     cv2.destroyAllWindows()

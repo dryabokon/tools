@@ -741,12 +741,13 @@ def get_colors(N, shuffle = False,colormap = 'jet'):
         colors = [tools_image.gre2viridis(c) for c in colors]
 
 
+
     colors = numpy.array(colors,dtype=numpy.uint8)
 
     if shuffle:
         idx = numpy.random.choice(len(colors), len(colors))
         colors = colors[idx]
-    return colors
+    return numpy.array(colors)
 # ----------------------------------------------------------------------------------------------------------------------
 def switch_comumns(filename_in,filename_out,idx,has_header=False,delim='\t',max_line=None):
     g = open(filename_out, 'w')

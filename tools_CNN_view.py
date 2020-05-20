@@ -24,11 +24,9 @@ def apply_blue_shift(image,mode=0):
     else:
         red, green, blue = 1.05, 1.05, 0.95
 
-    for r in range(0, image.shape[0]):
-        for c in range(0, image.shape[1]):
-            image[r,c, 0] = numpy.clip(image[r,c, 0] * blue, 0, 255)
-            image[r,c, 1] = numpy.clip(image[r,c, 1] * green, 0, 255)
-            image[r,c, 2] = numpy.clip(image[r,c, 2] * red, 0, 255)
+    image[:,:, 0] = numpy.clip(image[:,:, 0] * blue, 0, 255)
+    image[:,:, 1] = numpy.clip(image[:,:, 1] * green, 0, 255)
+    image[:,:, 2] = numpy.clip(image[:,:, 2] * red, 0, 255)
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -102,16 +100,22 @@ def image_to_tensor_color_4D(image,shape):
 
     return tensor
 # ---------------------------------------------------------------------------------------------------------------------
-def tensor_color_4D_to_image(tensor):
+def tensor_color_4D_to_image(tensor,do_chess=False,force_rows_dim3=None,force_rows_dim2=None):
 
+    if force_rows_dim2  is None:
+        rows = tools_image.numerical_devisor(tensor.shape[3])
+    else:
+        rows = force_rows_dim2
 
-    rows = tools_image.numerical_devisor(tensor.shape[3])
 
     h, w, R, C = tensor.shape[0], tensor.shape[1], rows, int(tensor.shape[3] / rows)
     image = numpy.zeros((h * R,w * C, tensor.shape[2]),dtype=numpy.float32)
     for i in range(0, tensor.shape[3]):
         col, row = i % C, int(i / C)
-        image[h * row:h * row + h, w * col:w * col + w, :] = tensor[:, :, :, i]
+        sub_image = tensor[:, :, :, i]
+        if do_chess:
+            apply_blue_shift(sub_image,(col+row)%2)
+        image[h * row:h * row + h, w * col:w * col + w, :] = sub_image
 
 
     return image

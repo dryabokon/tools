@@ -2,7 +2,7 @@ import math
 import cv2
 import numpy
 import pyrr
-
+from sympy.geometry import intersection, Point, Line
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_draw_numpy
 import tools_wavefront
@@ -35,7 +35,8 @@ def draw_axis(img, camera_matrix, dist, rvec, tvec, axis_length):
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_cube_numpy(img, camera_matrix, dist, rvec, tvec, scale=(1,1,1),color=(255,128,0)):
 
-    points_3d = numpy.array([[-1, -1, -1], [-1, +1, -1], [+1, +1, -1], [+1, -1, -1],[-1, -1, +1], [-1, +1, +1], [+1, +1, +1], [+1, -1, +1]],dtype = numpy.float32)
+    points_3d = numpy.array([[-1, -1, -1], [-1, +1, -1], [+1, +1, -1], [+1, -1, -1],
+                             [-1, -1, +0], [-1, +1, +0], [+1, +1, +0], [+1, -1, +0]],dtype = numpy.float32)
     colors = tools_IO.get_colors(8)
 
     points_3d[:,0]*=scale[0]
@@ -62,7 +63,7 @@ def draw_cube_numpy(img, camera_matrix, dist, rvec, tvec, scale=(1,1,1),color=(2
 
     clr = (255, 255, 255)
     for i in (0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3):
-        cv2.putText(result, '{0} {1} {2}'.format(points_3d[i,0],points_3d[i,1],points_3d[i,2]), (points_2d[i, 0], points_2d[i, 1]),cv2.FONT_HERSHEY_SIMPLEX, 0.5, clr, 1, cv2.LINE_AA)
+        cv2.putText(result, '{0}   {1} {2} {3}'.format(i, points_3d[i,0],points_3d[i,1],points_3d[i,2]), (points_2d[i, 0], points_2d[i, 1]),cv2.FONT_HERSHEY_SIMPLEX, 0.5, clr, 1, cv2.LINE_AA)
 
     return result
 # ----------------------------------------------------------------------------------------------------------------------
@@ -212,38 +213,55 @@ def line_plane_intersection(planeNormal, planePoint, rayDirection, rayPoint, eps
     Psi = w + si * numpy.array(rayDirection[:3]) + numpy.array(planePoint[:3])
     return Psi
 # ----------------------------------------------------------------------------------------------------------------------
-def line_line_intersection(line1, line2):
+def line_intersection_sympi_slow(line1, line2):
+    res = intersection(Line(Point(line1[0], line1[1]), Point(line1[2], line1[3])), Line(Point(line2[0], line2[1]), Point(line2[2], line2[3])))
+    return int(res[0].x), int(res[0].y)
+# ----------------------------------------------------------------------------------------------------------------------
+def line_intersection_unstable(line1, line2):
 
+    def line(p1, p2):
+        A = (p1[1] - p2[1])
+        B = (p2[0] - p1[0])
+        C = (p1[0] * p2[1] - p2[0] * p1[1])
+        return A, B, -C
 
-    a1 = (line1[1] - line1[3]) / (line1[0] - line1[2])
-    b1 =  line1[1] - a1 * line1[0]
+    L1 = line([line1[0], line1[1]], [line1[2], line1[3]])
+    L2 = line([line2[0], line2[1]], [line2[2], line2[3]])
 
-    a2 = (line2[1] - line2[3]) / (line2[0] - line2[2])
-    b2 =  line2[1] - a2 * line2[0]
+    D = L1[0] * L2[1] - L1[1] * L2[0]
+    Dx = L1[2] * L2[1] - L1[1] * L2[2]
+    Dy = L1[0] * L2[2] - L1[2] * L2[0]
+    if D != 0:
+        x = Dx / D
+        y = Dy / D
+        return int(x), int(y)
+    else:
+        return numpy.nan, numpy.nan
+# ----------------------------------------------------------------------------------------------------------------------
+def line_intersection_very_unstable(line1, line2):
+    Ax1, Ay1, Ax2, Ay2 = line1
+    Bx1, By1, Bx2, By2 = line2
 
-    if (numpy.abs(a1 - a2) < 1e-8):
-        return None,None
+    d = (By2 - By1) * (Ax2 - Ax1) - (Bx2 - Bx1) * (Ay2 - Ay1)
+    if d:
+        uA = ((Bx2 - Bx1) * (Ay1 - By1) - (By2 - By1) * (Ax1 - Bx1)) / d
+        uB = ((Ax2 - Ax1) * (Ay1 - By1) - (Ay2 - Ay1) * (Ax1 - Bx1)) / d
+    else:
+        return numpy.nan, numpy.nan
+    if not (0 <= uA <= 1 and 0 <= uB <= 1):
+        return numpy.nan, numpy.nan
+    x = Ax1 + uA * (Ax2 - Ax1)
+    y = Ay1 + uA * (Ay2 - Ay1)
 
-    x = (b2 - b1) / (a1 - a2)
-    y = a1 * x + b1
-    return x, y
+    return int(x), int(y)
 # ----------------------------------------------------------------------------------------------------------------------
 def line_intersection(l1, l2):
-    def det(a, b): return a[0] * b[1] - a[1] * b[0]
 
-    line1 = ((l1[0],l1[1]),(l1[2],l1[3]))
-    line2 = ((l2[0],l2[1]),(l2[2],l2[3]))
-
-    xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
-    ydiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1])
-
-    x, y = numpy.nan,numpy.nan
-    div = det(xdiff, ydiff)
-    if div == 0:return x, y
-    d = (det(*line1), det(*line2))
-    x = det(d, xdiff) / div
-    y = det(d, ydiff) / div
-    return x, y
+    p0, p1, d = distance_between_lines(l1,l2,clampAll=False)
+    if p0 is not None:
+        return numpy.array((p0[0],p0[1]))
+    else:
+        return numpy.array((numpy.nan, numpy.nan))
 # ---------------------------------------------------------------------------------------------------------------------
 def do_lines_intersect(line1, line2):
     ax1, ay1, ax2, ay2 = line1
@@ -493,6 +511,12 @@ def find_ortho_fit(X3D, X_target, fx, fy,do_debug = False):
 # ----------------------------------------------------------------------------------------------------------------------
 def distance_between_lines(line1, line2, clampAll=False, clampA0=False, clampA1=False, clampB0=False, clampB1=False):
 
+    if numpy.any(numpy.isnan(line1)) or numpy.any(numpy.isnan(line2)):
+        return line1[:2],line2[:2],numpy.nan
+
+    if numpy.linalg.norm(numpy.array(line1)-numpy.array(line2))<=0.001:
+        return line1[:2],line2[:2],0
+
     #Return the closest points on each segment and their distance
 
     if len(line1)==4:
@@ -516,10 +540,17 @@ def distance_between_lines(line1, line2, clampAll=False, clampA0=False, clampA1=
     magA = numpy.linalg.norm(A)
     magB = numpy.linalg.norm(B)
 
-    _A = A / magA
-    _B = B / magB
+    if magA <=0.0001:
+        _A = A.copy()
+    else:
+        _A = A / magA
 
-    cross = numpy.cross(_A, _B);
+    if magB <= 0.0001:
+        _B = B.copy()
+    else:
+        _B = B / magB
+
+    cross = numpy.cross(_A, _B)
     denom = numpy.linalg.norm(cross) ** 2
 
 
@@ -602,7 +633,12 @@ def distance_between_lines(line1, line2, clampAll=False, clampA0=False, clampA1=
 def distance_point_to_line(line, point):
     p1 = numpy.array(line)[:2]
     p2 = numpy.array(line)[2:]
-    d= numpy.cross(p2 - p1, point - p1) / numpy.linalg.norm(p2 - p1)
+
+    norm = numpy.linalg.norm(p2 - p1)
+    if norm<=0.0001:
+        return 0
+    else:
+        d = numpy.cross(p2 - p1, point - p1) / norm
     return numpy.abs(d)
 # ----------------------------------------------------------------------------------------------------------------------
 def distance_segment_to_line(segm,line,do_debug=False):
@@ -616,7 +652,10 @@ def distance_segment_to_line(segm,line,do_debug=False):
     tol = 0.01
 
     if d<tol is not None:
-        result = (h1**2 + h2**2)/(h1+h2)/2
+        if h1+h2<=0.001:
+            result =0
+        else:
+            result = (h1**2 + h2**2)/(h1+h2)/2
     else:
         result = (h1+h2)/2
 
@@ -631,20 +670,47 @@ def distance_segment_to_line(segm,line,do_debug=False):
     return result
 # ----------------------------------------------------------------------------------------------------------------------
 def line_box_intersection(line, box):
-    segms = [(box[0], box[1], box[2], box[1]), (box[2], box[1], box[2], box[3]), (box[2], box[3], box[0], box[3]),
-             (box[0], box[3], box[0], box[1])]
+    segms = [(box[0], box[1], box[2], box[1]), (box[2], box[1], box[2], box[3]), (box[2], box[3], box[0], box[3]),(box[0], box[3], box[0], box[1])]
 
     result = numpy.array(line, dtype=int)
     tol = 0.01
     i=0
     for segm in segms:
+        if numpy.all(line[:2]==segm[:2]):
+            result[i], result[i + 1] = line[0], line[1]
+            i += 2
+        elif numpy.all(line[:2]==segm[2:]):
+            result[i], result[i + 1] = line[0], line[1]
+            i += 2
+        elif numpy.all(line[2:]==segm[:2]):
+            result[i], result[i + 1] = line[2], line[3]
+            i += 2
+        elif numpy.all(line[2:]==segm[2:]):
+            result[i], result[i + 1] = line[2], line[3]
+            i += 2
+        else:
+            p1, p2, d = distance_between_lines(segm, line, clampA0=True, clampA1=True, clampB0=False, clampB1=False)
+            if numpy.abs(d) < tol:
+                result[i], result[i + 1] = p1[0], p1[1]
+                i+=2
+
+        if i==4:break
+
+    return result
+# ----------------------------------------------------------------------------------------------------------------------
+def line_segm_intersection(line, segms):
+
+    result = numpy.array(line, dtype=int)
+    tol = 0.01
+    i = 0
+    for segm in segms:
         p1, p2, d = distance_between_lines(segm, line, clampA0=True, clampA1=True, clampB0=False, clampB1=False)
         if numpy.abs(d) < tol:
             result[i], result[i + 1] = p1[0], p1[1]
-            i+=2
+            i += 2
 
-    return result
-
+        if i == 4: break
+    return
 # ----------------------------------------------------------------------------------------------------------------------
 def trim_line_by_box(line,box):
 
@@ -725,4 +791,56 @@ def get_ratio_4_lines(vert1, horz1,vert2, horz2,do_debug=False):
 
 
     return ratio_xy
+# ----------------------------------------------------------------------------------------------------------------------
+def get_sizes_4_lines(vert1, horz1,vert2, horz2):
+    p11, p12, dist = distance_between_lines(vert1, horz1, clampAll=False)
+    p21, p22, dist = distance_between_lines(vert1, horz2, clampAll=False)
+    p31, p32, dist = distance_between_lines(vert2, horz1, clampAll=False)
+    p41, p42, dist = distance_between_lines(vert2, horz2, clampAll=False)
+    rect = (p11[:2], p21[:2], p31[:2], p41[:2])
+
+    lenx1 = numpy.linalg.norm((rect[0] - rect[1]))
+    lenx2 = numpy.linalg.norm((rect[2] - rect[3]))
+
+    leny1 = numpy.linalg.norm((rect[1] - rect[3]))
+    leny2 = numpy.linalg.norm((rect[2] - rect[0]))
+
+    return (lenx1 + lenx2)/2,(leny1 + leny2)/2
+# ----------------------------------------------------------------------------------------------------------------------
+def encode_boxed_position(x,y, W, H):
+
+    if   y==0   :code = x
+    elif x==W-1: code = W+y
+    elif y==H-1: code = W+H+(W-x)
+    elif x==0  : code = W+H+W+(H-y)
+    else: code = -1
+
+    return int(code)
+# ----------------------------------------------------------------------------------------------------------------------
+def decode_boxed_position(code, W, H):
+
+    if   0     <= code < W       : x,y = code      , 0
+    elif W     <= code < W+H     : x,y = W-1       , code - W
+    elif W+H   <= code < W+H+W   : x,y = W+H+W-code, H-1
+    elif W+H+W <= code < W+H+W+H : x,y = 0         , W+H+W+H-code
+    else:x,y = -1,-1
+
+    return int(x),int(y)
+# ----------------------------------------------------------------------------------------------------------------------
+def encode_boxed_line(boxed_line, W, H):
+    code1 = encode_boxed_position(boxed_line[0], boxed_line[1], W, H)
+    code2 = encode_boxed_position(boxed_line[2], boxed_line[3], W, H)
+    res = (min(code1, code2), max(code1, code2))
+
+    #test
+    #test = decode_boxed_line(res,W,H)
+
+
+    return res
+# ----------------------------------------------------------------------------------------------------------------------
+def decode_boxed_line(code,W,H):
+    x1,y1 = decode_boxed_position(code[0], W, H)
+    x2,y2 = decode_boxed_position(code[1], W, H)
+
+    return (x1,y1,x2,y2)
 # ----------------------------------------------------------------------------------------------------------------------

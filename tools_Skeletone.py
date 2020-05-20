@@ -13,7 +13,7 @@ import tools_signal
 class Skelenonizer(object):
     def __init__(self):
         self.name = "Skelenonizer"
-        self.bin_name = './images/ex_bin/Skeleton.exe'
+        self.bin_name = './../_weights/Skeleton.exe'
         self.folder_out = './images/output/'
         self.nodes = None
         return
@@ -29,10 +29,10 @@ class Skelenonizer(object):
 
         return binarized
 # ----------------------------------------------------------------------------------------------------------------
-    def morph(self,image,kernel_h=3,kernel_w=3,iters=1):
+    def morph(self,image,kernel_h=3,kernel_w=3,n_dilate=1,n_erode=1):
         kernel = numpy.ones((3, 3), numpy.uint8)
-        result = cv2.dilate(image, kernel, iterations=iters)
-        result = cv2.erode(result, kernel,iterations=iters)
+        result = cv2.dilate(image, kernel, iterations=n_dilate)
+        result = cv2.erode(result, kernel, iterations=n_erode)
 
         return result
 # ----------------------------------------------------------------------------------------------------------------
@@ -43,9 +43,9 @@ class Skelenonizer(object):
         H,W = binary_image.shape[:2]
         patches = []
         if H*W >= 1920*1080:
-            NR, NC = 2,3
+            NR, NC = 4,4
         else:
-            NR, NC = 1, 1
+            NR, NC = 4, 4
         for nr in range (NR):
             rstart = 0 + H * nr / NR
             rend = 0 + H * (nr + 1) / NR
@@ -77,7 +77,7 @@ class Skelenonizer(object):
             else:
                 cv2.imwrite(self.folder_out + temp_bmp + '.bmp', image_region)
 
-            command = [self.bin_name, self.folder_out + temp_bmp + '.bmp', self.folder_out + temp_txt + '.txt',self.folder_out + temp_ske + '.bmp' ]
+            command = [self.bin_name, self.folder_out + temp_bmp + '.bmp', self.folder_out + temp_txt + '.txt', self.folder_out + temp_ske + '.bmp']
             subprocess.call(command, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
 
             offset = len(data_all)
@@ -101,7 +101,7 @@ class Skelenonizer(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------
-    def binarized_to_skeleton(self, binary_image):
+    def binarized_to_skeleton_kiyko(self, binary_image):
         self.H, self.W = binary_image.shape[:2]
         patches = self.create_patches(binary_image)
         image_skeleton = numpy.zeros((binary_image.shape[0],binary_image.shape[1]),dtype=numpy.uint8)
@@ -113,7 +113,7 @@ class Skelenonizer(object):
             image_region = binary_image[patch[0]:patch[2], patch[1]:patch[3]]
             cv2.imwrite(self.folder_out + temp_bmp + '.bmp', 255-image_region)
 
-            command = [self.bin_name, self.folder_out + temp_bmp + '.bmp', self.folder_out + temp_txt + '.txt',self.folder_out + temp_ske + '.bmp']
+            command = [self.bin_name, self.folder_out + temp_bmp + '.bmp', self.folder_out + temp_txt + '.txt', self.folder_out + temp_ske + '.bmp']
             subprocess.call(command, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
 
             shift_x = patch[1]
@@ -129,7 +129,7 @@ class Skelenonizer(object):
 
         return 255-image_skeleton
 # ----------------------------------------------------------------------------------------------------------------
-    def binarized_to_skeleton2(self, binarized):
+    def binarized_to_skeleton_ski(self, binarized):
         return 255*skeletonize(binarized > 0).astype(numpy.uint8)
 # ----------------------------------------------------------------------------------------------------------------
     def load_nodes(self, filename_in, H, W):

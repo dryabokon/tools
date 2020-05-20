@@ -51,7 +51,7 @@ def draw_rect(array_bgr, row_up, col_left, row_down, col_right, color_bgr, alpha
     return res_rgb
 
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_convex_hull(image, points, color=(255,255,255),transperency=0.0):
+def draw_convex_hull_cv(image, points, color=(255,255,255),transperency=0.0):
 
     hull = ConvexHull(numpy.array(points,dtype=numpy.int))
     cntrs = numpy.array(points,dtype=numpy.int)[hull.vertices].reshape(1,-1, 1, 2).astype(numpy.int)
@@ -60,13 +60,19 @@ def draw_convex_hull(image, points, color=(255,255,255),transperency=0.0):
     if transperency>0:
         res = numpy.add(res*(1-transperency),image*(transperency))
 
-    return res
+    return res.astype(numpy.uint8)
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_polygon(image,color=(255, 0, 0, 125)):
+def draw_convex_hull(image,points,color=(255, 0, 0),transperency=0.0):
     pImage = Image.fromarray(image)
     draw = ImageDraw.Draw(pImage, 'RGBA')
-    draw.polygon([(50, 0), (100, 100), (0, 100)],color)
-    del draw
+
+    hull = ConvexHull(numpy.array(points, dtype=numpy.int))
+    cntrs = numpy.array(points, dtype=numpy.int)[hull.vertices]
+    polypoints = [(point[0],point[1]) for point in cntrs]
+
+    draw.polygon(polypoints, (color[0], color[1], color[2], int(255-transperency * 255)))
+
     result = numpy.array(pImage)
+    del draw
     return result
 # ----------------------------------------------------------------------------------------------------------------------

@@ -4,6 +4,7 @@ import pyrr
 import numpy
 from scipy.linalg import polar
 from zhou_accv_2018 import p3l,p3p
+from skimage.transform import ProjectiveTransform
 # ---------------------------------------------------------------------------------------------------------------------
 def debug_projection(X_source, X_target,result,colors=None,prefix='_'):
     if colors is None:colors = [(int(128),int(128),int(128))]*len(X_source)
@@ -125,7 +126,7 @@ def fit_manual(X3D,target_2d,fx, fy,xref=None,lref=None,do_debug=True):
     return M
 # ----------------------------------------------------------------------------------------------------------------------
 def compose_projection_mat_3x3(fx, fy, aperture_x=0.5,aperture_y=0.5):
-    mat_camera = numpy.array([[fx, 0, 0.5*fx*(aperture_x/0.5)], [0, fy, 0.5*fy*(aperture_y/0.5)], [0, 0, (0.5*(aperture_x+aperture_y)/0.5)]])
+    mat_camera = numpy.array([[fx, 0, 0.5*fx*(aperture_x/0.5)], [0, fy, 0.5*fy*(aperture_y/0.5)], [0, 0, (0.5*(aperture_x+aperture_y)/0.5)]],dtype=numpy.float)
     return mat_camera
 # ----------------------------------------------------------------------------------------------------------------------
 def compose_projection_mat_4x4(fx, fy, aperture_x=0.5,aperture_y=0.5):
@@ -332,20 +333,28 @@ def compose_RT_mat(rvec,tvec,do_flip=True,do_rodriges=False):
     return M
 # ----------------------------------------------------------------------------------------------------------------------
 def perspective_transform(points_2d,homography):
-    method =0
+    method = 0
 
     if method==0:
         res = cv2.perspectiveTransform(points_2d, homography)
 
-    X = points_2d.reshape((-1,2))
-    Y = numpy.full((X.shape[0],4),1,dtype=numpy.float)
-    Y[:,:2]=X
-    M = pyrr.matrix44.create_from_matrix33(homography)
+    else:
+        res0 = cv2.perspectiveTransform(points_2d, homography)
 
-    Z = apply_matrix(M, Y)
-    Z[:, 0] = Z[:, 0] / Z[:, 2]
-    Z[:, 1] = Z[:, 1] / Z[:, 2]
-    #points_2d = numpy.array(points_2d)[:, :2].reshape(-1, 1, 2)
+        X = points_2d.reshape((-1,2))
+        Y = numpy.full((X.shape[0],4),1,dtype=numpy.float)
+        Y[:,:2]=X
+        M = pyrr.matrix44.create_from_matrix33(homography)
+
+        Z0 = apply_matrix(M, Y)
+        Z = 100*apply_matrix(M/100, Y)
+        yy=0
+        Z[:, 0] = Z[:, 0] / Z[:, 2]
+        Z[:, 1] = Z[:, 1] / Z[:, 2]
+        res = Z[:,:2].reshape((-1,1,2))
+
+
+
 
     return res
 # ----------------------------------------------------------------------------------------------------------------------

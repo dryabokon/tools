@@ -1,13 +1,9 @@
 # ----------------------------------------------------------------------------------------------------------------------
-import pandas as pd
 import numpy
-from numpy.lib.stride_tricks import as_strided
 from filterpy.kalman import KalmanFilter
-from pykalman import KalmanFilter
+import pykalman
 from scipy.signal import medfilt
 import scipy.interpolate
-from scipy import ndimage
-
 # ----------------------------------------------------------------------------------------------------------------------
 def from_fistorical(L):
 
@@ -33,16 +29,21 @@ def from_fistorical(L):
     return res
 # ----------------------------------------------------------------------------------------------------------------------
 def do_filter_median(X,N=5):
-    R = medfilt(X,kernel_size=N)
-    R[:N] = X[:N]
-    R[-N:] = X[-N:]
-    return R
+    Y = numpy.zeros(X.shape[0] + 2 * N + 1)
+    Y[:N + 1] = X[0]
+    Y[-N:] = X[-1]
+    Y[N + 1:-N] = X
+    R = medfilt(Y,kernel_size=N)
+
+    return R[N:-N-1]
 # ----------------------------------------------------------------------------------------------------------------------
 def do_filter_average(X,N):
-    R = numpy.convolve(X, numpy.ones((N,)) / N,mode='same')#[(N - 1):]
-    R[:N] = X[:N]
-    R[-N:] = X[-N:]
-    return R
+    Y = numpy.zeros(X.shape[0]+2*N+1)
+    Y[:N+1]=X[0]
+    Y[-N:] = X[-1]
+    Y[N+1:-N]=X
+    R = numpy.convolve(Y, numpy.ones((N,)) / N,mode='same')#[(N - 1):]
+    return R[N:-N-1]
 # ----------------------------------------------------------------------------------------------------------------------
 def do_filter_dummy(X,N):
     res = X.copy()
@@ -63,7 +64,7 @@ def do_filter_kalman_1D(X, noise_level = 1, Q = 0.001):
 
     X_fildered, cov, _, _ = fk.batch_filter(X)
 
-    return X_fildered
+    return X_fildered[:,0]
 
 # ----------------------------------------------------------------------------------------------------------------------
 def do_filter_kalman_2D(X):
@@ -77,11 +78,27 @@ def do_filter_kalman_2D(X):
     observation_matrix = [[1, 0, 0, 0],
                           [0, 0, 1, 0]]
 
-    KF = KalmanFilter(transition_matrices=transition_matrix, observation_matrices=observation_matrix,initial_state_mean=initial_state_mean)
+    KF = pykalman.KalmanFilter(transition_matrices=transition_matrix, observation_matrices=observation_matrix,initial_state_mean=initial_state_mean)
 
     KF = KF.em(X, n_iter=5)
     (smoothed_state_means, smoothed_state_covariances) = KF.smooth(X)
     return smoothed_state_means[:,[0,2]]
+# ----------------------------------------------------------------------------------------------------------------------
+def fill_nan(A):
+
+    is_ok = ~numpy.isnan(A)
+    if numpy.all(is_ok):
+        return A
+
+    if 4*numpy.count_nonzero(1*is_ok)<len(A):
+        return A
+
+    xp = is_ok.ravel().nonzero()[0]
+    fp = A[~numpy.isnan(A)]
+    x = numpy.isnan(A).ravel().nonzero()[0]
+
+    A[numpy.isnan(A)] = numpy.interp(x, xp, fp)
+    return A
 # ----------------------------------------------------------------------------------------------------------------------
 def fill_zeros(A):
 
