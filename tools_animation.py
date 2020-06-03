@@ -59,23 +59,29 @@ def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png', frame
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
-def folder_to_video(path_input,filename_out,mask='*.jpg',resize_W=320,resize_H=240,do_reverce=False):
+def folder_to_video(path_input,filename_out,mask='*.jpg',resize_W=None,resize_H=None,do_reverce=False):
     fileslist = fnmatch.filter(listdir(path_input), mask)
     fileslist.sort()
 
+    if resize_W is None or resize_H is None:
+        image = cv2.imread(os.path.join(path_input, fileslist[0]))
+        resize_H, resize_W = image.shape[:2]
+
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(filename_out,fourcc, 20.0, (resize_W,resize_H))
+    out = cv2.VideoWriter(filename_out,fourcc, 24.0, (resize_W,resize_H))
 
 
     for filename in fileslist:
         image = cv2.imread(os.path.join(path_input, filename))
-        image = cv2.resize(image,(resize_W,resize_H),interpolation=cv2.INTER_CUBIC)
+        if resize_W is not None and resize_H is not None:
+            image = cv2.resize(image,(resize_W,resize_H),interpolation=cv2.INTER_CUBIC)
         out.write(image)
 
     if do_reverce:
         for filename in reversed(fileslist):
             image = cv2.imread(os.path.join(path_input, filename))
-            image = cv2.resize(image, (resize_W, resize_H), interpolation=cv2.INTER_CUBIC)
+            if resize_W is not None and resize_H is not None:
+                image = cv2.resize(image, (resize_W, resize_H), interpolation=cv2.INTER_CUBIC)
             out.write(image)
 
     out.release()
@@ -125,31 +131,53 @@ def merge_images_in_folders(path_input1,path_input2,path_output,mask='*.png,*.jp
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
-def merge_images_in_folders_temp(path_input1,path_input2,path_output,mask='*.png,*.jpg'):
-    tools_IO.remove_files(path_output,create=True)
+def generate_zoom_in(filename_in,folder_out,duration=100,scale=1.05):
 
-    fileslist1 = tools_IO.get_filenames(path_input1,mask)
-    fileslist2 = tools_IO.get_filenames(path_input2,mask)
+    image = cv2.imread(filename_in)
+    H,W = image.shape[:2]
 
-    fileslist1.sort()
-    fileslist2.sort()
+    xmax = image.shape[1]*(scale-1)
+    ymax = image.shape[0]*(scale-1)
 
-    for filename1,filename2 in zip(fileslist1,fileslist2):
-        image1 = cv2.imread(path_input1 + filename1)
-        image2 = cv2.imread(path_input2 + filename2)
-        if image1 is None or image2 is None: continue
+    for t in range(duration):
+        x = int(xmax*t/duration)
+        y = int(ymax*t/duration)
+        res = image[y:H-y,x:W-x]
+        res = cv2.resize(res,(W,H))
+        cv2.imwrite(folder_out+'res%04d.png'%t,res)
 
-        image1 = cv2.resize(image1, (640,320))
-        image2 = cv2.resize(image2, (640, 320))
-        red = 0*image2.copy()
-        red[:,:,2]=255
+    return
+# ---------------------------------------------------------------------------------------------------------------------
+def merge_all_folders(list_of_folders,folder_out,target_W,target_H,filename_watermark=None):
 
-        weight=image2.copy()/255
+    if filename_watermark is not None:
+        image_watermark = cv2.imread(filename_watermark)
+        w = int(target_W / 5)
+        h = int(w*image_watermark.shape[0]/image_watermark.shape[1])
+        image_watermark = cv2.resize(image_watermark,(w,h))
+    else:
+        image_watermark = None
 
-        image = cv2.add(image1*(1 - weight), red * (weight))
+    tools_IO.remove_files(folder_out,create=True)
 
+    pad = 0
+    bg_color = (255, 255, 255)
+    empty = numpy.full((target_H,target_W,3),numpy.array(bg_color,dtype=numpy.uint8),dtype=numpy.uint8)
 
-        cv2.imwrite(path_output+filename1,image)
+    cnt = 0
+    for folder_in in list_of_folders:
+
+        for filename_in in tools_IO.get_filenames(folder_in, '*.jpg,*.png'):
+            base_name, ext = filename_in.split('/')[-1].split('.')[0], filename_in.split('/')[-1].split('.')[1]
+            image = cv2.imread(folder_in+filename_in)
+            image = tools_image.smart_resize(image, target_H-2*pad, target_W-2*pad,bg_color=bg_color)
+            result = tools_image.put_image(empty,image,pad,pad)
+            if filename_watermark is not None:
+                result = tools_image.put_image(result,image_watermark,0,result.shape[1]-image_watermark.shape[1])
+
+            cv2.imwrite(folder_out+'res_%06d_'%cnt + base_name+'.png',result)
+            cnt+=1
+            print(base_name)
 
     return
 # ---------------------------------------------------------------------------------------------------------------------

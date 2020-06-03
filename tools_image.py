@@ -35,7 +35,7 @@ def canvas_extrapolate_gray(gray, new_height, new_width):
 
     return newimage
 # ---------------------------------------------------------------------------------------------------------------------
-def smart_resize(img, target_image_height, target_image_width):
+def smart_resize(img, target_image_height, target_image_width,bg_color=(128, 128, 128)):
     '''resize image with unchanged aspect ratio using padding'''
     from PIL import Image
 
@@ -48,7 +48,7 @@ def smart_resize(img, target_image_height, target_image_width):
     nh = int(original_image_height * scale)
 
     pillow_image = pillow_image.resize((nw, nh), Image.BICUBIC)
-    new_image = Image.new('RGB', (target_image_width, target_image_height), (128, 128, 128))
+    new_image = Image.new('RGB', (target_image_width, target_image_height), bg_color)
     new_image.paste(pillow_image, ((target_image_width - nw) // 2, (target_image_height - nh) // 2))
     return numpy.array(new_image)
 # ---------------------------------------------------------------------------------------------------------------------

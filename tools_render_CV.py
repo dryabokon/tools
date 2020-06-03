@@ -712,6 +712,156 @@ def line_segm_intersection(line, segms):
         if i == 4: break
     return
 # ----------------------------------------------------------------------------------------------------------------------
+def circle_line_intersection(center, R, pt1, pt2, full_line=True, tangent_tol=1e-9,do_debug=False):
+
+    (p1x, p1y), (p2x, p2y), (cx, cy) = pt1, pt2, center
+    (x1, y1), (x2, y2) = (p1x - cx, p1y - cy), (p2x - cx, p2y - cy)
+    dx, dy = (x2 - x1), (y2 - y1)
+    dr = (dx ** 2 + dy ** 2)**.5
+    big_d = x1 * y2 - x2 * y1
+    discriminant = R ** 2 * dr ** 2 - big_d ** 2
+
+    if discriminant < 0:  # No intersection between circle and line
+        result = []
+    else:  # There may be 0, 1, or 2 intersections with the segment
+        intersections = [
+            (cx + (big_d * dy + sign * (-1 if dy < 0 else 1) * dx * discriminant**.5) / dr ** 2,
+             cy + (-big_d * dx + sign * abs(dy) * discriminant**.5) / dr ** 2)
+            for sign in ((1, -1) if dy < 0 else (-1, 1))]  # This makes sure the order along the segment is correct
+        if not full_line:  # If only considering the segment, filter out intersections that do not fall within the segment
+            fraction_along_segment = [(xi - p1x) / dx if abs(dx) > abs(dy) else (yi - p1y) / dy for xi, yi in intersections]
+            intersections = [pt for pt, frac in zip(intersections, fraction_along_segment) if 0 <= frac <= 1]
+        if len(intersections) == 2 and abs(discriminant) <= tangent_tol:  # If line is tangent to circle, return just one point (as both intersections have same location)
+            result = [intersections[0]]
+        else:
+            result = intersections
+
+        if do_debug:
+            W, H = int(1.2 * (center[0] + R)), int(1.2 * (center[1] + R))
+            image_debug = numpy.full((H, W, 3), 32, dtype=numpy.uint8)
+            cv2.ellipse(image_debug, center, (R,R), 0, startAngle=0, endAngle=360, color=(0, 0, 190),thickness=4)
+            cv2.line(image_debug,pt1,pt2,color=(255,128,0),thickness=4)
+            for point in intersections:
+                cv2.circle(image_debug,(int(point[0]),int(point[1])),4,(255,255,255),thickness=-1)
+
+            cv2.imwrite('./images/output/image_debug.png', image_debug)
+
+    return result
+# ----------------------------------------------------------------------------------------------------------------
+def ellipse_line_intersection(ellipse, line, full_line=True,do_debug=False):
+
+    center = (int(ellipse[0][0]), int(ellipse[0][1]))
+    Rxy = (int(ellipse[1][0] / 2), int(ellipse[1][1] / 2))
+    rotation_angle_rad = ellipse[2]*numpy.pi/180.0
+
+
+    M = numpy.array([[numpy.cos(-rotation_angle_rad), -numpy.sin(-rotation_angle_rad), 0],[numpy.sin(-rotation_angle_rad), numpy.cos(-rotation_angle_rad), 0], [0, 0, 1]])
+
+    pt1 = numpy.array(line[:2],dtype=numpy.float32).reshape((-1,1,2))
+    pt1[:,:,0]-=center[0]
+    pt1[:,:,1]-=center[1]
+    pt1 = cv2.transform(pt1, M)[:,:,:2]
+    pt1[:,:,1]*=Rxy[0]/Rxy[1]
+
+    pt2 = numpy.array(line[2:],dtype=numpy.float32).reshape((-1,1,2))
+    pt2[:,:,0]-=center[0]
+    pt2[:,:,1]-=center[1]
+    pt2 = cv2.transform(pt2, M)[:,:,:2]
+    pt2[:,:,1] *= Rxy[0] / Rxy[1]
+
+    intersections_trans = circle_line_intersection((0,0), Rxy[0], pt1.flatten(), pt2.flatten(),full_line=full_line)
+
+    intersections = numpy.array(intersections_trans).copy()
+    intersections[:,1]/=Rxy[0] / Rxy[1]
+    intersections = cv2.transform(numpy.array(intersections,dtype=numpy.float32).reshape((-1,1,2)), numpy.linalg.inv(M))[:, 0, :2]
+    intersections[:,0]+=center[0]
+    intersections[:,1]+=center[1]
+
+
+    if do_debug:
+        W, H = int(1.4 * (center[0] + Rxy[0])), int(1.4 * (center[1] + Rxy[1]))
+        image_original = numpy.full((H, W, 3), 32, dtype=numpy.uint8)
+        cv2.ellipse(image_original, center, Rxy, ellipse[2], startAngle=0, endAngle=360, color=(0, 0, 190), thickness=4)
+        cv2.line(image_original, tuple(line[:2]), tuple(line[2:]), color=(255, 128, 0), thickness=4)
+        for point in intersections:
+            cv2.circle(image_original, (int(point[0]), int(point[1])), 4, (255, 255, 255), thickness=-1)
+        cv2.imwrite('./images/output/original.png', image_original)
+
+        image_trans = numpy.full((int(Rxy[0] * 4), int(Rxy[0] * 4), 3), 32, dtype=numpy.uint8)
+        shift = numpy.array((200, 200))
+        cv2.ellipse(image_trans, (shift[0], shift[1]), (Rxy[0],Rxy[0]), 0, startAngle=0, endAngle=360, color=(0, 0, 190), thickness=4)
+        cv2.line(image_trans,(int(pt1.flatten()[0])+shift[0], int(pt1.flatten()[1])+shift[1]), (int(pt2.flatten()[0])+shift[0], int(pt2.flatten()[1])+shift[1]), color = (255, 128, 0), thickness=4)
+        for point in intersections_trans:
+            cv2.circle(image_trans, (shift[0]+int(point[0]), shift[1]+int(point[1])), 4, (255, 255, 255), thickness=-1)
+        cv2.imwrite('./images/output/transformed.png', image_trans)
+
+
+    return intersections
+# ----------------------------------------------------------------------------------------------------------------
+def distance_point_centredEllipse(Rx, Ry, points):
+
+    res = []
+    for p in numpy.array(points).reshape((-1,2)):
+        if Rx*Ry==0:
+            res.append(numpy.nan)
+            continue
+
+        px,py = abs(p[0]),abs(p[1])
+        a,b = Rx,Ry
+        t = math.pi / 4
+
+        for x in range(0, 3):
+            x = a * math.cos(t)
+            y = b * math.sin(t)
+            ex = (a*a - b*b) * math.cos(t)**3 / a
+            ey = (b*b - a*a) * math.sin(t)**3 / b
+            rx = x - ex
+            ry = y - ey
+            qx = px - ex
+            qy = py - ey
+            r = math.hypot(ry, rx)
+            q = math.hypot(qy, qx)
+            delta_c = r * math.asin((rx*qy - ry*qx)/(r*q))
+            delta_t = delta_c / math.sqrt(a*a + b*b - x*x - y*y)
+            t += delta_t
+            t = min(math.pi/2, max(0, t))
+        x = a * math.cos(t)
+        y = b * math.sin(t)
+        p_ellipse = numpy.array((math.copysign(x, p[0]), math.copysign(y, p[1])))
+
+        res.append(numpy.linalg.norm(p_ellipse - p))
+
+    return numpy.array(res)
+# ----------------------------------------------------------------------------------------------------------------
+def distance_point_ellipse(point,ellipse,do_debug=False):
+    center = (int(ellipse[0][0]), int(ellipse[0][1]))
+    Rxy = (int(ellipse[1][0] / 2), int(ellipse[1][1] / 2))
+    rotation_angle_deg = ellipse[2]
+    rotation_angle_rad = rotation_angle_deg*numpy.pi/180.0
+
+    new_point = numpy.array(point).reshape((-1,1,2))
+    new_point[:,:,0]-=center[0]
+    new_point[:,:,1]-=center[1]
+
+    M = numpy.array([[numpy.cos(-rotation_angle_rad), -numpy.sin(-rotation_angle_rad), 0],[numpy.sin(-rotation_angle_rad), numpy.cos(-rotation_angle_rad), 0], [0, 0, 1]])
+    new_point = cv2.transform(new_point, M)[:,:,:2]
+
+    if do_debug:
+
+        W, H = int(1.4 * (center[0]+Rxy[0])), int(1.4 * (center[1]+Rxy[1]))
+        image_original = numpy.full((H, W, 3), 32, dtype=numpy.uint8)
+        cv2.ellipse(image_original, center, Rxy, rotation_angle_deg, startAngle=0, endAngle=360, color=(0, 0, 190),thickness=4)
+        cv2.circle(image_original,point,4,(255,255,255),thickness=-1)
+        cv2.imwrite('./images/output/original.png',image_original)
+
+        image_trans = numpy.full((int(Rxy[1]*4), int(Rxy[0]*4), 3), 32, dtype=numpy.uint8)
+        shift = numpy.array((200, 200))
+        cv2.ellipse(image_trans, (shift[0],shift[1]), Rxy, 0, startAngle=0, endAngle=360, color=(0, 0, 190), thickness=4)
+        cv2.circle(image_trans, (new_point.flatten()[0]+shift[0],new_point.flatten()[1]+shift[1]), 4, (255, 255, 255), thickness=-1)
+        cv2.imwrite('./images/output/transformed.png', image_trans)
+
+    return distance_point_centredEllipse(Rxy[0], Rxy[1], new_point)
+# ----------------------------------------------------------------------------------------------------------------
 def trim_line_by_box(line,box):
 
     x1,y1,x2,y2 = line
@@ -747,7 +897,7 @@ def trim_line_by_box(line,box):
     for segm in segments:
         p1,p2,d = distance_between_lines(segm, line, clampA0=True, clampA1=True,clampB0=False,clampB1=False)
 
-        if numpy.abs(d) < tol:
+        if numpy.abs(d) < tol and (p1 is not None) and (p2 is not None):
             #check if result inside candidate
             d1 = numpy.linalg.norm( numpy.array((p1[0], p1[1])) - numpy.array((line[0], line[1])) )
             d2 = numpy.linalg.norm( numpy.array((p1[0], p1[1])) - numpy.array((line[2], line[3])) )

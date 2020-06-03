@@ -16,10 +16,13 @@ def debug_projection(X_source, X_target,result,colors=None,prefix='_'):
     ymin = int(min(X_source[:,1].min(), X_target[:,1].min(),result[:,1].min()))-padding
     ymax = int(max(X_source[:,1].max(), X_target[:,1].max(),result[:,1].max()))+padding
 
-    image = numpy.full((ymax-ymin,xmax-xmin,3),32,dtype=numpy.uint8)
-    for i,(x,y) in enumerate(X_source):cv2.circle(image, (int(x-xmin),int(y-ymin)), 6,(int(colors[i][0]),int(colors[i][1]),int(colors[i][2])), -1)
+    image = numpy.full((ymax-ymin+1,xmax-xmin+1,3),32,dtype=numpy.uint8)
+    for i,(x,y) in enumerate(X_source):
+        cv2.circle(image, (int(x-xmin),int(y-ymin)), 6, colors[i].tolist(), -1)
+        cv2.putText(image, '{0}'.format(i), (int(x-xmin),int(y-ymin)), cv2.FONT_HERSHEY_SIMPLEX,0.6, colors[i].tolist(), 1, cv2.LINE_AA)
+
     for i,(x,y) in enumerate(X_target):cv2.circle(image, (int(x-xmin),int(y-ymin)),16,(int(colors[i][0]),int(colors[i][1]),int(colors[i][2])),  3)
-    for i,(x, y) in enumerate(result) :cv2.circle(image, (int(x-xmin),int(y-ymin)), 6,  (int(colors[i][0]),int(colors[i][1]),int(colors[i][2])), -1)
+    for i,(x,y) in enumerate(result)  :cv2.circle(image, (int(x-xmin),int(y-ymin)), 6,(int(colors[i][0]),int(colors[i][1]),int(colors[i][2])), -1)
 
     cv2.imwrite('./images/output/fit_%02d.png'%prefix,image)
     return
