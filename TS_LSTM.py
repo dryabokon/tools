@@ -32,7 +32,7 @@ class TS_LSTM(object):
         return
     # ----------------------------------------------------------------------------------------------------------------
     def save_model(self, filename_output):
-        self.model.save(filename_output)
+        self.model.save_model(filename_output)
         return
 # ----------------------------------------------------------------------------------------------------------------
     def save_stats(self, hist):

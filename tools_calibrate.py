@@ -351,9 +351,12 @@ def derive_transform(img1,img2,K=numpy.array([[1000,0,0],[0,1000,0],[0,0,1]])):
     return R,T,normal,HH,K
 #----------------------------------------------------------------------------------------------------------------------
 def compose_homography(R,T,normal,K=numpy.array([[1000,0,0],[0,1000,0],[0,0,1]])):
+    TN = numpy.dot(T, normal.T)
+    HH= R + TN
+    #HH= numpy.dot(numpy.dot(K,           HH),numpy.linalg.inv(K) )
 
-    HH= R + numpy.dot(T,normal.T)
-    HH= numpy.dot(numpy.dot(K,HH),numpy.linalg.inv(K))
+    RT = numpy.dot(HH, numpy.linalg.inv(K))
+    HH = numpy.dot(          K ,RT)
     HH/=HH[2,2]
 
     return HH

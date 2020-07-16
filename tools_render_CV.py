@@ -3,9 +3,9 @@ import cv2
 import numpy
 import pyrr
 from sympy.geometry import intersection, Point, Line
+from scipy.spatial import distance as dist
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_draw_numpy
-import tools_wavefront
 import tools_IO
 import tools_pr_geom
 # ----------------------------------------------------------------------------------------------------------------------
@@ -32,6 +32,15 @@ def draw_axis(img, camera_matrix, dist, rvec, tvec, axis_length):
     img = tools_draw_numpy.draw_line(img, axis_2d_start[0, 1], axis_2d_start[0, 0], axis_2d_end[1, 1],axis_2d_end[1, 0], (0, 255, 0))
     img = tools_draw_numpy.draw_line(img, axis_2d_start[0, 1], axis_2d_start[0, 0], axis_2d_end[2, 1],axis_2d_end[2, 0], (255, 0, 0))
     return img
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_mat(M, posx, posy, image,color=(128, 128, 0)):
+    for row in range(M.shape[0]):
+        if M.shape[1]==4:
+            string1 = '%+1.2f %+1.2f %+1.2f %+1.2f' % (M[row, 0], M[row, 1], M[row, 2], M[row, 3])
+        else:
+            string1 = '%+1.2f %+1.2f %+1.2f' % (M[row, 0], M[row, 1], M[row, 2])
+        image = cv2.putText(image, '{0}'.format(string1), (posx, posy + 20 * row), cv2.FONT_HERSHEY_SIMPLEX, 0.4,color, 1, cv2.LINE_AA)
+    return image
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_cube_numpy(img, camera_matrix, dist, rvec, tvec, scale=(1,1,1),color=(255,128,0)):
 
@@ -82,14 +91,14 @@ def draw_cube_numpy_MVP(img,mat_projection, mat_view, mat_model, mat_trns, color
         points_3d_new.append(vv)
 
 
-    points_2d, jac = tools_pr_geom.project_points(points_3d_new, (0,0,0), (0,0,0), camera_matrix, numpy.zeros(4))
+    points_2d, jac = tools_pr_geom.project_points(numpy.array(points_3d_new), numpy.array((0,0,0)), numpy.array((0,0,0)), camera_matrix, numpy.zeros(4))
     points_2d = points_2d.reshape((-1,2))
     for i,j in zip((0,1,2,3,4,5,6,7,0,1,2,3),(1,2,3,0,5,6,7,4,4,5,6,7)):
         img = tools_draw_numpy.draw_line(img, points_2d[i, 1], points_2d[i, 0], points_2d[j, 1],points_2d[j, 0], color)
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166)):
+def draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166),do_debug=False):
 
     aperture = 0.5 * (1 - mat_projection[2][0])
     camera_matrix_3x3 = tools_pr_geom.compose_projection_mat_3x3(img.shape[1], img.shape[0], aperture,aperture)
@@ -99,13 +108,59 @@ def draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, m
     X4D[:, :3] = points_3d[:,:]
     L3D = pyrr.matrix44.multiply(M, X4D.T).T[:,:3]
 
-    points_2d, jac = cv2.projectPoints(L3D, (0,0,0), (0,0,0), camera_matrix_3x3, numpy.zeros(4,dtype=float))
-    points_2d = points_2d.reshape((-1,2))
-    for point in points_2d:img = tools_draw_numpy.draw_circle(img, int(point[1]), int(point[0]), 4, color)
+    method=1
+    if method==0:
+        img = draw_points_numpy_RT(L3D,img,numpy.eye(4),camera_matrix_3x3,color,flipX=False)
 
-    points_2d, jac = tools_pr_geom.project_points(L3D, (0,0,0), (0,0,0), camera_matrix_3x3, numpy.zeros(4))
-    points_2d = points_2d.reshape((-1,2))
-    for point in points_2d:img = tools_draw_numpy.draw_circle(img, int(point[1]), int(point[0]), 2, (255,255,255))
+    elif method==1:
+        #opencv equivalent
+        #points_2d, jac = cv2.projectPoints(           L3D, numpy.array((0, 0, 0)), numpy.array((0, 0, 0)), camera_matrix_3x3, numpy.zeros(4,dtype=float))
+        points_2d, jac = tools_pr_geom.project_points(L3D, numpy.array((0, 0, 0)), numpy.array((0, 0, 0)), camera_matrix_3x3, numpy.zeros(4))
+        points_2d = points_2d.reshape((-1,2))
+        points_2d[:, 0] = img.shape[1] - points_2d[:, 0]
+        for point in points_2d:img = tools_draw_numpy.draw_circle(img, int(point[1]), int(point[0]), 2, color)
+
+    if do_debug:
+        posx,posy = img.shape[1]-250,0
+        draw_mat(mat_trns,  posx, posy+20, img,(0,128,255))
+        draw_mat(mat_model, posx, posy+120, img,(0,128,255))
+        draw_mat(mat_view,  posx, posy+220, img,(0,128,255))
+        draw_mat(mat_projection, posx, posy+320, img,(0,128,255))
+
+    return img
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_points_numpy_RT(points_3d,img,RT,camera_matrix_3x3,color=(66, 0, 166),flipX=False):
+    points_2d = tools_pr_geom.project_points_M(points_3d, RT, camera_matrix_3x3, numpy.zeros(5)).reshape((-1, 2))
+    points_2d[:,0] = img.shape[1]-points_2d[:,0]
+    if flipX:points_2d[:,0] = img.shape[1]-points_2d[:,0]
+
+    for point in points_2d:
+        if numpy.any(numpy.isnan(point)): continue
+        img = tools_draw_numpy.draw_circle(img, int(point[1]), int(point[0]), 2, color)
+
+    return img
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_lines_numpy_RT(lines_3d,img,RT,camera_matrix_3x3,color=(66, 0, 166),w=6,flipX=False):
+    points_2d_start = tools_pr_geom.project_points_M(lines_3d[:,:3], RT, camera_matrix_3x3, numpy.zeros(5)).reshape((-1, 2))
+    if flipX:points_2d_start[:,0] = img.shape[1]-points_2d_start[:,0]
+
+    points_2d_end = tools_pr_geom.project_points_M(lines_3d[:, 3:], RT, camera_matrix_3x3, numpy.zeros(5)).reshape((-1, 2))
+    if flipX:points_2d_end[:, 0] = img.shape[1] - points_2d_end[:, 0]
+
+    for point_start, point_end in zip(points_2d_start, points_2d_end):
+        cv2.line(img, (int(point_start[0]), int(point_start[1])), (int(point_end[0]), int(point_end[1])), color,thickness=w)
+
+    return img
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_ellipse_numpy_RT(points_3d,img,RT,camera_matrix_3x3,color=(66, 0, 166),w=6,flipX=False):
+
+    points_2d = tools_pr_geom.project_points_M(points_3d, RT, camera_matrix_3x3, numpy.zeros(5)).reshape((-1, 2))
+    if flipX:points_2d[:,0] = img.shape[1]-points_2d[:,0]
+    ellipse = cv2.fitEllipse(numpy.array(points_2d,dtype=numpy.float32))
+    center = (int(ellipse[0][0]), int(ellipse[0][1]))
+    axes = (int(ellipse[1][0] / 2), int(ellipse[1][1] / 2))
+    rotation_angle = ellipse[2]
+    cv2.ellipse(img, center, axes, rotation_angle, startAngle=0, endAngle=360, color=color, thickness=w)
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
@@ -123,7 +178,7 @@ def draw_points_numpy_MVP_ortho(points_3d, img, mat_projection, mat_view, mat_mo
     points_2d = points_2d.reshape((-1, 2))
     points_2d[:, 1] = img.shape[0] - points_2d[:, 1]
     for point in points_2d:
-        img = tools_draw_numpy.draw_circle(img, int(point[1]), int(point[0]), 4, color)
+        img = tools_draw_numpy.draw_circle(img, int(point[1]), int(point[0]), 2, color)
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
@@ -379,36 +434,6 @@ def is_point_inside_triangle(contact_point, P):
 
     return True
 # ----------------------------------------------------------------------------------------------------------------------
-def align_two_model(filename_obj1,filename_markers1,filename_obj2,filename_markers2,filename_obj_res,filename_markers_res):
-    object1 = tools_wavefront.ObjLoader()
-    object1.load_mesh(filename_obj1, do_autoscale=False)
-
-    object2 = tools_wavefront.ObjLoader()
-    object2.load_mesh(filename_obj2, do_autoscale=False)
-
-    markers1 = tools_IO.load_mat(filename_markers1, dtype=numpy.float, delim=',')
-    markers2 = tools_IO.load_mat(filename_markers2, dtype=numpy.float, delim=',')
-
-    result_markers = markers1.copy()
-    result_vertex  = object1.coord_vert.copy()
-
-    for dim in range(0,3):
-        min_value_s = markers1[:, dim].min()
-        min_value_t = markers2[:, dim].min()
-
-        max_value_s = markers1[:, dim].max()
-        max_value_t = markers2[:, dim].max()
-        scale = (max_value_t - min_value_t) / (max_value_s - min_value_s)
-
-        result_markers[:, dim]=(result_markers[:,dim]-min_value_s)*scale + min_value_t
-        result_vertex[:,dim]  =(result_vertex[:,dim] -min_value_s)*scale + min_value_t
-
-
-    tools_IO.save_mat(result_markers, filename_markers_res,delim=',')
-    object1.export_mesh(filename_obj_res,X=result_vertex, idx_vertex=object1.idx_vertex)
-
-    return
-# ----------------------------------------------------------------------------------------------------------------------
 def fit_rvec_tvec(modelview):
     MT, MR, MK = tools_pr_geom.decompose_into_TRK(modelview)
     #tvec = MT[3,:3]
@@ -511,8 +536,8 @@ def find_ortho_fit(X3D, X_target, fx, fy,do_debug = False):
 # ----------------------------------------------------------------------------------------------------------------------
 def distance_between_lines(line1, line2, clampAll=False, clampA0=False, clampA1=False, clampB0=False, clampB1=False):
 
-    if numpy.any(numpy.isnan(line1)) or numpy.any(numpy.isnan(line2)):
-        return line1[:2],line2[:2],numpy.nan
+    if line1 is None or numpy.any(numpy.isnan(line1)) or line2 is None or numpy.any(numpy.isnan(line2)):
+        return (numpy.nan,numpy.nan),(numpy.nan,numpy.nan),numpy.nan
 
     if numpy.linalg.norm(numpy.array(line1)-numpy.array(line2))<=0.001:
         return line1[:2],line2[:2],0
@@ -641,13 +666,28 @@ def distance_point_to_line(line, point):
         d = numpy.cross(p2 - p1, point - p1) / norm
     return numpy.abs(d)
 # ----------------------------------------------------------------------------------------------------------------------
-def distance_segment_to_line(segm,line,do_debug=False):
-    point1 = segm[:2]
-    point2 = segm[2:]
+def perp_point_line(line,point):
+
+    x1,y1,x2,y2 = line
+    x3,y3 = point[0],point[1]
+
+    px = x2 - x1
+    py = y2 - y1
+    dAB = px * px + py * py
+
+    u = ((x3 - x1) * px + (y3 - y1) * py) / dAB
+    x = x1 + u * px
+    y = y1 + u * py
+
+    return x,y
+# ----------------------------------------------------------------------------------------------------------------------
+def distance_extract_to_line(extract, line, do_debug=False):
+    point1 = extract[:2]
+    point2 = extract[2:]
     h1 = distance_point_to_line(line, point1)
     h2 = distance_point_to_line(line, point2)
 
-    p1,p2,d = distance_between_lines(line,segm,clampB0=True, clampB1=True)
+    p1,p2,d = distance_between_lines(line, extract, clampB0=True, clampB1=True)
 
     tol = 0.01
 
@@ -664,7 +704,7 @@ def distance_segment_to_line(segm,line,do_debug=False):
         color_red = (20, 0, 255)
         image = numpy.full((1000,1000,3),64,dtype=numpy.uint8)
         cv2.line(image,(int(line[0]),int(line[1])),(int(line[2]),int(line[3])),color=color_red)
-        cv2.line(image,(int(segm[0]),int(segm[1])),(int(segm[2]),int(segm[3])),color=color_blue)
+        cv2.line(image, (int(extract[0]), int(extract[1])), (int(extract[2]), int(extract[3])), color=color_blue)
         cv2.imwrite('./images/output/inter.png',image)
 
     return result
@@ -994,3 +1034,62 @@ def decode_boxed_line(code,W,H):
 
     return (x1,y1,x2,y2)
 # ----------------------------------------------------------------------------------------------------------------------
+def get_inverce_perspective_mat(image,point_vanishing,line_up,line_bottom,target_width,target_height):
+    if line_bottom is None:
+        line_bottom = numpy.array((0,image.shape[0],image.shape[1],image.shape[0]),dtype=numpy.float32)
+
+    p1a = (line_up[0], line_up[1])
+    p2a = (line_up[2], line_up[3])
+    if p1a[0]>p2a[0]:p1a,p2a = p2a,p1a
+
+    p3a = (line_bottom[0], line_bottom[1])
+    p4a = (line_bottom[2], line_bottom[3])
+    if p3a[0]>p4a[0]:p3a,p4a = p4a,p3a
+
+    p1b = line_intersection(line_up    ,(point_vanishing[0],point_vanishing[1],p3a[0],p3a[1]))
+    if p1a[0]<p1b[0]:p1 = p1a
+    else:p1 = p1b
+
+    p2b = line_intersection(line_up    ,(point_vanishing[0],point_vanishing[1],p4a[0],p4a[1]))
+    if p2a[0]>p2b[0]:p2 = p2a
+    else:p2 = p2b
+
+
+    line1 = (point_vanishing[0],point_vanishing[1],p1[0],p1[1])
+    line2 = (point_vanishing[0],point_vanishing[1],p2[0],p2[1])
+
+    p3 = line_intersection(line_bottom,line1)
+    p4 = line_intersection(line_bottom,line2)
+
+    M = get_four_point_transform_mat(numpy.array((p1, p2, p3, p4), dtype=numpy.float32), target_width, target_height)
+
+    return M
+# ---------------------------------------------------------------------------------------------------------------------
+def get_four_point_transform_mat(p_src, target_width, target_height):
+    def order_points(pts):
+        xSorted = pts[numpy.argsort(pts[:, 0]), :]
+        leftMost = xSorted[:2, :]
+        rightMost = xSorted[2:, :]
+        leftMost = leftMost[numpy.argsort(leftMost[:, 1]), :]
+        (tl, bl) = leftMost
+        D = dist.cdist(tl[numpy.newaxis], rightMost, "euclidean")[0]
+        (br, tr) = rightMost[numpy.argsort(D)[::-1], :]
+        return numpy.array([tl, tr, br, bl], dtype=numpy.float32)
+
+    p_src_ordered = order_points(p_src)
+
+    #tl, tr, br, bl = p_src_ordered
+    #widthA = numpy.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
+    #widthB = numpy.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
+    #maxWidth = max(int(widthA), int(widthB))
+    #heightA = numpy.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
+    #heightB = numpy.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
+    #maxHeight = max(int(heightA), int(heightB))
+
+    (maxWidth, maxHeight) = (target_width,target_height)
+
+    p_dst = numpy.array([[0, 0],[maxWidth - 1, 0],[maxWidth - 1, maxHeight - 1],[0, maxHeight - 1]], dtype=numpy.float32)
+    M = cv2.getPerspectiveTransform(p_src_ordered, p_dst)
+
+    return M
+# ---------------------------------------------------------------------------------------------------------------------

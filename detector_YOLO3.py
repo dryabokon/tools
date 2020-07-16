@@ -57,7 +57,7 @@ class detector_YOLO3(object):
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def save_model(self,filename_out):
-        self.model.save(filename_out)
+        self.model.save_model(filename_out)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __load_model(self,model_weights_h5,filename_metadata,obj_threshold=None):
@@ -291,7 +291,7 @@ class detector_YOLO3(object):
         out_model = detector_YOLO3_core.yolo_body_tiny(Input(shape=(None, None, 3)), 3, num_classes)
         default_model = load_model(default_model_weights, compile=False)
         detector_YOLO3_core.assign_weights(default_model, out_model)
-        out_model.save(filename_model_out)
+        out_model.save_model(filename_model_out)
         input_image_size, class_names, anchors, anchor_mask, obj_threshold, nms_threshold = tools_YOLO.init_default_metadata_tiny(num_classes)
         tools_YOLO.save_metadata(filename_metadata_out, input_image_size, class_names, anchors, anchor_mask,obj_threshold, nms_threshold)
         return
@@ -300,7 +300,7 @@ class detector_YOLO3(object):
         out_model = detector_YOLO3_core.yolo_body_full(Input(shape=(None, None, 3)), 3, num_classes)
         default_model = load_model(default_model_weights, compile=False)
         detector_YOLO3_core.assign_weights(default_model, out_model)
-        out_model.save(filename_model_out)
+        out_model.save_model(filename_model_out)
         input_image_size, class_names, anchors, anchor_mask, obj_threshold, nms_threshold = tools_YOLO.init_default_metadata_full(
             num_classes)
         tools_YOLO.save_metadata(filename_metadata_out, input_image_size, class_names, anchors, anchor_mask,

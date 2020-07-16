@@ -10,9 +10,9 @@ from sklearn.metrics import confusion_matrix, auc
 import cv2
 import math
 import pickle
+import pandas as pd
 import operator
-# ----------------------------------------------------------------------------------------------------------------------
-import tools_image
+from itertools import groupby
 # ----------------------------------------------------------------------------------------------------------------------
 def find_nearest(array, value):
     return array[(numpy.abs(array - value)).argmin()]
@@ -214,7 +214,7 @@ def get_columns(filename,delim='\t',start=None,end=None):
 
     return columns
 # ----------------------------------------------------------------------------------------------------------------------
-def load_mat(filename, dtype=numpy.chararray, delim='\t', lines=None):
+def load_mat(filename, dtype=numpy.chararray, delim='\t'):
     N = count_lines(filename)
     mat = []
 
@@ -225,6 +225,9 @@ def load_mat(filename, dtype=numpy.chararray, delim='\t', lines=None):
     else:
         mat = numpy.genfromtxt(filename, dtype=dtype, delimiter=delim)
     return mat
+# ----------------------------------------------------------------------------------------------------------------------
+def load_mat_pd(filename, dtype=numpy.chararray, delim='\t', lines=None):
+    return pd.read_csv(filename, sep=delim).values
 # ----------------------------------------------------------------------------------------------------------------------
 def load_mat_var_size(filename,dtype=numpy.int,delim='\t'):
     l=[]
@@ -703,18 +706,26 @@ def numerical_devisor(n):
 
     return n
 #--------------------------------------------------------------------------------------------------------------------------
-def load_if_exists(filename_in,use_cache=False):
+def load_if_exists(folder_in,suffix,name,use_cache=False):
     X, success = None, False
 
-    if os.path.isfile(filename_in)==False:
-        return X, success
+    if (folder_in is None) or (suffix is None) or (name is None):return X,success
+
+    filename_in = folder_in+suffix+name
+
+    if os.path.isfile(filename_in)==False: return X, success
 
     with open(filename_in, "rb") as fp:
         X = pickle.load(fp)
         success = True
     return X,success
 # ---------------------------------------------------------------------------------------------------------------------
-def write_cache(filename_out,X):
+def write_cache(folder_out,suffix,name,X):
+    if (folder_out is None) or (suffix is None) or (name is None):
+        return
+
+    filename_out = folder_out + suffix + name
+
     with open(filename_out, "wb") as fp:
         pickle.dump(X, fp)
     return
@@ -730,33 +741,14 @@ def max_element_by_value(dct):
 # ---------------------------------------------------------------------------------------------------------------------
 def max_element_by_key(dct):
     return max(dct.items(), key=operator.itemgetter(0))
-
 # ---------------------------------------------------------------------------------------------------------------------
-def get_colors(N, shuffle = False,colormap = 'jet'):
-    colors = []
-    if N==1:
-        colors.append(numpy.array([255, 0, 0]))
-        return colors
-
-    for i in range(0, N):
-        l = int(255 * i / (N - 1))
-        colors.append(numpy.array([l,l,l]))
-
-    if colormap=='jet':
-        colors = [tools_image.gre2jet(c) for c in colors]
-
-    if colormap=='viridis':
-        colors = [tools_image.gre2viridis(c) for c in colors]
-
-
-
-    colors = numpy.array(colors,dtype=numpy.uint8)
-
-    if shuffle:
-        idx = numpy.random.choice(len(colors), len(colors))
-        colors = colors[idx]
-    return numpy.array(colors)
-# ----------------------------------------------------------------------------------------------------------------------
+def sorted_elements_by_value(dct,descending=False):
+    if descending:
+        listofTuples = sorted(dct.items(), key=lambda x: -x[1])
+    else:
+        listofTuples = sorted(dct.items(), key=lambda x:  x[1])
+    return listofTuples
+# ---------------------------------------------------------------------------------------------------------------------
 def switch_comumns(filename_in,filename_out,idx,has_header=False,delim='\t',max_line=None):
     g = open(filename_out, 'w')
 
@@ -782,4 +774,9 @@ def switch_comumns(filename_in,filename_out,idx,has_header=False,delim='\t',max_
     g.close()
 
     return
+# ----------------------------------------------------------------------------------------------------------------------
+def get_longest_run_position_len(L):
+    if numpy.all(L<=0):return -1,-1
+    xx = max(((lambda y: (y[0][0], len(y)))(list(g)) for k, g in groupby(enumerate(L), lambda x: x[1]) if k),key=lambda z: z[1])
+    return xx
 # ----------------------------------------------------------------------------------------------------------------------

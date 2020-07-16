@@ -1,21 +1,19 @@
 import cv2
 import numpy
-import subprocess
-import uuid
-from PIL import Image, ImageDraw
-from skimage.morphology import skeletonize,remove_small_holes, remove_small_objects
-import sknw
+from skimage.morphology import skeletonize
+from sklearn.linear_model import LinearRegression
 # ----------------------------------------------------------------------------------------------------------------
 import tools_IO
 import tools_image
-import tools_signal
+import tools_render_CV
+import tools_draw_numpy
 # ----------------------------------------------------------------------------------------------------------------
 class Skelenonizer(object):
-    def __init__(self):
+    def __init__(self,folder_out):
         self.name = "Skelenonizer"
-        self.bin_name = './../_weights/Skeleton.exe'
-        self.folder_out = './images/output/'
+        self.folder_out = folder_out
         self.nodes = None
+        self.W,self.H = None,None
         return
 # ----------------------------------------------------------------------------------------------------------------
     def binarize(self,image):
@@ -30,341 +28,269 @@ class Skelenonizer(object):
         return binarized
 # ----------------------------------------------------------------------------------------------------------------
     def morph(self,image,kernel_h=3,kernel_w=3,n_dilate=1,n_erode=1):
-        kernel = numpy.ones((3, 3), numpy.uint8)
+        kernel = numpy.ones((kernel_h, kernel_w), numpy.uint8)
         result = cv2.dilate(image, kernel, iterations=n_dilate)
         result = cv2.erode(result, kernel, iterations=n_erode)
-
         return result
 # ----------------------------------------------------------------------------------------------------------------
-    def line_length(self, x1, y1, x2, y2):
-        return numpy.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
-# ----------------------------------------------------------------------------------------------------------------
-    def create_patches(self, binary_image):
-        H,W = binary_image.shape[:2]
-        patches = []
-        if H*W >= 1920*1080:
-            NR, NC = 4,4
-        else:
-            NR, NC = 4, 4
-        for nr in range (NR):
-            rstart = 0 + H * nr / NR
-            rend = 0 + H * (nr + 1) / NR
-            for nc in range(NC):
-                cstart = 0+W*nc/NC
-                cend   = 0+W*(nc+1)/NC
-                patches.append([rstart,cstart,rend,cend])
-
-        return numpy.array(patches,dtype=numpy.int)
-# ----------------------------------------------------------------------------------------------------------------
-    def binarized_to_nodes(self, binary_image, do_inverce=False):
-
-        kernel = numpy.ones((3, 3), numpy.uint8)
-        #binary_image = cv2.dilate(binary_image,kernel=kernel,iterations=1)
-        binary_image = cv2.erode(binary_image,kernel=kernel,iterations=1)
-
-        patches = self.create_patches(binary_image)
-
-        data_all = []
-
-        for patch in patches:
-            temp_bmp = str(uuid.uuid4())
-            temp_txt = str(uuid.uuid4())
-            temp_ske = str(uuid.uuid4())
-            image_region = binary_image[patch[0]:patch[2],patch[1]:patch[3]]
-
-            if do_inverce:
-                cv2.imwrite(self.folder_out + temp_bmp + '.bmp', 255 - image_region)
-            else:
-                cv2.imwrite(self.folder_out + temp_bmp + '.bmp', image_region)
-
-            command = [self.bin_name, self.folder_out + temp_bmp + '.bmp', self.folder_out + temp_txt + '.txt', self.folder_out + temp_ske + '.bmp']
-            subprocess.call(command, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
-
-            offset = len(data_all)
-            node_patch = self.load_nodes(self.folder_out + temp_txt + '.txt', image_region.shape[0], image_region.shape[1])
-            shift_x = patch[1]
-            shift_y = patch[0]
-
-            for node in node_patch:
-                node[0]+=offset
-                node[1]+=2*shift_x
-                node[2]+=2*shift_y
-                node[4]=[x+offset for x in node[4]]
-
-            data_all+=node_patch
-            tools_IO.remove_file(self.folder_out+temp_txt +'.txt')
-            tools_IO.remove_file(self.folder_out+temp_bmp +'.bmp')
-            tools_IO.remove_file(self.folder_out+temp_ske +'.bmp')
-
-        self.nodes=data_all
-        self.H, self.W =  binary_image.shape[:2]
-
-        return
-# ----------------------------------------------------------------------------------------------------------------
-    def binarized_to_skeleton_kiyko(self, binary_image):
-        self.H, self.W = binary_image.shape[:2]
-        patches = self.create_patches(binary_image)
-        image_skeleton = numpy.zeros((binary_image.shape[0],binary_image.shape[1]),dtype=numpy.uint8)
-
-        for patch in patches:
-            temp_bmp = str(uuid.uuid4())
-            temp_txt = str(uuid.uuid4())
-            temp_ske = str(uuid.uuid4())
-            image_region = binary_image[patch[0]:patch[2], patch[1]:patch[3]]
-            cv2.imwrite(self.folder_out + temp_bmp + '.bmp', 255-image_region)
-
-            command = [self.bin_name, self.folder_out + temp_bmp + '.bmp', self.folder_out + temp_txt + '.txt', self.folder_out + temp_ske + '.bmp']
-            subprocess.call(command, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
-
-            shift_x = patch[1]
-            shift_y = patch[0]
-
-            image_region = tools_image.desaturate_2d(cv2.imread(self.folder_out + temp_ske + '.bmp'))
-            image_skeleton[ shift_y:shift_y+image_region.shape[0],shift_x:shift_x+image_region.shape[1]]=image_region
-
-            tools_IO.remove_file(self.folder_out + temp_txt + '.txt')
-            tools_IO.remove_file(self.folder_out + temp_bmp + '.bmp')
-            tools_IO.remove_file(self.folder_out + temp_ske + '.bmp')
-
-
-        return 255-image_skeleton
-# ----------------------------------------------------------------------------------------------------------------
-    def binarized_to_skeleton_ski(self, binarized):
+    def binarized_to_skeleton(self, binarized):
         return 255*skeletonize(binarized > 0).astype(numpy.uint8)
 # ----------------------------------------------------------------------------------------------------------------
-    def load_nodes(self, filename_in, H, W):
+    def remove_joints(self,skeleton):
+        mask = tools_image.sliding_2d(skeleton,-1,1,-1,1,'sum')
+        mask = (mask == (255 * 3)).astype(numpy.uint8)
+        mask = self.morph(mask, 2, 2, 1, 0)
+        result  = numpy.multiply(skeleton,1-mask).astype(numpy.uint8)
+        return result
+# ----------------------------------------------------------------------------------------------------------------
+    def skeleton_to_segments(self,skeleton,min_len=10):
 
-        self.W, self.H = W, H
-        X = tools_IO.load_mat(filename_in,delim=' ',dtype=numpy.int)
-        I = 0*X.copy()
+        image_cleaned = self.remove_joints(skeleton)
+        ret, labels, stats, centroids = cv2.connectedComponentsWithStats(image_cleaned)
 
-        result,idx,i=[],0,0
-        while i<len(X):
-            n_links,x,y,w=X[i],X[i+1],X[i+2],X[i+3]
-            link_ids = []
-            result.append([idx,x,2*self.H-y,w,link_ids])
-            I[i:i+4+n_links*2] = idx
-            i+=4+n_links*2
-            idx+=1
+        i=0
+        dct_seg={}
+        for l in range(1,ret):
+            top,left, h, w, N = stats[l]
+            if N>min_len and (h**2 + w**2)>min_len**2:
+                dct_seg[l]=i
+                i+=1
 
-        result,idx,i=[],0,0
+        segments = [[] for c in range(i)]
+        for r in range(labels.shape[0]):
+            for c in range(labels.shape[1]):
+                label = labels[r,c]
+                if label in dct_seg:
+                    number = dct_seg[label]
+                    segments[number].append((c,r))
 
-        while i < len(X):
-            n_links,x,y,w=X[i],X[i+1],X[i+2],X[i+3]
-            link_ids,c = [],0
-            while (c<n_links):
-                offset = X[i + 4 + c * 2]
-                link_ids.append(I[offset])
-                c+=1
+        segments = [numpy.array(s) for s in segments]
+        return segments
+# ----------------------------------------------------------------------------------------------------------------
+    def extract_segments(self,image,min_len=10):
 
-            result.append([idx, x, 2*self.H-y, w, link_ids])
-            i += 4 + n_links * 2
-            idx += 1
+        image_edges = cv2.Canny(image,20,80)
+        segments = self.skeleton_to_segments(image_edges,min_len)
 
-        self.nodes = result
+        return segments
+# ----------------------------------------------------------------------------------------------------------------
+    def get_length_segment(self,segment):
+        xmin = numpy.min(segment[:,0])
+        xmax = numpy.max(segment[:,0])
+        ymin = numpy.min(segment[:,1])
+        ymax = numpy.max(segment[:,1])
+        return numpy.linalg.norm((xmax-xmin,ymax-ymin))
+# ----------------------------------------------------------------------------------------------------------------
+    def sraighten_segments(self, segments,min_len=10):
+        result = []
+        for i, s in enumerate(segments):
+            straighten  = self.sraighten_segment(s,min_len)
+            for each in straighten:result.append(each)
+        return result
+# ----------------------------------------------------------------------------------------------------------------
+    def sraighten_segment(self,segment,min_len=10,do_debug=False):
+
+        if self.get_length_segment(segment)<min_len:
+            return []
+
+        idx_DL = numpy.lexsort((-segment[:, 0], segment[:, 1]))  # traverce from top
+        idx_DR = numpy.lexsort(( segment[:, 0], segment[:, 1]))  # traverce from top
+        idx_RD = numpy.lexsort(( segment[:, 1], segment[:, 0]))  # traverce from left
+        idx_RU = numpy.lexsort((-segment[:, 1], segment[:, 0]))  # traverce from left
+
+        segment_DL = segment[idx_DL]
+        segment_DR = segment[idx_DR]
+        segment_RD = segment[idx_RD]
+        segment_RU = segment[idx_RU]
+
+        sorted_x_DL = segment[idx_DL, 0]  # sould decrease
+        sorted_x_DR = segment[idx_DR, 0]  # sould increase
+        sorted_y_RD = segment[idx_RD, 1]  # sould increase
+        sorted_y_RU = segment[idx_RU, 1]  # sould decrease
+
+        dx_DL = (-sorted_x_DL + numpy.roll(sorted_x_DL, -1))[:-1]  # should be [-1..0]
+        dx_DR = (-sorted_x_DR + numpy.roll(sorted_x_DR, -1))[:-1]  # should be [0..+1]
+        dy_RD = (-sorted_y_RD + numpy.roll(sorted_y_RD, -1))[:-1]  # should be [0..+1]
+        dy_RU = (-sorted_y_RU + numpy.roll(sorted_y_RU, -1))[:-1]  # should be [-1..0]
+
+        th = 1
+
+        dx_DL_good = numpy.array(-th<=dx_DL) & numpy.array(dx_DL<=0)
+        dx_DR_good = numpy.array(0  <=dx_DR) & numpy.array(dx_DR<=th)
+        dy_RD_good = numpy.array(0  <=dy_RD) & numpy.array(dy_RD<=th)
+        dy_RU_good = numpy.array(-th<=dy_RU) & numpy.array(dy_RU<=0)
+
+        if numpy.all(dx_DL_good) or numpy.all(dx_DR_good) or numpy.all(dy_RD_good) or numpy.all(dy_RU_good):
+            return [segment]
+
+        #search best cut
+        pos_DL, L_DL = tools_IO.get_longest_run_position_len(dx_DL_good)
+        pos_DR, L_DR = tools_IO.get_longest_run_position_len(dx_DR_good)
+        pos_RD, L_RD = tools_IO.get_longest_run_position_len(dy_RD_good)
+        pos_RU, L_RU = tools_IO.get_longest_run_position_len(dy_RU_good)
+
+        best_s = int(numpy.argmax([L_DL,L_DR,L_RD,L_RU]))
+        pos_best = [pos_DL,pos_DR,pos_RD,pos_RU][best_s]
+        len_best = [L_DL, L_DR, L_RD, L_RU][best_s]
+        segment_best = [segment_DL, segment_DR, segment_RD, segment_RU][best_s]
+
+        if do_debug:
+            cv2.imwrite(self.folder_out + 'DL_bin.png', 255 * dx_DL_good.reshape((1, -1)))
+            cv2.imwrite(self.folder_out + 'DR_bin.png', 255 * dx_DR_good.reshape((1, -1)))
+            cv2.imwrite(self.folder_out + 'RD_bin.png', 255 * dy_RD_good.reshape((1, -1)))
+            cv2.imwrite(self.folder_out + 'RU_bin.png', 255 * dy_RU_good.reshape((1, -1)))
+
+            image = numpy.full((720,1280,3),64,dtype=numpy.uint8)
+            cv2.imwrite(self.folder_out + 'DL.png',tools_draw_numpy.draw_points(image, segment_DL, tools_draw_numpy.get_colors(len(segment_DL)),w=1))
+            cv2.imwrite(self.folder_out + 'DR.png',tools_draw_numpy.draw_points(image, segment_DR, tools_draw_numpy.get_colors(len(segment_DR)),w=1))
+            cv2.imwrite(self.folder_out + 'RD.png',tools_draw_numpy.draw_points(image, segment_RD, tools_draw_numpy.get_colors(len(segment_RD)),w=1))
+            cv2.imwrite(self.folder_out + 'RU.png',tools_draw_numpy.draw_points(image, segment_RU, tools_draw_numpy.get_colors(len(segment_RU)),w=1))
+            #print('len_in=%d pos_best=%d, len_best=%d'%(len(segment), pos_best,len_best))
+
+        s1,s2,s3 = [],[],[]
+
+        if len_best>min_len:
+            s1 = [segment_best[pos_best:pos_best + len_best]]
+
+        if pos_best>0:
+            s2 = self.sraighten_segment(segment_best[:pos_best],min_len)
+
+        if (pos_best>=0) and (pos_best + len_best<len(segment_best)):
+            s3 = self.sraighten_segment(segment_best[pos_best + len_best:],min_len)
+        return s1 + s2 + s3
+# ----------------------------------------------------------------------------------------------------------------
+    def filter_short_segments(self,segments,min_len):
+        result = []
+        for s in segments:
+            if len(s)>min_len:
+                result.append(s)
 
         return result
 # ----------------------------------------------------------------------------------------------------------------
-    def draw_nodes(self, image_bg=None, draw_thin_lines = False, inverced=False, valid_lengths=None, valid_widths=None):
-        if self.nodes is None:
-            return
+    def interpolate_segment_by_line(self, XY):
+        reg = LinearRegression()
+        X = numpy.array([XY[:, 0]]).astype(numpy.float).T
+        Y = numpy.array([XY[:, 1]]).astype(numpy.float).T
 
-        color_white = (128,128,128)
-        color_black = (32,32,32)
-        color_edge =  (0,64,255)
-
-        if inverced:
-            color_white, color_black = color_black, color_white
-
-        if image_bg is None:
-            image = numpy.zeros((self.H,self.W,3),dtype=numpy.uint8)
-            image[:,:] = color_white
+        if (X.max() - X.min()) > (Y.max() - Y.min()):
+            reg.fit(X, Y)
+            X_inter = numpy.array([(X.min(), X.max())]).T
+            Y_inter = reg.predict(X_inter)
+            line = numpy.array([X_inter[0], Y_inter[0], X_inter[1], Y_inter[1]]).flatten()
         else:
-            image = tools_image.saturate(image_bg.copy())
+            reg.fit(Y, X)
+            Y_inter = numpy.array([(Y.min(), Y.max())]).T
+            X_inter = reg.predict(Y_inter)
+            line = numpy.array([X_inter[0], Y_inter[0], X_inter[1], Y_inter[1]]).flatten()
 
-        pImage = Image.fromarray(image)
-        draw = ImageDraw.Draw(pImage)
+        return line
+# ----------------------------------------------------------------------------------------------------------------------
+    def keep_double_segments(self, segments, line_upper_bound, base_name=None, do_debug=False):
 
-        dct = {}
+        tol_max = 12
+        tol_min = 2
 
-        self.clasterize()
-        n = tools_IO.max_element_by_value(self.dct_cluster_by_id)
-        colors_cluster =  tools_IO.get_colors(n[1]+1,shuffle=True)
-
-        for node in self.nodes:
-            id1, x1, y1, w1 = node[0],node[1], node[2], node[3]
-            #color_line = color_edge
-            color_line = tuple(colors_cluster[self.dct_cluster_by_id[id1]])
-
-            for nbr in node[4]:
-                id2,x2,y2,w2 = self.nodes[nbr][0], self.nodes[nbr][1], self.nodes[nbr][2], self.nodes[nbr][3]
-                if (1000*id1+id2 not in dct) and (1000*id2+id1 not in dct):
-                    dct[1000*id1+id2]=1
-                    dct[1000*id2+id1] = 1
-                    w = int(min(w1,w2))
-                    if image_bg is None:
-                        if w%2==1:
-                            draw.line(      (x1   //2,  y1    //2, x2   //2,  y2   //2),fill=color_black, width=w)
-                            draw.rectangle(((x1-w)//2, (y1-w)//2, (x1+w)//2-1, (y1+w)//2-1),fill=color_black)
-                            draw.rectangle(((x2-w)//2, (y2-w)//2, (x2+w)//2-1, (y2+w)//2-1),fill=color_black)
-                        else:
-                            draw.line(      (x1   //2,  y1   //2-1,  x2     //2,  y2//2-1), fill=color_black, width=w)
-                            draw.rectangle(((x1-w)//2, (y1-w)//2  , (x1+w)//2-1, (y1+w)//2-1),fill=color_black)
-                            draw.rectangle(((x2-w)//2, (y2-w)//2  , (x2+w)//2-1, (y2+w)//2-1),fill=color_black)
-
-                    if valid_widths is not None:
-                        if w in valid_widths:
-                            draw.line((x1 // 2, y1 // 2 - 1, x2 // 2, y2 // 2 - 1), fill=color_line, width=w)
-                    elif draw_thin_lines:
-                        draw.line((x1 // 2, y1 // 2 - 1, x2 // 2, y2 // 2 - 1), fill=color_line, width=1)
-
-                        #draw.ellipse((x1 // 2 - 1, y1 // 2 - 1, x1 // 2 +1, y1 // 2 + 1 ), fill=color_line, width=1)
-                        #draw.ellipse((x2 // 2 - 1, y2 // 2 - 1, x2 // 2 +1, y2 // 2 + 1 ), fill=color_line, width=1)
-
-
-        image = numpy.array(pImage)
-        del draw
-        return image
-# ----------------------------------------------------------------------------------------------------------------
-    def draw_skeleton_simple(self):
-
-        image = numpy.zeros((self.H, self.W, 3), dtype=numpy.uint8)
-        pImage = Image.fromarray(image)
-        draw = ImageDraw.Draw(pImage)
-
-        dct = {}
-
-        for node in self.nodes:
-            id1, x1, y1, w1 = node[0], node[1], node[2], node[3]
-
-            for nbr in node[4]:
-                id2, x2, y2, w2 = self.nodes[nbr][0], self.nodes[nbr][1], self.nodes[nbr][2], self.nodes[nbr][3]
-                if (1000 * id1 + id2 not in dct) and (1000 * id2 + id1 not in dct):
-                    dct[1000 * id1 + id2] = 1
-                    dct[1000 * id2 + id1] = 1
-                    w = int(min(w1, w2))
-                    draw.line((x1 // 2, y1 // 2 - 1, x2 // 2, y2 // 2 - 1), fill=(255,255,255), width=1)
-
-        image = numpy.array(pImage)
-        return image
-# ----------------------------------------------------------------------------------------------------------------
-    def remove_edges(self,min_length=None,min_width=None):
-
-        for node in self.nodes:
-            id1, x1, y1, w1 = node[0], node[1], node[2], node[3]
-            to_remove = []
-            for nbr in node[4]:
-                id2, x2, y2, w2 = self.nodes[nbr][0], self.nodes[nbr][1], self.nodes[nbr][2], self.nodes[nbr][3]
-                width = int(min(w1, w2))
-                length = numpy.sqrt((x1-x2)**2 + (y1-y2)**2)
-                if (min_length is not None and length<min_length) or (min_width is not None and width<min_width):
-                    to_remove.append(nbr)
-
-            for i in to_remove:
-                node[4].remove(i)
-
-        self.remove_orphans()
-        return
-# ----------------------------------------------------------------------------------------------------------------
-    def remove_orphans(self):
-
-        new_id = 0
-        dic_old_new={}
-        for node in self.nodes:
-            id1 = node[0]
-            if len(node[4])>0:
-                dic_old_new[id1]=new_id
-                new_id+=1
-
-        self.nodes = [node for node in self.nodes if len(node[4]) > 0]
-
-        for node in self.nodes:
-            node[4] = [dic_old_new[nbr] for nbr in node[4] if nbr in dic_old_new]
-            node[0] = dic_old_new[node[0]]
-
-        return
-# ----------------------------------------------------------------------------------------------------------------
-    def remove_clusters(self,min_count,min_length):
-        self.clasterize()
-        cnt_segm = {}
-        minx,maxx,miny,maxy = {},{},{},{}
-        for node_id in self.dct_cluster_by_id.keys():
-            x,y = self.nodes[node_id][1], self.nodes[node_id][2]
-            claster_id = self.dct_cluster_by_id[node_id]
-            if claster_id not in cnt_segm:
-                cnt_segm[claster_id]=1
-                minx[claster_id]=x
-                maxx[claster_id]=x
-                miny[claster_id]=y
-                maxy[claster_id]=y
+        lines=[]
+        for i, segment in enumerate(segments):
+            if line_upper_bound is None or tools_render_CV.is_point_above_line(segment[0], line_upper_bound):
+                lines.append(self.interpolate_segment_by_line((segment)))
             else:
-                cnt_segm[claster_id]+=1
-                minx[claster_id]=min(x,minx[claster_id])
-                maxx[claster_id]=max(x,maxx[claster_id])
-                miny[claster_id]=min(y,miny[claster_id])
-                maxy[claster_id]=max(y,maxy[claster_id])
+                lines.append((numpy.nan,numpy.nan,numpy.nan,numpy.nan))
 
-        for node in self.nodes:
-            claster_id = self.dct_cluster_by_id[node[0]]
-            cnt = cnt_segm[claster_id]
-            len = numpy.sqrt((minx[claster_id]-maxx[claster_id])**2 + (miny[claster_id]-maxy[claster_id])**2)
-            if cnt<min_count or len<min_length:
-                node[4]=[]
+        lines = numpy.array(lines)
 
-        self.remove_orphans()
+        has_pair = numpy.zeros(len(lines))
 
-        return
+        for l1 in range(len(lines) - 1):
+            line1 = lines[l1]
+            segment1 = segments[l1]
+            if numpy.any(numpy.isnan(line1)):continue
+            for l2 in range(l1 + 1, len(lines)):
+                if l1==42 and l2==50:
+                    yy=0
+                line2 = lines[l2]
+                segment2 = segments[l2]
+                if numpy.any(numpy.isnan(line2)): continue
+                if self.are_same_segments(segment1,segment2):continue
+                if not self.has_common_range(segment1,segment2,line1,line2):continue
+
+                d1 = tools_render_CV.distance_point_to_line(line1, line2[:2])
+                d2 = tools_render_CV.distance_point_to_line(line1, line2[2:])
+                d3 = tools_render_CV.distance_point_to_line(line2, line1[:2])
+                d4 = tools_render_CV.distance_point_to_line(line2, line1[2:])
+                if numpy.any(numpy.isnan((d1,d2,d3,d4))):continue
+                if (d1>tol_max or d2>tol_max):continue
+                if (d3>tol_max or d4>tol_max):continue
+                if d1 < tol_min and d2 < tol_min and d3 < tol_min and d4 < tol_min: continue
+
+                len2 = numpy.linalg.norm(line2[:2] - line2[2:])
+                len1 = numpy.linalg.norm(line1[:2] - line1[2:])
+                d12 = max(numpy.linalg.norm(line1[:2] - line2[2:]), numpy.linalg.norm(line1[2:] - line2[2:]))
+                d21 = max(numpy.linalg.norm(line1[:2] - line2[2:]), numpy.linalg.norm(line1[2:] - line2[2:]))
+
+                if (d12>len2+5) and (d21>len1+5):continue
+
+                p1,p2,d = tools_render_CV.distance_between_lines(line1,line2,clampAll=True)
+                if d>tol_max:continue
+
+                has_pair[l1]=1
+                has_pair[l2]=1
+
+        idx_good = (has_pair>0)
+        segments = numpy.array(segments)
+
+        if do_debug:
+            empty = numpy.full((self.H,self.W,3),32,dtype=numpy.uint8)
+            colors_all = tools_draw_numpy.get_colors(len(segments), shuffle=True)
+            image_segm = tools_draw_numpy.draw_segments(empty, segments, colors_all,w=1,put_text=True)
+            cv2.imwrite(self.folder_out + base_name+'_1_segm.png', image_segm)
+
+            #for i,segment in enumerate(segments):
+            #    image_segm = tools_draw_numpy.draw_segments(empty, [segment], colors_all[i].tolist(), w=1)
+            #    cv2.imwrite(self.folder_out + base_name + '_segm_%03d.png'%i, image_segm)
+
+            image_segm = numpy.full((self.H, self.W, 3), 32, dtype=numpy.uint8)
+            image_segm = tools_draw_numpy.draw_segments(image_segm, segments,(90, 90, 90), w=1)
+            segments[~idx_good] = None
+            image_segm = tools_draw_numpy.draw_segments(image_segm, segments, (0, 0, 255), w=1)
+            #image_segm = utils_draw.draw_lines(image_segm, [line_upper_bound], (0, 0, 255), w=1)
+            cv2.imwrite(self.folder_out + base_name+'_2_fltr.png', image_segm)
+
+        return segments[idx_good]#, lines[idx_good]
 # ----------------------------------------------------------------------------------------------------------------
-    def clasterize(self):
-        self.dct_cluster_by_id = {}
+    def are_same_segments(self,segment1,segment2):
+        result = False
 
-        cl_id=0
-        for node in self.nodes:
-            if node[0] not in self.dct_cluster_by_id:
-                print('root - ',node[0])
-                cl_id = self.clasterize_depth(node[0],cl_id)
-                print('root - ', node[0], 'complete\n')
+        match1 = segment2 == segment1[ 0]
+        match2 = segment2 == segment1[-1]
+        match3 = segment1 == segment2[0]
+        match4 = segment1 == segment2[-1]
 
-        return
+        match1 = numpy.min(1*match1,axis=1)
+        match2 = numpy.min(1*match2,axis=1)
+        match3 = numpy.min(1*match3,axis=1)
+        match4 = numpy.min(1*match4,axis=1)
+
+        if numpy.sum(match1)+numpy.sum(match2)+numpy.sum(match3)+numpy.sum(match4)>0:
+            result = True
+
+
+        return result
 # ----------------------------------------------------------------------------------------------------------------
-    def clasterize_depth(self,node_id,cl_id):
+    def has_common_range(self,segment1,segment2,line1,line2):
+        min_x1 = numpy.min(segment1[:, 0])
+        min_y1 = numpy.min(segment1[:, 1])
+        min_x2 = numpy.min(segment2[:, 0])
+        min_y2 = numpy.min(segment2[:, 1])
 
-        node = self.nodes[node_id]
-        if node[0] in self.dct_cluster_by_id:
-            return cl_id
-        self.dct_cluster_by_id[node[0]] = cl_id
-        for each in node[4]:
-            if each not in self.dct_cluster_by_id:
-                print('into - ', each)
-                self.clasterize_depth(each, cl_id)
+        max_x1 = numpy.max(segment1[:, 0])
+        max_y1 = numpy.max(segment1[:, 1])
+        max_x2 = numpy.max(segment2[:, 0])
+        max_y2 = numpy.max(segment2[:, 1])
 
+        check_x = (max_x2 <= min_x1 and max_x2 <= max_x1) or (min_x2 >= min_x1 and min_x2 >= max_x1)
+        check_y = (max_y2 <= min_y1 and max_y2 <= max_y1) or (min_y2 >= min_y1 and min_y2 >= max_y1)
+        if (check_x) and (check_y): return False
 
-        cl_id+=1
-        return cl_id
-# ----------------------------------------------------------------------------------------------------------------
-    def get_widts(self,X):
-        Y = X^numpy.roll(X,1)
-        I = numpy.array([i for i,y in enumerate(Y) if y>0])
-        w = (I-numpy.roll(I,1))[1:]
-        return w
-# ----------------------------------------------------------------------------------------------------------------
-    def get_width_distribution(self,binarized,by_column=True):
-
-        minw, maxw = 2,10
-        S = {}
-        for w in range(minw, maxw + 1, 1): S[w] = 0
-        if by_column:
-
-            for c in range(binarized.shape[1]):
-                W = self.get_widts(binarized[:,c])
-                for w in W:
-                    if w >= minw and w <= maxw:S[w]+=1
-        else:
-
-            for r in range(binarized.shape[0]):
-                W = self.get_widts(binarized[r,:])
-                for w in W:
-                    if w >= minw and w <= maxw:S[w]+=1
-
-        return S
+        return True
 # ----------------------------------------------------------------------------------------------------------------

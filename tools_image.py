@@ -4,18 +4,22 @@ import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import os
 import math
-import ctypes
 from scipy import ndimage
-import tools_filter
-#from PIL import ImageGrab
-#--------------------------------------------------------------------------------------------------------------------------
-import tools_IO
+from skimage.transform import rescale, resize
 #--------------------------------------------------------------------------------------------------------------------------
 def numerical_devisor(n):
 
+    candidates = []
+
     for i in numpy.arange(int(math.sqrt(n))+1,1,-1):
         if n%i==0:
-            return i
+            candidates.append((i,n//i))
+
+    if len(candidates)>0:
+        d = [abs(x-y) for x,y in candidates]
+        i = int(numpy.argmin(d))
+        return candidates[i][0]
+
 
     return n
 #--------------------------------------------------------------------------------------------------------------------------
@@ -257,6 +261,12 @@ def put_image(image_large,image_small,start_row,start_col):
         end_row_large+=delta
         end_row_small+=delta
 
+    delta = start_row
+    start_row_small = 0
+    if delta < 0:
+        start_row -= delta
+        start_row_small -= delta
+
     end_col_large = start_col + image_small.shape[1]
     end_col_small = image_small.shape[1]
     delta = image_large.shape[1] - end_col_large
@@ -264,7 +274,16 @@ def put_image(image_large,image_small,start_row,start_col):
         end_col_large += delta
         end_col_small += delta
 
-    result[start_row:end_row_large,start_col:end_col_large]=image_small[0:end_row_small,0:end_col_small]
+    delta = start_col
+    start_col_small = 0
+    if delta < 0:
+        start_col -= delta
+        start_col_small -= delta
+
+
+
+    if start_col<end_col_large and start_row<end_row_large and end_row_large>=0 and end_col_large>=0:
+        result[start_row:end_row_large,start_col:end_col_large]=image_small[start_row_small:end_row_small,start_col_small:end_col_small]
     return result
 # ---------------------------------------------------------------------------------------------------------------------
 def rgb2bgr(image):
@@ -542,7 +561,7 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
 
     if do_debug: cv2.imwrite('./images/output/mask0.png', 255 * mask_bin)
 
-    mask = tools_filter.sliding_2d(mask_bin,filter_size//2,filter_size//2,'avg')
+    mask = sliding_2d(mask_bin,filter_size//2,filter_size//2,'avg')
     if do_debug: cv2.imwrite('./images/output/mask1.png', 255 * mask)
 
     mask = numpy.clip(2 * mask, 0, 1.0)
@@ -552,12 +571,12 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
         large = large.astype(numpy.float)
         small = small.astype(numpy.float)
 
-        cnt_small = tools_filter.sliding_2d(1-mask_bin,filter_size,filter_size,'cnt')
+        cnt_small = sliding_2d(1-mask_bin,filter_size,filter_size,'cnt')
         for c in range(3):
 
-            avg_large = tools_filter.sliding_2d(large[:, :, c],filter_size,filter_size,'avg')
+            avg_large = sliding_2d(large[:, :, c],filter_size,filter_size,'avg')
 
-            sum_small = tools_filter.sliding_2d(small[:, :, c],filter_size,filter_size,'cnt')
+            sum_small = sliding_2d(small[:, :, c],filter_size,filter_size,'cnt')
             avg_small = sum_small/cnt_small
             if do_debug: cv2.imwrite('./images/output/avg_large.png', avg_large)
             if do_debug: cv2.imwrite('./images/output/avg_small.png', avg_small)
@@ -621,25 +640,6 @@ def batch_convert(path_in, path_out, format_in='.bmp', format_out='.png'):
 
     return
 # --------------------------------------------------------------------------------------------------------------------
-def plot_images(path_input,mask):
-    images, labels, filenames = tools_IO.load_aligned_images_from_folder(path_input, 'x', mask=mask)
-
-    fig = plt.figure(figsize=(12, 6))
-    fig.subplots_adjust(hspace =0.01)
-
-    rows = numerical_devisor(images.shape[0])
-    cols = int(images.shape[0]/rows)
-    for i in range(0,images.shape[0]):
-        subplot = plt.subplot(rows, cols, i + 1)
-        subplot.imshow(cv2.cvtColor(images[i], cv2.COLOR_BGR2RGB), cmap=None)
-        subplot.axis('off')
-        subplot.set_title(filenames[i])
-
-    plt.tight_layout()
-    plt.show()
-
-    return
-# ----------------------------------------------------------------------------------------------------------------------
 def convolve_with_mask(image_large,image_mask):
 
     if image_large.max()>1:image_large=image_large/255
@@ -700,3 +700,72 @@ def do_stitch(img_h, img_w, patches, boarder=12, color=True):
 
     return output_img[0:img_h,0:img_w]
 # ----------------------------------------------------------------------------------------------------------------------
+def sliding_2d(A,h_neg,h_pos,w_neg,w_pos, stat='avg',mode='constant'):
+
+    B = numpy.pad(A,((-h_neg,h_pos),(-w_neg,w_pos)),mode)
+    B = numpy.roll(B, 1, axis=0)
+    B = numpy.roll(B, 1, axis=1)
+
+    C1 = numpy.cumsum(B , axis=0)
+    C2 = numpy.cumsum(C1, axis=1)
+
+    up = numpy.roll(C2, h_pos, axis=0)
+    S1 = numpy.roll(up, w_pos, axis=1)
+    S2 = numpy.roll(up, w_neg, axis=1)
+
+    dn = numpy.roll(C2, h_neg, axis=0)
+    S3 = numpy.roll(dn, w_pos, axis=1)
+    S4 = numpy.roll(dn, w_neg, axis=1)
+
+    if stat=='avg':
+        R = (S1-S2-S3+S4)/((w_pos-w_neg)*(h_pos-h_neg))
+    else:
+        R = (S1 - S2 - S3 + S4)
+
+    R = R[-h_neg:-h_pos, -w_neg:-w_pos]
+
+    return R
+# --------------------------------------------------------------------------------------------------------------------
+def skew_hor(A,value,do_inverce=False):
+    shape = numpy.array(A.shape)
+
+    if do_inverce:
+        shape[1]-=numpy.abs(value)
+    else:
+        shape[1]+=numpy.abs(value)
+
+    B = numpy.full(tuple(shape),128,dtype=numpy.uint8)
+
+    if not do_inverce:
+        for r in range(B.shape[0]):
+            v = int(value * r / (B.shape[0] - 1))
+            if v<0:v+=-value
+
+            if len(shape)==3:B[r,v:v+A.shape[1],[0,1,2]] = A[r,:,[0,1,2]]
+            else:            B[r,v:v+A.shape[1]        ] = A[r,:]
+    else:
+        for r in range(B.shape[0]):
+            v = int(value * r / (B.shape[0] - 1))
+            if v<0:v+=-value
+            if len(shape)==3:B[r,:,[0,1,2]] = A[r,v:v+B.shape[1],[0,1,2]]
+            else:B[r,:] = A[r,v:v+B.shape[1]]
+
+    return B
+# --------------------------------------------------------------------------------------------------------------------
+def do_resize(image, dsize):
+    image_resized = 255*resize(image, (dsize[1],dsize[0]),anti_aliasing=True)
+    image_resized = numpy.clip(0,255,image_resized).astype(numpy.uint8)
+    return image_resized
+# --------------------------------------------------------------------------------------------------------------------
+def do_rescale(image,scale):
+    image_rescaled = rescale(image, scale, anti_aliasing=True)
+    return image_rescaled
+# --------------------------------------------------------------------------------------------------------------------
+def put_color_by_mask(image, mask2d, color):
+
+    idx = numpy.where(mask2d > 0)
+    for r,c in zip(idx[0], idx[1]):
+        image[r,c,[0,1,2]]=image[r,c,[0,1,2]]*(1-mask2d[r,c]/255) +numpy.array(color)[[0,1,2]]*mask2d[r,c]/255
+
+    return image
+# --------------------------------------------------------------------------------------------------------------------

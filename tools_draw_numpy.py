@@ -1,8 +1,16 @@
 import cv2
-from scipy.spatial import ConvexHull
 import numpy
+import matplotlib.cm as cm
+from scipy.spatial import ConvexHull
 from skimage.draw import circle, line_aa,ellipse
 from PIL import Image, ImageDraw
+# ----------------------------------------------------------------------------------------------------------------------
+def gre2jet(rgb):
+    return cv2.applyColorMap(numpy.array(rgb, dtype=numpy.uint8).reshape((1, 1, 3)), cv2.COLORMAP_JET).reshape(3)
+# ----------------------------------------------------------------------------------------------------------------------
+def gre2viridis(rgb):
+    colormap = numpy.flip((numpy.array(cm.cmaps_listed['viridis'].colors) * 256).astype(int), axis=1)
+    return colormap[rgb[0]]
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_ellipse0(array_bgr, row, col, r_radius, c_radius, color_brg, alpha_transp=0):
     color_brg = numpy.array(color_brg)
@@ -77,9 +85,12 @@ def draw_convex_hull(image,points,color=(255, 0, 0),transperency=0.0):
 def draw_rectangle(image,p1,p2,color=(255, 0, 0),transperency=0.0):
 
     pImage = Image.fromarray(image)
-    draw = ImageDraw.Draw(pImage, 'RGBA')
-
-    draw.rectangle((p1,p2), fill=(color[0], color[1], color[2], int(transperency * 255)),outline= (color[0], color[1], color[2],255))
+    if len((image.shape)) == 3:
+        draw = ImageDraw.Draw(pImage, 'RGBA')
+        draw.rectangle((p1,p2), fill=(color[0], color[1], color[2], int(transperency * 255)),outline= (color[0], color[1], color[2],255))
+    else:
+        draw = ImageDraw.Draw(pImage)
+        draw.rectangle((p1, p2))
 
     result = numpy.array(pImage)
     del draw
@@ -87,12 +98,171 @@ def draw_rectangle(image,p1,p2,color=(255, 0, 0),transperency=0.0):
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_ellipse(image,p,color=(255, 0, 0),transperency=0.0):
 
-    pImage = Image.fromarray(image)
-    draw = ImageDraw.Draw(pImage, 'RGBA')
+    if p is None or len(p)==0:
+        return image
 
-    draw.ellipse((int(p[0]),int(p[1]),int(p[2]),int(p[3])), fill=(color[0], color[1], color[2], int(255-transperency*255)),outline= (color[0], color[1], color[2],255))
+    pImage = Image.fromarray(image)
+    if len((image.shape))==3:
+        draw = ImageDraw.Draw(pImage, 'RGBA')
+        draw.ellipse((int(p[0]),int(p[1]),int(p[2]),int(p[3])), fill=(color[0], color[1], color[2], int(255-transperency*255)),outline= (color[0], color[1], color[2],255))
+    else:
+        draw = ImageDraw.Draw(pImage)
+        draw.ellipse((int(p[0]), int(p[1]), int(p[2]), int(p[3])),fill=color,outline=color)
 
     result = numpy.array(pImage)
     del draw
     return result
+# ----------------------------------------------------------------------------------------------------------------------
+def get_colors(N, shuffle = False,colormap = 'jet',alpha_blend=None):
+    colors = []
+    if N==1:
+        colors.append(numpy.array([255, 0, 0]))
+        return colors
+
+    for i in range(0, N):
+        l = int(255 * i / (N - 1))
+        colors.append(numpy.array([l,l,l]))
+
+    if colormap=='jet':
+        colors = [gre2jet(c) for c in colors]
+
+    if colormap=='viridis':
+        colors = [gre2viridis(c) for c in colors]
+
+    if alpha_blend is not None:
+        colors = [((alpha_blend) * numpy.array((255, 255, 255)) + (1 - alpha_blend) * numpy.array(color)) for color in colors]
+
+    colors = numpy.array(colors, dtype=numpy.uint8)
+
+    if shuffle:
+        idx = numpy.random.choice(len(colors), len(colors))
+        colors = colors[idx]
+    return numpy.array(colors)
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_ellipse_axes(image, ellipse, color=(255, 255, 255), w=4):
+    center = (int(ellipse[0][0]), int(ellipse[0][1]))
+    axes = (int(ellipse[1][0] / 2), int(ellipse[1][1] / 2))
+    rotation_angle = ellipse[2]*numpy.pi/180
+
+    ct = numpy.cos(rotation_angle)
+    st = numpy.sin(rotation_angle)
+
+    p1 = (int(center[0] - axes[0]*ct), int(center[1] - axes[0] * st))
+    p2 = (int(center[0] + axes[0]*ct), int(center[1] + axes[0] * st))
+
+    p3 = (int(center[0] - axes[1] * st), int(center[1] + axes[1] * ct))
+    p4 = (int(center[0] + axes[1] * st), int(center[1] - axes[1] * ct))
+    cv2.line(image,p1,p2,color=color,thickness=w)
+    cv2.line(image,p3,p4,color=color, thickness=w)
+
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_ellipses(image, ellipses,color=(255,255,255),w=4,draw_axes=False):
+    image_ellipses = image.copy()
+
+    for ellipse in ellipses:
+        if ellipse is None: continue
+        center = (int(ellipse[0][0]), int(ellipse[0][1]))
+        axes = (int(ellipse[1][0] / 2), int(ellipse[1][1] / 2))
+        rotation_angle = ellipse[2]
+        cv2.ellipse(image_ellipses, center, axes, rotation_angle, startAngle=0, endAngle=360, color=color,thickness=w)
+        if draw_axes:
+            draw_ellipse_axes(image_ellipses, ellipse, color=color, w=1)
+
+    return image_ellipses
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_segments(image, segments,color=(255,255,255),w=1,put_text=False):
+
+    result = image.copy()
+    H, W = image.shape[:2]
+    if len(segments)==0:return result
+
+    for id, segment in enumerate(segments):
+        if len(numpy.array(color).shape) == 1:
+            clr = color
+        else:
+            clr = color[id].tolist()
+
+        if segment is None: continue
+        if numpy.any(numpy.isnan(segment)): continue
+
+        for point in segment:
+            if w == 1:
+                if 0<=point[1]<H and 0<=point[0]<W:result[int(point[1]), int(point[0])]=clr
+            else:
+                cv2.circle(result, (int(point[0]), int(point[1])), 1, clr, w-1)
+
+        if put_text:
+            x, y = int(segment[:,0].mean()+ -30+60 * numpy.random.rand()) , int(segment[:,1].mean()-30+60 * numpy.random.rand())
+            cv2.putText(result, '{0}'.format(id), (min(W - 10, max(10, x)), min(H - 5, max(10, y))),cv2.FONT_HERSHEY_SIMPLEX, 0.6, clr, 1, cv2.LINE_AA)
+    return result
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_lines(image, lines,color=(255,255,255),w=4,put_text=False):
+
+    result = image.copy()
+    if lines is None or len(lines)==0:
+        return result
+
+    if (not isinstance(lines,list)) and len(lines.shape)==1:
+        lines = [lines]
+
+    H, W = image.shape[:2]
+    for id,line in enumerate(lines):
+        if line is None:continue
+        (x1, y1, x2, y2) = line
+        if numpy.any(numpy.isnan((x1, y1, x2, y2))): continue
+
+        if (len(numpy.array(color).shape)==1) or type(color)==int:
+            clr = color
+        else:
+            clr = color[id].tolist()
+
+        cv2.line(result, (int(x1), int(y1)), (int(x2), int(y2)), clr, w)
+        if put_text:
+            x,y = int(x1+x2)//2, int(y1+y2)//2
+            cv2.putText(result, '{0}'.format(id),(min(W - 10, max(10, x)), min(H - 5, max(10, y))),cv2.FONT_HERSHEY_SIMPLEX, 0.6, clr, 1, cv2.LINE_AA)
+
+
+    return result
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_points(image, points,color=(255,255,255),w=4,put_text=False):
+
+    result = image.copy()
+    H, W = image.shape[:2]
+    for id, point in enumerate(points):
+        if point is None: continue
+
+        if numpy.any(numpy.isnan(point)): continue
+        x1, y1 = int(point[0]), int(point[1])
+
+        if (len(numpy.array(color).shape) == 1) or type(color) == int:
+            clr = color
+        else:
+            clr = color[id].tolist()
+
+        cv2.circle(result, (int(x1), int(y1)), w, clr,thickness=-1)
+        if put_text:
+            cv2.putText(result, '{0}'.format(id), (min(W - 10, max(10, x1)), min(H - 5, max(10, y1))),cv2.FONT_HERSHEY_SIMPLEX, 0.6, clr, 1, cv2.LINE_AA)
+
+    return result
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_signals(signals,lanes=None):
+
+    image_signal = numpy.full((255, len(signals[0]), 3), 32, dtype=numpy.uint8)
+    colors = get_colors(len(signals),alpha_blend=0.1)
+    for signal,color in zip(signals,colors):
+        if signal is None: continue
+        #med = int(numpy.median(signal))
+        #cv2.line(image_signal, (0, med), (len(signal), med), color=color.tolist(), thickness=1)
+        for col, value in enumerate(signal):
+            if not numpy.isnan(value): cv2.circle(image_signal, (col, 255 - int(value)), radius=3, color=color.tolist(),thickness=-1)
+
+    if lanes is not None:
+        if lanes[0] is not None:
+            cv2.line(image_signal, (lanes[0], 0), (lanes[0], 255), color=(255, 255, 255), thickness=2)
+        for p in lanes[1:]:
+            if p is not None:
+                cv2.line(image_signal, (p,0),(p,255), color=(180,180,180), thickness=1)
+
+    return image_signal
 # ----------------------------------------------------------------------------------------------------------------------

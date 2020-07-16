@@ -89,12 +89,12 @@ class detector_landmarks(object):
 
         return gray
 # ----------------------------------------------------------------------------------------------------------------------
-    def draw_landmarks_v2(self, image,landmarks,del_triangles=None,color=(0, 128, 255)):
+    def draw_landmarks_v2(self, image,landmarks,del_triangles=None,color=(0, 128, 255),w=6):
 
         gray = tools_image.desaturate(image,level=0)
 
         for landmark in landmarks:
-            cv2.circle(gray, (int(landmark[0]), int(landmark[1])), 2, color, -1)
+            cv2.circle(gray, (int(landmark[0]), int(landmark[1])), w, color, -1)
 
         if del_triangles is not None:
             for t in del_triangles:
@@ -234,24 +234,14 @@ class detector_landmarks(object):
         else:L3D = landmarks_3d.copy()
         L3D = numpy.array([pyrr.matrix44.apply_to_vector(mat_trns,v) for v in L3D])
 
-        #self.r_vec, self.t_vec = [1.28, -0.06, -0.00], [-0.03, 0.14, 4.26]
-        self.r_vec, self.t_vec = [-1.71, -3.12, 0.05], [-0.03, 0.14, 4.26]
-        self.r_vec = numpy.reshape(self.r_vec,(1,3))
-        self.t_vec = numpy.reshape(self.t_vec,(1, 3))
-        self.r_vec = None
-        self.t_vec = None
-        if self.r_vec is None:
-            (_, rotation_vector, translation_vector) = cv2.solvePnP(L3D[idx_match], landmarks_2d[idx_match], self.mat_camera, dist_coefs)
-            #(_, rotation_vector, translation_vector) = cv2.solvePnPRansac(L3D[idx_match], landmarks_2d[idx_match], self.mat_camera, dist_coefs)
-        else:
-            (_, rotation_vector, translation_vector) = cv2.solvePnP(L3D, landmarks_2d, self.mat_camera, numpy.zeros(4), rvec=self.r_vec, tvec=self.t_vec, useExtrinsicGuess=True)
-            #_ , rotation_vector, translation_vector,_ = cv2.solvePnPRansac(L3D, landmarks_2d, self.mat_camera, numpy.zeros(4), rvec=self.r_vec, tvec=self.t_vec, useExtrinsicGuess=True)
+        #(_, rotation_vector, translation_vector) = cv2.solvePnP(L3D[idx_match], landmarks_2d[idx_match], self.mat_camera, dist_coefs)
+        #self.r_vec, self.t_vec = -rotation_vector, translation_vector
 
-        self.r_vec,self.t_vec = -rotation_vector, translation_vector
+        xxx = L3D[idx_match]
+        yyy = landmarks_2d[idx_match]
 
-        #landmarks_2d_check, jac = cv2.projectPoints(L3D, rotation_vector, translation_vector, self.mat_camera, dist_coefs)
-        #landmarks_2d_check, jac = tools_pr_geom.project_points(L3D,rotation_vector, translation_vector, self.mat_camera, dist_coefs)
-        #landmarks_2d_check=numpy.reshape(landmarks_2d_check,(-1,2))
+        self.r_vec, self.t_vec, landmarks_2d_check = tools_pr_geom.fit_pnp(L3D[idx_match], landmarks_2d[idx_match], self.mat_camera)
+
 
         return self.r_vec.flatten(), self.t_vec.flatten()
 # --------------------------------------------------------------------------------------------------------------------
@@ -269,14 +259,14 @@ class detector_landmarks(object):
         #loss = tools_render_CV.check_projection_ortho(L3D, landmarks_2d, rvec, tvec, fx,fy,scale_factor, do_debug=True)
         return rvec, tvec, scale_factor
 # --------------------------------------------------------------------------------------------------------------------
-    def draw_annotation_box(self,image, rotation_vector, translation_vector, color=(0, 128, 255), line_width=1):
+    def draw_annotation_box(self, image, rotation_vector, translation_vector, color=(0, 128, 255), w=1):
 
         point_3d = []
 
         if self.model_68_points.max()-self.model_68_points.min() > 5:
-            rear_size, rear_depth, front_size, front_depth = numpy.array([75, 0, 100, 100]) * 1
+            rear_size, rear_depth, front_size, front_depth = numpy.array([75, 0, 100, 100]) * 0.50
         else:
-            rear_size,rear_depth,front_size,front_depth = numpy.array([75,0,75,75])*0.015
+            rear_size,rear_depth,front_size,front_depth = numpy.array([55,0,75,55])*0.015
 
 
         dist_coefs = numpy.zeros((4, 1))
@@ -297,11 +287,13 @@ class detector_landmarks(object):
         (point_2d, _) = cv2.projectPoints(point_3d,rotation_vector,translation_vector,camera_matrix,dist_coefs)
         point_2d = numpy.int32(point_2d.reshape(-1, 2))
 
+
+
         result = image.copy()
-        cv2.polylines(result, [point_2d], True, color, line_width, cv2.LINE_AA)
-        cv2.line(result, tuple(point_2d[1]), tuple(point_2d[6]), color, line_width, cv2.LINE_AA)
-        cv2.line(result, tuple(point_2d[2]), tuple(point_2d[7]), color, line_width, cv2.LINE_AA)
-        cv2.line(result, tuple(point_2d[3]), tuple(point_2d[8]), color, line_width, cv2.LINE_AA)
+        cv2.polylines(result, [point_2d], True, color, w, cv2.LINE_AA)
+        cv2.line(result, tuple(point_2d[1]), tuple(point_2d[6]), color, w, cv2.LINE_AA)
+        cv2.line(result, tuple(point_2d[2]), tuple(point_2d[7]), color, w, cv2.LINE_AA)
+        cv2.line(result, tuple(point_2d[3]), tuple(point_2d[8]), color, w, cv2.LINE_AA)
         return result
 # --------------------------------------------------------------------------------------------------------------------
     def draw_annotation_box_v2(self,image, rvec, tvec,scale):

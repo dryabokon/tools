@@ -175,7 +175,7 @@ class detector_Unet(object):
         earlystopper = EarlyStopping(patience=6, verbose=1)
         checkpointer = ModelCheckpoint(self.folder_out+'chk.h5', verbose=1, save_best_only=True)
         results = self.model.fit(X_train, Y_train, validation_split=0.3, batch_size=16, epochs=10,callbacks=[earlystopper, checkpointer])
-        self.model.save(self.folder_out+'trained.h5')
+        self.model.save_model(self.folder_out + 'trained.h5')
         return results
 # ----------------------------------------------------------------------------------------------------------------------
     def __load_model(self,filename_in):

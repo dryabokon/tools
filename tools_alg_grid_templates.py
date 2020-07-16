@@ -620,7 +620,7 @@ def filter_outliers(image_base, coordinates,pattern,th=1.0,path_debug=''):
             idx.append(i)
 
         if path_debug != '':
-            toimage(im_aligned).save(path_debug + '%03d_%03d.bmp' % (value,i))
+            toimage(im_aligned).save_model(path_debug + '%03d_%03d.bmp' % (value, i))
 
     return coordinates[idx]
 # ----------------------------------------------------------------------------------------------------------------------
@@ -645,8 +645,8 @@ def estimate_pattern_position(filename_in,folder_out,pattern_width,pattern_heigh
 
             e = entropy(hitmap_2d.flatten()/255.0)
 
-            toimage(hitmap_RGB_jet).save(folder_out + ('hit_%1.3f_%03d_%03d.bmp' % (e,shift_row,shift_col)))
-            toimage(image_pattern_scaled).save(folder_out + ('pat_%03d_%03d.bmp' % (shift_row,shift_col)))
+            toimage(hitmap_RGB_jet).save_model(folder_out + ('hit_%1.3f_%03d_%03d.bmp' % (e, shift_row, shift_col)))
+            toimage(image_pattern_scaled).save_model(folder_out + ('pat_%03d_%03d.bmp' % (shift_row, shift_col)))
     return
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_hits(path,coordinates,chains_hor, chains_ver,hitmap_2d):

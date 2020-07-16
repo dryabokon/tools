@@ -75,7 +75,7 @@ class detector_SSD300(object):
         self.logs = Logger()
 # ----------------------------------------------------------------------------------------------------------------------
     def save_model(self,filename_out):
-        self.model.save(filename_out)
+        self.model.save_model(filename_out)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def process_image(self, image):

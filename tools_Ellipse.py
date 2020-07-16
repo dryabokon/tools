@@ -11,17 +11,50 @@ from sklearn.linear_model import LinearRegression
 import tools_IO
 import tools_image
 import tools_render_CV
+import tools_Skeletone
 # ----------------------------------------------------------------------------------------------------------------
-import utils_draw
-# ----------------------------------------------------------------------------------------------------------------
-class Fornaciari(object):
-    def __init__(self,folder_out):
-        self.name = "Fornaciari"
+class Ellipse_Processor(object):
+    def __init__(self,folder_out=None):
         self.folder_out = folder_out
-        self.bin_name = './../_weights/FastEllipse.exe'
 
+        if folder_out is not None:
+            self.folder_cache = self.folder_out + 'cache/'
+        else:
+            self.folder_cache = None
+
+        self.name = "Ellipse processor"
+
+        self.Ske = tools_Skeletone.Skelenonizer(folder_out)
         return
 # ----------------------------------------------------------------------------------------------------------------
+    def draw_segments(self,image, segments, color=(255, 255, 255), w=4, put_text=False):
+
+        result = image.copy()
+        H, W = image.shape[:2]
+        if len(segments) == 0: return result
+
+        for id, segment in enumerate(segments):
+            if len(numpy.array(color).shape) == 1:
+                clr = color
+            else:
+                clr = color[id].tolist()
+
+            if segment is None: continue
+            if numpy.any(numpy.isnan(segment)): continue
+
+            for point in segment:
+                # cv2.circle(result, (int(point[0]), int(point[1])), 1, clr, w)
+                if 0 <= point[1] < H and 0 <= point[0] < W:
+                    result[int(point[1]), int(point[0])] = clr
+
+            if put_text:
+                x, y = int(segment[:, 0].mean() + -30 + 60 * numpy.random.rand()), int(
+                    segment[:, 1].mean() - 30 + 60 * numpy.random.rand())
+                cv2.putText(result, '{0}'.format(id), (min(W - 10, max(10, x)), min(H - 5, max(10, y))),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, clr, 1, cv2.LINE_AA)
+        return result
+
+# ----------------------------------------------------------------------------------------------------------------------
     def iou(self,boxA, boxB):
 
         xA = max(boxA[0], boxB[0])
@@ -93,40 +126,27 @@ class Fornaciari(object):
 
         return bbox
 # ----------------------------------------------------------------------------------------------------------------
-    def extract_segments(self, image, min_len=1,line_upper_bound=None):
+    def get_ellipse_lines(self,ellipse):
+        if ellipse is None:
+            return None,None
+        center = (int(ellipse[0][0]), int(ellipse[0][1]))
+        axes = (int(ellipse[1][0] / 2), int(ellipse[1][1] / 2))
+        rotation_angle = ellipse[2] * numpy.pi / 180
 
-        temp_sgm = str(uuid.uuid4())
-        temp_dbg = str(uuid.uuid4())
+        ct = numpy.cos(rotation_angle)
+        st = numpy.sin(rotation_angle)
 
-        if (type(image) == numpy.ndarray):
-            self.H, self.W = image.shape[:2]
-            temp_png = str(uuid.uuid4())
-            cv2.imwrite(self.folder_out + temp_png + '.png',image)
-            command = [self.bin_name, self.folder_out + temp_png + '.png', self.folder_out + temp_sgm + '.txt',self.folder_out + temp_dbg + '.png']
-        else:
-            temp_png = image
-            command = [self.bin_name, image, self.folder_out + temp_sgm + '.txt',self.folder_out + temp_dbg + '.png']
+        p1 = (int(center[0] - axes[0] * ct), int(center[1] - axes[0] * st))
+        p2 = (int(center[0] + axes[0] * ct), int(center[1] + axes[0] * st))
 
-        subprocess.call(command, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+        p3 = (int(center[0] - axes[1] * st), int(center[1] + axes[1] * ct))
+        p4 = (int(center[0] + axes[1] * st), int(center[1] - axes[1] * ct))
 
-        image_segm = cv2.imread(self.folder_out + temp_dbg + '.png')
+        line1 = (p1[0], p1[1],p2[0], p2[1])
+        line2 = (p3[0], p3[1],p4[0], p4[1])
 
-        segments = []
-        if os.path.isfile(self.folder_out + temp_sgm + '.txt'):
-            data = tools_IO.load_mat_var_size(self.folder_out + temp_sgm + '.txt',dtype=numpy.int,delim=' ')
-            for segment in data:
-                if len(segment)<min_len:continue
-                if line_upper_bound is not None and tools_render_CV.is_point_above_line(segment[0], line_upper_bound):continue
-                points = numpy.array(segment, dtype=numpy.int).reshape((-1,2))
-                segments.append(points)
 
-        tools_IO.remove_file(self.folder_out + temp_sgm + '.txt')
-        tools_IO.remove_file(self.folder_out + temp_dbg + '.png')
-        if (type(image) == numpy.ndarray):tools_IO.remove_file(self.folder_out + temp_png + '.png')
-
-        segments, index_reg = self.regularize(segments, min_len=20)
-
-        return segments,index_reg,image_segm
+        return line1,line2
 # ----------------------------------------------------------------------------------------------------------------
     def is_good_ellipse(self,ellipse):
 
@@ -148,7 +168,11 @@ class Fornaciari(object):
 # ----------------------------------------------------------------------------------------------------------------
     def get_angle(self, line):
         x1, y1, x2, y2 = line
-        return 90 + math.atan((y2 - y1) / (x2 - x1)) * 180 / math.pi
+        if x2 - x1==0:
+            angle = 0
+        else:
+            angle = 90 + math.atan((y2 - y1) / (x2 - x1)) * 180 / math.pi
+        return angle
 # ----------------------------------------------------------------------------------------------------------------
     def match_segment_ellipse(self, points, ellipse_mask, N=4):
 
@@ -197,7 +221,7 @@ class Fornaciari(object):
             cv2.ellipse(ellipse_mask, center, axes, rotation_angle, startAngle=0, endAngle=360, color=255, thickness=tol)
         return ellipse_mask
 # ----------------------------------------------------------------------------------------------------------------
-    def filter_segments(self, segments, line_upper_bound, line_midfield):
+    def preprocess_for_ellipse(self, segments, line_upper_bound=None, line_midfield=None):
         filtered = []
         if line_upper_bound is not None:
             th_row = 50 + (line_upper_bound[1] + line_upper_bound[3]) / 2
@@ -227,11 +251,20 @@ class Fornaciari(object):
 
         return filtered
 # ----------------------------------------------------------------------------------------------------------------
-    def segments_to_ellipse(self, image, segments, base_name=None, do_debug=False):
+    def segments_to_ellipse(self, image, line_upper_bound, line_midfield, base_name=None, do_debug=False):
 
-        X, success = tools_IO.load_if_exists(self.folder_out + 'cache/' + base_name + 'ellipse.dat')
+        X, success = tools_IO.load_if_exists(self.folder_cache,base_name , '_ellipse.dat')
         if (not do_debug) and success:
             return X
+
+
+        segments_all = self.Ske.extract_segments(image, 30)
+
+        segments_double = self.Ske.keep_double_segments(segments_all, line_upper_bound, base_name)
+        if line_upper_bound is not None:
+            segments = self.preprocess_for_ellipse(segments_all, line_upper_bound, line_midfield)
+        else:
+            segments = segments_double.copy()
 
 
         self.H,self.W = image.shape[:2]
@@ -263,10 +296,10 @@ class Fornaciari(object):
                 Q[(s1, s2)] = weights[idx_match].sum()
                 Cands[(s1, s2)] = idx_match
 
-                if do_debug:
+                if do_debug and self.folder_out is not None:
                     image_debug  = tools_image.desaturate(image)
-                    image_debug = utils_draw.draw_segments(image_debug, [segments[s1]], color=(90,0,255), w=4)
-                    image_debug = utils_draw.draw_segments(image_debug, [segments[s2]], color=(0,90,255), w=4)
+                    image_debug = self.draw_segments(image_debug, [segments[s1]], color=(90,0,255), w=4)
+                    image_debug = self.draw_segments(image_debug, [segments[s2]], color=(0,90,255), w=4)
 
                     center = (int(ellipse[0][0]), int(ellipse[0][1]))
                     axes = (int(ellipse[1][0] / 2), int(ellipse[1][1] / 2))
@@ -286,167 +319,7 @@ class Fornaciari(object):
             else:
                 ellipse = None
 
-        tools_IO.write_cache(self.folder_out + 'cache/' + base_name + 'ellipse.dat',ellipse)
+        tools_IO.write_cache(self.folder_cache , base_name , '_ellipse.dat',ellipse)
 
         return ellipse
-# ----------------------------------------------------------------------------------------------------------------
-    def are_same_segments(self,segment1,segment2):
-        result = False
-
-        match1 = segment2 == segment1[ 0]
-        match2 = segment2 == segment1[-1]
-        match3 = segment1 == segment2[0]
-        match4 = segment1 == segment2[-1]
-
-        match1 = numpy.min(1*match1,axis=1)
-        match2 = numpy.min(1*match2,axis=1)
-        match3 = numpy.min(1*match3,axis=1)
-        match4 = numpy.min(1*match4,axis=1)
-
-        if numpy.sum(match1)+numpy.sum(match2)+numpy.sum(match3)+numpy.sum(match4)>0:
-            result = True
-
-
-        return result
-# ----------------------------------------------------------------------------------------------------------------
-    def regularize(self, segments,min_len=10):
-
-        th=4
-        segments_reg = []
-        idx_original = []
-        for i,segment in enumerate(segments):
-            if i==65:
-                i=i
-            dx = (segment[:,0]-numpy.roll(segment[:,0],-1))[:-1]
-            dy = (segment[:,1]-numpy.roll(segment[:,1],-1))[:-1]
-            idx = numpy.where(numpy.abs(dx)>th)[0]
-            idy = numpy.where(numpy.abs(dy)>th)[0]
-            if len(idx)>0 and len(idy)>0:
-                parts = numpy.intersect1d(idx,idy)
-                if len(parts)>0:
-                    cur = 0
-                    for p in parts:
-                        segments_reg.append(segment[cur:p+1])
-                        idx_original.append(i)
-                        cur = p+1
-                    segments_reg.append(segment[cur:])
-                    idx_original.append(i)
-                else:
-                    segments_reg.append(segment)
-                    idx_original.append(i)
-            else:
-                segments_reg.append(segment)
-                idx_original.append(i)
-
-        res = numpy.array([(r,i) for r,i in zip(segments_reg,idx_original) if len(r)>min_len])
-        segments_reg = res[:,0]
-        index_reg = res[:,1]
-
-        return segments_reg, index_reg
-# ----------------------------------------------------------------------------------------------------------------
-    def has_common_range(self,segment1,segment2,line1,line2):
-        min_x1 = numpy.min(segment1[:, 0])
-        min_y1 = numpy.min(segment1[:, 1])
-        min_x2 = numpy.min(segment2[:, 0])
-        min_y2 = numpy.min(segment2[:, 1])
-
-        max_x1 = numpy.max(segment1[:, 0])
-        max_y1 = numpy.max(segment1[:, 1])
-        max_x2 = numpy.max(segment2[:, 0])
-        max_y2 = numpy.max(segment2[:, 1])
-
-        check_x = (max_x2 <= min_x1 and max_x2 <= max_x1) or (min_x2 >= min_x1 and min_x2 >= max_x1)
-        check_y = (max_y2 <= min_y1 and max_y2 <= max_y1) or (min_y2 >= min_y1 and min_y2 >= max_y1)
-        if (check_x) and (check_y): return False
-
-        return True
-# ----------------------------------------------------------------------------------------------------------------
-    def interpolate_segment_by_line(self, XY):
-        reg = LinearRegression()
-        X = numpy.array([XY[:, 0]]).astype(numpy.float).T
-        Y = numpy.array([XY[:, 1]]).astype(numpy.float).T
-
-        if (X.max() - X.min()) > (Y.max() - Y.min()):
-            reg.fit(X, Y)
-            X_inter = numpy.array([(X.min(), X.max())]).T
-            Y_inter = reg.predict(X_inter)
-            line = numpy.array([X_inter[0], Y_inter[0], X_inter[1], Y_inter[1]]).flatten()
-        else:
-            reg.fit(Y, X)
-            Y_inter = numpy.array([(Y.min(), Y.max())]).T
-            X_inter = reg.predict(Y_inter)
-            line = numpy.array([X_inter[0], Y_inter[0], X_inter[1], Y_inter[1]]).flatten()
-
-        return line
-# ----------------------------------------------------------------------------------------------------------------------
-    def keep_double_segments(self, segments, index_reg, line_upper_bound, base_name=None, do_debug=False):
-
-        tol_max = 12
-        tol_min = 2
-
-        lines=[]
-        for i, segment in enumerate(segments):
-            if line_upper_bound is None or tools_render_CV.is_point_above_line(segment[0], line_upper_bound):
-                lines.append(self.interpolate_segment_by_line((segment)))
-            else:
-                lines.append((numpy.nan,numpy.nan,numpy.nan,numpy.nan))
-
-        lines = numpy.array(lines)
-
-        has_pair = numpy.zeros(len(lines))
-
-        for l1 in range(len(lines) - 1):
-            line1 = lines[l1]
-            segment1 = segments[l1]
-            if numpy.any(numpy.isnan(line1)):continue
-            for l2 in range(l1 + 1, len(lines)):
-                if index_reg[l1]==index_reg[l2]:continue
-                line2 = lines[l2]
-                segment2 = segments[l2]
-                if numpy.any(numpy.isnan(line2)): continue
-                if self.are_same_segments(segment1,segment2):continue
-                if not self.has_common_range(segment1,segment2,line1,line2):continue
-
-                d1 = tools_render_CV.distance_point_to_line(line1, line2[:2])
-                d2 = tools_render_CV.distance_point_to_line(line1, line2[2:])
-                d3 = tools_render_CV.distance_point_to_line(line2, line1[:2])
-                d4 = tools_render_CV.distance_point_to_line(line2, line1[2:])
-                if numpy.any(numpy.isnan((d1,d2,d3,d4))):continue
-                if (d1>tol_max or d2>tol_max):continue
-                if (d3>tol_max or d4>tol_max):continue
-                if d1 < tol_min and d2 < tol_min and d3 < tol_min and d4 < tol_min: continue
-
-                len2 = numpy.linalg.norm(line2[:2] - line2[2:])
-                len1 = numpy.linalg.norm(line1[:2] - line1[2:])
-                d12 = max(numpy.linalg.norm(line1[:2] - line2[2:]), numpy.linalg.norm(line1[2:] - line2[2:]))
-                d21 = max(numpy.linalg.norm(line1[:2] - line2[2:]), numpy.linalg.norm(line1[2:] - line2[2:]))
-
-                if (d12>len2+5) and (d21>len1+5):continue
-
-                p1,p2,d = tools_render_CV.distance_between_lines(line1,line2,clampAll=True)
-                if d>tol_max:continue
-
-                has_pair[l1]=1
-                has_pair[l2]=1
-
-        idx_good = (has_pair>0)
-        segments = numpy.array(segments)
-
-        if do_debug:
-            #colors_all = tools_IO.get_colors(len(segments), shuffle=True)
-            #image_segm = self.Fornaciari.draw_segments(32+0*image_edges, segments, colors_all,w=1,put_text=True)
-            #cv2.imwrite(self.folder_out + base_name+'_1_segm.png', image_segm)
-
-            #for i,segment in enumerate(segments):
-            #    image_segm = self.Fornaciari.draw_segments(32 + 0 * image_edges, [segment], colors_all[i].tolist(), w=1)
-            #    cv2.imwrite(self.folder_out + base_name + '_segm_%03d.png'%i, image_segm)
-
-            image_segm = numpy.full((self.H, self.W, 3), 32, dtype=numpy.uint8)
-            image_segm = utils_draw.draw_segments(image_segm, segments,(90, 90, 90), w=1)
-            segments[~idx_good] = None
-            image_segm = utils_draw.draw_segments(image_segm, segments, (0, 0, 255), w=1)
-            image_segm = utils_draw.draw_lines(image_segm, [line_upper_bound], (0, 0, 255), w=1)
-            cv2.imwrite(self.folder_out + base_name+'_2_fltr.png', image_segm)
-
-        return segments[idx_good], lines[idx_good]
 # ----------------------------------------------------------------------------------------------------------------

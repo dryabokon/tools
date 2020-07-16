@@ -22,7 +22,7 @@ numpy.set_printoptions(precision=2)
 # ----------------------------------------------------------------------------------------------------------------------
 class VBO(object):
     def __init__(self):
-        self.n_faces = 6000
+        self.n_faces = 16000
         self.id = numpy.full(9 * self.n_faces, -1)
         self.cnt = 0
         self.marker_positions = []
@@ -31,6 +31,7 @@ class VBO(object):
         self.normal_offset = self.color_offset   + 3*3*self.n_faces
         self.texture_offset = self.normal_offset + 3*3*self.n_faces
         self.data = numpy.full(self.texture_offset+3*2*self.n_faces, 0.0,dtype='float32')
+
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -88,8 +89,12 @@ class render_GL3D(object):
         self.marker_scale = 0.015
         self.scale = scale
         self.do_normalize_model_file = do_normalize_model_file
-        self.bg_color  = numpy.array([76, 76, 76,1])/255
+        #self.bg_color  = numpy.array([76, 76, 76,1])/255
+        self.bg_color  = numpy.array([0, 0, 0.0,1])/255
         self.mat_color = numpy.array([188, 136, 113]) / 255.0
+        #self.mat_color = numpy.array([1,1,1.0])
+        self.wired_mode = False
+        self.skeenless_mode = False
 
         self.W,self.H  = W,H
         glfw.window_hint(glfw.VISIBLE, is_visible)
@@ -100,11 +105,13 @@ class render_GL3D(object):
 
         self.my_VBO = VBO()
         self.object = self.my_VBO.append_object(filename_obj,self.mat_color,self.do_normalize_model_file)
-        self.__init_texture(filename_texture)
+        self.filename_texture = filename_texture
+        self.init_texture(self.filename_texture)
 
 
         self.bind_VBO()
         self.reset_view()
+        self.ctrl_pressed = False
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -160,7 +167,7 @@ class render_GL3D(object):
         glUseProgram(self.shader)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def __init_texture(self, filename_texture=None):
+    def init_texture(self, filename_texture=None):
 
         if filename_texture is not None:
             texture_image = cv2.imread(filename_texture)
@@ -184,7 +191,7 @@ class render_GL3D(object):
         glEnable(GL_TEXTURE_2D)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def bind_VBO(self):
+    def bind_VBO(self,wired_mode=False):
 
         glBindBuffer(GL_ARRAY_BUFFER, glGenBuffers(1))
 
@@ -211,32 +218,31 @@ class render_GL3D(object):
         glClearColor(self.bg_color[0], self.bg_color[1], self.bg_color[2], self.bg_color[3])
         glEnable(GL_DEPTH_TEST)
 
+        if wired_mode:
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+        else:
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_projection_perspective(self,aspect_x=0.5,aspect_y=0.5):
-        near, far = 1, 1000
+        near, far = 1.0, 10000.0
         scale = (0.5/aspect_x)
-        fx,fy = self.W/scale,self.H/scale
-        width,height = self.W/scale, self.H/scale
-        cx,cy = (fx/2)/scale, (fy/2)/scale
-
-
-
 
         self.mat_projection = numpy.zeros((4,4),dtype=float)
 
-        self.mat_projection[0][0] = 2.0
+        self.mat_projection[0][0] = 2.0*scale
         self.mat_projection[0][1] = 0.0
         self.mat_projection[0][2] = 0.0
         self.mat_projection[0][3] = 0.0
 
         self.mat_projection[1][0] = 0.0
-        self.mat_projection[1][1] = 2.0
+        self.mat_projection[1][1] = 2.0*scale
         self.mat_projection[1][2] = 0.0
         self.mat_projection[1][3] = 0.0
 
-        self.mat_projection[2][0] = 1.0 - 2.0 * cx / width
-        self.mat_projection[2][1] = 2.0 * cy / height - 1.0
+        self.mat_projection[2][0] = 0
+        self.mat_projection[2][1] = 0
         self.mat_projection[2][2] = (far + near) / (near - far)
         self.mat_projection[2][3] = -1.0
 
@@ -244,8 +250,6 @@ class render_GL3D(object):
         self.mat_projection[3][1] = 0.0
         self.mat_projection[3][2] = 2.0 * far * near / (near - far)
         self.mat_projection[3][3] = 0.0
-
-        #aspect_x_check = 0.5 * (1 - self.mat_projection[2][0])
 
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "projection"), 1, GL_FALSE, self.mat_projection)
         return
@@ -270,32 +274,16 @@ class render_GL3D(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def init_mat_view_ETU(self, eye, target, up):
 
-        self.eye = numpy.array(eye,dtype=numpy.float)
-        self.target = numpy.array(target,dtype=numpy.float)
-        self.up = numpy.array(up,dtype=numpy.float)
-
-        self.mat_view = pyrr.matrix44.create_look_at(-self.eye , -self.target,self.up )
+        #self.xxx= pyrr.matrix44.create_look_at(eye, target, up)
+        self.mat_view = tools_pr_geom.ETU_to_mat_view(eye,target,up)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
-
-        #check
-        #rvec, tvec = tools_pr_geom.decompose_to_rvec_tvec(self.mat_view, do_flip=True)
-        #print(numpy.array(rvec), numpy.array(tvec))
-        #E,T,U = tools_pr_geom.mat_view_to_ETU(self.mat_view)
-        #print(numpy.array(eye,dtype=float),numpy.array(target,dtype=float),numpy.array(up,dtype=float))
-        #print(numpy.array(E),numpy.array(T),numpy.array(U))
-        #print()
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_view_RT(self, rvec,tvec,do_flip=True,do_rodriges=False):
+
         self.mat_view = tools_pr_geom.compose_RT_mat(rvec,tvec,do_flip,do_rodriges)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
-
-        #check
-        #rvec_view, tvec_view = tools_pr_geom.decompose_to_rvec_tvec(self.mat_view,do_flip=do_flip)
-        #print(rvec,tvec)
-        #print(rvec_view,tvec_view)
-        #print()
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -334,27 +322,36 @@ class render_GL3D(object):
         if do_debug:image = self.draw_debug_info(image)
         return image
 # ----------------------------------------------------------------------------------------------------------------------
-    def init_perspective_view0(self, rvec, tvec,aperture_x=0.5,aperture_y=0.5,scale=(1,1,1)):
-        self.__init_mat_view_RT(numpy.array(rvec,dtype=float),numpy.array(tvec,dtype=float),do_rodriges=True,do_flip=True)
-        self.__init_mat_model((0, 0, 0), (0, 0, 0))
-        self.__init_mat_transform(scale)
-        self.__init_mat_projection_perspective(aperture_x,aperture_x)
-        self.eye,self.target,self.up = tools_pr_geom.mat_view_to_ETU(self.mat_view)
-        return
-# ----------------------------------------------------------------------------------------------------------------------
     def init_perspective_view(self, rvec, tvec, aperture_x=0.5, aperture_y=0.5, scale=(1, 1, 1)):
         tvec = numpy.array(tvec, dtype=float)
         self.__init_mat_view_RT(numpy.array(rvec, dtype=float), tvec, do_rodriges=True,do_flip=True)
         self.__init_mat_model((0, 0, 0), (0, 0, 0))
         self.__init_mat_transform(scale)
         self.__init_mat_projection_perspective(aperture_x,aperture_x)
-
-        self.eye, self.target, self.up = tools_pr_geom.mat_view_to_ETU(self.mat_view)
-        
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def get_image_perspective(self, rvec, tvec, aperture_x=0.5,aperture_y=0.5,scale=(1,1,1),do_debug=False):
+    def get_image_perspective(self, rvec, tvec, aperture_x=0.5,aperture_y=0.5,scale=(1,1,1),lookback=False,do_debug=False):
         self.init_perspective_view(rvec, tvec, aperture_x,aperture_y,scale)
+        if lookback:
+            self.mat_view*=-1
+            self.mat_view[-1,-1]*=-1
+            glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
+        return self.get_image(do_debug)
+# ----------------------------------------------------------------------------------------------------------------------
+    def get_image_perspective_M(self, mat_M, aperture_x=0.5, aperture_y=0.5, scale=(1, 1, 1),lookback=False, do_debug=False):
+
+        self.mat_view = mat_M
+        if lookback:
+            self.mat_view*=-1
+            self.mat_view[-1,-1]*=-1
+
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
+
+        #please remove!!! keep 0
+        self.__init_mat_model((0, 0, numpy.pi), (0, 0, 0))
+        self.__init_mat_transform(scale)
+        self.__init_mat_projection_perspective(aperture_x, aperture_x)
+
         return self.get_image(do_debug)
 # ----------------------------------------------------------------------------------------------------------------------
     def init_ortho_view(self, rvec, tvec, scale_factor):
@@ -370,33 +367,38 @@ class render_GL3D(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def draw_debug_info(self,image):
 
-        result = image.copy()
-        rvec_model, tvec_model, rvec_view, tvec_view = tools_pr_geom.decompose_model_view_to_RRTT(self.mat_model, self.mat_view)
-        modelview = pyrr.matrix44.multiply(self.mat_model, self.mat_view)
-
-
         if self.projection_type=='P':
             #print('[ %1.2f, %1.2f, %1.2f], [%1.2f,  %1.2f,  %1.2f]' % (rvec_i[0], rvec_i[1], rvec_i[2], tvec_i[0], tvec_i[1], tvec_i[2]))
-            result = tools_render_CV.draw_points_numpy_MVP(self.object.coord_vert, result, self.mat_projection,self.mat_view, self.mat_model, self.mat_trns)
+            result = tools_render_CV.draw_points_numpy_MVP(self.object.coord_vert, image, self.mat_projection,self.mat_view, self.mat_model, self.mat_trns,do_debug=False)
+            #result = cv2.flip(result,1)
         else:
             scale_factor = 1 / self.mat_projection[0, 0]
             #print('[ %1.2f, %1.2f, %1.2f], [%1.2f,  %1.2f,  %1.2f], %1.2f' % (rvec_i[0], rvec_i[1], rvec_i[2], tvec_i[0], tvec_i[1], tvec_i[2], scale_factor))
-            self.draw_vec(numpy.array((scale_factor,0,0,0)), 20, 660, result)
+            result = self.draw_vec(numpy.array((scale_factor,0,0,0)), 20, 660, image)
             result = tools_render_CV.draw_points_numpy_MVP_ortho(self.object.coord_vert, result, self.mat_projection, self.mat_view, self.mat_model, self.mat_trns)
-
 
         self.draw_mat(self.mat_trns,       20, 20, result)
         self.draw_mat(self.mat_model,      20, 120, result)
         self.draw_mat(self.mat_view,       20, 220, result)
         self.draw_mat(self.mat_projection, 20, 320, result)
 
+        E,T,U = tools_pr_geom.mat_view_to_ETU(self.mat_view)
+        #Y,P,R = tools_pr_geom.mat_view_to_YPR(self.mat_view)
+        rvec = tools_pr_geom.rotationMatrixToEulerAngles(self.mat_view[:3, :3])
+
+        self.draw_vec(E, 20, 420, result,'Eye')
+        self.draw_vec(rvec*180/numpy.pi, 20, 440, result, 'rotation')
+
+
         return result
 # ----------------------------------------------------------------------------------------------------------------------
-    def draw_vec(self, V, posx, posy, image):
+    def draw_vec(self, V, posx, posy, image,text=None):
         if V.shape[0] == 4:
             string1 = '%+1.2f %+1.2f %+1.2f %+1.2f' % (V[0], V[1], V[2], V[3])
         else:
             string1 = '%+1.2f %+1.2f %+1.2f' % (V[0], V[1], V[2])
+
+        if text is not None:string1 = text + ' ' + string1
         image = cv2.putText(image, '{0}'.format(string1), (posx, posy), cv2.FONT_HERSHEY_SIMPLEX, 0.4,(128, 128, 0), 1, cv2.LINE_AA)
         return image
 # ----------------------------------------------------------------------------------------------------------------------
@@ -410,9 +412,16 @@ class render_GL3D(object):
         return image
 # ----------------------------------------------------------------------------------------------------------------------
     def stage_data(self,folder_out):
-        cv2.imwrite(folder_out + 'screenshot.png',self.get_image(do_debug=True))
-        self.save_markers(folder_out+'markers.txt',do_transform=False)
-        self.object.export_mesh(folder_out+'mesh.obj',self.object.coord_vert,self.object.idx_vertex,do_transform=False)
+        filenames = tools_IO.get_filenames(folder_out,'screenshot*.png')
+        ids = [(f.split('.')[0]).split('_')[1] for f in filenames]
+        if len(ids)>0:
+            i = 1+numpy.array(ids,dtype=int).max()
+        else:
+            i=0
+
+        cv2.imwrite(folder_out + 'screenshot_%03d.png'%i,self.get_image(do_debug=True))
+        #self.save_markers(folder_out+'markers.txt',do_transform=False)
+        #self.object.export_mesh(folder_out+'mesh.obj',self.object.coord_vert,self.object.idx_vertex,do_transform=False)
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -444,7 +453,7 @@ class render_GL3D(object):
     def start_rotation(self):
         self.on_rotate = True
         self.mat_model_rotation_checkpoint = self.mat_model.copy()
-        self.mat_view_rotation_checkpoint = self.eye, self.target, self.up
+        self.mat_view_rotation_checkpoint = self.mat_view.copy()
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def stop_rotation(self):
@@ -456,7 +465,7 @@ class render_GL3D(object):
     def start_translation(self):
         self.on_translate = True
         self.mat_model_translation_checkpoint = self.mat_model.copy()
-        self.mat_view_translation_checkpoint = self.eye, self.target, self.up
+        self.mat_view_translation_checkpoint = self.mat_view.copy()
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def stop_translation(self):
@@ -481,10 +490,11 @@ class render_GL3D(object):
         self.on_remove = False
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def scale_projection(self,scale):
-        aspect_x = 1/self.mat_projection[0,0]
-        aspect_y = 1/self.mat_projection[1,1]
-        self.__init_mat_projection(aspect_x*scale,aspect_y*scale)
+    def scale_projection(self,factor):
+        scale_current = self.mat_projection[0][0]/2
+        aspect_current  = (0.5 / scale_current)
+
+        self.__init_mat_projection(factor*aspect_current,factor*aspect_current)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def translate_view_by_scale(self, scale):
@@ -502,13 +512,96 @@ class render_GL3D(object):
     def translate_view(self, delta_translate):
 
         if self.on_translate and self.mat_view_translation_checkpoint is not None:
-            self.eye,self.target,self.up = self.mat_view_translation_checkpoint
+            self.mat_view = self.mat_view_translation_checkpoint
 
-        self.eye+=delta_translate
-        self.target+=delta_translate
+        T = pyrr.matrix44.create_from_translation(numpy.array(delta_translate))
+        TT = pyrr.matrix44.multiply(pyrr.matrix44.inverse(self.mat_view),pyrr.matrix44.multiply(T,self.mat_view))
+        self.mat_view = pyrr.matrix44.multiply(self.mat_view,TT)
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
 
-        self.init_mat_view_ETU(self.eye, self.target, self.up)
         return
+# ----------------------------------------------------------------------------------------------------------------------
+    def translate_view_v2(self, delta_translate):
+
+        if self.on_translate and self.mat_view_translation_checkpoint is not None:
+            self.mat_view = self.mat_view_translation_checkpoint
+
+        E, T, U = tools_pr_geom.mat_view_to_ETU(self.mat_view)
+        T-= delta_translate
+        E-= delta_translate
+        self.init_mat_view_ETU(E, T, U)
+
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def rotate_view(self, delta_angle):
+        if self.on_rotate and self.mat_view_rotation_checkpoint is not None:
+            self.mat_view = self.mat_view_rotation_checkpoint
+
+        R = pyrr.matrix44.create_from_eulers(numpy.array((delta_angle[0], delta_angle[1], delta_angle[2])))
+        RR = pyrr.matrix44.multiply(pyrr.matrix44.multiply(self.mat_view, R), pyrr.matrix44.inverse(self.mat_view))
+        self.mat_view = pyrr.matrix44.multiply(RR, self.mat_view)
+
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def center_view(self):
+
+        tol = 0.5*numpy.pi/180
+        is_good= False
+        while not is_good:
+            self.center_view_t(0)
+            self.center_view_r(2)
+            self.center_view_r(1)
+            rvec = tools_pr_geom.rotationMatrixToEulerAngles(self.mat_view[:3, :3])
+            is_good = abs(rvec[1])<tol and abs(rvec[2])<tol
+
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def center_view_t(self, idx):
+        E, T, U = tools_pr_geom.mat_view_to_ETU(self.mat_view)
+
+        value = (self.object.coord_vert[:, idx].max() + self.object.coord_vert[:, idx].min()) / 2
+        t = numpy.zeros(3)
+        t[idx] += E[idx]-value
+
+
+        self.translate_view(t)
+
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def center_view_r(self,idx):
+
+        rvec = tools_pr_geom.rotationMatrixToEulerAngles(self.mat_view[:3, :3])
+        delta = numpy.zeros(3)
+        delta[idx] += rvec[idx]
+        self.rotate_view(delta)
+
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def regularize_mat_RT(self,mat,do_flip=False,do_rodriges=False):
+        rvec, tvec = tools_pr_geom.decompose_to_rvec_tvec(mat)
+        mat_new = tools_pr_geom.compose_RT_mat(rvec, tvec, do_flip=do_flip, do_rodriges=do_rodriges)
+        #rvec2, tvec2 = tools_pr_geom.decompose_to_rvec_tvec(mat_new)
+        #print(rvec, tvec)
+        #print(rvec2, tvec2)
+        #print()
+
+        #print(mat)
+        #print(mat_new)
+        #print()
+
+        return mat_new
+# ----------------------------------------------------------------------------------------------------------------------
+    def regularize_mat_ETU(self,mat):
+
+        eye, target, up = tools_pr_geom.mat_view_to_ETU(mat)
+        mat_new = tools_pr_geom.ETU_to_mat_view(eye, target, up)
+        eye2, target2, up2 = tools_pr_geom.mat_view_to_ETU(mat_new)
+        #print(eye, target, up)
+        #print(eye2, target2, up2)
+        #print()
+
+        return mat_new
 # ----------------------------------------------------------------------------------------------------------------------
     def translate_ortho(self, delta_translate):
         factor = 2/self.mat_projection[0,0]
@@ -518,6 +611,7 @@ class render_GL3D(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def scale_model(self, scale_factor):
         self.mat_trns*=scale_factor
+        self.mat_trns[3,3]=1
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "transform"), 1, GL_FALSE, self.mat_trns)
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -532,13 +626,6 @@ class render_GL3D(object):
         self.mat_trns = pyrr.matrix44.multiply(M, self.mat_trns)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "transform"), 1, GL_FALSE, self.mat_trns)
         #self.reset_view(skip_transform=True)
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def inverce_screen_Y(self):
-        #self.mat_projection[0,0]*=-1
-        #glUniformMatrix4fv(glGetUniformLocation(self.shader, "transform"), 1, GL_FALSE, self.mat_projection)
-        #self.mat_projection = pyrr.matrix44.create_orthogonal_projection(left, right, bottom, top, near, far)
-        #glUniformMatrix4fv(glGetUniformLocation(self.shader, "projection"), 1, GL_FALSE, self.mat_projection)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def transform_model(self,mode):
@@ -591,19 +678,6 @@ class render_GL3D(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def rotate_view(self, delta_angle):
-        if self.on_rotate and self.mat_view_rotation_checkpoint is not None:
-            self.eye,self.target,self.up = self.mat_view_rotation_checkpoint
-
-
-        F = self.target - self.eye
-        F = tools_pr_geom.apply_rotation(numpy.array(delta_angle, dtype=float), F)[:3]
-        self.up = tools_pr_geom.apply_rotation(numpy.array(delta_angle, dtype=float), self.up)[:3]
-        self.target = self.eye + F
-
-        self.init_mat_view_ETU(self.eye, self.target, self.up)
-        return
-# ----------------------------------------------------------------------------------------------------------------------
     def resize_window(self, W, H):
         self.W = W
         self.H = H
@@ -619,7 +693,7 @@ class render_GL3D(object):
         self.stop_translation()
 
         self.__init_mat_light(numpy.array((-math.pi / 2, -math.pi / 2, 0)))
-        self.__init_mat_projection()
+        self.__init_mat_projection(0.5,0.5)
         self.__init_mat_model((0, 0, 0), (0, 0, 0))
         if not skip_transform:
             self.__init_mat_transform(self.scale)
@@ -627,7 +701,11 @@ class render_GL3D(object):
         obj_min = self.object.coord_vert.min()
         obj_max = self.object.coord_vert.max()
 
-        self.init_mat_view_ETU(eye=(0, 0, +5 * (obj_max - obj_min)), target=(0, 0, 0), up=(0, -1, 0))
+        eye = numpy.array((0, 0, +5 * (obj_max - obj_min)))
+        target = eye - numpy.array((0, 0, 1.0))
+        up  = numpy.array((0, -1, 0.0))
+
+        self.init_mat_view_ETU(eye,target,up)
         #self.__init_mat_view_RT((0,0,0),(0,0,+5 * (obj_max - obj_min)))
 
         return
