@@ -221,7 +221,7 @@ def load_mat(filename, dtype=numpy.chararray, delim='\t'):
     if N==0:
         return mat
     elif N==1:
-        mat  = numpy.array([numpy.genfromtxt(filename, dtype=dtype, delimiter=delim)])
+        mat  = numpy.array([numpy.genfrpickleomtxt(filename, dtype=dtype, delimiter=delim)])
     else:
         mat = numpy.genfromtxt(filename, dtype=dtype, delimiter=delim)
     return mat
@@ -718,6 +718,7 @@ def load_if_exists(folder_in,suffix,name,use_cache=False):
     with open(filename_in, "rb") as fp:
         X = pickle.load(fp)
         success = True
+
     return X,success
 # ---------------------------------------------------------------------------------------------------------------------
 def write_cache(folder_out,suffix,name,X):

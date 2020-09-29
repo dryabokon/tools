@@ -5,6 +5,7 @@ from scipy import ndimage
 # --------------------------------------------------------------------------------------------------------------------
 import tools_image
 import tools_IO
+import tools_draw_numpy
 import tools_Skeletone
 import tools_filter
 import tools_plot
@@ -22,7 +23,7 @@ class processor_Slices(object):
         self.zebra_rotations = 3
         self.gray_prev = None
 
-        self.Skelenonizer = tools_Skeletone.Skelenonizer()
+        self.Skelenonizer = tools_Skeletone.Skelenonizer(folder_out)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def get_labeled_image(self,mask):
@@ -52,7 +53,7 @@ class processor_Slices(object):
 
         granules = {}
         the_range = numpy.arange(2, 26, 1)
-        colors = tools_IO.get_colors(len(the_range), colormap='viridis')
+        colors = tools_draw_numpy.get_colors(len(the_range), colormap='viridis')
         empty = numpy.zeros((binarized.shape[0], binarized.shape[1], 3), dtype=numpy.uint8)
         image_result = empty.copy()
         kernel = numpy.full((3, 3), 255, numpy.uint8)
@@ -75,18 +76,24 @@ class processor_Slices(object):
 
         granules = {}
         the_range = numpy.arange(2, 26, 1)
-        colors = tools_IO.get_colors(len(the_range), colormap='viridis')
+        colors = tools_draw_numpy.get_colors(len(the_range), colormap='viridis')
         kernel = numpy.full((3, 3), 255, numpy.uint8)
         empty = numpy.zeros((binarized.shape[0], binarized.shape[1], 3), dtype=numpy.uint8)
         image_result = empty.copy()
 
         responce = numpy.zeros((len(the_range),binarized.shape[0], binarized.shape[1]), dtype=numpy.uint8)
+        image_I = tools_filter.integral_2d(binarized,pad=the_range[-1])
+
 
         for i in range(len(the_range)):
             n = the_range[i]
-            A = tools_filter.sliding_2d(binarized, -n, n, -n, n).astype(numpy.uint8)
-            A = cv2.dilate(A, kernel=kernel, iterations=n - 1)
-            responce[i]=1*(A == 255)
+            #A0 = tools_filter.sliding_2d(binarized, -n, n, -n, n).astype(numpy.uint8)
+            A = tools_filter.sliding_I_2d(image_I, -n, n, -n, n,pad=the_range[-1]).astype(numpy.uint8)
+            B = cv2.dilate(A, kernel=kernel, iterations=n - 1)
+            responce[i]=1*(B == 255)
+            #cv2.imwrite(self.folder_out + 'A_%02d.png' % the_range[i],A)
+            #cv2.imwrite(self.folder_out + 'B_%02d.png' % the_range[i],B)
+            #cv2.imwrite(self.folder_out + 'R_%02d.png' % the_range[i],255*responce[i])
 
         mask = 0*responce[-1]
 
@@ -107,10 +114,13 @@ class processor_Slices(object):
 
         time_start = time.time()
         histo, image_grains = self.get_granules(binarized)
+        histo2, image_grains2 = self.get_granules(255-binarized)
 
         if do_debug:
-            #tools_plot.plot_histo(histo, self.folder_out + base_name + '_histo.png',colors=tools_IO.get_colors(len(histo), colormap='viridis'))
+            #tools_plot.plot_histo(histo, self.folder_out + base_name + '_histo.png',colors=tools_draw_numpy.get_colors(len(histo), colormap='viridis'))
             cv2.imwrite(self.folder_out + base_name + '_grains.png',image_grains)
+            cv2.imwrite(self.folder_out + base_name + '_grains2.png', image_grains2)
+
 
         print('%s - %1.2f sec' % (base_name, (time.time() - time_start)))
 

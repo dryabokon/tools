@@ -99,10 +99,12 @@ def plot_hystogram(plt,H,label=None,SMAPE=None,xmin=None,xmax=None,ymax=None,fil
         plt.savefig(filename_out)
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def plot_series(plt,S,labels=None,SMAPE=None):
+def plot_series(S,labels=None,SMAPE=None):
 
     colors_list = list(('blue','gray', 'red', 'purple', 'green', 'orange', 'cyan', 'black','pink','darkblue','darkred','darkgreen', 'darkcyan'))
     patches = []
+
+    plt.clf()
 
     x=numpy.arange(0,S.shape[0],1)
 
@@ -117,40 +119,41 @@ def plot_series(plt,S,labels=None,SMAPE=None):
         else:
             patches.append(mpatches.Patch(color=color, label=labels[i]+' %1.2f%%'% SMAPE[i]))
 
+    plt.tight_layout()
     plt.grid()
+
 
     if labels is not None:
         plt.legend(handles=patches[1:],loc='upper left')
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def plot_two_series(filename1, filename2, caption=''):
+def plot_two_series(filename1, filename2, caption='', filename_out=None):
 
     mat1 = tools_IO.load_mat(filename1, dtype=numpy.float32, delim='\t')
     mat2 = tools_IO.load_mat(filename2, dtype=numpy.float32, delim='\t')
 
+    fig = plt.figure(figsize=(12, 6))
+
     if len(mat1.shape)==1:
         SMAPE = calc_series_SMAPE(numpy.array([mat1, mat2]).T)
         labels = [filename1.split('/')[-1], filename2.split('/')[-1]]
-        fig = plt.figure(figsize=(12, 6))
-        fig.subplots_adjust(hspace=0.01)
-        fig.canvas.set_window_title(caption)
-        plot_series(plt.subplot(1, 1, 1), numpy.vstack((mat1,mat2)).T, labels=labels,SMAPE=SMAPE)
-        plt.tight_layout()
+        plot_series(numpy.vstack((mat1,mat2)).T, labels=labels,SMAPE=SMAPE)
+
     else:
-        fig = plt.figure(figsize=(12, 6))
-        fig.subplots_adjust(hspace=0.01)
-        fig.canvas.set_window_title(caption)
         labels = [filename1.split('/')[-1], filename2.split('/')[-1]]
         S = numpy.minimum(mat1.shape[1],5)
         for i in range(0,S):
             SMAPE = calc_series_SMAPE(numpy.array([mat1[:,i], mat2[:,i]]).T)
-            plot_series(plt.subplot(S, 1, i+1), numpy.vstack((mat1[:,i], mat2[:,i])).T, labels=labels, SMAPE=SMAPE)
+            plot_series(numpy.vstack((mat1[:,i], mat2[:,i])).T, labels=labels, SMAPE=SMAPE)
         plt.tight_layout()
+
+    if filename_out is not None:
+        plt.savefig(filename_out)
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
-def plot_multiple_series(filename_fact, list_filenames, target_column=0,caption=''):
+def plot_multiple_series(filename_fact, list_filenames, target_column=0,caption='',filename_out=None):
 
     fig = plt.figure(figsize=(12, 6))
     fig.subplots_adjust(hspace =0.01)
@@ -179,11 +182,11 @@ def plot_multiple_series(filename_fact, list_filenames, target_column=0,caption=
     SMAPE = calc_series_SMAPE(Series)
 
     for i in range(1, S):
-        plot_series(plt.subplot(S-1,1,i), Series[:,[0,i]],labels=Labels_train[[0,i]],SMAPE=SMAPE[[0,i]])
-
+        plot_series(Series[:,[0,i]],labels=Labels_train[[0,i]],SMAPE=SMAPE[[0,i]])
 
     plt.tight_layout()
-
+    if filename_out is not None:
+        plt.savefig(filename_out)
 
     return
 # ---------------------------------------------------------------------------------------------------------------------

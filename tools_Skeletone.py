@@ -22,7 +22,7 @@ class Skelenonizer(object):
         else:
             gray = image
         binarized = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 27, 0)
-        binarized[gray>230]=255
+        #binarized[gray>230]=255
         binarized[gray<25 ]=0
 
         return binarized
@@ -237,7 +237,7 @@ class Skelenonizer(object):
                 has_pair[l2]=1
 
         idx_good = (has_pair>0)
-        segments = numpy.array(segments)
+        segments = numpy.array(segments,dtype=object)
 
         if do_debug:
             empty = numpy.full((self.H,self.W,3),32,dtype=numpy.uint8)

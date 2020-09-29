@@ -43,9 +43,9 @@ class Ellipse_Processor(object):
             if numpy.any(numpy.isnan(segment)): continue
 
             for point in segment:
-                # cv2.circle(result, (int(point[0]), int(point[1])), 1, clr, w)
-                if 0 <= point[1] < H and 0 <= point[0] < W:
-                    result[int(point[1]), int(point[0])] = clr
+                cv2.circle(result, (int(point[0]), int(point[1])), 1, clr, w)
+                #if 0 <= point[1] < H and 0 <= point[0] < W:
+                #    result[int(point[1]), int(point[0])] = clr
 
             if put_text:
                 x, y = int(segment[:, 0].mean() + -30 + 60 * numpy.random.rand()), int(
@@ -298,14 +298,15 @@ class Ellipse_Processor(object):
 
                 if do_debug and self.folder_out is not None:
                     image_debug  = tools_image.desaturate(image)
-                    image_debug = self.draw_segments(image_debug, [segments[s1]], color=(90,0,255), w=4)
-                    image_debug = self.draw_segments(image_debug, [segments[s2]], color=(0,90,255), w=4)
+                    image_debug = self.draw_segments(image_debug, segments, color=(0, 0, 128), w=8)
+                    image_debug = self.draw_segments(image_debug, [segments[s1]], color=(90,0,255), w=8)
+                    image_debug = self.draw_segments(image_debug, [segments[s2]], color=(0,90,255), w=8)
 
                     center = (int(ellipse[0][0]), int(ellipse[0][1]))
                     axes = (int(ellipse[1][0] / 2), int(ellipse[1][1] / 2))
                     rotation_angle = ellipse[2]
                     cv2.ellipse(image_debug, center, axes, rotation_angle, startAngle=0, endAngle=360, color=(0, 0, 190), thickness=1)
-                    cv2.imwrite(self.folder_out+'ellips_%03d_%03d.png'%(s1,s2),image_debug)
+                    cv2.imwrite(self.folder_out+base_name+'ellips_%03d_%03d.png'%(s1,s2),image_debug)
 
         ellipse,quality = None,0
         if len(Q)>0:

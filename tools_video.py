@@ -2,7 +2,6 @@ import cv2
 import time
 import tools_IO
 from pytube import YouTube
-import numpy
 #--------------------------------------------------------------------------------------------------------------------------
 def capture_image_to_disk(out_filename):
 
@@ -102,13 +101,30 @@ def grab_youtube_video(URL,out_path, out_filename):
 
 
     yt = YouTube(URL)
-    streams = yt.streams.all()
-    stream = streams[3]
+    streams = yt.streams
+    stream = streams[1]
 
-
-    #yt.streams.filter(file_extension='mp4').all()
-
-    #stream = yt.streams.get_by_itag('22')()
     stream.download(out_path,out_filename)
     return
 # ----------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

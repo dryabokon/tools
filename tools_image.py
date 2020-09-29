@@ -561,7 +561,7 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
 
     if do_debug: cv2.imwrite('./images/output/mask0.png', 255 * mask_bin)
 
-    mask = sliding_2d(mask_bin,filter_size//2,filter_size//2,'avg')
+    mask = sliding_2d(mask_bin,-filter_size//2,filter_size//2,-filter_size//2,filter_size//2,'avg')
     if do_debug: cv2.imwrite('./images/output/mask1.png', 255 * mask)
 
     mask = numpy.clip(2 * mask, 0, 1.0)
@@ -571,12 +571,12 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
         large = large.astype(numpy.float)
         small = small.astype(numpy.float)
 
-        cnt_small = sliding_2d(1-mask_bin,filter_size,filter_size,'cnt')
+        cnt_small = sliding_2d(1-mask_bin,-filter_size,filter_size,-filter_size,filter_size,'cnt')
         for c in range(3):
 
-            avg_large = sliding_2d(large[:, :, c],filter_size,filter_size,'avg')
+            avg_large = sliding_2d(large[:, :, c],-filter_size,filter_size,-filter_size,filter_size,'avg')
 
-            sum_small = sliding_2d(small[:, :, c],filter_size,filter_size,'cnt')
+            sum_small = sliding_2d(small[:, :, c],-filter_size,filter_size,-filter_size,filter_size,'cnt')
             avg_small = sum_small/cnt_small
             if do_debug: cv2.imwrite('./images/output/avg_large.png', avg_large)
             if do_debug: cv2.imwrite('./images/output/avg_small.png', avg_small)
@@ -753,7 +753,7 @@ def skew_hor(A,value,do_inverce=False):
     return B
 # --------------------------------------------------------------------------------------------------------------------
 def do_resize(image, dsize):
-    image_resized = 255*resize(image, (dsize[1],dsize[0]),anti_aliasing=True)
+    image_resized = resize(image, (dsize[1],dsize[0]),anti_aliasing=True)
     image_resized = numpy.clip(0,255,image_resized).astype(numpy.uint8)
     return image_resized
 # --------------------------------------------------------------------------------------------------------------------

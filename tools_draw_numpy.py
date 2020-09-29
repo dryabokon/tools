@@ -70,7 +70,7 @@ def draw_convex_hull_cv(image, points, color=(255,255,255),transperency=0.0):
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_convex_hull(image,points,color=(255, 0, 0),transperency=0.0):
     pImage = Image.fromarray(image)
-    draw = ImageDraw.Draw(pImage, 'RGBA')
+    draw = ImageDraw.Draw(pImage, 'RGB')
 
     hull = ConvexHull(numpy.array(points, dtype=numpy.int))
     cntrs = numpy.array(points, dtype=numpy.int)[hull.vertices]
@@ -135,6 +135,7 @@ def get_colors(N, shuffle = False,colormap = 'jet',alpha_blend=None):
     colors = numpy.array(colors, dtype=numpy.uint8)
 
     if shuffle:
+        numpy.random.seed(1024)
         idx = numpy.random.choice(len(colors), len(colors))
         colors = colors[idx]
     return numpy.array(colors)
@@ -246,23 +247,76 @@ def draw_points(image, points,color=(255,255,255),w=4,put_text=False):
 
     return result
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_signals(signals,lanes=None):
+def draw_signals(signals,lanes=None,colors=None,w=3):
 
-    image_signal = numpy.full((255, len(signals[0]), 3), 32, dtype=numpy.uint8)
-    colors = get_colors(len(signals),alpha_blend=0.1)
+    height = 255
+
+    image_signal = numpy.full((height, len(signals[0]), 3), 32, dtype=numpy.uint8)
+    if colors is None:
+        colors = get_colors(len(signals),alpha_blend=0.1)
+
     for signal,color in zip(signals,colors):
         if signal is None: continue
-        #med = int(numpy.median(signal))
-        #cv2.line(image_signal, (0, med), (len(signal), med), color=color.tolist(), thickness=1)
         for col, value in enumerate(signal):
-            if not numpy.isnan(value): cv2.circle(image_signal, (col, 255 - int(value)), radius=3, color=color.tolist(),thickness=-1)
+            if value==45:
+                print(color)
+            if not numpy.isnan(value):
+                if w>1:
+                    cv2.circle(image_signal, (col, height - int(value)), radius=w, color=color.tolist(),thickness=-1)
+                else:
+                    cv2.line(image_signal,(col, height - int(value)),(col, height - int(value)),color=color.tolist(),thickness=1)
 
     if lanes is not None:
         if lanes[0] is not None:
-            cv2.line(image_signal, (lanes[0], 0), (lanes[0], 255), color=(255, 255, 255), thickness=2)
+            cv2.line(image_signal, (lanes[0], 0), (lanes[0], height), color=(255, 255, 255), thickness=2)
         for p in lanes[1:]:
             if p is not None:
-                cv2.line(image_signal, (p,0),(p,255), color=(180,180,180), thickness=1)
+                cv2.line(image_signal, (p,0),(p,height), color=(180,180,180), thickness=1)
+
+    return image_signal
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_signals_v2(signals,lanes,colors,w=3):
+
+    height = 512
+
+    image_signal = numpy.full((height, len(signals[0]), 3), 32, dtype=numpy.uint8)
+
+    for signal in signals:
+        if signal is None: continue
+        for col, value in enumerate(signal):
+            if value>height:
+                value=height-1
+
+            if not numpy.isnan(value):
+                color = colors[value%len(colors)].tolist()
+                if w>1:
+                    cv2.circle(image_signal, (col, height - int(value)), radius=w, color=color,thickness=-1)
+                else:
+                    cv2.line(image_signal,(col, height - int(value)),(col, height - int(value)),color=color,thickness=1)
+
+    if lanes is not None:
+        for p in lanes:
+            if p is not None:
+                cv2.line(image_signal, (p,0),(p,height), color=(64,64,64), thickness=1)
+
+    return image_signal
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_signals_lines(signals,colors=None,w=3):
+
+    height = 255
+
+    image_signal = numpy.full((height, len(signals[0]), 3), 32, dtype=numpy.uint8)
+    if colors is None:
+        colors = get_colors(len(signals),alpha_blend=0.0)
+
+    for signal,color in zip(signals,colors):
+        if signal is None: continue
+        for col in range(len(signal)-1):
+            value = signal[col]
+            value2 = signal[col+1]
+
+            if not numpy.isnan(value) and not numpy.isnan(value2):
+                cv2.line(image_signal,(col, height - int(value)),(col+1, height - int(value2)),color=color.tolist(),thickness=w)
 
     return image_signal
 # ----------------------------------------------------------------------------------------------------------------------

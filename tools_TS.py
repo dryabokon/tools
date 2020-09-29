@@ -1,12 +1,8 @@
 import os
+import cv2
 import numpy
 import matplotlib.pyplot as plt
-from sklearn import metrics
-from sklearn.preprocessing import normalize
-import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.metrics import mean_squared_error
-import math
 # ----------------------------------------------------------------------------------------------------------------------
 # https://www.youtube.com/watch?v=5lUUrREboSk
 # GRU, Peephole, # https://medium.com/@godricglow/a-deeper-understanding-of-nnets-part-3-lstm-and-gru-e557468acb04
@@ -14,17 +10,21 @@ import math
 # benchmark with sliding window # https://www.datascience.com/blog/time-series-forecasting-machine-learning-differences
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_IO
+import tools_plot
+import tools_draw_numpy
 # ----------------------------------------------------------------------------------------------------------------------
 class tools_TS(object):
-    def __init__(self,Classifier=None):
+    def __init__(self,Classifier=None,delim='\t',max_len=1000000):
         self.classifier = Classifier
+        self.delim = delim
+        self.max_len = max_len
         return
 # ---------------------------------------------------------------------------------------------------------------------
     def load_and_normalize(self,filename_input):
 
         self.scaler = MinMaxScaler(feature_range=(0, 1))
-        dataset = tools_IO.load_mat(filename_input,delim='\t',dtype=numpy.float32)
-        data = self.scaler.fit_transform(dataset)
+        dataset = tools_IO.load_mat_pd(filename_input,delim=self.delim,dtype=numpy.float32)[:self.max_len]
+        data = self.scaler.fit_transform(dataset[:,[0,1]])
         self.scaler_dim = data.shape
         return data
 # ---------------------------------------------------------------------------------------------------------------------
@@ -76,10 +76,10 @@ class tools_TS(object):
             tools_IO.save_mat(self.denormalize(numpy.array(Y_train_predicts).T), filename_train_pred)
             tools_IO.save_mat(self.denormalize(numpy.array(Y_test_predicts).T ), filename_test_pred)
 
-        if verbose == True:
-            tools_IO.plot_two_series(filename_train_fact, filename_train_pred,caption='train')
-            tools_IO.plot_two_series(filename_test_fact , filename_test_pred ,caption='test')
-            plt.show()
+
+        tools_plot.plot_two_series(filename_train_fact, filename_train_pred,caption='train',filename_out=path_output+self.classifier.name+'_train.png')
+        tools_plot.plot_two_series(filename_test_fact , filename_test_pred ,caption='test' ,filename_out=path_output+self.classifier.name+'_test.png')
+
 
         return
 # ---------------------------------------------------------------------------------------------------------------------
@@ -105,9 +105,10 @@ class tools_TS(object):
             tools_IO.save_mat(self.denormalize(dataset), filename_fact)
             tools_IO.save_mat(self.denormalize(Y_predict), filename_pred)
 
-        if verbose == True:
-            tools_IO.plot_two_series(filename_fact, filename_pred, caption='Fit')
-            plt.show()
+
+        #image_signal = tools_draw_numpy.draw_signals_lines([255*Y_predict[:1024],255*Y[:1024]],w=1)
+        image_signal = tools_draw_numpy.draw_signals_lines([255 * Y[:1024]], w=3)
+        cv2.imwrite(path_output+self.classifier.name+'_fit.png',image_signal)
 
         return
 # ---------------------------------------------------------------------------------------------------------------------
@@ -121,7 +122,7 @@ class tools_TS(object):
 
         q=0
         for v in range(0,mat1.shape[1]):
-            q+= tools_IO.smape(mat1[:,v],mat2[:,v])
+            q+= tools_plot.smape(mat1[:,v],mat2[:,v])
 
         return q/mat1.shape[1]
 # ---------------------------------------------------------------------------------------------------------------------

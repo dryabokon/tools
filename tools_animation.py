@@ -41,27 +41,19 @@ def folders_to_animated_gif_ffmpeg(path_input,path_out, mask='.png', framerate=1
 # ---------------------------------------------------------------------------------------------------------------------
 def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png', framerate=10,resize_H=64, resize_W=64,do_reverce=False):
     tools_IO.remove_file(filename_out)
-    #images, labels, filenames = tools_IO.load_aligned_images_from_folder(path_input, '-', mask=mask,resize_W=resize_W,resize_H=resize_H)
+
     images = []
-
-
     filenames = tools_IO.get_filenames(path_input,mask)
-    idx = numpy.arange(0, len(filenames), 4)
-    filenames = numpy.array(filenames)[idx]
+
     bar = progressbar.ProgressBar(max_value=len(filenames))
     for b, filename_in in enumerate(filenames):
         bar.update(b)
         image = cv2.imread(path_input+filename_in)
-        #image = cv2.resize(image,(resize_W,resize_H))
         image = tools_image.do_resize(image,(resize_W,resize_H))
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         images.append(image)
 
     images = numpy.array(images,dtype=numpy.uint8)
-
-    for i in range(0,images.shape[0]):
-        images[i] = cv2.cvtColor(images[i], cv2.COLOR_BGR2RGB)
-        #images[i] = tools_image.desaturate(images[i],level=0.75)
-        #images[i] = cv2.flip(images[i],1)
 
     if not do_reverce:
         imageio.mimsave(filename_out, images, 'GIF', duration=1/framerate)

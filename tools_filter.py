@@ -138,3 +138,34 @@ def sliding_2d(A,h_neg,h_pos,w_neg,w_pos, stat='avg',mode='constant'):
 
     return R
 # --------------------------------------------------------------------------------------------------------------------
+def sliding_I_2d(C2,h_neg,h_pos,w_neg,w_pos,pad=10,stat='avg',mode='constant'):
+
+    up = numpy.roll(C2, h_pos, axis=0)
+    S1 = numpy.roll(up, w_pos, axis=1)
+    S2 = numpy.roll(up, w_neg, axis=1)
+
+    dn = numpy.roll(C2, h_neg, axis=0)
+    S3 = numpy.roll(dn, w_pos, axis=1)
+    S4 = numpy.roll(dn, w_neg, axis=1)
+
+    if stat == 'avg':
+        R = (S1 - S2 - S3 + S4) / ((w_pos - w_neg) * (h_pos - h_neg))
+    else:
+        R = (S1 - S2 - S3 + S4)
+
+    R = R[pad:-pad, pad:-pad]
+
+    return R
+# --------------------------------------------------------------------------------------------------------------------
+def integral_2d(A,pad=10,mode='constant'):
+    h_neg,h_pos, w_neg,w_pos = -pad,pad,-pad,pad
+
+    B = numpy.pad(A,((-h_neg,h_pos),(-w_neg,w_pos)),mode)
+    B = numpy.roll(B, 1, axis=0)
+    B = numpy.roll(B, 1, axis=1)
+
+    C1 = numpy.cumsum(B , axis=0)
+    C2 = numpy.cumsum(C1, axis=1)
+
+    return C2
+# --------------------------------------------------------------------------------------------------------------------

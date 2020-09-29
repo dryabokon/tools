@@ -52,9 +52,9 @@ class Face_Swaper(object):
 # ---------------------------------------------------------------------------------------------------------------------
     def narrow_face(self,image, landmarks):
 
-        mask = numpy.zeros(image.shape[:2], dtype=numpy.float64)
+        mask = numpy.zeros(image.shape[:2], dtype=numpy.uint8)
         idx = numpy.arange(4, 13, 1).tolist() + numpy.arange(17, 68, 1).tolist()
-        mask = tools_draw_numpy.draw_convex_hull(mask,numpy.array(landmarks[idx]),color=(1,1,1))
+        mask = tools_draw_numpy.draw_convex_hull_cv(mask,numpy.array(landmarks[idx]),color=(1,1,1))
         mask = numpy.array([mask,mask,mask]).transpose((1,2,0))
         res = numpy.multiply(mask, image)
         return res
@@ -248,14 +248,14 @@ class Face_Swaper(object):
 
         mask_bin = 1 * (face[:, :] == (0,0,0))
         mask_bin = numpy.array(numpy.min(mask_bin, axis=2), dtype=numpy.int)
-        cnt_face = tools_filter.sliding_2d(1 - mask_bin, avg_size, avg_size, 'cnt')
+        cnt_face = tools_filter.sliding_2d(1 - mask_bin, -avg_size, avg_size,-avg_size, avg_size, 'cnt')
         scale = numpy.zeros(face.shape)
 
         face = face.astype(numpy.long)
         for c in range(3):
 
-            avg_actor = tools_filter.sliding_2d(self.image_actor[:, :, c], avg_size, avg_size, 'avg')
-            sum_face  = tools_filter.sliding_2d(face[:, :, c], avg_size, avg_size, 'cnt')
+            avg_actor = tools_filter.sliding_2d(self.image_actor[:, :, c], -avg_size, avg_size,-avg_size, avg_size, 'avg')
+            sum_face  = tools_filter.sliding_2d(face[:, :, c], -avg_size, avg_size,-avg_size, avg_size, 'cnt')
             avg_face = sum_face/ cnt_face
             s  = avg_actor / avg_face
             s = numpy.nan_to_num(s)
