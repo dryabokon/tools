@@ -263,6 +263,7 @@ class Ellipse_Processor(object):
         segments_double = self.Ske.keep_double_segments(segments_all, line_upper_bound, base_name)
         if line_upper_bound is not None:
             segments = self.preprocess_for_ellipse(segments_all, line_upper_bound, line_midfield)
+
         else:
             segments = segments_double.copy()
 

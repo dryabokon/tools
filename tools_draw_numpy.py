@@ -57,6 +57,30 @@ def draw_rect(array_bgr, row_up, col_left, row_down, col_right, color_bgr, alpha
     return res_rgb
 
 # ----------------------------------------------------------------------------------------------------------------------
+def draw_contours_cv(image, points, color=(255,255,255),transperency=0.0):
+
+    pnts = points.reshape(1, -1, 1, 2).astype(numpy.int)
+    res = image.copy()
+    res = cv2.drawContours(res, pnts, -1,color,thickness=-1)
+
+    if transperency>0:
+        res = res*(1-transperency)+image*(transperency)
+
+    return res.astype(numpy.uint8)
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_contours(image, points, color=(255,255,255),transperency=0.0):
+
+    pImage = Image.fromarray(image)
+    draw = ImageDraw.Draw(pImage, 'RGBA')
+
+    #polypoints = [(point[0],point[1]) for point in points.reshape((-1,2))]
+    polypoints = [(point[0],point[1]) for point in points]
+    draw.polygon(polypoints, (color[0], color[1], color[2], int(255 - int(255-transperency * 255))))
+
+    result = numpy.array(pImage)
+    del draw
+    return result
+# ----------------------------------------------------------------------------------------------------------------------
 def draw_convex_hull_cv(image, points, color=(255,255,255),transperency=0.0):
 
     hull = ConvexHull(numpy.array(points,dtype=numpy.int))
@@ -70,7 +94,7 @@ def draw_convex_hull_cv(image, points, color=(255,255,255),transperency=0.0):
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_convex_hull(image,points,color=(255, 0, 0),transperency=0.0):
     pImage = Image.fromarray(image)
-    draw = ImageDraw.Draw(pImage, 'RGB')
+    draw = ImageDraw.Draw(pImage, 'RGBA')
 
     hull = ConvexHull(numpy.array(points, dtype=numpy.int))
     cntrs = numpy.array(points, dtype=numpy.int)[hull.vertices]
@@ -191,7 +215,7 @@ def draw_segments(image, segments,color=(255,255,255),w=1,put_text=False):
             if w == 1:
                 if 0<=point[1]<H and 0<=point[0]<W:result[int(point[1]), int(point[0])]=clr
             else:
-                cv2.circle(result, (int(point[0]), int(point[1])), 1, clr, w-1)
+                cv2.circle(result, (int(point[0]), int(point[1])), radius=w, color=clr,thickness=-1)
 
         if put_text:
             x, y = int(segment[:,0].mean()+ -30+60 * numpy.random.rand()) , int(segment[:,1].mean()-30+60 * numpy.random.rand())
@@ -319,4 +343,5 @@ def draw_signals_lines(signals,colors=None,w=3):
                 cv2.line(image_signal,(col, height - int(value)),(col+1, height - int(value2)),color=color.tolist(),thickness=w)
 
     return image_signal
+# ----------------------------------------------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------------------------------------------

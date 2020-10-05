@@ -2,11 +2,29 @@ import cv2
 import numpy
 from skimage.morphology import skeletonize
 from sklearn.linear_model import LinearRegression
+from numba.errors import NumbaWarning
+# ----------------------------------------------------------------------------------------------------------------
+import warnings
+warnings.simplefilter('ignore', category=NumbaWarning)
+# ----------------------------------------------------------------------------------------------------------------
+import sknw
 # ----------------------------------------------------------------------------------------------------------------
 import tools_IO
 import tools_image
 import tools_render_CV
 import tools_draw_numpy
+import tools_filter
+# ----------------------------------------------------------------------------------------------------------------
+class MyLR:
+    def fit(self, x, y):
+        X = numpy.append(numpy.ones((len(x), 1)), x, axis=1)
+        Y = numpy.array(y)
+
+        self.b = numpy.linalg.inv(X.T.dot(X)).dot(X.T.dot(Y))
+
+    def predict(self, x):
+        X = numpy.append(numpy.ones((len(x), 1)), x, axis=1)
+        return X.dot(self.b)
 # ----------------------------------------------------------------------------------------------------------------
 class Skelenonizer(object):
     def __init__(self,folder_out):
@@ -14,6 +32,7 @@ class Skelenonizer(object):
         self.folder_out = folder_out
         self.nodes = None
         self.W,self.H = None,None
+        self.reg = MyLR()
         return
 # ----------------------------------------------------------------------------------------------------------------
     def binarize(self,image):
@@ -67,6 +86,37 @@ class Skelenonizer(object):
         segments = [numpy.array(s) for s in segments]
         return segments
 # ----------------------------------------------------------------------------------------------------------------
+    def skeleton_to_segments_vitalii(self, skeleton, min_len=10):
+        from time import time
+        st = time()
+        image_cleaned = self.remove_joints(skeleton)
+        min_len_squared = min_len ** 2
+
+        ret, labels, stats, centroids = cv2.connectedComponentsWithStats(image_cleaned)
+
+        i = 0
+        dct_seg = {}
+        for l in range(1, ret):
+            top, left, h, w, N = stats[l]
+            if N > min_len and (h ** 2 + w ** 2) > min_len_squared:
+                dct_seg[l] = i
+                i += 1
+
+        segments = {c: [] for c in range(i)}
+
+        x = numpy.arange(labels.shape[1])
+        y = numpy.arange(labels.shape[0])
+        coords = numpy.transpose([numpy.tile(x, y.shape), numpy.repeat(y, x.shape)])
+        labels_flatten = labels.flatten()
+
+        range_flatten = numpy.arange(len(labels_flatten))
+        for k in dct_seg:
+            segments[dct_seg[k]] = coords[range_flatten[labels_flatten == k]]
+
+        segments = [numpy.array(segments[s]) for s in segments]
+
+        return segments
+# ----------------------------------------------------------------------------------------------------------------
     def extract_segments(self,image,min_len=10):
 
         image_edges = cv2.Canny(image,20,80)
@@ -90,7 +140,7 @@ class Skelenonizer(object):
 # ----------------------------------------------------------------------------------------------------------------
     def sraighten_segment(self,segment,min_len=10,do_debug=False):
 
-        if self.get_length_segment(segment)<min_len:
+        if len(segment)==0 or self.get_length_segment(segment)<min_len:
             return []
 
         idx_DL = numpy.lexsort((-segment[:, 0], segment[:, 1]))  # traverce from top
@@ -159,6 +209,24 @@ class Skelenonizer(object):
             s3 = self.sraighten_segment(segment_best[pos_best + len_best:],min_len)
         return s1 + s2 + s3
 # ----------------------------------------------------------------------------------------------------------------
+    def smooth_segments(self,segments):
+        result = []
+        for i, s in enumerate(segments):
+            smoothen = self.smooth_segment(s)
+            result.append(smoothen)
+        return result
+# ----------------------------------------------------------------------------------------------------------------------
+    def smooth_segment(self,segment):
+        if len(segment)==0:
+            return []
+
+        x = tools_filter.do_filter_average(segment[:,0],10)
+        y = tools_filter.do_filter_average(segment[:,1],10)
+
+        res = numpy.vstack((x,y)).T
+
+        return res.astype(numpy.int)
+# ----------------------------------------------------------------------------------------------------------------------
     def filter_short_segments(self,segments,min_len):
         result = []
         for s in segments:
@@ -167,7 +235,7 @@ class Skelenonizer(object):
 
         return result
 # ----------------------------------------------------------------------------------------------------------------
-    def interpolate_segment_by_line(self, XY):
+    def interpolate_segment_by_line_slow(self, XY):
         reg = LinearRegression()
         X = numpy.array([XY[:, 0]]).astype(numpy.float).T
         Y = numpy.array([XY[:, 1]]).astype(numpy.float).T
@@ -181,6 +249,23 @@ class Skelenonizer(object):
             reg.fit(Y, X)
             Y_inter = numpy.array([(Y.min(), Y.max())]).T
             X_inter = reg.predict(Y_inter)
+            line = numpy.array([X_inter[0], Y_inter[0], X_inter[1], Y_inter[1]]).flatten()
+
+        return line
+# ----------------------------------------------------------------------------------------------------------------------
+    def interpolate_segment_by_line(self, XY):
+        X = numpy.array([XY[:, 0]]).astype(numpy.float).T
+        Y = numpy.array([XY[:, 1]]).astype(numpy.float).T
+
+        if (X.max() - X.min()) > (Y.max() - Y.min()):
+            self.reg.fit(X, Y)
+            X_inter = numpy.array([(X.min(), X.max())]).T
+            Y_inter = self.reg.predict(X_inter)
+            line = numpy.array([X_inter[0], Y_inter[0], X_inter[1], Y_inter[1]]).flatten()
+        else:
+            self.reg.fit(Y, X)
+            Y_inter = numpy.array([(Y.min(), Y.max())]).T
+            X_inter = self.reg.predict(Y_inter)
             line = numpy.array([X_inter[0], Y_inter[0], X_inter[1], Y_inter[1]]).flatten()
 
         return line
@@ -293,4 +378,57 @@ class Skelenonizer(object):
         if (check_x) and (check_y): return False
 
         return True
+# ----------------------------------------------------------------------------------------------------------------
+    def line_length(self, x1, y1, x2, y2):return numpy.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+# ----------------------------------------------------------------------------------------------------------------
+    def segmentize_slow(self, binarized,min_len=0):
+
+        ske = skeletonize(binarized> 0).astype(numpy.uint8)
+        segments = [[]]
+
+        graph = sknw.build_sknw(ske)
+        for (s, e) in graph.edges():
+            ps = graph[s][e]['pts']
+            xx = ps[:, 1]
+            yy = ps[:, 0]
+            if self.line_length(xx[0], yy[0], xx[-1], yy[-1]) > min_len:
+                segment = []
+                for i in range(len(xx) - 1):
+                    segment.append((xx[i], yy[i]))
+                    #skeleton = cv2.line(skeleton, (xx[i], yy[i]), (xx[i + 1], yy[i + 1]), 255, thickness=1)
+                segments.append(segment)
+
+        segments = [numpy.array(s) for s in segments]
+        return segments
+# ----------------------------------------------------------------------------------------------------------------
+    def skelenonize_fast(self, binarized):
+
+        # edges = cv2.Canny(threshholded, 10, 50, apertureSize=3)
+        edges = (255 * skeletonize(binarized / 255)).astype(numpy.uint8)
+
+        lines = cv2.HoughLinesP(edges, 1, numpy.pi / 180, 40, int(binarized.shape[0] * 0.1))
+
+        #result = image.copy()
+        #result = tools_image.desaturate(result)
+        skeleton = numpy.zeros(binarized.shape, dtype=numpy.uint8)
+
+        for line in lines:
+            for x1, y1, x2, y2 in line:
+                #result = cv2.line(result, (x1, y1), (x2, y2), self.color_red, 1)
+                skeleton = cv2.line(skeleton, (x1, y1), (x2, y2), 255, 1)
+
+
+        return skeleton
+# ----------------------------------------------------------------------------------------------------------------
+    def get_segment_colors(self,segm):
+        colors = []
+        for s in segm:
+            l = len(s)
+            colors.append([l, l, l])
+
+        colors = numpy.array(colors)
+        colors = 255.0 * colors / numpy.max(colors)
+        #colors = [tools_image.gre2jet(c) for c in colors]
+        colors = [tools_image.gre2viridis(c) for c in colors]
+        return colors
 # ----------------------------------------------------------------------------------------------------------------

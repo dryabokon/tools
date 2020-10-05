@@ -331,26 +331,14 @@ def gre2jet(rgb):
 # ----------------------------------------------------------------------------------------------------------------------
 def gre2viridis(rgb):
     colormap = numpy.flip((numpy.array(cm.cmaps_listed['viridis'].colors) * 256).astype(int), axis=1)
-    return colormap[rgb[0]]
+    return colormap[int(rgb[0])]
 # ----------------------------------------------------------------------------------------------------------------------
 def hitmap2d_to_viridis(hitmap_2d):
     colormap = (numpy.array(cm.cmaps_listed['viridis'].colors)*256).astype(int)
     colormap = numpy.flip(colormap,axis=1)
+    hitmap_RGB = colormap[hitmap_2d[:, :].astype(int)]
 
-    colormap2 = plt.get_cmap('RdBu')
-
-    hitmap_RGB_gre  = numpy.zeros((hitmap_2d.shape[0],hitmap_2d.shape[1],3)).astype(numpy.uint8)
-    hitmap_RGB_gre[:, :, 0] = hitmap_2d[:, :]
-    hitmap_RGB_gre[:, :, 1] = hitmap_2d[:, :]
-    hitmap_RGB_gre[:, :, 2] = hitmap_2d[:, :]
-    hitmap_RGB_jet = hitmap_RGB_gre.copy()
-
-    for i in range (0,hitmap_RGB_jet.shape[0]):
-        for j in range(0, hitmap_RGB_jet.shape[1]):
-            c= int(hitmap_RGB_gre[i, j, 0])
-            hitmap_RGB_jet[i,j] = colormap[c]
-
-    return hitmap_RGB_jet
+    return hitmap_RGB
 # ----------------------------------------------------------------------------------------------------------------------
 def hitmap2d_to_colormap(hitmap_2d,cmap=plt.cm.Set3,interpolate_colors=False):
 
@@ -639,29 +627,18 @@ def batch_convert(path_in, path_out, format_in='.bmp', format_out='.png'):
             cv2.imwrite(out_name,im)
 
     return
-# --------------------------------------------------------------------------------------------------------------------
-def convolve_with_mask(image_large,image_mask):
+# ----------------------------------------------------------------------------------------------------------------------
+def convolve_with_mask(image255, mask_pn):
 
-    if image_large.max()>1:image_large=image_large/255
-    image_large = image_large.astype(numpy.uint8)
-
-    if image_mask.max() > 1: image_mask = image_mask / 255
-    image_mask = image_mask.astype(numpy.uint8)
-
-    mask_white = image_mask.copy()
-    mask_white[:, :] = 0
-    mask_white[image_mask>0]=255
-
-    N_white = numpy.count_nonzero(mask_white)
-    N_black = numpy.count_nonzero(255-mask_white)
-
-    loss_white = cv2.matchTemplate(255-255*image_large, 255*image_mask, method=cv2.TM_SQDIFF, mask=mask_white)
-    loss_black = cv2.matchTemplate(255-255*image_large, 255*image_mask, method=cv2.TM_SQDIFF, mask=255-mask_white)
-
-    hitmap_gray= 255*(loss_white/N_white)*(loss_black/N_black)
-    hitmap_gray = canvas_extrapolate(hitmap_gray, image_large.shape[0], image_large.shape[1])
-
-    return hitmap_gray
+    res = cv2.filter2D(image255.astype(numpy.float32), -1, mask_pn.astype(numpy.float32))
+    min_value = (mask_pn[mask_pn<0]*255).sum()
+    max_value = (mask_pn[mask_pn>0]*255).sum()
+    res -= min_value
+    res = 255*res/(max_value-min_value)
+    return res
+# ----------------------------------------------------------------------------------------------------------------------
+def auto_corel(image):
+    return
 # ----------------------------------------------------------------------------------------------------------------------
 def do_patch(img, patch_size=128, boarder=12, color=True):
 
@@ -753,7 +730,7 @@ def skew_hor(A,value,do_inverce=False):
     return B
 # --------------------------------------------------------------------------------------------------------------------
 def do_resize(image, dsize):
-    image_resized = resize(image, (dsize[1],dsize[0]),anti_aliasing=True)
+    image_resized = 255*resize(image, (dsize[1],dsize[0]),anti_aliasing=True)
     image_resized = numpy.clip(0,255,image_resized).astype(numpy.uint8)
     return image_resized
 # --------------------------------------------------------------------------------------------------------------------

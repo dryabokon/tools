@@ -1,9 +1,12 @@
 # ----------------------------------------------------------------------------------------------------------------------
+import cv2
 import numpy
 from filterpy.kalman import KalmanFilter
 import pykalman
 from scipy.signal import medfilt
 import scipy.interpolate
+# ----------------------------------------------------------------------------------------------------------------------
+import tools_image
 # ----------------------------------------------------------------------------------------------------------------------
 def from_fistorical(L):
 
@@ -138,6 +141,8 @@ def sliding_2d(A,h_neg,h_pos,w_neg,w_pos, stat='avg',mode='constant'):
 
     return R
 # --------------------------------------------------------------------------------------------------------------------
+
+# --------------------------------------------------------------------------------------------------------------------
 def sliding_I_2d(C2,h_neg,h_pos,w_neg,w_pos,pad=10,stat='avg',mode='constant'):
 
     up = numpy.roll(C2, h_pos, axis=0)
@@ -169,3 +174,43 @@ def integral_2d(A,pad=10,mode='constant'):
 
     return C2
 # --------------------------------------------------------------------------------------------------------------------
+def filter_hor(gray2d, sobel_H=9, sobel_W = 9, skip_agg=False):
+
+    sobel = numpy.full((sobel_H, sobel_W),+1, dtype=numpy.float32)
+    sobel[:,  sobel.shape[1] // 2:] = +1
+    sobel[:, :sobel.shape[1] // 2 ] = -1
+    if sobel.sum() > 0:
+        sobel = sobel / sobel.sum()
+    filtered = cv2.filter2D(gray2d, 0, sobel)
+
+    if skip_agg:
+        return filtered
+    else:
+        agg = tools_image.sliding_2d(filtered, -sobel_H, +sobel_H, -(sobel_W//4),+(sobel_W//4))
+        neg = numpy.roll(agg,-sobel_W//4, axis=1)
+        pos = numpy.roll(agg,+sobel_W//4, axis=1)
+        hit = ((255-neg)+pos)/2
+        hit[:,  :3] = 0
+        hit[:,-3: ] = 0
+
+    return hit
+# ----------------------------------------------------------------------------------------------------------------------
+def filter_ver(gray2d, sobel_H, sobel_W,skip_agg=False):
+    sobel = numpy.full((sobel_H, sobel_W), +1, dtype=numpy.float32)
+    sobel[ sobel.shape[0] // 2:, :] = +1
+    sobel[:sobel.shape[0] // 2,  :] = -1
+    if sobel.sum()>0:
+        sobel = sobel / sobel.sum()
+    filtered = cv2.filter2D(gray2d, 0, sobel)
+
+    if skip_agg:
+        return filtered
+
+    agg = tools_image.sliding_2d(filtered, -(sobel_H // 4), +(sobel_H // 4), -sobel_W, +sobel_W)
+    neg = numpy.roll(agg, -sobel_H // 4, axis=0)
+    pos = numpy.roll(agg, +sobel_H // 4, axis=0)
+    hit = ((255 - neg) + pos) / 2
+    hit[  :sobel_H,:] = 128
+    hit[-sobel_H:, :] = 128
+    return numpy.array(hit,dtype=numpy.uint8)
+# ----------------------------------------------------------------------------------------------------------------------
