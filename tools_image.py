@@ -730,7 +730,10 @@ def skew_hor(A,value,do_inverce=False):
     return B
 # --------------------------------------------------------------------------------------------------------------------
 def do_resize(image, dsize):
-    image_resized = 255*resize(image, (dsize[1],dsize[0]),anti_aliasing=True)
+    M=1
+    if image.max()<=1:M=255
+
+    image_resized = M*resize(image, (dsize[1],dsize[0]),anti_aliasing=True)
     image_resized = numpy.clip(0,255,image_resized).astype(numpy.uint8)
     return image_resized
 # --------------------------------------------------------------------------------------------------------------------

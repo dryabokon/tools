@@ -1063,6 +1063,8 @@ def get_inverce_perspective_mat(image,point_vanishing,line_up,line_bottom,target
 
     M = get_four_point_transform_mat(numpy.array((p1, p2, p3, p4), dtype=numpy.float32), target_width, target_height)
 
+    #res = tools_draw_numpy.draw_points(image,[p1,p2,p3,p4],w=16)
+
     return M
 # ---------------------------------------------------------------------------------------------------------------------
 def get_four_point_transform_mat(p_src, target_width, target_height):
