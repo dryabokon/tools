@@ -25,7 +25,7 @@ def calc_hit_field(image_base, image_pattern):
     hitmap3 = calc_hit_field_basic(image_base, image_pattern[x1:x2, :]).astype(numpy.float)
     hitmap4 = calc_hit_field_basic(image_base, image_pattern[:, y1:y2]).astype(numpy.float)
 
-    hitmap = (hitmap4.copy()).astype(numpy.float)
+    #hitmap = (hitmap4.copy()).astype(numpy.float)
     hitmap = hitmap1 * hitmap2 * hitmap3 * hitmap4
 
     N = int(image_pattern.shape[0] * 0.25)
@@ -48,8 +48,8 @@ def calc_hit_field_basic(image_base, image_pattern, rotation_tol = 0, rotation_s
     #method = cv2.TM_SQDIFF_NORMED
     #method = cv2.TM_CCORR
     #method = cv2.TM_CCORR_NORMED
-    method = cv2.TM_CCOEFF
-#   #method = cv2.TM_CCOEFF_NORMED
+    #method = cv2.TM_CCOEFF
+    method = cv2.TM_CCOEFF_NORMED
 
     hitmap_gray = cv2.matchTemplate(image_base, image_pattern, method=method)
     min = hitmap_gray.min()

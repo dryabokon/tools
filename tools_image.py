@@ -628,15 +628,28 @@ def batch_convert(path_in, path_out, format_in='.bmp', format_out='.png'):
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def convolve_with_mask(image255, mask_pn):
+def convolve_with_mask(image255, mask_pn,min_value=None,max_value=None):
 
-    res = cv2.filter2D(image255.astype(numpy.float32), -1, mask_pn.astype(numpy.float32))
-    min_value = (mask_pn[mask_pn<0]*255).sum()
-    max_value = (mask_pn[mask_pn>0]*255).sum()
+    res = cv2.filter2D(image255.astype(numpy.long), -1, mask_pn)
+
+    if min_value is None or max_value is None:
+        #min_value = 255*(mask_pn[mask_pn<=0]).sum()
+        #max_value = 255*(mask_pn[mask_pn>0]).sum()
+        min_value = -255*mask_pn.shape[0]*mask_pn.shape[1]
+        max_value = +255*mask_pn.shape[0]*mask_pn.shape[1]
+
     res -= min_value
     res = 255*res/(max_value-min_value)
-    return res
+
+    return res.astype(numpy.uint8)
 # ----------------------------------------------------------------------------------------------------------------------
+def convolve_with_mask_corners(image255, corners_p, corners_n):
+
+
+
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+
 def auto_corel(image):
     return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -734,12 +747,17 @@ def do_resize(image, dsize):
     if image.max()<=1:M=255
 
     image_resized = M*resize(image, (dsize[1],dsize[0]),anti_aliasing=True)
+    if image_resized.max() <= 1:
+        image_resized*= 255
+
     image_resized = numpy.clip(0,255,image_resized).astype(numpy.uint8)
+
+
     return image_resized
 # --------------------------------------------------------------------------------------------------------------------
-def do_rescale(image,scale):
-    image_rescaled = rescale(image, scale, anti_aliasing=True)
-    return image_rescaled
+def do_rescale(image,scale,anti_aliasing=True):
+    image_rescaled = 255*rescale(image, scale, anti_aliasing=anti_aliasing)
+    return image_rescaled.astype(numpy.uint8)
 # --------------------------------------------------------------------------------------------------------------------
 def put_color_by_mask(image, mask2d, color):
 

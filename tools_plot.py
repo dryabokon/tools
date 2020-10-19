@@ -13,6 +13,7 @@ from xgboost import XGBClassifier
 from matplotlib.colors import LinearSegmentedColormap
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_IO
+import tools_draw_numpy
 # ----------------------------------------------------------------------------------------------------------------------
 def plot_tp_fp(plt,fig,tpr,fpr,roc_auc,caption='',filename_out=None):
 
@@ -99,32 +100,31 @@ def plot_hystogram(plt,H,label=None,SMAPE=None,xmin=None,xmax=None,ymax=None,fil
         plt.savefig(filename_out)
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def plot_series(S,labels=None,SMAPE=None):
+def plot_series(S,labels=None,SMAPE=None,filename_out = None):
 
-    colors_list = list(('blue','gray', 'red', 'purple', 'green', 'orange', 'cyan', 'black','pink','darkblue','darkred','darkgreen', 'darkcyan'))
-    patches = []
+    colors_list = tools_draw_numpy.get_colors(S.shape[1], colormap = 'viridis')/255
+    colors_list = colors_list[:,[2,1,0]]
 
     plt.clf()
 
-    x=numpy.arange(0,S.shape[0],1)
+    x = numpy.arange(0,S.shape[0],1)
 
-    if SMAPE is None:SMAPE = [0]*S.shape[1]
-    if labels is None: labels = [''] * S.shape[1]
+    #for i in range(0,S.shape[1]):plt.plot(x,S[:,i], lw=1, color=colors_list[i], alpha=0.75)
+    for i in range(1, S.shape[1]):
+        plt.fill_between(x,S[:,i],S[:,i-1],color = colors_list[i])
 
-    for i in range(0,S.shape[1]):
-        color = colors_list[i%len(colors_list)]
-        plt.plot(x,S[:,i], lw=1, color=color, alpha=0.75)
-        if S.shape[1]==1:
-            patches.append(mpatches.Patch(color=color, label=labels[i]))
-        else:
-            patches.append(mpatches.Patch(color=color, label=labels[i]+' %1.2f%%'% SMAPE[i]))
+    plt.fill_between(x, 0, S[:, 0], color=colors_list[0])
 
     plt.tight_layout()
     plt.grid()
 
-
     if labels is not None:
-        plt.legend(handles=patches[1:],loc='upper left')
+        patches = [mpatches.Patch(color=colors_list[i], label=labels[i]) for i in reversed(range(0, S.shape[1]))]
+        plt.legend(handles=patches,loc='upper left')
+
+
+    if filename_out is not None:
+        plt.savefig(filename_out)
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -687,18 +687,19 @@ def plot_histo(dict_H, filename_out=None, colors=None):
 
     norm = sum(dict_H.values())
 
-    xticks = numpy.arange(minw,maxw+1)
+    xticks = numpy.array([x for x in dict_H.keys()],dtype=numpy.int32)
+    xticks = numpy.sort(xticks)
     Y = numpy.array([100 * dict_H[x] / norm for x in xticks])
 
-    fig = plt.figure(figsize=(6, 12))
-    barlist = plt.bar(xticks, Y,width=0.75)
+    #fig = plt.figure(figsize=(6, 12))
+    barlist = plt.bar(xticks, Y,width=5)
     if colors is not None and len(colors)==len(dict_H):
         for i in range(len(colors)):
             barlist[i].set_color((colors[i,2]/255,colors[i,1]/255,colors[i,0]/255))
     plt.xticks(xticks)
     plt.xlim(left=minw-1, right=maxw+1)
     plt.ylim(bottom=0, top=40)
-    #plt.grid()
+    plt.grid()
     plt.tight_layout()
     if filename_out is not None:
         plt.savefig(filename_out)

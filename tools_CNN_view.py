@@ -314,7 +314,7 @@ def construct_weights(N,height,width):
 # ---------------------------------------------------------------------------------------------------------------------
 def construct_weights_2x2(n=16):
 
-    F = numpy.zeros((2, 2, 3,16))
+    F = numpy.zeros((2, 2, 3,n))
 
     for c in range (0,3):
         F[:, :, c,  0] = numpy.array([[-1, -1], [-1, -1]]).astype(numpy.float32)/4.0

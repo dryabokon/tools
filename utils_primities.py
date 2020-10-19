@@ -622,6 +622,15 @@ class Players(object):
         self.ids = numpy.insert(self.ids, len(self.ids), int(classID)).astype(numpy.int)
         return
 # ----------------------------------------------------------------------------------------------------------------------
+    def remove_by_fileID(self,filename_ID):
+
+        idx = numpy.where(self.filename_IDs==filename_ID)
+        if len(idx[0]) > 0:
+            self.filename_IDs = numpy.delete(self.filename_IDs, idx, axis=0)
+            self.xyxy = numpy.delete(self.xyxy, idx, axis=0)
+            self.ids = numpy.delete(self.ids, idx, axis=0)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
     def get(self,filename_id):
         idx = (self.filename_IDs == filename_id)
         res = Players()
