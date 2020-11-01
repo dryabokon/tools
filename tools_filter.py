@@ -141,22 +141,52 @@ def sliding_2d(A,h_neg,h_pos,w_neg,w_pos, stat='avg',mode='constant'):
 
     return R
 # --------------------------------------------------------------------------------------------------------------------
+def shift(arr, num,axis=0,fill_value=numpy.nan):
+    result = numpy.empty_like(arr)
+    if axis==0:
+        if num > 0:
+            result[:num] = fill_value
+            result[num:] = arr[:-num]
+        elif num < 0:
+            result[num:] = fill_value
+            result[:num] = arr[-num:]
+        else:
+            result[:] = arr
 
+    if axis==1:
+        if num > 0:
+            result[:,:num] = fill_value
+            result[:,num:] = arr[:,:-num]
+        elif num < 0:
+            result[:,num:] = fill_value
+            result[:,:num] = arr[:,-num:]
+        else:
+            result[:] = arr
+
+    return result
 # --------------------------------------------------------------------------------------------------------------------
 def sliding_I_2d(C2,h_neg,h_pos,w_neg,w_pos,pad=10,stat='avg',mode='constant'):
 
     up = numpy.roll(C2, h_pos, axis=0)
     S1 = numpy.roll(up, w_pos, axis=1)
     S2 = numpy.roll(up, w_neg, axis=1)
-
     dn = numpy.roll(C2, h_neg, axis=0)
     S3 = numpy.roll(dn, w_pos, axis=1)
     S4 = numpy.roll(dn, w_neg, axis=1)
 
+    #up = shift(C2, h_pos, axis=0)
+    #S1 = shift(up, w_pos, axis=1)
+    #S2 = shift(up, w_neg, axis=1)
+    #dn = shift(C2, h_neg, axis=0)
+    #S3 = shift(dn, w_pos, axis=1)
+    #S4 = shift(dn, w_neg, axis=1)
+
+    R = (S1 - S2 - S3 + S4)
+
     if stat == 'avg':
-        R = (S1 - S2 - S3 + S4) / ((w_pos - w_neg) * (h_pos - h_neg))
-    else:
-        R = (S1 - S2 - S3 + S4)
+        R = R / ((w_pos - w_neg) * (h_pos - h_neg))
+
+
 
     R = R[pad:-pad, pad:-pad]
 
@@ -166,11 +196,11 @@ def integral_2d(A,pad=10,mode='constant'):
     h_neg,h_pos, w_neg,w_pos = -pad,pad,-pad,pad
 
     B = numpy.pad(A,((-h_neg,h_pos),(-w_neg,w_pos)),mode)
-    B = numpy.roll(B, 1, axis=0)
-    B = numpy.roll(B, 1, axis=1)
+    B = numpy.roll(B, 1, axis=0).astype(numpy.long)
+    B = numpy.roll(B, 1, axis=1).astype(numpy.long)
 
-    C1 = numpy.cumsum(B , axis=0)
-    C2 = numpy.cumsum(C1, axis=1)
+    C1 = numpy.cumsum(B , axis=0).astype(numpy.long)
+    C2 = numpy.cumsum(C1, axis=1).astype(numpy.long)
 
     return C2
 # --------------------------------------------------------------------------------------------------------------------

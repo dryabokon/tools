@@ -643,11 +643,22 @@ def convolve_with_mask(image255, mask_pn,min_value=None,max_value=None):
 
     return res.astype(numpy.uint8)
 # ----------------------------------------------------------------------------------------------------------------------
-def convolve_with_mask_corners(image255, corners_p, corners_n):
+def convolve_with_mask_fft(image255, mask_pn,min_value=None,max_value=None):
 
+    KH,KW = mask_pn.shape
 
+    res = numpy.real(numpy.fft.ifft2(numpy.fft.fft2(image255) * numpy.fft.fft2(mask_pn, s=image255.shape)))
+    res = res[KW:, KW:]
 
-    return
+    if min_value is None or max_value is None:
+        min_value = -255*mask_pn.shape[0]*mask_pn.shape[1]
+        max_value = +255*mask_pn.shape[0]*mask_pn.shape[1]
+
+    res -= min_value
+    res = 255 * res / (max_value - min_value)
+    res = canvas_extrapolate(res,image255.shape[0],image255.shape[1])
+
+    return res.astype(numpy.uint8)
 # ----------------------------------------------------------------------------------------------------------------------
 
 def auto_corel(image):
@@ -756,7 +767,7 @@ def do_resize(image, dsize):
     return image_resized
 # --------------------------------------------------------------------------------------------------------------------
 def do_rescale(image,scale,anti_aliasing=True):
-    image_rescaled = 255*rescale(image, scale, anti_aliasing=anti_aliasing)
+    image_rescaled = 255*rescale(image, scale, anti_aliasing=anti_aliasing,multichannel=False)
     return image_rescaled.astype(numpy.uint8)
 # --------------------------------------------------------------------------------------------------------------------
 def put_color_by_mask(image, mask2d, color):

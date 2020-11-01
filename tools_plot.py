@@ -303,14 +303,14 @@ def plot_1D_features_pos_neg(plt, X, Y, labels=None, filename_out=None):
     patches = []
 
     plt.xlim([-1, X.max()+1])
-    bins = numpy.arange(-0.5,X.max()+0.5,1)
+    bins = numpy.arange(-0.5,X.max()+0.5,0.25)
 
     for i,y in enumerate(numpy.unique(Y)):
         if int(y)<=0:
             col = (0, 0.5, 1)
         else:
             col = (1, 0.5, 0)
-        plt.hist(X[Y==y], bins=bins,color=col,alpha=0.4,width=0.9,align='mid')
+        plt.hist(X[Y==y], bins=bins,color=col,alpha=0.5,width=0.25,align='mid')
 
         if labels is not None:
             patches.append(mpatches.Patch(color=col,label=y))

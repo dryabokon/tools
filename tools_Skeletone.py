@@ -2,10 +2,10 @@ import cv2
 import numpy
 from skimage.morphology import skeletonize
 from sklearn.linear_model import LinearRegression
-from numba.errors import NumbaWarning
 # ----------------------------------------------------------------------------------------------------------------
-import warnings
-warnings.simplefilter('ignore', category=NumbaWarning)
+#from numba.errors import NumbaWarning
+#import warnings
+#warnings.simplefilter('ignore', category=NumbaWarning)
 # ----------------------------------------------------------------------------------------------------------------
 import sknw
 # ----------------------------------------------------------------------------------------------------------------

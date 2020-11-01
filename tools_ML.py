@@ -85,7 +85,7 @@ class tools_ML(object):
     def score_feature_file(self, file_test, filename_scrs=None, delimeter='\t', append=0, rand_sel=None,has_header=True,has_labels_first_col=False):
 
         if not os.path.isfile(file_test):return
-        data_test = tools_IO.load_mat(file_test, numpy.chararray, delimeter)
+        data_test = tools_IO.load_mat_pd(file_test, numpy.chararray, delimeter)
         header, Y_test, X_test= self.preprocess_header(data_test,has_header=has_header,has_labels_first_col=has_labels_first_col)
 
         Y_test = numpy.array(Y_test, dtype=numpy.float)
@@ -114,8 +114,8 @@ class tools_ML(object):
 # ---------------------------------------------------------------------------------------------------------------------
     def learn_on_pos_neg_files(self, file_train_pos, file_train_neg, delimeter='\t', rand_pos=None, rand_neg=None,has_header=True,has_labels_first_col=False):
 
-        X_train_pos = (tools_IO.load_mat(file_train_pos, numpy.chararray, delimeter)).astype(numpy.str)
-        X_train_neg = (tools_IO.load_mat(file_train_neg, numpy.chararray, delimeter)).astype(numpy.str)
+        X_train_pos = (tools_IO.load_mat_pd(file_train_pos, numpy.chararray, delimeter)).astype(numpy.str)
+        X_train_neg = (tools_IO.load_mat_pd(file_train_neg, numpy.chararray, delimeter)).astype(numpy.str)
 
         if has_header:
             X_train_pos = X_train_pos[1:, :]
@@ -408,11 +408,11 @@ class tools_ML(object):
 
         fig = plt.figure(figsize=(12, 6))
         fig.subplots_adjust(hspace=0.01)
-        tools_IO.display_roc_curve_from_descriptions(plt.subplot(2, 2, 3), fig, filename_scrs_pos, filename_scrs_neg, delim='\t')
-        tools_IO.display_distributions(plt.subplot(2, 2, 2), fig, filename_scrs_pos, filename_scrs_neg, delim='\t')
+        tools_plot.display_roc_curve_from_descriptions(plt.subplot(2, 2, 3), fig, filename_scrs_pos, filename_scrs_neg, delim='\t')
+        tools_plot.display_distributions(plt.subplot(2, 2, 2), fig, filename_scrs_pos, filename_scrs_neg, delim='\t')
         #tools_IO.plot_features_PCA(plt.subplot(2, 2, 1),X,Y,['pos','neg'])
         if header is not None:
-            tools_IO.plot_feature_importance(plt.subplot(2,2,4),fig,X,Y,header)
+            tools_plot.plot_feature_importance(plt.subplot(2,2,4),fig,X,Y,header)
         plt.tight_layout()
         plt.savefig(filename_out)
         return
@@ -477,8 +477,8 @@ class tools_ML(object):
         filename_scrs_pos = folder_out + 'scores_pos_'+ self.classifier.name + '.txt'
         filename_scrs_neg = folder_out + 'scores_neg_'+ self.classifier.name + '.txt'
 
-        data_pos = tools_IO.load_mat(filename_data_pos, numpy.chararray, '\t')
-        data_neg = tools_IO.load_mat(filename_data_neg, numpy.chararray, '\t')
+        data_pos = tools_IO.load_mat_pd(filename_data_pos, numpy.chararray, '\t')
+        data_neg = tools_IO.load_mat_pd(filename_data_neg, numpy.chararray, '\t')
 
         header,first_col, x_pos = self.preprocess_header(data_pos, has_header, has_labels_first_col)
         header,first_col, x_neg = self.preprocess_header(data_neg, has_header, has_labels_first_col)
