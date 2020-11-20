@@ -3,6 +3,7 @@ import cv2
 import pyrr
 import numpy
 from sklearn.linear_model import LinearRegression
+from scipy.linalg import polar
 # ---------------------------------------------------------------------------------------------------------------------
 import tools_draw_numpy
 # ---------------------------------------------------------------------------------------------------------------------
@@ -474,8 +475,11 @@ def project_points(points_3d, rvec, tvec, camera_matrix_3x3, dist):
     return points_2d,0
 # ----------------------------------------------------------------------------------------------------------------------
 def project_points_M(points_3d, RT, camera_matrix_3x3, dist):
+    if camera_matrix_3x3.shape[0]==3 and camera_matrix_3x3.shape[1]==3:
+        P = compose_projection_mat_4x4(camera_matrix_3x3[0,0],camera_matrix_3x3[1,1],camera_matrix_3x3[0,2]/camera_matrix_3x3[0,0],camera_matrix_3x3[1, 2] / camera_matrix_3x3[1,1])
+    else:
+        P = camera_matrix_3x3.copy()
 
-    P = compose_projection_mat_4x4(camera_matrix_3x3[0,0],camera_matrix_3x3[1,1],camera_matrix_3x3[0,2]/camera_matrix_3x3[0,0],camera_matrix_3x3[1, 2] / camera_matrix_3x3[1,1])
 
     PM = pyrr.matrix44.multiply(P, RT.T)
 

@@ -6,6 +6,7 @@ import os
 import math
 from scipy import ndimage
 from skimage.transform import rescale, resize
+from PIL import Image
 #--------------------------------------------------------------------------------------------------------------------------
 def numerical_devisor(n):
 
@@ -628,7 +629,7 @@ def batch_convert(path_in, path_out, format_in='.bmp', format_out='.png'):
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def convolve_with_mask(image255, mask_pn,min_value=None,max_value=None):
+def convolve_with_mask_filter2d(image255, mask_pn, min_value=None, max_value=None):
 
     res = cv2.filter2D(image255.astype(numpy.long), -1, mask_pn)
 
@@ -657,12 +658,50 @@ def convolve_with_mask_fft(image255, mask_pn,min_value=None,max_value=None):
     res -= min_value
     res = 255 * res / (max_value - min_value)
     res = canvas_extrapolate(res,image255.shape[0],image255.shape[1])
+    res = res.astype(numpy.uint8)
 
     return res.astype(numpy.uint8)
 # ----------------------------------------------------------------------------------------------------------------------
+def convolve_with_mask_cupy(image255, mask_pn, min_value=None, max_value=None):
+    import cupy
 
-def auto_corel(image):
-    return
+    KH,KW = mask_pn.shape[:2]
+
+    A = cupy.array(image255, dtype=cupy.float32)
+    B = cupy.array(mask_pn, dtype=cupy.float32)
+    A = cupy.fft.fft2(A)
+    B = cupy.fft.fft2(B, s=image255.shape)
+    C = (cupy.fft.ifft2(A * B))
+
+    hitmap = cupy.asnumpy(cupy.real(C))
+    hitmap = numpy.roll(hitmap, -KW // 2, axis=0)
+    hitmap = numpy.roll(hitmap, -KW // 2, axis=1)
+
+    hitmap = 255 * hitmap / (255 * mask_pn.sum())
+
+    return hitmap
+# ----------------------------------------------------------------------------------------------------------------------
+def convolve_with_mask_cupyx_scipy(image255, mask_pn, min_value=None, max_value=None):
+    import cupy, cupyx
+
+    KH, KW = mask_pn.shape[:2]
+    A = cupy.array(image255, dtype=cupy.float32)
+    B = cupy.array(mask_pn, dtype=cupy.float32)
+
+    A = cupyx.scipy.fftpack.fft2(A)
+    B = cupyx.scipy.fftpack.fft2(B, shape=image255.shape)
+    C = cupyx.scipy.fftpack.ifft2(cupy.multiply(A,B))
+
+
+
+    C = cupy.roll(C, -KW // 2, axis=0)
+    C = cupy.roll(C, -KW // 2, axis=1)
+    C = 255 * C/ (255 * mask_pn.sum())
+    hitmap = cupy.asnumpy(cupy.real(C))
+    hitmap = numpy.array(hitmap,dtype=numpy.uint8)
+
+
+    return hitmap
 # ----------------------------------------------------------------------------------------------------------------------
 def do_patch(img, patch_size=128, boarder=12, color=True):
 
@@ -766,9 +805,11 @@ def do_resize(image, dsize):
 
     return image_resized
 # --------------------------------------------------------------------------------------------------------------------
-def do_rescale(image,scale,anti_aliasing=True):
-    image_rescaled = 255*rescale(image, scale, anti_aliasing=anti_aliasing,multichannel=False)
-    return image_rescaled.astype(numpy.uint8)
+def do_rescale(image,scale,anti_aliasing=True,multichannel=False):
+    pImage = Image.fromarray(image)
+    resized = pImage.resize((int(image.shape[1]*scale),int(image.shape[0]*scale)),resample=Image.BICUBIC)
+    result = numpy.array(resized)
+    return result
 # --------------------------------------------------------------------------------------------------------------------
 def put_color_by_mask(image, mask2d, color):
 

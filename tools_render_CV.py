@@ -76,6 +76,14 @@ def draw_cube_numpy(img, camera_matrix, dist, rvec, tvec, scale=(1,1,1),color=(2
 
     return result
 # ----------------------------------------------------------------------------------------------------------------------
+def draw_cube_numpy_RT(points_3d,img,RT,camera_matrix_3x3,color=(66, 0, 166),w=6,flipX=False):
+    points_2d = tools_pr_geom.project_points_M(points_3d, RT, camera_matrix_3x3, numpy.zeros(5)).reshape((-1, 2))
+    points_2d[:, 0] = img.shape[1] - points_2d[:, 0]
+    if flipX: points_2d[:, 0] = img.shape[1] - points_2d[:, 0]
+    for i,j in zip((0,1,2,3,4,5,6,7,0,1,2,3),(1,2,3,0,5,6,7,4,4,5,6,7)):
+        img = tools_draw_numpy.draw_line(img, points_2d[i, 1], points_2d[i, 0], points_2d[j, 1],points_2d[j, 0], color)
+    return img
+# ----------------------------------------------------------------------------------------------------------------------
 def draw_cube_numpy_MVP(img,mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166)):
 
     fx, fy = float(img.shape[1]), float(img.shape[0])
@@ -126,17 +134,18 @@ def draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, m
         draw_mat(mat_model, posx, posy+120, img,(0,128,255))
         draw_mat(mat_view,  posx, posy+220, img,(0,128,255))
         draw_mat(mat_projection, posx, posy+320, img,(0,128,255))
+        draw_mat(mat_projection, posx, posy+320, img,(0,128,255))
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_points_numpy_RT(points_3d,img,RT,camera_matrix_3x3,color=(66, 0, 166),flipX=False):
+def draw_points_numpy_RT(points_3d,img,RT,camera_matrix_3x3,color=(66, 0, 166),w=6,flipX=False):
     points_2d = tools_pr_geom.project_points_M(points_3d, RT, camera_matrix_3x3, numpy.zeros(5)).reshape((-1, 2))
     points_2d[:,0] = img.shape[1]-points_2d[:,0]
     if flipX:points_2d[:,0] = img.shape[1]-points_2d[:,0]
 
     for point in points_2d:
         if numpy.any(numpy.isnan(point)): continue
-        img = tools_draw_numpy.draw_circle(img, int(point[1]), int(point[0]), 2, color)
+        img = tools_draw_numpy.draw_circle(img, int(point[1]), int(point[0]), w, color)
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
@@ -1067,6 +1076,29 @@ def get_inverce_perspective_mat(image,point_vanishing,line_up,line_bottom,target
 
     return M
 # ---------------------------------------------------------------------------------------------------------------------
+def get_inverce_perspective_mat_v2(image,target_W,target_H,point_van_xy):
+    H, W = image.shape[:2]
+
+    tol_up = 20
+    tol_bottom = 0
+    upper_line = (0, point_van_xy[1] + tol_up, W, point_van_xy[1] + tol_up)
+    bottom_line = (0, H - tol_bottom, W, H - tol_bottom)
+
+    pad_left = 1 * W
+    pad_right = 1 * W
+    line1 = (-pad_left, H, point_van_xy[0], point_van_xy[1])
+    line2 = (W + pad_right, H, point_van_xy[0], point_van_xy[1])
+    p1 = line_intersection(upper_line, line1)
+    p2 = line_intersection(upper_line, line2)
+    p3 = line_intersection(bottom_line, line1)
+    p4 = line_intersection(bottom_line, line2)
+    src = numpy.array([(p1[0], p1[1]), (p2[0], p2[1]), (p3[0], p3[1]), (p4[0], p4[1])], dtype=numpy.float32)
+    dst = numpy.array([(0, 0), (target_W, 0), (0, target_H), (target_W, target_H)], dtype=numpy.float32)
+    #image = tools_draw_numpy.draw_convex_hull(image, [p1, p2, p3, p4], color=(36, 10, 48), transperency=0.5)
+    h_ipersp = cv2.getPerspectiveTransform(src, dst)
+
+    return h_ipersp
+# ----------------------------------------------------------------------------------------------------------------------
 def get_four_point_transform_mat(p_src, target_width, target_height):
     def order_points(pts):
         xSorted = pts[numpy.argsort(pts[:, 0]), :]
