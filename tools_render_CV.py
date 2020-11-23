@@ -235,7 +235,7 @@ def get_ray(point_2d, img, mat_projection, mat_view, mat_model, mat_trns):
     ray_end = numpy.array((X2, Y2, Z2))
 
     #check
-    points_2d_check, jac = tools_pr_geom.project_points(numpy.array([(X1, Y1, Z1),(X2,Y2,Z2)]), (0, 0, 0), (0, 0, 0), camera_matrix, numpy.zeros(4))
+    points_2d_check, jac = tools_pr_geom.project_points(numpy.array([(X1, Y1, Z1),(X2,Y2,Z2)]), numpy.array((0, 0, 0)), numpy.array((0, 0, 0)), camera_matrix, numpy.zeros(4))
 
     i_mat_view  = pyrr.matrix44.inverse(mat_view)
     i_mat_model = pyrr.matrix44.inverse(mat_model)
@@ -1084,8 +1084,8 @@ def get_inverce_perspective_mat_v2(image,target_W,target_H,point_van_xy):
     upper_line = (0, point_van_xy[1] + tol_up, W, point_van_xy[1] + tol_up)
     bottom_line = (0, H - tol_bottom, W, H - tol_bottom)
 
-    pad_left = 1 * W
-    pad_right = 1 * W
+    pad_left = 1 * W*1
+    pad_right = 1 * W*1
     line1 = (-pad_left, H, point_van_xy[0], point_van_xy[1])
     line2 = (W + pad_right, H, point_van_xy[0], point_van_xy[1])
     p1 = line_intersection(upper_line, line1)
@@ -1094,7 +1094,8 @@ def get_inverce_perspective_mat_v2(image,target_W,target_H,point_van_xy):
     p4 = line_intersection(bottom_line, line2)
     src = numpy.array([(p1[0], p1[1]), (p2[0], p2[1]), (p3[0], p3[1]), (p4[0], p4[1])], dtype=numpy.float32)
     dst = numpy.array([(0, 0), (target_W, 0), (0, target_H), (target_W, target_H)], dtype=numpy.float32)
-    #image = tools_draw_numpy.draw_convex_hull(image, [p1, p2, p3, p4], color=(36, 10, 48), transperency=0.5)
+    image = tools_draw_numpy.draw_convex_hull(image, numpy.array([p1, p2, p3, p4]), color=(36, 10, 255), transperency=0.5)
+    #cv2.imwrite('./images/output/xxx.png',image)
     h_ipersp = cv2.getPerspectiveTransform(src, dst)
 
     return h_ipersp

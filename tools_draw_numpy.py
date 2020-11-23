@@ -30,7 +30,7 @@ def draw_circle(array_bgr, row, col, rad, color_brg, alpha_transp=0):
         res_rgb[circle(int(row), int(col), int(rad), shape=array_bgr.shape)] = color_brg
     return res_rgb
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_line(array_bgr, row1, col1, row2, col2, color_bgr, alpha_transp=0):
+def draw_line(array_bgr, row1, col1, row2, col2, color_bgr, alpha_transp=0.0):
     res_rgb = array_bgr.copy()
 
     rr, cc, vv = line_aa(int(row1), int(col1), int(row2), int(col2))
@@ -68,14 +68,24 @@ def draw_contours_cv(image, points, color=(255,255,255),transperency=0.0):
 
     return res.astype(numpy.uint8)
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_contours(image, points, color=(255,255,255),transperency=0.0):
+def draw_contours(image, points, color_fill=(255,255,255),color_outline=(255,255,255),transp_fill=0.0,transp_outline=0.0):
 
     pImage = Image.fromarray(image)
     draw = ImageDraw.Draw(pImage, 'RGBA')
 
-    #polypoints = [(point[0],point[1]) for point in points.reshape((-1,2))]
     polypoints = [(point[0],point[1]) for point in points]
-    draw.polygon(polypoints, (color[0], color[1], color[2], int(255 - int(255-transperency * 255))))
+    if color_fill is not None:
+        clr_fill   = (color_fill[0], color_fill[1], color_fill[2], int(255 - int(255 - transp_fill * 255)))
+    else:
+        clr_fill = None
+
+    if color_outline is not None:
+        clr_outline= (color_outline[0], color_outline[1], color_outline[2], int(255 - int(255 - transp_outline * 255)))
+    else:
+        clr_outline=None
+
+    draw.polygon(polypoints, fill=clr_fill,outline=clr_outline)
+
 
     result = numpy.array(pImage)
     del draw
@@ -93,17 +103,22 @@ def draw_convex_hull_cv(image, points, color=(255,255,255),transperency=0.0):
     return res.astype(numpy.uint8)
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_convex_hull(image,points,color=(255, 0, 0),transperency=0.0):
+
+    if points[:,0].max()-points[:,0].min()<1:return image
+    if points[:,1].max()-points[:,1].min()<1:return image
+
     pImage = Image.fromarray(image)
     draw = ImageDraw.Draw(pImage, 'RGBA')
 
-    hull = ConvexHull(numpy.array(points, dtype=numpy.int))
-    cntrs = numpy.array(points, dtype=numpy.int)[hull.vertices]
-    polypoints = [(point[0],point[1]) for point in cntrs]
-
-    draw.polygon(polypoints, (color[0], color[1], color[2], int(255-transperency * 255)))
-
-    result = numpy.array(pImage)
-    del draw
+    try:
+        hull = ConvexHull(numpy.array(points, dtype=numpy.int))
+        cntrs = numpy.array(points, dtype=numpy.int)[hull.vertices]
+        polypoints = [(point[0],point[1]) for point in cntrs]
+        draw.polygon(polypoints, (color[0], color[1], color[2], int(255-transperency * 255)))
+        result = numpy.array(pImage)
+        del draw
+    except:
+        return image
     return result
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_rectangle(image,p1,p2,color=(255, 0, 0),transperency=0.0):
@@ -146,6 +161,11 @@ def get_colors(N, shuffle = False,colormap = 'jet',alpha_blend=None):
     for i in range(0, N):
         l = int(255 * i / (N - 1))
         colors.append(numpy.array([l,l,l]))
+
+    if colormap=='rainbow':
+        #colors = [gre2jet(c) for c in colors]
+        colors = [cv2.cvtColor(numpy.array([c[0],255,255], dtype=numpy.uint8).reshape((1, 1, 3)), cv2.COLOR_HSV2BGR)[0,0] for c in colors]
+
 
     if colormap=='jet':
         colors = [gre2jet(c) for c in colors]

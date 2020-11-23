@@ -1,3 +1,4 @@
+import os
 import numpy
 import pyvista
 #----------------------------------------------------------------------------------------------------------------------
@@ -5,8 +6,14 @@ class ObjLoader:
     def __init__(self):
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def load_mesh(self, file, mat_color=(0.5, 0.5, 0.5), do_autoscale=True):
-        self.mat_color = mat_color
+    def load_mesh(self, filename_obj, do_autoscale=True):
+
+        folder_name=''
+        split = filename_obj.split('/')
+        for s in split[:-1]:folder_name+=s+'/'
+
+        self.mat_color = []
+        self.filename_texture = []
 
         self.coord_vert = []
         self.coord_texture = []
@@ -14,17 +21,29 @@ class ObjLoader:
         self.idx_vertex = []
         self.idx_texture = []
         self.idx_normal = []
+        offset_vert=0
+        offset_text=0
+        object_id=-1
+        self.dct_obj_id = {}
 
-
-        for line in open(file, 'r'):
+        for line in open(filename_obj, 'r'):
             if line.startswith('#'): continue
             values = line.split()
             if not values: continue
             values = numpy.array(values)
 
+            if values[0] == 'o':
+                offset_vert=len(self.coord_vert)
+                offset_text=len(self.coord_texture)
+                object_id+=1
+                self.mat_color.append(None)
+                self.filename_texture.append(None)
+
+
             if values[0] == 'v':  self.coord_vert.append([float(v) for v in values[1:4]])
             if values[0] == 'vt': self.coord_texture.append([float(v) for v in values[1:3]])
             if values[0] == 'vn': self.coord_norm.append([float(v) for v in values[1:4]])
+
 
             if values[0] == 'f':
                 face_i = []
@@ -72,9 +91,19 @@ class ObjLoader:
                         text_i.append(int(w[1]) - 1)
                         norm_i.append(int(w[2]) - 1)
 
+                face_i = [f+offset_vert for f in face_i]
+                text_i = [t+offset_text for t in text_i]
                 self.idx_vertex.append(face_i)
                 self.idx_texture.append(text_i)
                 self.idx_normal.append(norm_i)
+                for f in face_i:
+                    self.dct_obj_id[f]=object_id
+
+            if values[0]=='mtllib':
+                mat,texture = self.get_material(folder_name+values[1])
+                self.mat_color[-1]=mat
+                if texture is not None:
+                    self.filename_texture[-1]=(folder_name + texture)
 
         if len(self.coord_texture) == 0: self.coord_texture.append([0,0])
 
@@ -87,6 +116,21 @@ class ObjLoader:
             self.coord_vert/= max_value
 
         return
+# ----------------------------------------------------------------------------------------------------------------------
+    def get_material(self,filename_mat):
+        mat_color,filename_texture = None,None
+
+        if not os.path.exists(filename_mat):
+            return mat_color, filename_texture
+
+        for line in open(filename_mat, 'r'):
+            values = line.split()
+            if not values: continue
+            values = numpy.array(values)
+            if values[0] == 'Ka':mat_color=tuple([float(v) for v in values[1:4]])
+            if values[0] == 'map_Kd': filename_texture = values[1]
+
+        return mat_color, filename_texture
 # ----------------------------------------------------------------------------------------------------------------------
     def remove_triangele(self):
 
@@ -159,13 +203,14 @@ class ObjLoader:
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def export_mesh(self, filename_out, X, coord_texture=None, idx_vertex=None,do_transform=False,cutoff=None):
+    def export_mesh(self, filename_out, X, coord_texture=None, idx_vertex=None, do_transform=False, cutoff=None, filename_material=None):
 
         if do_transform:
             X[:,1]=0 - X[:,1]
 
         f_handle = open(filename_out, "w+")
         f_handle.write("# Obj file\n")
+        f_handle.write("o Object\n")
         for x in X: f_handle.write("v %1.2f %1.2f %1.2f\n" % (x[0], x[1], x[2]))
 
         if coord_texture is None:
@@ -204,6 +249,18 @@ class ObjLoader:
 
             f_handle.write("f %d/%d/%d %d/%d/%d %d/%d/%d\n" % (t[0]+1, tx[0], n + 1, t[1] + 1, tx[1], n + 1, t[2] + 1, tx[2], n + 1))
 
+        if filename_material is not None:
+            f_handle.write('mtllib %s\n' % filename_material)
+
         f_handle.close()
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def export_material(self,filename_out,color255,filename_texture=None):
+
+        with open(filename_out, "w+") as f:
+            f.write('Ka %1.4f %1.4f %1.4f\n' % (color255[0]/255.0, color255[1]/255.0, color255[2]/255.0))
+            if filename_texture is not None:
+                f.write('map_Kd %s\n'%filename_texture)
+
         return
 # ----------------------------------------------------------------------------------------------------------------------

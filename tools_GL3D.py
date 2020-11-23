@@ -16,6 +16,7 @@ import tools_IO
 import tools_render_CV
 import tools_wavefront
 import tools_pr_geom
+import tools_wavefront
 # ----------------------------------------------------------------------------------------------------------------------
 numpy.set_printoptions(suppress=True)
 numpy.set_printoptions(precision=2)
@@ -35,19 +36,20 @@ class VBO(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def append_object(self,filename_obj,mat_color,do_normalize_model_file,svec=(1,1,1),tvec=(0,0,0)):
+    def append_object(self,filename_obj,do_normalize_model_file,svec=(1,1,1),tvec=(0,0,0)):
 
         self.marker_positions.append(numpy.array(tvec))
 
         object = tools_wavefront.ObjLoader()
-        object.load_mesh(filename_obj, mat_color, do_normalize_model_file)
+        object.load_mesh(filename_obj, do_normalize_model_file)
         object.scale_mesh(svec)
         object.translate_mesh(tvec)
 
-        clr = numpy.array([object.mat_color,object.mat_color,object.mat_color]).flatten()
-
-        i=0
         for idxv,idxn,idxt in zip(object.idx_vertex,object.idx_normal,object.idx_texture):
+            c = object.mat_color[object.dct_obj_id[idxv[0]]]
+            if c is None:c = (0.75,0.75,0.75)
+            clr = numpy.array([c, c, c]).flatten()
+
             self.data[self.iterator:                    self.iterator                    +9] = (object.coord_vert[idxv]).flatten()
             self.data[self.iterator+self.color_offset  :self.iterator+self.color_offset  +9] = clr
             self.data[self.iterator+self.normal_offset :self.iterator+self.normal_offset +9] = (object.coord_norm[idxn]).flatten()
@@ -55,7 +57,6 @@ class VBO(object):
 
             self.iterator+=9
             self.id[self.iterator:                  self.iterator + 9] = self.cnt
-
 
         self.cnt+=1
 
@@ -81,7 +82,7 @@ class VBO(object):
 # ----------------------------------------------------------------------------------------------------------------------
 class render_GL3D(object):
 
-    def __init__(self,filename_obj,filename_texture=None,W=640, H=480,is_visible=True,do_normalize_model_file=True,projection_type='P',scale=(1,1,1)):
+    def __init__(self,filename_obj,W=640, H=480,is_visible=True,do_normalize_model_file=True,projection_type='P',scale=(1,1,1)):
 
         glfw.init()
         self.projection_type = projection_type
@@ -89,12 +90,9 @@ class render_GL3D(object):
         self.marker_scale = 0.015
         self.scale = scale
         self.do_normalize_model_file = do_normalize_model_file
-        #self.bg_color  = numpy.array([76, 76, 76,1])/255
-        self.bg_color  = numpy.array([0, 0, 0.0,1])/255
-        self.mat_color = numpy.array([188, 136, 113]) / 255.0
-        #self.mat_color = numpy.array([1,1,1.0])
+        self.bg_color  = numpy.array([76, 76, 76,1])/255
         self.wired_mode = False
-        self.skeenless_mode = False
+        self.skinless_mode = False
 
         self.W,self.H  = W,H
         glfw.window_hint(glfw.VISIBLE, is_visible)
@@ -102,12 +100,10 @@ class render_GL3D(object):
         glfw.make_context_current(self.window)
 
         self.__init_shader()
-
         self.my_VBO = VBO()
-        self.object = self.my_VBO.append_object(filename_obj,self.mat_color,self.do_normalize_model_file)
-        self.filename_texture = filename_texture
-        self.init_texture(self.filename_texture)
 
+        self.object = self.my_VBO.append_object(filename_obj,self.do_normalize_model_file)
+        self.update_texture()
 
         self.bind_VBO()
         self.reset_view()
@@ -147,7 +143,7 @@ class render_GL3D(object):
                                     uniform sampler2D samplerTexture;
                                     void main()
                                     {
-                                        vec3 ambientLightIntensity  = vec3(0.1f, 0.1f, 0.1f);
+                                        vec3 ambientLightIntensity  = vec3(0.01f, 0.01f, 0.01f);
                                         vec3 sunLightIntensity      = vec3(1.0f, 1.0f, 1.0f);
                                         vec3 sunLightDirection      = normalize(vec3(+0.0f, -1.0f, +0.0f));
                                         vec4 texel = texture(samplerTexture, textureCoords);
@@ -157,9 +153,9 @@ class render_GL3D(object):
                                         
                                         //outColor = materialColor;
                                         //outColor = texel;
-                                        //outColor = texel* materialColor;
-                                        outColor = vec4(texel.rgb * lightIntensity, 1);
-                                        
+                                        outColor = texel* materialColor;
+                                        //outColor = vec4(texel.rgb * lightIntensity, 1);
+                                        outColor.a = 0.65;                                        
                                     }"""
 
         self.shader = OpenGL.GL.shaders.compileProgram(OpenGL.GL.shaders.compileShader(vert_shader, GL_VERTEX_SHADER),
@@ -167,20 +163,14 @@ class render_GL3D(object):
         glUseProgram(self.shader)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def init_texture(self, filename_texture=None):
+    def update_texture(self):
 
-        if filename_texture is not None:
-            texture_image = cv2.imread(filename_texture)
+        if (self.object.filename_texture[-1] is None) or (not os.path.exists(self.object.filename_texture[-1])):
+            texture_image = numpy.full((10,10,3),255)
+        else:
+            texture_image = cv2.imread(self.object.filename_texture[-1])
             texture_image = cv2.cvtColor(texture_image, cv2.COLOR_BGR2RGB)
 
-        else:
-            texture_image = numpy.full((255, 255, 3), 0, dtype=numpy.uint8)
-            texture_image[:, :, 0] = int(self.mat_color[0]*255)
-            texture_image[:, :, 1] = int(self.mat_color[1]*255)
-            texture_image[:, :, 2] = int(self.mat_color[2]*255)
-
-
-        # glBindTexture(GL_TEXTURE_2D, glGenTextures(1))
         glBindTexture(GL_TEXTURE_2D, 0)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
@@ -218,6 +208,10 @@ class render_GL3D(object):
         glClearColor(self.bg_color[0], self.bg_color[1], self.bg_color[2], self.bg_color[3])
         glEnable(GL_DEPTH_TEST)
 
+
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA)
+
         if wired_mode:
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
         else:
@@ -226,7 +220,7 @@ class render_GL3D(object):
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_projection_perspective(self,aspect_x=0.5,aspect_y=0.5):
-        near, far = 1.0, 10000.0
+        near, far = 0.1, 10000.0
         scale = (0.5/aspect_x)
 
         self.mat_projection = numpy.zeros((4,4),dtype=float)
@@ -446,7 +440,7 @@ class render_GL3D(object):
             flag = self.my_VBO.remove_last_object()
 
         for marker in markers:
-            self.my_VBO.append_object(filename_marker_obj, (0.7, 0.2, 0), do_normalize_model_file=True, svec=(self.marker_scale, self.marker_scale, self.marker_scale), tvec=marker)
+            self.my_VBO.append_object(filename_marker_obj, do_normalize_model_file=True, svec=(self.marker_scale, self.marker_scale, self.marker_scale), tvec=marker)
         self.bind_VBO()
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -609,10 +603,13 @@ class render_GL3D(object):
         self.__init_mat_projection_ortho(factor)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def scale_model(self, scale_factor):
-        self.mat_trns*=scale_factor
+    def scale_model_vector(self, scale_vector):
+        self.mat_trns[0,0]*=scale_vector[0]
+        self.mat_trns[1,1]*=scale_vector[1]
+        self.mat_trns[2,2]*=scale_vector[2]
         self.mat_trns[3,3]=1
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "transform"), 1, GL_FALSE, self.mat_trns)
+
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def inverce_transform_model(self,mode):
