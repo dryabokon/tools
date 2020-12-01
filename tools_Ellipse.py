@@ -158,11 +158,11 @@ class Ellipse_Processor(object):
         axes = (int(ellipse[1][0] / 2), int(ellipse[1][1] / 2))
         rotation_angle = ellipse[2]
 
-        if axes[0] < 20 or axes[0] > 150: return False
-        if axes[1] < 50 or axes[1] > 600: return False
-        if axes[1] / axes[0] < 4.00: return False
-        if axes[1] / axes[0] > 6.00: return False
-        if not ((90-4<= rotation_angle <=90+4) or (270-4<= rotation_angle <=270+4)): return False
+        #if axes[0] < 20 or axes[0] > 150: return False
+        #if axes[1] < 50 or axes[1] > 600: return False
+        #if axes[1] / axes[0] < 4.00: return False
+        #if axes[1] / axes[0] > 6.00: return False
+        #if not ((90-4<= rotation_angle <=90+4) or (270-4<= rotation_angle <=270+4)): return False
 
         return True
 # ----------------------------------------------------------------------------------------------------------------
@@ -247,6 +247,9 @@ class Ellipse_Processor(object):
                 if angle is not None and angle < 90 and box[0] > 1 * self.W / 3: continue
                 if angle is not None and angle > 90 and box[0] < 2 * self.W / 3: continue
 
+            if line_midfield is not None:
+                if tools_render_CV.distance_point_to_line(line_midfield,segment[0])<10 and tools_render_CV.distance_point_to_line(line_midfield, segment[-1]) < 10: continue
+
             filtered.append(segment)
 
         return filtered
@@ -287,15 +290,15 @@ class Ellipse_Processor(object):
                 if self.iou(bbox1,bbox2)>0.2:continue
 
                 ellipse, idx_match = self.estimate_ellipse(segments,s1,s2)
-                if ellipse is None:continue
 
-                for i1 in idx_match:
-                    for i2 in idx_match:
-                        processed[i1,i2]=1
+                if ellipse is not None:
+                    for i1 in idx_match:
+                        for i2 in idx_match:
+                            processed[i1,i2]=1
 
-                E[(s1, s2)] = ellipse
-                Q[(s1, s2)] = weights[idx_match].sum()
-                Cands[(s1, s2)] = idx_match
+                    E[(s1, s2)] = ellipse
+                    Q[(s1, s2)] = weights[idx_match].sum()
+                    Cands[(s1, s2)] = idx_match
 
                 if do_debug and self.folder_out is not None:
                     image_debug  = tools_image.desaturate(image)
@@ -303,10 +306,11 @@ class Ellipse_Processor(object):
                     image_debug = self.draw_segments(image_debug, [segments[s1]], color=(90,0,255), w=8)
                     image_debug = self.draw_segments(image_debug, [segments[s2]], color=(0,90,255), w=8)
 
-                    center = (int(ellipse[0][0]), int(ellipse[0][1]))
-                    axes = (int(ellipse[1][0] / 2), int(ellipse[1][1] / 2))
-                    rotation_angle = ellipse[2]
-                    cv2.ellipse(image_debug, center, axes, rotation_angle, startAngle=0, endAngle=360, color=(0, 0, 190), thickness=1)
+                    if ellipse is not None:
+                        center = (int(ellipse[0][0]), int(ellipse[0][1]))
+                        axes = (int(ellipse[1][0] / 2), int(ellipse[1][1] / 2))
+                        rotation_angle = ellipse[2]
+                        cv2.ellipse(image_debug, center, axes, rotation_angle, startAngle=0, endAngle=360, color=(0, 0, 190), thickness=1)
                     cv2.imwrite(self.folder_out+base_name+'ellips_%03d_%03d.png'%(s1,s2),image_debug)
 
         ellipse,quality = None,0

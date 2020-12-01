@@ -220,8 +220,8 @@ def load_mat(filename, dtype=numpy.chararray, delim='\t'):
 
     if N==0:
         return mat
-    elif N==1:
-        mat  = numpy.array([numpy.genfrpickleomtxt(filename, dtype=dtype, delimiter=delim)])
+    #elif N==1:
+    #    mat  = numpy.array([numpy.genfrpickleomtxt(filename, dtype=dtype, delimiter=delim)])
     else:
         mat = numpy.genfromtxt(filename, dtype=dtype, delimiter=delim)
     return mat

@@ -819,13 +819,14 @@ def ellipse_line_intersection(ellipse, line, full_line=True,do_debug=False):
     pt2[:,:,1] *= Rxy[0] / Rxy[1]
 
     intersections_trans = circle_line_intersection((0,0), Rxy[0], pt1.flatten(), pt2.flatten(),full_line=full_line)
-
-    intersections = numpy.array(intersections_trans).copy()
-    intersections[:,1]/=Rxy[0] / Rxy[1]
-    intersections = cv2.transform(numpy.array(intersections,dtype=numpy.float32).reshape((-1,1,2)), numpy.linalg.inv(M))[:, 0, :2]
-    intersections[:,0]+=center[0]
-    intersections[:,1]+=center[1]
-
+    if len(intersections_trans)>0:
+        intersections = numpy.array(intersections_trans).copy()
+        intersections[:,1]/=Rxy[0] / Rxy[1]
+        intersections = cv2.transform(numpy.array(intersections,dtype=numpy.float32).reshape((-1,1,2)), numpy.linalg.inv(M))[:, 0, :2]
+        intersections[:,0]+=center[0]
+        intersections[:,1]+=center[1]
+    else:
+        intersections = []
 
     if do_debug:
         W, H = int(1.4 * (center[0] + Rxy[0])), int(1.4 * (center[1] + Rxy[1]))
@@ -1094,7 +1095,8 @@ def get_inverce_perspective_mat_v2(image,target_W,target_H,point_van_xy):
     p4 = line_intersection(bottom_line, line2)
     src = numpy.array([(p1[0], p1[1]), (p2[0], p2[1]), (p3[0], p3[1]), (p4[0], p4[1])], dtype=numpy.float32)
     dst = numpy.array([(0, 0), (target_W, 0), (0, target_H), (target_W, target_H)], dtype=numpy.float32)
-    image = tools_draw_numpy.draw_convex_hull(image, numpy.array([p1, p2, p3, p4]), color=(36, 10, 255), transperency=0.5)
+
+    #image = tools_draw_numpy.draw_convex_hull(image, numpy.array([p1, p2, p3, p4]), color=(36, 10, 255), transperency=0.5)
     #cv2.imwrite('./images/output/xxx.png',image)
     h_ipersp = cv2.getPerspectiveTransform(src, dst)
 

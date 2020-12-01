@@ -85,10 +85,10 @@ def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_se
     vidcap.set(cv2.CAP_PROP_POS_MSEC, start_time_sec*1000)
 
     success, image = vidcap.read()
-    count = 0
+    count = 1
     while success:
         #image = numpy.transpose(image,(1, 0, 2))
-        cv2.imwrite(folder_out+prefix+'frame%06d.jpg' % count, image)
+        cv2.imwrite(folder_out+prefix+'%05d.jpg' % count, image)
         success, image = vidcap.read()
         current_time = vidcap.get(cv2.CAP_PROP_POS_MSEC)
 
