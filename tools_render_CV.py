@@ -45,8 +45,9 @@ def draw_mat(M, posx, posy, image,color=(128, 128, 0)):
 def draw_cube_numpy(img, camera_matrix, dist, rvec, tvec, scale=(1,1,1),color=(255,128,0)):
 
     points_3d = numpy.array([[-1, -1, -1], [-1, +1, -1], [+1, +1, -1], [+1, -1, -1],
-                             [-1, -1, +0], [-1, +1, +0], [+1, +1, +0], [+1, -1, +0]],dtype = numpy.float32)
-    colors = tools_IO.get_colors(8)
+                             [-1, -1, +1], [-1, +1, +1], [+1, +1, +1], [+1, -1, +1]],dtype = numpy.float32)
+    colors = tools_draw_numpy.get_colors(8)
+
 
     points_3d[:,0]*=scale[0]
     points_3d[:,1]*=scale[1]
@@ -70,7 +71,7 @@ def draw_cube_numpy(img, camera_matrix, dist, rvec, tvec, scale=(1,1,1),color=(2
     for i in (0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3):
         cv2.circle(result,(points_2d[i, 0], points_2d[i, 1]),5,colors[i].tolist(),thickness=-1)
 
-    clr = (255, 255, 255)
+    clr = (0, 0, 255)
     for i in (0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3):
         cv2.putText(result, '{0}   {1} {2} {3}'.format(i, points_3d[i,0],points_3d[i,1],points_3d[i,2]), (points_2d[i, 0], points_2d[i, 1]),cv2.FONT_HERSHEY_SIMPLEX, 0.5, clr, 1, cv2.LINE_AA)
 
@@ -803,6 +804,7 @@ def ellipse_line_intersection(ellipse, line, full_line=True,do_debug=False):
     Rxy = (int(ellipse[1][0] / 2), int(ellipse[1][1] / 2))
     rotation_angle_rad = ellipse[2]*numpy.pi/180.0
 
+    if Rxy[1] == 0: return  []
 
     M = numpy.array([[numpy.cos(-rotation_angle_rad), -numpy.sin(-rotation_angle_rad), 0],[numpy.sin(-rotation_angle_rad), numpy.cos(-rotation_angle_rad), 0], [0, 0, 1]])
 
@@ -819,7 +821,7 @@ def ellipse_line_intersection(ellipse, line, full_line=True,do_debug=False):
     pt2[:,:,1] *= Rxy[0] / Rxy[1]
 
     intersections_trans = circle_line_intersection((0,0), Rxy[0], pt1.flatten(), pt2.flatten(),full_line=full_line)
-    if len(intersections_trans)>0:
+    if len(intersections_trans)>0 and Rxy[1]>0:
         intersections = numpy.array(intersections_trans).copy()
         intersections[:,1]/=Rxy[0] / Rxy[1]
         intersections = cv2.transform(numpy.array(intersections,dtype=numpy.float32).reshape((-1,1,2)), numpy.linalg.inv(M))[:, 0, :2]

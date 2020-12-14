@@ -158,11 +158,11 @@ class Ellipse_Processor(object):
         axes = (int(ellipse[1][0] / 2), int(ellipse[1][1] / 2))
         rotation_angle = ellipse[2]
 
-        #if axes[0] < 20 or axes[0] > 150: return False
-        #if axes[1] < 50 or axes[1] > 600: return False
-        #if axes[1] / axes[0] < 4.00: return False
-        #if axes[1] / axes[0] > 6.00: return False
-        #if not ((90-4<= rotation_angle <=90+4) or (270-4<= rotation_angle <=270+4)): return False
+        if axes[0] < 20 or axes[0] > 150: return False
+        if axes[1] < 50 or axes[1] > 600: return False
+        if axes[1] / axes[0] < 4.00: return False
+        if axes[1] / axes[0] > 6.00: return False
+        if not ((90-4<= rotation_angle <=90+4) or (270-4<= rotation_angle <=270+4)): return False
 
         return True
 # ----------------------------------------------------------------------------------------------------------------

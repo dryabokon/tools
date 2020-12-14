@@ -46,7 +46,8 @@ class VBO(object):
         object.translate_mesh(tvec)
 
         for idxv,idxn,idxt in zip(object.idx_vertex,object.idx_normal,object.idx_texture):
-            c = object.mat_color[object.dct_obj_id[idxv[0]]]
+            xxx = object.dct_obj_id[idxv[0]]
+            c = object.mat_color[xxx]
             if c is None:c = (0.75,0.75,0.75)
             clr = numpy.array([c, c, c]).flatten()
 
@@ -269,7 +270,7 @@ class render_GL3D(object):
     def init_mat_view_ETU(self, eye, target, up):
 
         #self.xxx= pyrr.matrix44.create_look_at(eye, target, up)
-        self.mat_view = tools_pr_geom.ETU_to_mat_view(eye,target,up)
+        self.mat_view = tools_pr_geom.ETU_to_mat_view(numpy.array(eye),numpy.array(target),numpy.array(up))
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
 
         return
@@ -550,6 +551,7 @@ class render_GL3D(object):
             is_good = abs(rvec[1])<tol and abs(rvec[2])<tol
 
         return
+
 # ----------------------------------------------------------------------------------------------------------------------
     def center_view_t(self, idx):
         E, T, U = tools_pr_geom.mat_view_to_ETU(self.mat_view)
@@ -698,12 +700,14 @@ class render_GL3D(object):
         obj_min = self.object.coord_vert.min()
         obj_max = self.object.coord_vert.max()
 
-        eye = numpy.array((0, 0, +5 * (obj_max - obj_min)))
-        target = eye - numpy.array((0, 0, 1.0))
-        up  = numpy.array((0, -1, 0.0))
-
-        self.init_mat_view_ETU(eye,target,up)
+        #eye = numpy.array((0, 0, +5 * (obj_max - obj_min)))
+        #target = eye - numpy.array((0, 0, 1.0))
+        #up  = numpy.array((0, -1, 0.0))
+        #self.init_mat_view_ETU(eye,target,up)
         #self.__init_mat_view_RT((0,0,0),(0,0,+5 * (obj_max - obj_min)))
+        self.init_mat_view_ETU(eye=(0, 0, 20), target=(0, 0, 0), up=(0, -1, -2))
+        self.center_view()
+        
 
         return
 # ----------------------------------------------------------------------------------------------------------------------

@@ -2,6 +2,9 @@ import cv2
 import time
 import tools_IO
 from pytube import YouTube
+import progressbar
+#--------------------------------------------------------------------------------------------------------------------------
+import tools_image
 #--------------------------------------------------------------------------------------------------------------------------
 def capture_image_to_disk(out_filename):
 
@@ -74,25 +77,28 @@ def reconvert_video(filename_in,filename_out):
     vidcap.release()
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_sec=1000000):
+def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_sec=1000000,scale=1):
 
     tools_IO.remove_files(folder_out,create=True)
-
     vidcap = cv2.VideoCapture(filename_in)
-
+    total_frames = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = vidcap.get(cv2.CAP_PROP_FPS)
     #end_time = vidcap.get(cv2.CAP_PROP_POS_MSEC)
     vidcap.set(cv2.CAP_PROP_POS_MSEC, start_time_sec*1000)
 
     success, image = vidcap.read()
+    if success and scale!=1:image = tools_image.do_rescale(image,scale)
+
     count = 1
+    bar = progressbar.ProgressBar(max_value=total_frames)
     while success:
-        #image = numpy.transpose(image,(1, 0, 2))
+        bar.update(count)
         cv2.imwrite(folder_out+prefix+'%05d.jpg' % count, image)
         success, image = vidcap.read()
-        current_time = vidcap.get(cv2.CAP_PROP_POS_MSEC)
-
-        if current_time > 1000*end_time_sec: success = False
+        if success and scale != 1: image = tools_image.do_rescale(image, scale)
+        if end_time_sec<1000000:
+            current_time = vidcap.get(cv2.CAP_PROP_POS_MSEC)
+            if current_time > 1000*end_time_sec: success = False
         count += 1
 
     return

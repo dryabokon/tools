@@ -69,27 +69,31 @@ def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png', frame
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
-def folder_to_video(path_input,filename_out,mask='*.jpg',framerate=24,resize_W=None,resize_H=None,do_reverce=False):
-    fileslist = fnmatch.filter(listdir(path_input), mask)
+def folder_to_video(folder_in, filename_out, mask='*.jpg', framerate=24, resize_W=None, resize_H=None, do_reverce=False):
+    fileslist = fnmatch.filter(listdir(folder_in), mask)
     fileslist.sort()
 
+    print(len(fileslist))
+
     if resize_W is None or resize_H is None:
-        image = cv2.imread(os.path.join(path_input, fileslist[0]))
+        image = cv2.imread(os.path.join(folder_in, fileslist[0]))
         resize_H, resize_W = image.shape[:2]
 
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(filename_out,fourcc, framerate, (resize_W,resize_H))
 
-
-    for filename in fileslist:
-        image = cv2.imread(os.path.join(path_input, filename))
+    bar = progressbar.ProgressBar(len(fileslist))
+    bar.start()
+    for b,filename in enumerate(fileslist):
+        bar.update(b)
+        image = cv2.imread(os.path.join(folder_in, filename))
         if resize_W is not None and resize_H is not None:
             image = cv2.resize(image,(resize_W,resize_H),interpolation=cv2.INTER_CUBIC)
         out.write(image)
 
     if do_reverce:
         for filename in reversed(fileslist):
-            image = cv2.imread(os.path.join(path_input, filename))
+            image = cv2.imread(os.path.join(folder_in, filename))
             if resize_W is not None and resize_H is not None:
                 image = cv2.resize(image, (resize_W, resize_H), interpolation=cv2.INTER_CUBIC)
             out.write(image)
