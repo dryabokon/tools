@@ -389,7 +389,7 @@ def apply_matrix(M,X):
         X4D = X
 
     Y1 = pyrr.matrix44.multiply(M, X4D.T).T
-    Y2 = numpy.array([pyrr.matrix44.apply_to_vector(M.T, x) for x in X4D])
+    #Y2 = numpy.array([pyrr.matrix44.apply_to_vector(M.T, x) for x in X4D])
 
     #if X.shape[0]==1:
     #    Y1=Y1[0]
@@ -475,6 +475,47 @@ def RT_to_H(rvec, tvec, camera_matrix_3x3):
 
 
     return H
+# ----------------------------------------------------------------------------------------------------------------------
+def H_to_RT(homography,camera_matrix_3x3):
+
+    ps = [[459. ,  390.  ],[641. ,  390.  ],[550. ,    0.  ], [550.  , 299.  ],[550.   ,481.  ], [550. ,  790.  ], [370.27 ,  0.  ], [729.72 ,  0.  ], [365.67 ,790.  ], [734.33, 790.  ]]
+    pt = [[ 435.,  379.  ],[ 818.,  380.  ],[630.1 ,  277. ],[ 630.52, 340.01],[631.06,  420.  ],[ 632.88,  689.99],[ 370.1 ,  277.  ],[ 879.51,  277.  ],[-157.48,  688.75],[1385.65,  691.17]]
+
+    ps = numpy.array(ps,dtype=numpy.float32)
+    pt = numpy.array(pt)
+    pt2 = perspective_transform(ps.reshape((-1, 1, 2)),homography)
+
+
+
+
+    P = compose_projection_mat_4x4(camera_matrix_3x3[0, 0], camera_matrix_3x3[1, 1],
+                                   camera_matrix_3x3[0, 2] / camera_matrix_3x3[0, 0],
+                                   camera_matrix_3x3[1, 2] / camera_matrix_3x3[1, 1])
+
+    XXX = numpy.eye(4)
+    XXX[:3, [0, 1, 3]] = homography
+    RT = numpy.dot(numpy.linalg.inv(P),XXX)
+
+
+    ps_3d = numpy.insert(ps, 2, numpy.zeros((len(ps))), axis=1)
+    pt3 = project_points_M(ps_3d, RT.T, camera_matrix_3x3, numpy.zeros(5))
+
+    r_vec, t_vec, pt4 = fit_pnp(ps_3d,pt,camera_matrix_3x3)
+
+
+    n, R, T, normal = cv2.decomposeHomographyMat(homography, camera_matrix_3x3)
+    R = numpy.array(R[0])
+    T = numpy.array(T[0])
+    normal = numpy.array(normal[0])
+    homography3 = tools_calibrate.compose_homography(R, T, normal, camera_matrix_3x3)
+
+    #HH = R + numpy.dot(T, normal.T)
+    #M = numpy.dot(HH, numpy.linalg.inv(K))
+    #rvec = rotationMatrixToEulerAngles(R)
+    #M = compose_RT_mat(rvec,T.flatten(),do_flip=False,do_rodriges=True).T
+
+
+    return RT
 # ----------------------------------------------------------------------------------------------------------------------
 def project_points(points_3d, rvec, tvec, camera_matrix_3x3, dist):
     #https: // docs.opencv.org / 2.4 / modules / calib3d / doc / camera_calibration_and_3d_reconstruction.html
