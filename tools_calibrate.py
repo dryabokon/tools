@@ -1,15 +1,20 @@
 import cv2
 import numpy
 from os import listdir
-from glob import glob
 import fnmatch
 import math
-import pyrr
 #----------------------------------------------------------------------------------------------------------------------
+import tools_IO
 import tools_draw_numpy
 import tools_image
 import tools_alg_match
-import tools_IO
+import tools_pr_geom
+# ----------------------------------------------------------------------------------------------------------------------
+def get_K_RT(points_3d, points_2d, image):
+    flag = cv2.CALIB_USE_INTRINSIC_GUESS + cv2.CALIB_ZERO_TANGENT_DIST + cv2.CALIB_RATIONAL_MODEL
+    matrix_init = tools_pr_geom.compose_projection_mat_3x3(image.shape[1], image.shape[0])
+    ret, camera_matrix, dist, rvecs, tvecs = cv2.calibrateCamera(points_3d, points_2d,(image.shape[1], image.shape[0]), matrix_init,numpy.zeros((1, 5)), flags=flag)
+    return camera_matrix, dist, rvecs, tvecs
 #----------------------------------------------------------------------------------------------------------------------
 def get_proj_dist_mat_for_image(filename,chess_rows,chess_cols):
 
@@ -36,7 +41,7 @@ def get_proj_dist_mat_for_image(filename,chess_rows,chess_cols):
 
     return cameraMatrix, distCoeffs,cv_im_undistorted
 #----------------------------------------------------------------------------------------------------------------------
-def get_proj_dist_mat_for_images(folder_in,chess_rows,chess_cols,folder_out=None):
+def get_proj_dist_mat_for_images(folder_in,chess_rows,chess_cols,cell_size=1,folder_out=None):
 
     x, y = numpy.meshgrid(range(chess_rows), range(chess_cols))
     world_points = numpy.hstack((x.reshape(chess_rows*chess_cols, 1), y.reshape(chess_rows*chess_cols, 1), numpy.zeros((chess_rows*chess_cols, 1)))).astype(numpy.float32)
@@ -45,38 +50,40 @@ def get_proj_dist_mat_for_images(folder_in,chess_rows,chess_cols,folder_out=None
     _2d_points = []
 
 
-    for image_name in fnmatch.filter(listdir(folder_in), '*.jpg'):
-        im = cv2.imread(folder_in+image_name)
-        im_gray=cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
-        im_gray_RGB = tools_image.desaturate(im)
-        ret, corners = cv2.findChessboardCorners(im_gray, (chess_rows, chess_cols))
+    for local_filename in tools_IO.get_filenames(folder_in,'*.png,*.jpg'):
+        image = cv2.imread(folder_in+local_filename)
+        #image = tools_image.do_rescale(image, 0.5)
+        gray = tools_image.desaturate(image)
+        ret, corners = cv2.findChessboardCorners(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY), (chess_rows, chess_cols),cv2.CALIB_CB_ADAPTIVE_THRESH)
 
         if ret:
-            corners = cv2.cornerSubPix(im_gray, corners, (11, 11), (-1, -1),(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001))
+            corners = cv2.cornerSubPix(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY), corners, (11, 11), (-1, -1),(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001))
             _2d_points.append(corners)
             _3d_points.append(world_points)
             corners = corners.reshape(-1, 2)
-            for i in range(0,corners.shape[0]):
-                im_gray_RGB = tools_draw_numpy.draw_circle(im_gray_RGB, corners[i, 1], corners[i, 0], 3, [0, 0, 255], alpha_transp=0)
+            for i in range(0,corners.shape[0]):gray = tools_draw_numpy.draw_circle(gray, corners[i, 1], corners[i, 0], 3, [0, 0, 255], alpha_transp=0)
 
+        print(local_filename,len(corners))
         if folder_out!=None:
-            cv2.imwrite(folder_out + image_name, im_gray_RGB)
+            cv2.imwrite(folder_out + local_filename, gray)
 
-    camera_matrix = numpy.array([[im.shape[1], 0, im.shape[0]], [0, im.shape[0], im.shape[1]], [0, 0, 1]]).astype(numpy.float64)
-    dist=numpy.zeros((1,5))
+    #camera_matrix = numpy.array([[im.shape[1], 0, im.shape[0]], [0, im.shape[0], im.shape[1]], [0, 0, 1]]).astype(numpy.float64)
+    #dist=numpy.zeros((1,5))
 
     flag = cv2.CALIB_USE_INTRINSIC_GUESS + cv2.CALIB_ZERO_TANGENT_DIST + cv2.CALIB_RATIONAL_MODEL
 
     matrix_init = numpy.zeros((3, 3), numpy.float32)
-    matrix_init[0][0] = im.shape[0]/2
-    matrix_init[0][2] = im.shape[1]/2
-    matrix_init[1][1] = matrix_init[0][0]
-    matrix_init[1][2] = matrix_init[0][2]
+    matrix_init[0][0] = image.shape[1]
+    matrix_init[1][1] = image.shape[0]
+    matrix_init[0][2] = matrix_init[0][0]/2
+    matrix_init[1][2] = matrix_init[1][1]/2
     matrix_init[2][2] = 1.0
     dist_init = numpy.zeros((1, 4), numpy.float32)
-    ret, camera_matrix, dist, rvecs, tvecs = cv2.calibrateCamera(_3d_points, _2d_points, (im.shape[1], im.shape[0]), matrix_init, dist_init,flags=flag)
+    ret, camera_matrix, dist, rvecs, tvecs = cv2.calibrateCamera(1.0 * numpy.array(_3d_points), _2d_points,(image.shape[1], image.shape[0]), matrix_init,dist_init, flags=flag)
+    print(camera_matrix)
+    ret, camera_matrix, dist, rvecs, tvecs = cv2.calibrateCamera(cell_size*numpy.array(_3d_points), _2d_points, (image.shape[1], image.shape[0]), matrix_init, dist_init,flags=flag)
 
-    return camera_matrix,dist
+    return camera_matrix,dist,rvecs, tvecs
 #----------------------------------------------------------------------------------------------------------------------
 def rectify_pair(mtx,dist,image1,image2,chess_rows,chess_cols):
 
@@ -464,13 +471,13 @@ def align_two_images_ECC(im1, im2,mode = cv2.MOTION_AFFINE):
         aligned = cv2.warpAffine(im2, warp_matrix, (im2_gray.shape[1], im2_gray.shape[0]),borderMode=cv2.BORDER_REPLICATE, flags=cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP)
         return im1, aligned
 # ---------------------------------------------------------------------------------------------------------------------
-def get_rvecs_tvecs_for_chessboard(img, chess_rows, chess_cols, cameraMatrix, dist):
+def pose_estimation_chessboard(img, chess_rows, chess_cols, cameraMatrix, dist):
     corners_3d = numpy.zeros((chess_rows * chess_cols, 3), numpy.float32)
     corners_3d[:, :2] = numpy.mgrid[0:chess_cols, 0:chess_rows].T.reshape(-1, 2)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     ret, corners_2d = cv2.findChessboardCorners(gray, (chess_cols, chess_rows), None)
 
-    rvecs, tvecs=numpy.array([]),numpy.array([])
+    rvecs, tvecs = numpy.array([]),numpy.array([])
 
     if ret == True:
         corners_2d = cv2.cornerSubPix(gray, corners_2d, (11, 11), (-1, -1),(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001))

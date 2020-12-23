@@ -5,6 +5,8 @@ from scipy.spatial import ConvexHull
 from skimage.draw import circle, line_aa,ellipse
 from PIL import Image, ImageDraw
 # ----------------------------------------------------------------------------------------------------------------------
+import tools_image
+# ----------------------------------------------------------------------------------------------------------------------
 def gre2jet(rgb):
     return cv2.applyColorMap(numpy.array(rgb, dtype=numpy.uint8).reshape((1, 1, 3)), cv2.COLORMAP_JET).reshape(3)
 # ----------------------------------------------------------------------------------------------------------------------
@@ -158,20 +160,20 @@ def get_colors(N, shuffle = False,colormap = 'jet',alpha_blend=None):
         colors.append(numpy.array([255, 0, 0]))
         return colors
 
-    for i in range(0, N):
-        l = int(255 * i / (N - 1))
-        colors.append(numpy.array([l,l,l]))
-
     if colormap=='rainbow':
-        #colors = [gre2jet(c) for c in colors]
-        colors = [cv2.cvtColor(numpy.array([c[0],255,255], dtype=numpy.uint8).reshape((1, 1, 3)), cv2.COLOR_HSV2BGR)[0,0] for c in colors]
+        colors = [int(180 * i / (N - 1)) for i in range(N)]
+        colors = [cv2.cvtColor(numpy.array([c,255,255], dtype=numpy.uint8).reshape((1, 1, 3)), cv2.COLOR_HSV2BGR)[0,0] for c in colors]
 
-
-    if colormap=='jet':
+    elif colormap == 'jet':
+        colors = numpy.array([(int(255 * i / (N - 1)), int(255 * i / (N - 1)), int(255 * i / (N - 1))) for i in range(N)])
         colors = [gre2jet(c) for c in colors]
 
-    if colormap=='viridis':
+    elif colormap=='viridis':
+        colors = numpy.array([(int(255 * i / (N - 1)), int(255 * i / (N - 1)), int(255 * i / (N - 1))) for i in range(N)])
         colors = [gre2viridis(c) for c in colors]
+
+    else:
+        colors = numpy.array([(int(255 * i / (N - 1)), int(255 * i / (N - 1)), int(255 * i / (N - 1))) for i in range(N)])
 
     if alpha_blend is not None:
         colors = [((alpha_blend) * numpy.array((255, 255, 255)) + (1 - alpha_blend) * numpy.array(color)) for color in colors]
@@ -270,7 +272,7 @@ def draw_lines(image, lines,color=(255,255,255),w=4,put_text=False):
 
     return result
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_points(image, points,color=(255,255,255),w=4,put_text=False):
+def draw_points(image, points,color=(255,255,255),w=4,put_text=False,labels=None):
 
     result = image.copy()
     H, W = image.shape[:2]
@@ -288,6 +290,9 @@ def draw_points(image, points,color=(255,255,255),w=4,put_text=False):
         cv2.circle(result, (int(x1), int(y1)), w, clr,thickness=-1)
         if put_text:
             cv2.putText(result, '{0}'.format(id), (min(W - 10, max(10, x1)), min(H - 5, max(10, y1))),cv2.FONT_HERSHEY_SIMPLEX, 0.6, clr, 1, cv2.LINE_AA)
+
+        if labels is not None:
+            cv2.putText(result, '{0}'.format(labels[id]), (min(W - 10, max(10, x1)), min(H - 5, max(10, y1))),cv2.FONT_HERSHEY_SIMPLEX, 0.6, clr, 1, cv2.LINE_AA)
 
     return result
 # ----------------------------------------------------------------------------------------------------------------------
@@ -364,4 +369,60 @@ def draw_signals_lines(signals,colors=None,w=3):
 
     return image_signal
 # ----------------------------------------------------------------------------------------------------------------------
+def draw_cuboid(image, points, color=(255, 255, 255), w=1, put_text=False, labels=None):
+    lines = []
+    for i in [(1, 0), (0, 2), (2, 3), (3, 1), (7, 6), (6, 4), (4, 5), (5, 7), (1, 0), (0, 6), (6, 7), (7, 1), (3, 2),(2, 4), (4, 5), (5, 3), (1, 3), (3, 5), (5, 7), (7, 1), (0, 2), (2, 4), (4, 6), (6, 0)]:
+        lines.append(numpy.array((points[i[0]], points[i[1]])).flatten())
+
+    result = draw_convex_hull(image, points, color, transperency=0.75)
+    result = draw_lines(result, numpy.array(lines), color, w)
+    return result
+# ----------------------------------------------------------------------------------------------------------------------
+def extend_view(XY,H,W,factor = 4):
+
+    if XY is None: return XY
+
+    if isinstance(XY, tuple):
+        XY = [numpy.array(XY)]
+
+    if (not isinstance(XY,list)) and len(XY.shape) == 1:
+        XY = [XY]
+
+    result = []
+    for xy in XY:
+        if (xy is None) or numpy.any(numpy.isnan(xy)) or len(xy)==0:
+            result.append(xy)
+        else:
+            r = numpy.array(xy,dtype=numpy.float32)
+
+            if len(xy.flatten()) == 2:
+                ix = 0
+                iy = 1
+            else:
+                ix = [0, 2]
+                iy = [1, 3]
+
+            r[ix] /= factor
+            r[ix] += (W - W / factor) / 2
+            r[iy] /= factor
+            r[iy] += (H - H / factor) / 2
+            result.append(r)
+
+    result = numpy.array(result)
+
+    return result
+# ----------------------------------------------------------------------------------------------------------------------
+def extend_view_from_image(image,factor=4,color_bg=(32,32,32)):
+    H, W = image.shape[:2]
+
+    image_result = numpy.full((H,W,3),0,dtype=numpy.uint8)
+    image_result[:,:]=color_bg
+
+    image_small = cv2.resize(tools_image.saturate(image),(int(W/factor),int(H/factor)))
+
+    image_result = tools_image.put_image(image_result,image_small,int((H-H/factor)/2),int((W-W/factor)/2))
+
+
+
+    return image_result
 # ----------------------------------------------------------------------------------------------------------------------

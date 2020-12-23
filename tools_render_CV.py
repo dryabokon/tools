@@ -33,6 +33,53 @@ def draw_axis(img, camera_matrix, dist, rvec, tvec, axis_length):
     img = tools_draw_numpy.draw_line(img, axis_2d_start[0, 1], axis_2d_start[0, 0], axis_2d_end[2, 1],axis_2d_end[2, 0], (255, 0, 0))
     return img
 # ----------------------------------------------------------------------------------------------------------------------
+def draw_grid(image, camera_matrix, dist, rvec, tvec,color=(0,0,190),w=1):
+
+    z = 0
+    step  =1
+    x_min, x_max = 0.0, +100
+    y_min, y_max = -1, +1
+    image_result = image.copy()
+
+    for x in numpy.arange(x_min,x_max,step):
+        lines_3d = numpy.array([[x, y_min, z], [x, y_max, z] ],dtype = numpy.float32)
+        lines_2d, jac = cv2.projectPoints(lines_3d, rvec, tvec, camera_matrix, dist)
+        image_result = tools_draw_numpy.draw_lines(image_result,lines_2d.reshape((-1, 4)),color,w)
+
+
+    for y in numpy.arange(y_min, y_max, step):
+        lines_3d = numpy.array([[x_min, y, z], [x_max, y, z]], dtype=numpy.float32)
+        lines_2d, jac = cv2.projectPoints(lines_3d, rvec, tvec, camera_matrix, dist)
+        image_result = tools_draw_numpy.draw_lines(image_result, lines_2d.reshape((-1, 4)),color,w)
+
+    return image_result
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_compass(image, camera_matrix, dist, rvec, tvec, R, Z=0, step=1, draw_labels=False):
+
+    points_3d = numpy.array([(R * numpy.sin(angle * numpy.pi / 180.0), R * numpy.cos(angle * numpy.pi / 180.0), Z) for angle in range(0, 360, step)])
+    points_2d, jac = cv2.projectPoints(points_3d, rvec, tvec, camera_matrix, dist)
+    points_2d=points_2d.reshape((-1,2))
+
+    M = pyrr.matrix44.multiply(pyrr.matrix44.create_from_translation(numpy.array(tvec,dtype=float).flatten()).T, pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(numpy.array(rvec, dtype=float).flatten())[0]))
+    points_2dx = tools_pr_geom.apply_matrix(M, points_3d)
+
+    idx = (points_2d[:,0]>0) * (points_2d[:,1]>0) * (points_2d[:,0]<image.shape[1]) * (points_2d[:,1]<image.shape[0]) * (points_2dx[:,2]>0)
+    image_result = image.copy()
+    if numpy.array(1*idx).sum()>1:
+        points_2d_visible = points_2d[idx]
+        lines_2d =[(points_2d_visible[p,0],points_2d_visible[p,1],points_2d_visible[p+1,0],points_2d_visible[p+1,1]) for p in range(len(points_2d_visible)-1)]
+        image_result = tools_draw_numpy.draw_lines(image,lines_2d,color=(0,0,190),w=2)
+
+        xy = (int(points_2d_visible[:, 0].mean()), int(points_2d_visible[:, 1].mean()))
+        cv2.putText(image_result, '{0}'.format(R), xy, cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 190), 1, cv2.LINE_AA)
+
+        if draw_labels:
+            colors = tools_draw_numpy.get_colors(len(points_2d), colormap='rainbow')
+            labels = numpy.array([('%d' % d) for d in range(0, 360, step)])
+            image_result = tools_draw_numpy.draw_points(image_result, points_2d[idx], colors[idx],labels=labels[idx])
+
+    return image_result
+# ----------------------------------------------------------------------------------------------------------------------
 def draw_mat(M, posx, posy, image,color=(128, 128, 0)):
     for row in range(M.shape[0]):
         if M.shape[1]==4:
@@ -42,21 +89,43 @@ def draw_mat(M, posx, posy, image,color=(128, 128, 0)):
         image = cv2.putText(image, '{0}'.format(string1), (posx, posy + 20 * row), cv2.FONT_HERSHEY_SIMPLEX, 0.4,color, 1, cv2.LINE_AA)
     return image
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_cube_numpy(img, camera_matrix, dist, rvec, tvec, scale=(1,1,1),color=(255,128,0)):
+def draw_image(im_target, im_source_one, camera_matrix, dist, rvec, tvec,scale=(1,1,1)):
 
-    points_3d = numpy.array([[-1, -1, -1], [-1, +1, -1], [+1, +1, -1], [+1, -1, -1],
-                             [-1, -1, +1], [-1, +1, +1], [+1, +1, +1], [+1, -1, +1]],dtype = numpy.float32)
+    H, W = im_source_one.shape[:2]
+    points_2d_source = numpy.array([[0, 0], [0, H], [W, H], [W, 0]], dtype=numpy.float32)
+
+    points_3d = numpy.array([[-1, +1, 0], [-1, -1, 0],[+1, -1, 0], [+1, +1, 0]], dtype=numpy.float32)
+    points_3d[:, 0] *= scale[0]
+    points_3d[:, 1] *= scale[1]
+    points_3d[:, 2] *= scale[2]
+
+    points_2d_target, jac = tools_pr_geom.project_points(points_3d, rvec, tvec, camera_matrix, dist)
+
+    homography, result  = tools_pr_geom.fit_homography(points_2d_source,points_2d_target)
+
+    image_trans = cv2.warpPerspective(im_source_one, homography, (im_target.shape[1], im_target.shape[0]))
+    mask =  cv2.warpPerspective(numpy.ones((H,W)), homography, (im_target.shape[1], im_target.shape[0]))
+    mask = ~(mask>0)
+    image_trans[mask]=im_target[mask]
+
+
+    return  image_trans
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_cube_numpy(img, camera_matrix, dist, rvec, tvec, scale=(1,1,1),color=(255,128,0),points_3d=None):
+
+    if points_3d is None:
+        points_3d = numpy.array([[-1, -1, -1], [-1, +1, -1], [+1, +1, -1], [+1, -1, -1],[-1, -1, +1], [-1, +1, +1], [+1, +1, +1], [+1, -1, +1]],dtype = numpy.float32)
+        points_3d[:,0]*=scale[0]
+        points_3d[:,1]*=scale[1]
+        points_3d[:,2]*=scale[2]
+
     colors = tools_draw_numpy.get_colors(8)
-
-
-    points_3d[:,0]*=scale[0]
-    points_3d[:,1]*=scale[1]
-    points_3d[:,2]*=scale[2]
-
     if len(rvec.shape)==2 and rvec.shape[0]==3 and rvec.shape[1]==3:
         method = 'xx'
     else:
         method = 'cv'
+
+    method = 'cv'
 
     if method=='cv':
         points_2d, jac = cv2.projectPoints(points_3d, numpy.array(rvec,dtype=float).reshape((3,1)), numpy.array(tvec,dtype=float).reshape((3,1)), camera_matrix, dist)
@@ -72,8 +141,8 @@ def draw_cube_numpy(img, camera_matrix, dist, rvec, tvec, scale=(1,1,1),color=(2
         cv2.circle(result,(points_2d[i, 0], points_2d[i, 1]),5,colors[i].tolist(),thickness=-1)
 
     clr = (0, 0, 255)
-    for i in (0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3):
-        cv2.putText(result, '{0}   {1} {2} {3}'.format(i, points_3d[i,0],points_3d[i,1],points_3d[i,2]), (points_2d[i, 0], points_2d[i, 1]),cv2.FONT_HERSHEY_SIMPLEX, 0.5, clr, 1, cv2.LINE_AA)
+    #for i in (0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3):
+        #cv2.putText(result, '{0}   {1} {2} {3}'.format(i, points_3d[i,0],points_3d[i,1],points_3d[i,2]), (points_2d[i, 0], points_2d[i, 1]),cv2.FONT_HERSHEY_SIMPLEX, 0.5, clr, 1, cv2.LINE_AA)
 
     return result
 # ----------------------------------------------------------------------------------------------------------------------
@@ -1079,28 +1148,29 @@ def get_inverce_perspective_mat(image,point_vanishing,line_up,line_bottom,target
 
     return M
 # ---------------------------------------------------------------------------------------------------------------------
-def get_inverce_perspective_mat_v2(image,target_W,target_H,point_van_xy):
+def get_inverce_perspective_mat_v2(image,target_W,target_H,point_van_xy,tol_up = 100,pad_left=0,pad_right=0):
     H, W = image.shape[:2]
 
-    tol_up = 20
+
     tol_bottom = 0
     upper_line = (0, point_van_xy[1] + tol_up, W, point_van_xy[1] + tol_up)
     bottom_line = (0, H - tol_bottom, W, H - tol_bottom)
 
-    pad_left = 1 * W*1
-    pad_right = 1 * W*1
-    line1 = (-pad_left, H, point_van_xy[0], point_van_xy[1])
-    line2 = (W + pad_right, H, point_van_xy[0], point_van_xy[1])
+    line1 = (   -W*pad_left , H, point_van_xy[0], point_van_xy[1])
+    line2 = (W + W*pad_right, H, point_van_xy[0], point_van_xy[1])
     p1 = line_intersection(upper_line, line1)
     p2 = line_intersection(upper_line, line2)
     p3 = line_intersection(bottom_line, line1)
     p4 = line_intersection(bottom_line, line2)
     src = numpy.array([(p1[0], p1[1]), (p2[0], p2[1]), (p3[0], p3[1]), (p4[0], p4[1])], dtype=numpy.float32)
     dst = numpy.array([(0, 0), (target_W, 0), (0, target_H), (target_W, target_H)], dtype=numpy.float32)
-
-    #image = tools_draw_numpy.draw_convex_hull(image, numpy.array([p1, p2, p3, p4]), color=(36, 10, 255), transperency=0.5)
-    #cv2.imwrite('./images/output/xxx.png',image)
     h_ipersp = cv2.getPerspectiveTransform(src, dst)
+
+    #check
+    #dst_check = cv2.perspectiveTransform(src.reshape((-1, 1, 2)), h_ipersp).reshape((-1, 2))
+    #image = tools_draw_numpy.draw_convex_hull(image, numpy.array([p1, p2, p3, p4]), color=(36, 10, 255),transperency=0.5)
+    #cv2.imwrite('./images/output/xxx.png', image)
+
 
     return h_ipersp
 # ----------------------------------------------------------------------------------------------------------------------

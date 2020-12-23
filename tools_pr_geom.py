@@ -28,9 +28,32 @@ def debug_projection(X_source, X_target,result):
         cv2.circle(image, (int(x-xmin),int(y-ymin)), 4, colors_s[i].tolist(), -1)
         cv2.putText(image, '{0}'.format(i), (int(x-xmin),int(y-ymin)), cv2.FONT_HERSHEY_SIMPLEX,0.6, colors_s[i].tolist(), 1, cv2.LINE_AA)
 
-    cv2.imwrite('./images/output/fit.png',image)
-    return
+    return image
 # ----------------------------------------------------------------------------------------------------------------------
+def debug_projection_2d(X_target,X_result):
+    colors_s = tools_draw_numpy.get_colors(len(X_target))
+    colors_s = numpy.array([numpy.array((255,255,255.0))*0.25+c*0.75 for c in colors_s],dtype=numpy.uint8)
+
+
+    padding = 10
+
+    xmin = int(min(X_target[:,0].min(), X_result[:,0].min()))-padding
+    xmax = int(max(X_target[:,0].max(), X_result[:,0].max()))+padding
+    ymin = int(min(X_target[:,1].min(), X_result[:,1].min()))-padding
+    ymax = int(max(X_target[:,1].max(), X_result[:,1].max()))+padding
+
+    image = numpy.full((ymax-ymin+1,xmax-xmin+1,3),32,dtype=numpy.uint8)
+
+
+    for i,(x,y) in enumerate(X_result)  :cv2.circle(image, (int(x-xmin),int(y-ymin)),12,(int(colors_s[i][0]),int(colors_s[i][1]),int(colors_s[i][2])),  2)
+    for i,(x,y) in enumerate(X_target):
+        cv2.circle(image, (int(x-xmin),int(y-ymin)), 4, colors_s[i].tolist(), -1)
+        cv2.putText(image, '{0}'.format(i), (int(x-xmin),int(y-ymin)), cv2.FONT_HERSHEY_SIMPLEX,0.6, colors_s[i].tolist(), 1, cv2.LINE_AA)
+
+    return image
+# ----------------------------------------------------------------------------------------------------------------------
+
+
 # translation -> euclide (=rotation + translation) -> affine (keep parallelism) -> homography
 # ----------------------------------------------------------------------------------------------------------------------
 def fit_translation(X_source,X_target):
@@ -103,9 +126,9 @@ def fit_regression(X_source,X_target,do_debug=None):
 
     return H,result
 # ----------------------------------------------------------------------------------------------------------------------
-def fit_pnp(landmarks_3d,landmarks_2d,mat_camera_3x3):
-    (_, r_vec, t_vec) = cv2.solvePnP(landmarks_3d, landmarks_2d,mat_camera_3x3, numpy.zeros(4))
-    landmarks_2d_check, jac = cv2.projectPoints(landmarks_3d, r_vec, t_vec, mat_camera_3x3, numpy.zeros(4))
+def fit_pnp(landmarks_3d,landmarks_2d,mat_camera_3x3,dist=numpy.zeros(5)):
+    (_, r_vec, t_vec) = cv2.solvePnP(landmarks_3d, landmarks_2d,mat_camera_3x3, dist)
+    landmarks_2d_check, jac = cv2.projectPoints(landmarks_3d, r_vec, t_vec, mat_camera_3x3, dist)
     landmarks_2d_check = numpy.reshape(landmarks_2d_check, (-1, 2))
 
     return r_vec, t_vec, landmarks_2d_check
@@ -470,7 +493,7 @@ def project_points(points_3d, rvec, tvec, camera_matrix_3x3, dist):
     points_2d = apply_matrix(PM, points_3d)
     points_2d[:, 0] = points_2d[:, 0] / points_2d[:, 2]
     points_2d[:, 1] = points_2d[:, 1] / points_2d[:, 2]
-    points_2d = numpy.array(points_2d)[:, :2].reshape(-1, 1, 2)
+    points_2d = numpy.array(points_2d)[:, :2].reshape((-1, 2))
 
     return points_2d,0
 # ----------------------------------------------------------------------------------------------------------------------
@@ -480,13 +503,16 @@ def project_points_M(points_3d, RT, camera_matrix_3x3, dist):
     else:
         P = camera_matrix_3x3.copy()
 
+    method = 1
 
-    PM = pyrr.matrix44.multiply(P, RT.T)
+    if method == 1:
+        PM = pyrr.matrix44.multiply(P, RT.T)
 
-    points_2d = apply_matrix(PM, points_3d)
-    points_2d[:, 0] = points_2d[:, 0] / points_2d[:, 2]
-    points_2d[:, 1] = points_2d[:, 1] / points_2d[:, 2]
-    points_2d = numpy.array(points_2d)[:, :2].reshape(-1, 1, 2)
+        points_2d = apply_matrix(PM, points_3d)
+        points_2d[:, 0] = points_2d[:, 0] / points_2d[:, 2]
+        points_2d[:, 1] = points_2d[:, 1] / points_2d[:, 2]
+        points_2d = numpy.array(points_2d)[:, :2].reshape((-1,2))
+
 
 
     return points_2d

@@ -705,6 +705,7 @@ class render_GL3D(object):
         #up  = numpy.array((0, -1, 0.0))
         #self.init_mat_view_ETU(eye,target,up)
         #self.__init_mat_view_RT((0,0,0),(0,0,+5 * (obj_max - obj_min)))
+
         self.init_mat_view_ETU(eye=(0, 0, 20), target=(0, 0, 0), up=(0, -1, -2))
         self.center_view()
         
