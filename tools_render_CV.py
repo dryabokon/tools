@@ -159,7 +159,7 @@ def draw_cube_numpy_MVP(img,mat_projection, mat_view, mat_model, mat_trns, color
     fx, fy = float(img.shape[1]), float(img.shape[0])
     camera_matrix = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 1]])
 
-    points_3d = 0.01*numpy.array([[-1, -1, -1], [-1, +1, -1], [+1, +1, -1], [+1, -1, -1],[-1, -1, +1], [-1, +1, +1], [+1, +1, +1], [+1, -1, +1]],dtype = numpy.float32)
+    points_3d = numpy.array([[-1, -1, -1], [-1, +1, -1], [+1, +1, -1], [+1, -1, -1],[-1, -1, +1], [-1, +1, +1], [+1, +1, +1], [+1, -1, +1]],dtype = numpy.float32)
 
     points_3d_new = []
     for v in points_3d:
@@ -289,15 +289,29 @@ def check_projection_ortho_modelview(L3D, points_2d, modelview, fx,fy,scale_fact
         cv2.imwrite('./images/output/fit_check_modelview.png', image)
     return loss
 # ----------------------------------------------------------------------------------------------------------------------
-def get_ray(point_2d, img, mat_projection, mat_view, mat_model, mat_trns):
+def get_ray_rvec_tvec(point_2d, camera_matrix, rvec, tvec):
+    mat_trns = numpy.eye(4)
+    mat_model = numpy.eye(4)
+    mat_view = tools_pr_geom.compose_RT_mat(rvec,tvec,do_flip=True,do_rodriges=False)
 
-    fx, fy = float(img.shape[1]), float(img.shape[0])
-    camera_matrix = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 1]])
+    return get_ray(point_2d, camera_matrix, mat_view, mat_model, mat_trns)
+# ----------------------------------------------------------------------------------------------------------------------
+def get_ray(point_2d, camera_matrix_3x3, mat_view, mat_model, mat_trns):
+
+    #fx, fy = float(img.shape[1]), float(img.shape[0])
+    #camera_matrix_3x3 = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 1]])
+    fx, fy = camera_matrix_3x3[0,0], camera_matrix_3x3[1,1]
 
     Z1 = -1
     X1 = (point_2d[0]*Z1 - Z1*fx/2)/fx
     Y1 = (point_2d[1]*Z1 - Z1*fy/2)/fy
     ray_begin = numpy.array((X1, Y1, Z1))
+
+    Z0 = 0
+    X0 = (point_2d[0]*Z0 - Z0*fx/2)/fx
+    Y0 = (point_2d[1]*Z0 - Z0*fy/2)/fy
+    ray_mid = numpy.array((X0, Y0, Z0))
+
 
     Z2 = +1
     X2 = (point_2d[0]*Z2 - Z2*fx/2)/fx
@@ -305,7 +319,7 @@ def get_ray(point_2d, img, mat_projection, mat_view, mat_model, mat_trns):
     ray_end = numpy.array((X2, Y2, Z2))
 
     #check
-    points_2d_check, jac = tools_pr_geom.project_points(numpy.array([(X1, Y1, Z1),(X2,Y2,Z2)]), numpy.array((0, 0, 0)), numpy.array((0, 0, 0)), camera_matrix, numpy.zeros(4))
+    points_2d_check, jac = tools_pr_geom.project_points(numpy.array([(X1, Y1, Z1),(X2,Y2,Z2)]), numpy.array((0, 0, 0)), numpy.array((0, 0, 0)), camera_matrix_3x3, numpy.zeros(5))
 
     i_mat_view  = pyrr.matrix44.inverse(mat_view)
     i_mat_model = pyrr.matrix44.inverse(mat_model)

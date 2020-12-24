@@ -83,7 +83,7 @@ class VBO(object):
 # ----------------------------------------------------------------------------------------------------------------------
 class render_GL3D(object):
 
-    def __init__(self,filename_obj,W=640, H=480,is_visible=True,do_normalize_model_file=True,projection_type='P',scale=(1,1,1)):
+    def __init__(self,filename_obj,W=640, H=480,is_visible=True,do_normalize_model_file=True,projection_type='P',scale=(1,1,1),tvec=(0,0,0)):
 
         glfw.init()
         self.projection_type = projection_type
@@ -103,7 +103,7 @@ class render_GL3D(object):
         self.__init_shader()
         self.my_VBO = VBO()
 
-        self.object = self.my_VBO.append_object(filename_obj,self.do_normalize_model_file)
+        self.object = self.my_VBO.append_object(filename_obj,self.do_normalize_model_file,tvec = tvec)
         self.update_texture()
 
         self.bind_VBO()
@@ -153,10 +153,10 @@ class render_GL3D(object):
                                         vec4 materialColor = vec4(inColor*lightIntensity, 1);
                                         
                                         //outColor = materialColor;
-                                        //outColor = texel;
-                                        outColor = texel* materialColor;
+                                        outColor = texel;
+                                        //outColor = texel* materialColor;//
                                         //outColor = vec4(texel.rgb * lightIntensity, 1);
-                                        outColor.a = 0.65;                                        
+                                        outColor.a = 0.99;                                        
                                     }"""
 
         self.shader = OpenGL.GL.shaders.compileProgram(OpenGL.GL.shaders.compileShader(vert_shader, GL_VERTEX_SHADER),
@@ -269,8 +269,9 @@ class render_GL3D(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def init_mat_view_ETU(self, eye, target, up):
 
-        #self.xxx= pyrr.matrix44.create_look_at(eye, target, up)
+        #xxx= pyrr.matrix44.create_look_at(eye, target, up)
         self.mat_view = tools_pr_geom.ETU_to_mat_view(numpy.array(eye),numpy.array(target),numpy.array(up))
+
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
 
         return
@@ -541,7 +542,7 @@ class render_GL3D(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def center_view(self):
 
-        tol = 0.5*numpy.pi/180
+        tol = 0.05*numpy.pi/180
         is_good= False
         while not is_good:
             self.center_view_t(0)
@@ -559,8 +560,6 @@ class render_GL3D(object):
         value = (self.object.coord_vert[:, idx].max() + self.object.coord_vert[:, idx].min()) / 2
         t = numpy.zeros(3)
         t[idx] += E[idx]-value
-
-
         self.translate_view(t)
 
         return
@@ -700,18 +699,19 @@ class render_GL3D(object):
         obj_min = self.object.coord_vert.min()
         obj_max = self.object.coord_vert.max()
 
-        #eye = numpy.array((0, 0, +5 * (obj_max - obj_min)))
-        #target = eye - numpy.array((0, 0, 1.0))
-        #up  = numpy.array((0, -1, 0.0))
-        #self.init_mat_view_ETU(eye,target,up)
-        #self.__init_mat_view_RT((0,0,0),(0,0,+5 * (obj_max - obj_min)))
-
-        self.init_mat_view_ETU(eye=(0, 0, 5), target=(0, 0, 0), up=(0, -1, 0))
+        #cube
+        eye = numpy.array((0, 0, +5 * (obj_max - obj_min)))
+        target = eye - numpy.array((0, 0, 1.0))
+        up  = numpy.array((0, -1, 0.0))
+        self.init_mat_view_ETU(eye,target,up)
 
         #soccer
-        #self.init_mat_view_ETU(eye=(0, 0, 20), target=(0, 0, 0), up=(0, -1, -2))
+        #self.init_mat_view_ETU(eye=numpy.array((0,-2,5500)) , target = numpy.array((0,0,5500-1)), up=numpy.array((0,-1,0)))
         #self.center_view()
-        
+
+
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
+#self.__init_mat_view_RT((0,0,0),(0,0,+5 * (obj_max - obj_min)))
+#self.init_mat_view_ETU(eye=(0, 0, 5), target=(0, 0, 0), up=(0, -1, 0))

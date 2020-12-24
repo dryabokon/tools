@@ -507,7 +507,7 @@ def H_to_RT(homography,camera_matrix_3x3):
     R = numpy.array(R[0])
     T = numpy.array(T[0])
     normal = numpy.array(normal[0])
-    homography3 = tools_calibrate.compose_homography(R, T, normal, camera_matrix_3x3)
+    #homography3 = tools_calibrate.compose_homography(R, T, normal, camera_matrix_3x3)
 
     #HH = R + numpy.dot(T, normal.T)
     #M = numpy.dot(HH, numpy.linalg.inv(K))
@@ -537,6 +537,30 @@ def project_points(points_3d, rvec, tvec, camera_matrix_3x3, dist):
     points_2d = numpy.array(points_2d)[:, :2].reshape((-1, 2))
 
     return points_2d,0
+# ----------------------------------------------------------------------------------------------------------------------
+def reverce_project_points_Z0(points_2d, rvec, tvec, camera_matrix_3x3, dist):
+    P = compose_projection_mat_4x4(camera_matrix_3x3[0,0],camera_matrix_3x3[1,1],camera_matrix_3x3[0,2]/camera_matrix_3x3[0,0],camera_matrix_3x3[1, 2] / camera_matrix_3x3[1,1])
+
+    if len(rvec.shape)==2 and rvec.shape[0]==3 and rvec.shape[1]==3:
+        R = pyrr.matrix44.create_from_matrix33(rvec)
+    else:
+        R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(numpy.array(rvec, dtype=float).flatten())[0])
+
+    T = pyrr.matrix44.create_from_translation(numpy.array(tvec,dtype=float).flatten()).T
+    M = pyrr.matrix44.multiply(T, R)
+    PM = pyrr.matrix44.multiply(P, M)
+
+    points_3d = []
+    for (i,j) in points_2d:
+        A = numpy.array((((PM[0,0]-i*PM[2,0]),(PM[0,1]-i*PM[2,1])),((PM[1,0]-j*PM[2,0]),(PM[1,1]-j*PM[2,1]))))
+        iA = numpy.linalg.inv(A)
+        b = numpy.array(((i*PM[2,3]-PM[0,3]),(j*PM[2,3]-PM[1,3])))
+        xx = iA.dot(b)
+        points_3d.append((xx[0],xx[1],0))
+
+    points_3d = numpy.array(points_3d)
+
+    return points_3d
 # ----------------------------------------------------------------------------------------------------------------------
 def project_points_M(points_3d, RT, camera_matrix_3x3, dist):
     if camera_matrix_3x3.shape[0]==3 and camera_matrix_3x3.shape[1]==3:
