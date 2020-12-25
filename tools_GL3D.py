@@ -220,19 +220,18 @@ class render_GL3D(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def __init_mat_projection_perspective(self,aspect_x=0.5,aspect_y=0.5):
+    def __init_mat_projection_perspective(self, aperture_x=0.5, aperture_y=0.5):
         near, far = 0.1, 10000.0
-        scale = (0.5/aspect_x)
 
         self.mat_projection = numpy.zeros((4,4),dtype=float)
 
-        self.mat_projection[0][0] = 2.0*scale
+        self.mat_projection[0][0] = 1 / aperture_x
         self.mat_projection[0][1] = 0.0
         self.mat_projection[0][2] = 0.0
         self.mat_projection[0][3] = 0.0
 
         self.mat_projection[1][0] = 0.0
-        self.mat_projection[1][1] = 2.0*scale
+        self.mat_projection[1][1] = 1/ aperture_y
         self.mat_projection[1][2] = 0.0
         self.mat_projection[1][3] = 0.0
 
@@ -344,9 +343,9 @@ class render_GL3D(object):
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
 
         #please remove!!! keep 0
-        self.__init_mat_model((0, 0, numpy.pi), (0, 0, 0))
-        self.__init_mat_transform(scale)
-        self.__init_mat_projection_perspective(aperture_x, aperture_x)
+        #self.__init_mat_model((0, 0, numpy.pi), (0, 0, 0))
+        #self.__init_mat_transform(scale)
+        #self.__init_mat_projection_perspective(aperture_x, aperture_x)
 
         return self.get_image(do_debug)
 # ----------------------------------------------------------------------------------------------------------------------
@@ -416,8 +415,6 @@ class render_GL3D(object):
             i=0
 
         cv2.imwrite(folder_out + 'screenshot_%03d.png'%i,self.get_image(do_debug=True))
-        #self.save_markers(folder_out+'markers.txt',do_transform=False)
-        #self.object.export_mesh(folder_out+'mesh.obj',self.object.coord_vert,self.object.idx_vertex,do_transform=False)
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -539,64 +536,6 @@ class render_GL3D(object):
 
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
         return
-# ----------------------------------------------------------------------------------------------------------------------
-    def center_view(self):
-
-        tol = 0.05*numpy.pi/180
-        is_good= False
-        while not is_good:
-            self.center_view_t(0)
-            self.center_view_r(2)
-            self.center_view_r(1)
-            rvec = tools_pr_geom.rotationMatrixToEulerAngles(self.mat_view[:3, :3])
-            is_good = abs(rvec[1])<tol and abs(rvec[2])<tol
-
-        return
-
-# ----------------------------------------------------------------------------------------------------------------------
-    def center_view_t(self, idx):
-        E, T, U = tools_pr_geom.mat_view_to_ETU(self.mat_view)
-
-        value = (self.object.coord_vert[:, idx].max() + self.object.coord_vert[:, idx].min()) / 2
-        t = numpy.zeros(3)
-        t[idx] += E[idx]-value
-        self.translate_view(t)
-
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def center_view_r(self,idx):
-
-        rvec = tools_pr_geom.rotationMatrixToEulerAngles(self.mat_view[:3, :3])
-        delta = numpy.zeros(3)
-        delta[idx] += rvec[idx]
-        self.rotate_view(delta)
-
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def regularize_mat_RT(self,mat,do_flip=False,do_rodriges=False):
-        rvec, tvec = tools_pr_geom.decompose_to_rvec_tvec(mat)
-        mat_new = tools_pr_geom.compose_RT_mat(rvec, tvec, do_flip=do_flip, do_rodriges=do_rodriges)
-        #rvec2, tvec2 = tools_pr_geom.decompose_to_rvec_tvec(mat_new)
-        #print(rvec, tvec)
-        #print(rvec2, tvec2)
-        #print()
-
-        #print(mat)
-        #print(mat_new)
-        #print()
-
-        return mat_new
-# ----------------------------------------------------------------------------------------------------------------------
-    def regularize_mat_ETU(self,mat):
-
-        eye, target, up = tools_pr_geom.mat_view_to_ETU(mat)
-        mat_new = tools_pr_geom.ETU_to_mat_view(eye, target, up)
-        eye2, target2, up2 = tools_pr_geom.mat_view_to_ETU(mat_new)
-        #print(eye, target, up)
-        #print(eye2, target2, up2)
-        #print()
-
-        return mat_new
 # ----------------------------------------------------------------------------------------------------------------------
     def translate_ortho(self, delta_translate):
         factor = 2/self.mat_projection[0,0]

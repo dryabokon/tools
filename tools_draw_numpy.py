@@ -374,7 +374,10 @@ def draw_cuboid(image, points, color=(255, 255, 255), w=2, put_text=False, label
     for i in [(1, 0), (0, 2), (2, 3), (3, 1), (7, 6), (6, 4), (4, 5), (5, 7), (1, 0), (0, 6), (6, 7), (7, 1), (3, 2),(2, 4), (4, 5), (5, 3), (1, 3), (3, 5), (5, 7), (7, 1), (0, 2), (2, 4), (4, 6), (6, 0)]:
         lines.append(numpy.array((points[i[0]], points[i[1]])).flatten())
 
-    result = draw_convex_hull(image, points, color, transperency=0.75)
+    idx_face = [0,1,2,3]
+
+    result = draw_convex_hull(image, points, color, transperency=0.80)
+    result = draw_convex_hull(result, points[idx_face], color, transperency=0.70)
     result = draw_lines(result, numpy.array(lines), color, w)
     if put_text:
         result = draw_points(result, points, color,put_text=put_text)

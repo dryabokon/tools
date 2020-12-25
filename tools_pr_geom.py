@@ -67,7 +67,7 @@ def fit_translation(X_source,X_target):
 # ----------------------------------------------------------------------------------------------------------------------
 def fit_euclid(X_source,X_target,do_debug=False):
     E, _ = cv2.estimateAffinePartial2D(numpy.array(X_source), numpy.array(X_target))
-    result = cv2.transform(X_source.reshape(-1, 1, 2), E).reshape((-1,2))
+    result = cv2.transform(X_source.reshape((-1, 1, 2)), E).reshape((-1,2))
     loss = ((result - X_target) ** 2).mean()
     if do_debug:debug_projection(X_source, X_target,result)
 
@@ -75,9 +75,10 @@ def fit_euclid(X_source,X_target,do_debug=False):
 # ----------------------------------------------------------------------------------------------------------------------
 def fit_affine(X_source,X_target,do_debug=False):
     A, _ = cv2.estimateAffine2D(numpy.array(X_source), numpy.array(X_target), confidence=0.95)
-    result = cv2.transform(X_source.reshape(-1, 1, 2), A).reshape((-1,2))
+    result = cv2.transform(X_source.reshape((-1, 1, 2)), A).reshape((-1,2))
     loss = ((result - X_target) ** 2).mean()
-    if do_debug: debug_projection(X_source, X_target, result)
+    if do_debug:
+        image = debug_projection(X_source, X_target, result)
     return A, result
 # ----------------------------------------------------------------------------------------------------------------------
 def fit_homography(X_source,X_target,method = cv2.RANSAC,do_debug=None):
@@ -85,7 +86,7 @@ def fit_homography(X_source,X_target,method = cv2.RANSAC,do_debug=None):
     #method = cv2.LMEDS
     #method = cv2.RHO
     H, mask = cv2.findHomography(X_source, X_target, method, 3.0)
-    result  = cv2.perspectiveTransform(X_source.reshape(-1, 1, 2),H).reshape((-1,2))
+    result  = cv2.perspectiveTransform(X_source.reshape((-1, 1, 2)),H).reshape((-1,2))
 
     loss =  ((result-X_target)**2).mean()
     if do_debug: debug_projection(X_source, X_target, result)
@@ -194,7 +195,7 @@ def fit_manual(X3D,target_2d,fx, fy,xref=None,lref=None,do_debug=True):
     return M
 # ----------------------------------------------------------------------------------------------------------------------
 def compose_projection_mat_3x3(fx, fy, aperture_x=0.5,aperture_y=0.5):
-    mat_camera = numpy.array([[fx, 0, 0.5*fx*(aperture_x/0.5)], [0, fy, 0.5*fy*(aperture_y/0.5)], [0, 0, (0.5*(aperture_x+aperture_y)/0.5)]],dtype=numpy.float)
+    mat_camera = numpy.array([[fx / (aperture_x/0.5 ), 0, fx / 2], [0, fy / (aperture_y/0.5 ), fy/2], [0, 0, 1]],dtype=numpy.float)
     return mat_camera
 # ----------------------------------------------------------------------------------------------------------------------
 def compose_projection_mat_4x4(fx, fy, aperture_x=0.5,aperture_y=0.5):
@@ -452,29 +453,23 @@ def perspective_transform(points_2d,homography):
 
     return res
 # ----------------------------------------------------------------------------------------------------------------------
-def RT_to_H(rvec, tvec, camera_matrix_3x3):
+def RT_to_H(RT, camera_matrix_3x3, Z):
 
-    P = compose_projection_mat_4x4(camera_matrix_3x3[0, 0], camera_matrix_3x3[1, 1],
-                                   camera_matrix_3x3[0, 2] / camera_matrix_3x3[0, 0],
-                                   camera_matrix_3x3[1, 2] / camera_matrix_3x3[1, 1])
-
-    if len(rvec.shape) == 2 and rvec.shape[0] == 3 and rvec.shape[1] == 3:
-        R = pyrr.matrix44.create_from_matrix33(rvec)
-    else:
-        R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(numpy.array(rvec, dtype=float).flatten())[0])
-
-    T = pyrr.matrix44.create_from_translation(numpy.array(tvec, dtype=float).flatten()).T
-    M = pyrr.matrix44.multiply(T, R)
-    PM = pyrr.matrix44.multiply(P, M)
-    H = PM[:3, [0, 1, 3]]
+    P = compose_projection_mat_4x4(camera_matrix_3x3[0,0],camera_matrix_3x3[1,1],camera_matrix_3x3[0,2]/camera_matrix_3x3[0,0],camera_matrix_3x3[1, 2] / camera_matrix_3x3[1,1])
+    PM = pyrr.matrix44.multiply(P, RT)
+    h_3x3 = PM[:3, :3]
+    h_3x3[:,2]*=Z
 
     #check
-    #Pinv = numpy.linalg.inv(P)
-    #M2 = pyrr.matrix44.multiply(Pinv, PM)
-    #M3 = H_to_RT(H, camera_matrix_3x3)
+    #points_3d = numpy.array((0,0+50.0,Z))
+    #points_2d_v1, _ = project_points(points_3d, rvec, tvec, camera_matrix_3x3, numpy.zeros(5))
+    #points_2d_v2    = project_points_M(points_3d, M0, camera_matrix_3x3, numpy.zeros(5))
 
 
-    return H
+    #source_2d = points_3d[:2].reshape((-1,1,2))
+    #points_2d_check = perspective_transform(source_2d, h_3x3)
+
+    return h_3x3
 # ----------------------------------------------------------------------------------------------------------------------
 def H_to_RT(homography,camera_matrix_3x3):
 
@@ -563,22 +558,19 @@ def reverce_project_points_Z0(points_2d, rvec, tvec, camera_matrix_3x3, dist):
     return points_3d
 # ----------------------------------------------------------------------------------------------------------------------
 def project_points_M(points_3d, RT, camera_matrix_3x3, dist):
+    # RT shoule be Transformed !!!
     if camera_matrix_3x3.shape[0]==3 and camera_matrix_3x3.shape[1]==3:
         P = compose_projection_mat_4x4(camera_matrix_3x3[0,0],camera_matrix_3x3[1,1],camera_matrix_3x3[0,2]/camera_matrix_3x3[0,0],camera_matrix_3x3[1, 2] / camera_matrix_3x3[1,1])
     else:
         P = camera_matrix_3x3.copy()
 
-    method = 1
 
-    if method == 1:
-        PM = pyrr.matrix44.multiply(P, RT.T)
+    PM = pyrr.matrix44.multiply(P, RT.T)
 
-        points_2d = apply_matrix(PM, points_3d)
-        points_2d[:, 0] = points_2d[:, 0] / points_2d[:, 2]
-        points_2d[:, 1] = points_2d[:, 1] / points_2d[:, 2]
-        points_2d = numpy.array(points_2d)[:, :2].reshape((-1,2))
-
-
+    points_2d = apply_matrix(PM, points_3d)
+    points_2d[:, 0] = points_2d[:, 0] / points_2d[:, 2]
+    points_2d[:, 1] = points_2d[:, 1] / points_2d[:, 2]
+    points_2d = numpy.array(points_2d,dtype=numpy.float32)[:, :2].reshape((-1,2))
 
     return points_2d
 # ----------------------------------------------------------------------------------------------------------------------

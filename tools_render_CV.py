@@ -156,30 +156,14 @@ def draw_cube_numpy_RT(points_3d,img,RT,camera_matrix_3x3,color=(66, 0, 166),w=6
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_cube_numpy_MVP(img,mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166)):
 
-    fx, fy = float(img.shape[1]), float(img.shape[0])
-    camera_matrix = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 1]])
-
     points_3d = numpy.array([[-1, -1, -1], [-1, +1, -1], [+1, +1, -1], [+1, -1, -1],[-1, -1, +1], [-1, +1, +1], [+1, +1, +1], [+1, -1, +1]],dtype = numpy.float32)
-
-    points_3d_new = []
-    for v in points_3d:
-        vv = pyrr.matrix44.apply_to_vector(mat_trns, v)
-        vv = pyrr.matrix44.apply_to_vector(mat_model, vv)
-        vv = pyrr.matrix44.apply_to_vector(mat_view, vv)
-        points_3d_new.append(vv)
-
-
-    points_2d, jac = tools_pr_geom.project_points(numpy.array(points_3d_new), numpy.array((0,0,0)), numpy.array((0,0,0)), camera_matrix, numpy.zeros(4))
-    points_2d = points_2d.reshape((-1,2))
-    for i,j in zip((0,1,2,3,4,5,6,7,0,1,2,3),(1,2,3,0,5,6,7,4,4,5,6,7)):
-        img = tools_draw_numpy.draw_line(img, points_2d[i, 1], points_2d[i, 0], points_2d[j, 1],points_2d[j, 0], color)
+    img = draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166),do_debug=False)
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166),do_debug=False):
 
-    aperture = 0.5 * (1 - mat_projection[2][0])
-    camera_matrix_3x3 = tools_pr_geom.compose_projection_mat_3x3(img.shape[1], img.shape[0], aperture,aperture)
+    camera_matrix_3x3 = tools_pr_geom.compose_projection_mat_3x3(img.shape[1], img.shape[0], 1 / mat_projection[0][0],1 / mat_projection[1][1])
 
     M = pyrr.matrix44.multiply(mat_view.T,pyrr.matrix44.multiply(mat_model.T,mat_trns.T))
     X4D = numpy.full((points_3d.shape[0], 4), 1,dtype=numpy.float)
@@ -210,8 +194,6 @@ def draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, m
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_points_numpy_RT(points_3d,img,RT,camera_matrix_3x3,color=(66, 0, 166),w=6,flipX=False):
     points_2d = tools_pr_geom.project_points_M(points_3d, RT, camera_matrix_3x3, numpy.zeros(5)).reshape((-1, 2))
-    points_2d[:,0] = img.shape[1]-points_2d[:,0]
-    if flipX:points_2d[:,0] = img.shape[1]-points_2d[:,0]
 
     for point in points_2d:
         if numpy.any(numpy.isnan(point)): continue
