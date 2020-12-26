@@ -109,6 +109,8 @@ class render_GL3D(object):
         self.bind_VBO()
         self.reset_view()
         self.ctrl_pressed = False
+        self.acc_pos = numpy.zeros(3)
+        self.mat_model_init = numpy.eye(4)
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -259,7 +261,7 @@ class render_GL3D(object):
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "projection"), 1, GL_FALSE, self.mat_projection)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def __init_mat_projection(self,aspect_x=0.5,aspect_y=0.5):
+    def init_mat_projection(self, aspect_x=0.5, aspect_y=0.5):
         if self.projection_type == 'P':
             self.__init_mat_projection_perspective(aspect_x,aspect_y)
         else:
@@ -268,7 +270,6 @@ class render_GL3D(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def init_mat_view_ETU(self, eye, target, up):
 
-        #xxx= pyrr.matrix44.create_look_at(eye, target, up)
         self.mat_view = tools_pr_geom.ETU_to_mat_view(numpy.array(eye),numpy.array(target),numpy.array(up))
 
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
@@ -282,7 +283,7 @@ class render_GL3D(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def __init_mat_model(self,rvec, tvec,do_rodriges=False):
+    def init_mat_model(self, rvec, tvec, do_rodriges=False):
         self.mat_model = tools_pr_geom.compose_RT_mat(rvec, tvec, do_flip=False, do_rodriges=do_rodriges)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "model"), 1, GL_FALSE, self.mat_model)
 
@@ -320,7 +321,7 @@ class render_GL3D(object):
     def init_perspective_view(self, rvec, tvec, aperture_x=0.5, aperture_y=0.5, scale=(1, 1, 1)):
         tvec = numpy.array(tvec, dtype=float)
         self.__init_mat_view_RT(numpy.array(rvec, dtype=float), tvec, do_rodriges=True,do_flip=True)
-        self.__init_mat_model((0, 0, 0), (0, 0, 0))
+        self.init_mat_model((0, 0, 0), (0, 0, 0))
         self.__init_mat_transform(scale)
         self.__init_mat_projection_perspective(aperture_x,aperture_x)
         return
@@ -352,7 +353,7 @@ class render_GL3D(object):
     def init_ortho_view(self, rvec, tvec, scale_factor):
         rvec = numpy.array(rvec)
         self.__init_mat_projection_ortho(scale_factor)
-        self.__init_mat_model(rvec, tvec)
+        self.init_mat_model(rvec, tvec)
         self.__init_mat_view_RT((0, 0, 0), (0, 0, +1))
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -378,11 +379,13 @@ class render_GL3D(object):
         self.draw_mat(self.mat_projection, 20, 320, result)
 
         E,T,U = tools_pr_geom.mat_view_to_ETU(self.mat_view)
-        #Y,P,R = tools_pr_geom.mat_view_to_YPR(self.mat_view)
-        rvec = tools_pr_geom.rotationMatrixToEulerAngles(self.mat_view[:3, :3])
+        Y,P,R = tools_pr_geom.mat_view_to_YPR(self.mat_model)
+        rvec  = tools_pr_geom.rotationMatrixToEulerAngles(self.mat_view[:3, :3])
 
-        self.draw_vec(E, 20, 420, result,'Eye')
-        self.draw_vec(rvec*180/numpy.pi, 20, 440, result, 'rotation')
+        self.draw_vec(numpy.array((Y,P,R))*180/numpy.pi , 20, 420, result,'Model rot deg')
+
+        #self.draw_vec(E                , 20, 420, result,'Eye')
+        #self.draw_vec(rvec*180/numpy.pi, 20, 440, result, 'rotation')
 
 
         return result
@@ -487,7 +490,7 @@ class render_GL3D(object):
         scale_current = self.mat_projection[0][0]/2
         aspect_current  = (0.5 / scale_current)
 
-        self.__init_mat_projection(factor*aspect_current,factor*aspect_current)
+        self.init_mat_projection(factor * aspect_current, factor * aspect_current)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def translate_view_by_scale(self, scale):
@@ -589,7 +592,7 @@ class render_GL3D(object):
             rvec[2] = min(max(rvec[2], -math.pi/2+0.02), math.pi/2 - 0.02)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def rotate_model(self, delta_angle):
+    def rotate_model(self, delta_angle,silent=False):
 
         if self.on_rotate and self.mat_model_rotation_checkpoint is not None:
             S, Q, tvec = pyrr.matrix44.decompose(self.mat_model_rotation_checkpoint.copy())
@@ -600,7 +603,35 @@ class render_GL3D(object):
         rvec+= numpy.array(delta_angle)
         self.standardize_rvec(rvec)
 
-        self.__init_mat_model(rvec,tvec)
+        self.init_mat_model(rvec, tvec)
+
+        #derive rotation, translation
+        #if not silent:
+            #r, t = tools_pr_geom.decompose_to_rvec_tvec(self.mat_model)
+            #print('%1.2f %1.2f %1.2f'%(r[0]*180/numpy.pi,r[1]*180/numpy.pi,r[2]*180/numpy.pi))
+            #r, t = tools_pr_geom.decompose_to_rvec_tvec(pyrr.matrix44.multiply(self.mat_model, pyrr.matrix44.inverse(self.mat_model_init)))
+            #print(r, t)
+
+        return
+
+# ----------------------------------------------------------------------------------------------------------------------
+    def translate_model_centric(self, delta_pos):
+
+        self.acc_pos += delta_pos
+
+        #if self.on_translate and self.mat_model_translation_checkpoint is not None:
+        #    self.mat_model = self.mat_model_translation_checkpoint.copy()
+
+        self.init_mat_model((0, 0, 0), (0, 0, 0))
+        self.rotate_model((+2 * numpy.pi / 3, 0, 0),silent=True)
+        T = pyrr.matrix44.create_from_translation(numpy.array(self.acc_pos))
+        self.mat_model = pyrr.matrix44.multiply(T, self.mat_model)
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "model"), 1, GL_FALSE, self.mat_model)
+
+        # derive rotation, translation
+        #r, t = tools_pr_geom.decompose_to_rvec_tvec(self.mat_model)
+        #print('%1.2f %1.2f %1.2f' % (r[0] * 180 / numpy.pi, r[1] * 180 / numpy.pi, r[2] * 180 / numpy.pi))
+
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def translate_model(self, delta_pos):
@@ -611,7 +642,7 @@ class render_GL3D(object):
             rvec, tvec = tools_pr_geom.decompose_to_rvec_tvec(self.mat_model.copy())
 
         tvec += numpy.array(delta_pos)
-        self.__init_mat_model(rvec, tvec)
+        self.init_mat_model(rvec, tvec)
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -628,10 +659,11 @@ class render_GL3D(object):
         self.stop_append()
         self.stop_remove()
         self.stop_translation()
+        self.acc_pos = numpy.zeros(3)
 
         self.__init_mat_light(numpy.array((-math.pi / 2, -math.pi / 2, 0)))
-        self.__init_mat_projection(0.5,0.5)
-        self.__init_mat_model((0, 0, 0), (0, 0, 0))
+        self.init_mat_projection(0.5, 0.5)
+        self.init_mat_model((0, 0, 0), (0, 0, 0))
         if not skip_transform:
             self.__init_mat_transform(self.scale)
 
@@ -639,10 +671,11 @@ class render_GL3D(object):
         obj_max = self.object.coord_vert.max()
 
         #cube
-        eye = numpy.array((0, 0, +5 * (obj_max - obj_min)))
-        target = eye - numpy.array((0, 0, 1.0))
-        up  = numpy.array((0, -1, 0.0))
-        self.init_mat_view_ETU(eye,target,up)
+        #eye = numpy.array((0, 0, +10))
+        #eye = numpy.array((0, 0, +5 * (obj_max - obj_min)))
+        #target = eye - numpy.array((0, 0, 1.0))
+        #up  = numpy.array((0, -1, 0.0))
+        #self.init_mat_view_ETU(eye,target,up)
 
         #soccer
         #self.init_mat_view_ETU(eye=numpy.array((0,-2,5500)) , target = numpy.array((0,0,5500-1)), up=numpy.array((0,-1,0)))
