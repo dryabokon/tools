@@ -283,7 +283,7 @@ class render_GL3D(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def init_mat_model(self, rvec, tvec, do_rodriges=True):
+    def init_mat_model(self, rvec, tvec, do_rodriges=False):
         self.mat_model = tools_pr_geom.compose_RT_mat(rvec, tvec, do_flip=False, do_rodriges=do_rodriges)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "model"), 1, GL_FALSE, self.mat_model)
 
@@ -683,11 +683,11 @@ class render_GL3D(object):
         obj_max = self.object.coord_vert.max()
 
         #cube
-        #eye = numpy.array((0, 0, +10))
-        #eye = numpy.array((0, 0, +5 * (obj_max - obj_min)))
-        #target = eye - numpy.array((0, 0, 1.0))
-        #up  = numpy.array((0, -1, 0.0))
-        #self.init_mat_view_ETU(eye,target,up)
+        eye = numpy.array((0, 0, +10))
+        eye = numpy.array((0, 0, +5 * (obj_max - obj_min)))
+        target = eye - numpy.array((0, 0, 1.0))
+        up  = numpy.array((0, -1, 0.0))
+        self.init_mat_view_ETU(eye,target,up)
 
         #soccer
         #self.init_mat_view_ETU(eye=numpy.array((0,-2,5500)) , target = numpy.array((0,0,5500-1)), up=numpy.array((0,-1,0)))
