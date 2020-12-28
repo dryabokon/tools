@@ -283,7 +283,7 @@ class render_GL3D(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def init_mat_model(self, rvec, tvec, do_rodriges=False):
+    def init_mat_model(self, rvec, tvec, do_rodriges=True):
         self.mat_model = tools_pr_geom.compose_RT_mat(rvec, tvec, do_flip=False, do_rodriges=do_rodriges)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "model"), 1, GL_FALSE, self.mat_model)
 
@@ -318,19 +318,31 @@ class render_GL3D(object):
         if do_debug:image = self.draw_debug_info(image)
         return image
 # ----------------------------------------------------------------------------------------------------------------------
-    def init_perspective_view(self, rvec, tvec, aperture_x=0.5, aperture_y=0.5, scale=(1, 1, 1)):
+    def init_perspective_view_1_mat_model(self, rvec, tvec, aperture_x=0.5, aperture_y=0.5, scale=(1, 1, 1)):
         tvec = numpy.array(tvec, dtype=float)
         self.__init_mat_view_RT(numpy.array(rvec, dtype=float), tvec, do_rodriges=True,do_flip=True)
         self.init_mat_model((0, 0, 0), (0, 0, 0))
         self.__init_mat_transform(scale)
-        self.__init_mat_projection_perspective(aperture_x,aperture_x)
+        self.__init_mat_projection_perspective(aperture_x,aperture_y)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def get_image_perspective(self, rvec, tvec, aperture_x=0.5,aperture_y=0.5,scale=(1,1,1),lookback=False,do_debug=False):
-        self.init_perspective_view(rvec, tvec, aperture_x,aperture_y,scale)
-        if lookback:
-            self.mat_view*=-1
-            self.mat_view[-1,-1]*=-1
+    def init_perspective_view_1_mat_view(self, rvec, tvec, aperture_x=0.5, aperture_y=0.5, scale=(1, 1, 1)):
+        tvec = numpy.array(tvec, dtype=float)
+        self.init_mat_model(numpy.array(rvec, dtype=float), tvec, do_rodriges=True)
+        self.__init_mat_view_RT((0, 0, 0), (0, 0, 0))
+        self.__init_mat_transform(scale)
+        self.__init_mat_projection_perspective(aperture_x, aperture_y)
+        return
+    # ----------------------------------------------------------------------------------------------------------------------
+    def get_image_perspective(self, rvec, tvec, aperture_x=0.5,aperture_y=0.5,scale=(1,1,1),lookback=False,freeze_mat_view=True,do_debug=False):
+        if freeze_mat_view:
+            self.init_perspective_view_1_mat_view(rvec, tvec, aperture_x,aperture_y,scale)
+            if lookback:
+                self.mat_view*=-1
+                self.mat_view[-1,-1]*=-1
+        else:
+            self.init_perspective_view_1_mat_model(rvec, tvec, aperture_x, aperture_y, scale)
+
             glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
         return self.get_image(do_debug)
 # ----------------------------------------------------------------------------------------------------------------------
@@ -343,10 +355,10 @@ class render_GL3D(object):
 
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
 
-        #please remove!!! keep 0
-        #self.__init_mat_model((0, 0, numpy.pi), (0, 0, 0))
-        #self.__init_mat_transform(scale)
-        #self.__init_mat_projection_perspective(aperture_x, aperture_x)
+
+        self.init_mat_model((0, 0, 0), (0, 0, 0))
+        self.__init_mat_transform(scale)
+        self.__init_mat_projection_perspective(aperture_x, aperture_y)
 
         return self.get_image(do_debug)
 # ----------------------------------------------------------------------------------------------------------------------

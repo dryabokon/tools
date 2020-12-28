@@ -68,7 +68,7 @@ def draw_compass(image, camera_matrix, dist, rvec, tvec, R, Z=0, step=1, draw_la
     if numpy.array(1*idx).sum()>1:
         points_2d_visible = points_2d[idx]
         lines_2d =[(points_2d_visible[p,0],points_2d_visible[p,1],points_2d_visible[p+1,0],points_2d_visible[p+1,1]) for p in range(len(points_2d_visible)-1)]
-        image_result = tools_draw_numpy.draw_lines(image,lines_2d,color=(0,0,190),w=2)
+        image_result = tools_draw_numpy.draw_lines(image,lines_2d,color=(80,0,190),w=2)
 
         xy = (int(points_2d_visible[:, 0].mean()), int(points_2d_visible[:, 1].mean()))
         cv2.putText(image_result, '{0}'.format(R), xy, cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 190), 1, cv2.LINE_AA)
@@ -161,7 +161,7 @@ def draw_cube_numpy_MVP(img,mat_projection, mat_view, mat_model, mat_trns, color
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166),do_debug=False):
+def draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166), w = 2, do_debug=False):
 
     camera_matrix_3x3 = tools_pr_geom.compose_projection_mat_3x3(img.shape[1], img.shape[0], 1 / mat_projection[0][0],1 / mat_projection[1][1])
 
@@ -172,7 +172,7 @@ def draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, m
 
     method=1
     if method==0:
-        img = draw_points_numpy_RT(L3D,img,numpy.eye(4),camera_matrix_3x3,color,flipX=False)
+        img = draw_points_numpy_RT(L3D,img,numpy.eye(4),camera_matrix_3x3,color,w,flipX=False)
 
     elif method==1:
         #opencv equivalent
@@ -180,7 +180,7 @@ def draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, m
         points_2d, jac = tools_pr_geom.project_points(L3D, numpy.array((0, 0, 0)), numpy.array((0, 0, 0)), camera_matrix_3x3, numpy.zeros(4))
         points_2d = points_2d.reshape((-1,2))
         points_2d[:, 0] = img.shape[1] - points_2d[:, 0]
-        for point in points_2d:img = tools_draw_numpy.draw_circle(img, int(point[1]), int(point[0]), 2, color)
+        for point in points_2d:img = tools_draw_numpy.draw_circle(img, int(point[1]), int(point[0]), w, color)
 
     if do_debug:
         posx,posy = img.shape[1]-250,0
