@@ -155,7 +155,7 @@ class render_GL3D(object):
                                         vec4 materialColor = vec4(inColor*lightIntensity, 1);
                                         
                                         //outColor = materialColor;
-                                        outColor = texel;
+                                        outColor = texel;//soccer
                                         //outColor = texel* materialColor;//
                                         //outColor = vec4(texel.rgb * lightIntensity, 1);
                                         outColor.a = 0.99;                                        
