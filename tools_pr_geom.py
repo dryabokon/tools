@@ -416,16 +416,24 @@ def apply_RT(rvec,tvec,X):
     Y = apply_matrix(M,X)
     return Y
 # ----------------------------------------------------------------------------------------------------------------------
-def compose_RT_mat(rvec,tvec,do_flip=True,do_rodriges=False):
+def compose_RT_mat(rvec,tvec,do_flip=True,do_rodriges=False,GL_style=True):
     R = pyrr.matrix44.create_from_eulers(rvec).T
-    if do_rodriges: R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(rvec)[0])
+
+    if do_rodriges:
+        R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(rvec)[0])
+
     T = pyrr.matrix44.create_from_translation(numpy.array(tvec)).T
-    M = pyrr.matrix44.multiply(T, R).T
-    flip = numpy.identity(4)
+    M = pyrr.matrix44.multiply(T, R)
+
+    if GL_style:
+        M = M.T
+
     if do_flip:
+        flip = numpy.identity(4)
         flip[1][1] = -1
         flip[2][2] = -1
-    M = numpy.dot(M, flip)
+        M = numpy.dot(M, flip)
+
     return M
 # ----------------------------------------------------------------------------------------------------------------------
 def perspective_transform(points_2d,homography):
@@ -527,6 +535,7 @@ def project_points(points_3d, rvec, tvec, camera_matrix_3x3, dist):
     PM = pyrr.matrix44.multiply(P, M)
 
     points_2d = apply_matrix(PM, points_3d)
+
     points_2d[:, 0] = points_2d[:, 0] / points_2d[:, 2]
     points_2d[:, 1] = points_2d[:, 1] / points_2d[:, 2]
     points_2d = numpy.array(points_2d)[:, :2].reshape((-1, 2))

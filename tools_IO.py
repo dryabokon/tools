@@ -55,6 +55,30 @@ def remove_folders(path):
             shutil.rmtree(path + f)
     return
 # ----------------------------------------------------------------------------------------------------------------------
+def append_CSV(csv_record, filename_out, csv_header=None, delim ='\t'):
+
+    if os.path.exists(filename_out):
+        mode = 'a'
+    else:
+        mode = 'w'
+
+    with open(filename_out, mode, encoding='utf-8') as f:
+        if mode=='w' and csv_header is not None:
+            for i, each in enumerate(csv_header):
+                f.write(str(each))
+                if i != len(csv_header) - 1:
+                    f.write(delim)
+            f.write('\n')
+
+        for i,each in enumerate(csv_record):
+            f.write('%2.1f'%float(each))
+            if i!=len(csv_record)-1:
+                f.write(delim)
+
+        f.write('\n')
+
+    return
+# ----------------------------------------------------------------------------------------------------------------------
 def get_filenames(path_input,list_of_masks):
     local_filenames = []
     for mask in list_of_masks.split(','):
@@ -226,7 +250,7 @@ def load_mat(filename, dtype=numpy.chararray, delim='\t'):
         mat = numpy.genfromtxt(filename, dtype=dtype, delimiter=delim)
     return mat
 # ----------------------------------------------------------------------------------------------------------------------
-def load_mat_pd(filename, dtype=numpy.chararray, delim='\t', lines=None):
+def load_mat_pd(filename, dtype=numpy.str, delim='\t', lines=None):
     return pd.read_csv(filename, sep=delim).values
 # ----------------------------------------------------------------------------------------------------------------------
 def load_mat_var_size(filename,dtype=numpy.int,delim='\t'):

@@ -271,13 +271,6 @@ def check_projection_ortho_modelview(L3D, points_2d, modelview, fx,fy,scale_fact
         cv2.imwrite('./images/output/fit_check_modelview.png', image)
     return loss
 # ----------------------------------------------------------------------------------------------------------------------
-def get_ray_rvec_tvec(point_2d, camera_matrix, rvec, tvec):
-    mat_trns = numpy.eye(4)
-    mat_model = numpy.eye(4)
-    mat_view = tools_pr_geom.compose_RT_mat(rvec,tvec,do_flip=True,do_rodriges=False)
-
-    return get_ray(point_2d, camera_matrix, mat_view, mat_model, mat_trns)
-# ----------------------------------------------------------------------------------------------------------------------
 def get_ray(point_2d, camera_matrix_3x3, mat_view, mat_model, mat_trns):
 
     #fx, fy = float(img.shape[1]), float(img.shape[0])
