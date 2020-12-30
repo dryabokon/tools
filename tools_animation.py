@@ -70,7 +70,7 @@ def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png', frame
     return
 # ---------------------------------------------------------------------------------------------------------------------
 def folder_to_video(folder_in, filename_out, mask='*.jpg', framerate=24, resize_W=None, resize_H=None, do_reverce=False):
-    fileslist = fnmatch.filter(listdir(folder_in), mask)
+    fileslist = tools_IO.get_filenames(folder_in,mask)
     fileslist.sort()
 
     print(len(fileslist))
@@ -139,8 +139,8 @@ def merge_images_in_folders(path_input1,path_input2,path_output,mask='*.png,*.jp
         image2_resized = cv2.resize(image2, (int(shape1[0] * shape2[1] / shape2[0]),shape1[0]))
         image = numpy.zeros((shape1[0], shape1[1] + image2_resized.shape[1], shape1[2]), dtype=numpy.uint8)
 
-        image[:,:shape1[1]] = tools_image.desaturate(image1)
-        image[:,shape1[1]:] =image2_resized
+        image[:,:shape1[1]] = image1
+        image[:,shape1[1]:] = image2_resized
         cv2.imwrite(path_output+filename1,image)
 
     return
