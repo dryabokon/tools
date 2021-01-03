@@ -75,7 +75,7 @@ def draw_contours(image, points, color_fill=(255,255,255),color_outline=(255,255
     pImage = Image.fromarray(image)
     draw = ImageDraw.Draw(pImage, 'RGBA')
 
-    polypoints = [(point[0],point[1]) for point in points]
+    polypoints = [(int(point[0]),int(point[1])) for point in points]
     if color_fill is not None:
         clr_fill   = (color_fill[0], color_fill[1], color_fill[2], int(255 - int(255 - transp_fill * 255)))
     else:
@@ -204,10 +204,10 @@ def draw_ellipse_axes(image, ellipse, color=(255, 255, 255), w=4):
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_ellipses(image, ellipses,color=(255,255,255),w=4,draw_axes=False):
+def draw_ellipses(image, ellipses,color=(255,255,255),w=4,draw_axes=False,labels=None):
     image_ellipses = image.copy()
 
-    for ellipse in ellipses:
+    for id, ellipse in enumerate(ellipses):
         if ellipse is None: continue
         center = (int(ellipse[0][0]), int(ellipse[0][1]))
         axes = (int(ellipse[1][0] / 2), int(ellipse[1][1] / 2))
@@ -215,6 +215,9 @@ def draw_ellipses(image, ellipses,color=(255,255,255),w=4,draw_axes=False):
         cv2.ellipse(image_ellipses, center, axes, rotation_angle, startAngle=0, endAngle=360, color=color,thickness=w)
         if draw_axes:
             draw_ellipse_axes(image_ellipses, ellipse, color=color, w=1)
+
+        if labels is not None:
+            cv2.putText(image_ellipses, '{0}'.format(labels[id]), (center[0]+20,center[1]+20),cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 1, cv2.LINE_AA)
 
     return image_ellipses
 # ----------------------------------------------------------------------------------------------------------------------
@@ -369,18 +372,23 @@ def draw_signals_lines(signals,colors=None,w=3):
 
     return image_signal
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_cuboid(image, points, color=(255, 255, 255), w=2, put_text=False, labels=None):
+def draw_cuboid(image, points_2d, lines_idx = None, color=(255, 255, 255), w=2, put_text=False):
+
+    if lines_idx is None:
+        lines_idx  = [(1,0),(0,2),(2,3),(3,1), (7,6),(6,4),(4,5),(5,7), (1,0),(0,6),(6,7),(7,1), (3,2),(2,4),(4,5),(5, 3)]
+        #lines_idx = [(0,1),(1,2),(2,3),(3,0), (4,5),(5,6),(6,7),(7,4), (0,1),(1,5),(5,4),(4,0), (2,3),(3,7),(7,6),(6,2)]
+
     lines = []
-    for i in [(1, 0), (0, 2), (2, 3), (3, 1), (7, 6), (6, 4), (4, 5), (5, 7), (1, 0), (0, 6), (6, 7), (7, 1), (3, 2),(2, 4), (4, 5), (5, 3), (1, 3), (3, 5), (5, 7), (7, 1), (0, 2), (2, 4), (4, 6), (6, 0)]:
-        lines.append(numpy.array((points[i[0]], points[i[1]])).flatten())
+    for i in lines_idx :
+        lines.append(numpy.array((points_2d[i[0]], points_2d[i[1]])).flatten())
 
     idx_face = [0,1,2,3]
 
-    result = draw_convex_hull(image, points, color, transperency=0.80)
-    result = draw_convex_hull(result, points[idx_face], color, transperency=0.70)
+    result = draw_convex_hull(image, points_2d, color, transperency=0.80)
+    result = draw_convex_hull(result, points_2d[idx_face], color, transperency=0.70)
     result = draw_lines(result, numpy.array(lines), color, w)
     if put_text:
-        result = draw_points(result, points, color,put_text=put_text)
+        result = draw_points(result, points_2d, color, put_text=put_text)
 
     return result
 # ----------------------------------------------------------------------------------------------------------------------
@@ -421,13 +429,9 @@ def extend_view(XY,H,W,factor = 4):
 def extend_view_from_image(image,factor=4,color_bg=(32,32,32)):
     H, W = image.shape[:2]
 
-    image_result = numpy.full((H,W,3),0,dtype=numpy.uint8)
-    image_result[:,:]=color_bg
-
+    image_result = numpy.full((H,W,3),color_bg,dtype=numpy.uint8)
     image_small = cv2.resize(tools_image.saturate(image),(int(W/factor),int(H/factor)))
-
     image_result = tools_image.put_image(image_result,image_small,int((H-H/factor)/2),int((W-W/factor)/2))
-
 
 
     return image_result

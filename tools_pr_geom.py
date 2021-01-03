@@ -5,7 +5,9 @@ import numpy
 from sklearn.linear_model import LinearRegression
 from scipy.linalg import polar
 # ---------------------------------------------------------------------------------------------------------------------
+import tools_IO
 import tools_draw_numpy
+import tools_render_CV
 # ---------------------------------------------------------------------------------------------------------------------
 def debug_projection(X_source, X_target,result):
     colors_s = tools_draw_numpy.get_colors(len(X_source))
@@ -195,13 +197,43 @@ def fit_manual(X3D,target_2d,fx, fy,xref=None,lref=None,do_debug=True):
     return M
 # ----------------------------------------------------------------------------------------------------------------------
 def compose_projection_mat_3x3(fx, fy, aperture_x=0.5,aperture_y=0.5):
-    mat_camera = numpy.array([[fx / (aperture_x/0.5 ), 0, fx / 2], [0, fy / (aperture_y/0.5 ), fy/2], [0, 0, 1]],dtype=numpy.float)
+    #mat_camera = numpy.array([[fx / (aperture_x/0.5 ), 0, fx / 2], [0, fy / (aperture_y/0.5 ), fy/2], [0, 0, 1]],dtype=numpy.float)
+
+    f = fx/(aperture_x/0.5)
+    mat_camera = numpy.array([[f, 0., fx/2], [0., f, fy/2], [0., 0., 1.]])
     return mat_camera
 # ----------------------------------------------------------------------------------------------------------------------
 def compose_projection_mat_4x4(fx, fy, aperture_x=0.5,aperture_y=0.5):
     mat_camera = numpy.array([[fx, 0, fx*aperture_x,0], [0, fy, fy*aperture_y,0],[0,0,1,0],[0,0,0,1]])
     return mat_camera
 # ----------------------------------------------------------------------------------------------------------------------
+def compose_projection_mat_4x4_GL(aperture_x=0.5, aperture_y=0.5):
+    near, far = 0.1, 10000.0
+
+    mat_projection = numpy.zeros((4, 4), dtype=float)
+
+    mat_projection[0][0] = 1 / aperture_x
+    mat_projection[0][1] = 0.0
+    mat_projection[0][2] = 0.0
+    mat_projection[0][3] = 0.0
+
+    mat_projection[1][0] = 0.0
+    mat_projection[1][1] = 1 / aperture_y
+    mat_projection[1][2] = 0.0
+    mat_projection[1][3] = 0.0
+
+    mat_projection[2][0] = 0
+    mat_projection[2][1] = 0
+    mat_projection[2][2] = (far + near) / (near - far)
+    mat_projection[2][3] = -1.0
+
+    mat_projection[3][0] = 0.0
+    mat_projection[3][1] = 0.0
+    mat_projection[3][2] = 2.0 * far * near / (near - far)
+    mat_projection[3][3] = 0.0
+    return mat_projection
+# ----------------------------------------------------------------------------------------------------------------------
+
 def compose_projection_ortho_mat(fx, fy, scale_factor):
     P = numpy.array([[fx, 0, 0, fx / 2], [0, fy, 0, fy / 2], [0, 0, 1, 0], [0, 0, 0, 1]])
     P[:, 3] *= scale_factor[0]
@@ -416,7 +448,7 @@ def apply_RT(rvec,tvec,X):
     Y = apply_matrix(M,X)
     return Y
 # ----------------------------------------------------------------------------------------------------------------------
-def compose_RT_mat(rvec,tvec,do_flip=True,do_rodriges=False,GL_style=True):
+def compose_RT_mat(rvec,tvec,do_rodriges=False,do_flip=True,GL_style=True):
     R = pyrr.matrix44.create_from_eulers(rvec).T
 
     if do_rodriges:
@@ -501,15 +533,15 @@ def H_to_RT(homography,camera_matrix_3x3):
 
 
     ps_3d = numpy.insert(ps, 2, numpy.zeros((len(ps))), axis=1)
-    pt3 = project_points_M(ps_3d, RT.T, camera_matrix_3x3, numpy.zeros(5))
+    #pt3 = project_points_M(ps_3d, RT, camera_matrix_3x3, numpy.zeros(5))
 
-    r_vec, t_vec, pt4 = fit_pnp(ps_3d,pt,camera_matrix_3x3)
+    #r_vec, t_vec, pt4 = fit_pnp(ps_3d,pt,camera_matrix_3x3)
 
 
-    n, R, T, normal = cv2.decomposeHomographyMat(homography, camera_matrix_3x3)
-    R = numpy.array(R[0])
-    T = numpy.array(T[0])
-    normal = numpy.array(normal[0])
+    #n, R, T, normal = cv2.decomposeHomographyMat(homography, camera_matrix_3x3)
+    #R = numpy.array(R[0])
+    #T = numpy.array(T[0])
+    #normal = numpy.array(normal[0])
     #homography3 = tools_calibrate.compose_homography(R, T, normal, camera_matrix_3x3)
 
     #HH = R + numpy.dot(T, normal.T)
@@ -519,6 +551,27 @@ def H_to_RT(homography,camera_matrix_3x3):
 
 
     return RT
+# ----------------------------------------------------------------------------------------------------------------------
+def project_points_MVP(points_3d, img, mat_projection, mat_view, mat_model, mat_trns):
+
+    # M = pyrr.matrix44.multiply(mat_projection, pyrr.matrix44.multiply(mat_view, pyrr.matrix44.multiply(mat_model, mat_trns)))
+    # points_2d = apply_matrix(M, points_3d)
+    # points_2d[:, 0] = points_2d[:, 0] / points_2d[:, 2]
+    # points_2d[:, 1] = points_2d[:, 1] / points_2d[:, 2]
+    # points_2d = numpy.array(points_2d)[:, :2].reshape((-1, 2))
+
+    camera_matrix_3x3 = compose_projection_mat_3x3(img.shape[1], img.shape[0], 1 / mat_projection[0][0],1 / mat_projection[1][1])
+
+    M = pyrr.matrix44.multiply(mat_view.T,pyrr.matrix44.multiply(mat_model.T,mat_trns.T))
+    X4D = numpy.full((points_3d.shape[0], 4), 1,dtype=numpy.float)
+    X4D[:, :3] = points_3d[:,:]
+    L3D = pyrr.matrix44.multiply(M, X4D.T).T[:,:3]
+
+    points_2d, jac = project_points(L3D, numpy.array((0, 0, 0)), numpy.array((0, 0, 0)),camera_matrix_3x3, numpy.zeros(4))
+    points_2d = points_2d.reshape((-1, 2))
+    points_2d[:, 0] = img.shape[1] - points_2d[:, 0]
+
+    return points_2d
 # ----------------------------------------------------------------------------------------------------------------------
 def project_points(points_3d, rvec, tvec, camera_matrix_3x3, dist):
     #https: // docs.opencv.org / 2.4 / modules / calib3d / doc / camera_calibration_and_3d_reconstruction.html
@@ -541,6 +594,16 @@ def project_points(points_3d, rvec, tvec, camera_matrix_3x3, dist):
     points_2d = numpy.array(points_2d)[:, :2].reshape((-1, 2))
 
     return points_2d,0
+# ----------------------------------------------------------------------------------------------------------------------
+def project_points_p3x4(points_3d, p4x4):
+
+    points_2d = apply_matrix(p4x4, points_3d)
+
+    points_2d[:, 0] = points_2d[:, 0] / points_2d[:, 2]
+    points_2d[:, 1] = points_2d[:, 1] / points_2d[:, 2]
+    points_2d = numpy.array(points_2d)[:, :2].reshape((-1, 2))
+
+    return points_2d
 # ----------------------------------------------------------------------------------------------------------------------
 def reverce_project_points_Z0(points_2d, rvec, tvec, camera_matrix_3x3, dist):
     P = compose_projection_mat_4x4(camera_matrix_3x3[0,0],camera_matrix_3x3[1,1],camera_matrix_3x3[0,2]/camera_matrix_3x3[0,0],camera_matrix_3x3[1, 2] / camera_matrix_3x3[1,1])
@@ -574,7 +637,7 @@ def project_points_M(points_3d, RT, camera_matrix_3x3, dist):
         P = camera_matrix_3x3.copy()
 
 
-    PM = pyrr.matrix44.multiply(P, RT.T)
+    PM = pyrr.matrix44.multiply(P, RT)
 
     points_2d = apply_matrix(PM, points_3d)
     points_2d[:, 0] = points_2d[:, 0] / points_2d[:, 2]
@@ -610,4 +673,101 @@ def project_points_ortho_modelview(points_3d, modelview, dist,fx,fy,scale_factor
     points_2d = numpy.array(points_2d)[:, :2].reshape(-1, 1, 2)
 
     return points_2d ,0
+# ----------------------------------------------------------------------------------------------------------------------
+def regularize_rect(point_2d,do_debug=True):
+
+    point_2d_centred = point_2d - numpy.mean(point_2d,axis=0)
+    d = numpy.array([numpy.linalg.norm(point_2d[i] - point_2d[j]) for i, j in zip([0, 1, 2, 3], [1, 2, 3, 0])])
+    w0 = min(d[[0, 2]].mean(), d[[1, 3]].mean())
+    h0 = max(d[[0, 2]].mean(), d[[1, 3]].mean())
+
+    a_range = numpy.arange(0,180,10)
+    loss,Z = [],[]
+    for a in a_range:
+        R = numpy.array([[math.cos(a*numpy.pi/180),-math.sin(a*numpy.pi/180)],[math.sin(a*numpy.pi/180),math.cos(a*numpy.pi/180)]])
+        X = numpy.array([R.dot(p) for p in point_2d_centred])
+        w1 = X[:,0].max()-X[:,0].min()
+        h1 = X[:,1].max()-X[:,1].min()
+        z = numpy.array([R.dot(p) for p in [[-w1 / 2, -h1 / 2], [-w1 / 2, +h1 / 2], [+w1 / 2, -h1 / 2], [+w1 / 2, +h1 / 2]]])
+        loss.append((w0-w1)**2 + (h0-h1)**2)
+        Z.append(z)
+        #image = tools_draw_numpy.draw_points(numpy.zeros((1000, 1000, 3)), 10 * Z + 100, color=(0, 128, 255))
+        #image = tools_draw_numpy.draw_points(image, 10 * point_2d_centred + 100, color=(0, 0, 255))
+        #cv2.imwrite('./images/output/xxx.png',image)
+
+
+    idx = numpy.argmin(numpy.array(loss))
+    X = numpy.array(Z)[idx]+numpy.mean(point_2d,axis=0)
+    Y = []
+    for p in point_2d:
+        v = numpy.array([numpy.linalg.norm(x-p) for x in X])
+        Y.append(X[numpy.argmin(v)])
+
+    Y=numpy.array(Y,dtype=numpy.float32)
+
+    if do_debug:
+        image_res = tools_draw_numpy.draw_points(numpy.zeros((1000,1000,3)),10*(X-numpy.mean(point_2d,axis=0))+100,color=(0,128,255))
+        image_res = tools_draw_numpy.draw_points(image_res, 10*point_2d_centred + 100, color=(0, 0, 255))
+        cv2.imwrite('./images/output/xxx.png',image_res)
+
+
+    return Y
+# ----------------------------------------------------------------------------------------------------------------------
+def derive_dims(cuboid_3d):
+    idx_h = 1
+    idx_lw = [0,2]
+
+    h = numpy.abs(cuboid_3d[[1,3,5,7], idx_h].mean()-cuboid_3d[[0,2,4,6], idx_h].mean())
+    ps = cuboid_3d[[1,3,5,7],:]
+    ps = ps[:,idx_lw]
+
+    d = numpy.array([numpy.linalg.norm(ps[i]-ps[j]) for i,j in zip([0,1,2,3],[1,2,3,0])])
+    w = min(d[[0,2]].mean(), d[[1,3]].mean())
+    l = max(d[[0,2]].mean(), d[[1,3]].mean())
+
+    return  h,w,l
+# ----------------------------------------------------------------------------------------------------------------------
+def fit_1M(cuboid):
+
+    h, w, l = 1, 1, 1
+    #h, w, l = derive_dims(cuboid)
+
+    cube_1M = numpy.array([
+        [i - l/2 for i in [l,l,l,l,0,0,0,0]],
+        [i - h/1 for i in [0,h,0,h,0,h,0,h]],
+        [i - w/2 for i in [0,0,w,w,w,w,0,0]]],dtype=numpy.float32).T
+
+    hh = cuboid[:,1]
+
+    #cube_1M+=numpy.mean(cuboid[[1,3,5,7]],axis=0)
+    cube_1M+=numpy.mean(cuboid[:],axis=0)
+
+    cube_1M[:,1] = cuboid[:,1]
+
+    return cube_1M
+# ----------------------------------------------------------------------------------------------------------------------
+def fit_3D_3D(cuboid,idx_h = 1,idx_wh = [0,2],do_debug=False):
+
+    idx_h0 = numpy.where(cuboid[:,idx_h]> cuboid[:,idx_h].mean())[0]
+    idx_h1 = numpy.where(cuboid[:,idx_h]<=cuboid[:,idx_h].mean())[0]
+
+    rect = cuboid[:, idx_wh]
+    rect_h0 = rect[[idx_h0]]
+    rect_h1 = rect[[idx_h1]]
+
+
+    rect_h0_reg = tools_render_CV.regularize_rect(rect_h0,inlined=False, do_debug=do_debug)
+    rect_h1_reg = tools_render_CV.regularize_rect(rect_h1,inlined=False, do_debug=do_debug)
+    cuboid2 = cuboid.copy()
+
+    for i,idx in enumerate(idx_h0):
+        cuboid2[idx,idx_wh] = rect_h0_reg[i]
+        cuboid2[idx,idx_h ] = cuboid[idx_h0,idx_h].mean()
+
+    for i,idx in enumerate(idx_h1):
+        cuboid2[idx,idx_wh] = rect_h1_reg[i]
+        cuboid2[idx,idx_h ] = cuboid[idx_h1,idx_h].mean()
+
+
+    return cuboid2
 # ----------------------------------------------------------------------------------------------------------------------

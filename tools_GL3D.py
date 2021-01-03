@@ -110,7 +110,7 @@ class render_GL3D(object):
         self.reset_view()
         self.ctrl_pressed = False
         self.acc_pos = numpy.zeros(3)
-        self.mat_model_init = numpy.eye(4)
+
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -223,30 +223,7 @@ class render_GL3D(object):
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_projection_perspective(self, aperture_x=0.5, aperture_y=0.5):
-        near, far = 0.1, 10000.0
-
-        self.mat_projection = numpy.zeros((4,4),dtype=float)
-
-        self.mat_projection[0][0] = 1 / aperture_x
-        self.mat_projection[0][1] = 0.0
-        self.mat_projection[0][2] = 0.0
-        self.mat_projection[0][3] = 0.0
-
-        self.mat_projection[1][0] = 0.0
-        self.mat_projection[1][1] = 1/ aperture_y
-        self.mat_projection[1][2] = 0.0
-        self.mat_projection[1][3] = 0.0
-
-        self.mat_projection[2][0] = 0
-        self.mat_projection[2][1] = 0
-        self.mat_projection[2][2] = (far + near) / (near - far)
-        self.mat_projection[2][3] = -1.0
-
-        self.mat_projection[3][0] = 0.0
-        self.mat_projection[3][1] = 0.0
-        self.mat_projection[3][2] = 2.0 * far * near / (near - far)
-        self.mat_projection[3][3] = 0.0
-
+        self.mat_projection = tools_pr_geom.compose_projection_mat_4x4_GL(aperture_x, aperture_y)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "projection"), 1, GL_FALSE, self.mat_projection)
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -268,31 +245,29 @@ class render_GL3D(object):
             self.__init_mat_projection_ortho()
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def init_mat_view_ETU(self, eye, target, up):
-
-        self.mat_view = tools_pr_geom.ETU_to_mat_view(numpy.array(eye),numpy.array(target),numpy.array(up))
-
+    def init_mat_view_direct(self, mat_view):
+        self.mat_view = mat_view
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
-
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def __init_mat_view_RT(self, rvec,tvec,do_flip=True,do_rodriges=False):
-
+    def init_mat_view_ETU(self, eye, target, up):
+        self.mat_view = tools_pr_geom.ETU_to_mat_view(numpy.array(eye),numpy.array(target),numpy.array(up))
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def init_mat_view_RT(self, rvec,tvec,do_flip=True,do_rodriges=False):
         self.mat_view = tools_pr_geom.compose_RT_mat(rvec,tvec,do_flip,do_rodriges)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
-
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def init_mat_model_direct(self, mat_model):
+        self.mat_model = mat_model
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "model"), 1, GL_FALSE, self.mat_model)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def init_mat_model(self, rvec, tvec, do_rodriges=False):
         self.mat_model = tools_pr_geom.compose_RT_mat(rvec, tvec, do_flip=False, do_rodriges=do_rodriges)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "model"), 1, GL_FALSE, self.mat_model)
-
-        # check
-        #rvec_model, tvec_model = tools_pr_geom.decompose_to_rvec_tvec(self.mat_model)
-        #print(rvec,tvec)
-        #print(rvec_model,tvec_model)
-        #print()
-
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_transform(self,scale_vec):
@@ -320,7 +295,7 @@ class render_GL3D(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def init_perspective_view_1_mat_model(self, rvec, tvec, aperture_x=0.5, aperture_y=0.5, scale=(1, 1, 1)):
         tvec = numpy.array(tvec, dtype=float)
-        self.__init_mat_view_RT(numpy.array(rvec, dtype=float), tvec, do_rodriges=True,do_flip=True)
+        self.init_mat_view_RT(numpy.array(rvec, dtype=float), tvec, do_rodriges=True,do_flip=True)
         self.init_mat_model((0, 0, 0), (0, 0, 0))
         self.__init_mat_transform(scale)
         self.__init_mat_projection_perspective(aperture_x,aperture_y)
@@ -329,7 +304,7 @@ class render_GL3D(object):
     def init_perspective_view_1_mat_view(self, rvec, tvec, aperture_x=0.5, aperture_y=0.5, scale=(1, 1, 1)):
         tvec = numpy.array(tvec, dtype=float)
         self.init_mat_model(numpy.array(rvec, dtype=float), tvec, do_rodriges=True)
-        self.__init_mat_view_RT((0, 0, 0), (0, 0, 0))
+        self.init_mat_view_RT((0, 0, 0), (0, 0, 0))
         self.__init_mat_transform(scale)
         self.__init_mat_projection_perspective(aperture_x, aperture_y)
         return

@@ -54,7 +54,32 @@ def draw_grid(image, camera_matrix, dist, rvec, tvec,color=(0,0,190),w=1):
 
     return image_result
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_compass(image, camera_matrix, dist, rvec, tvec, R, Z=0, step=1, draw_labels=False):
+def draw_compass_p3x4(image, p3x4, R, Z=0, step=1, color=(0,128,255),draw_labels=False):
+    points_3d = numpy.array([(R * numpy.sin(angle * numpy.pi / 180.0), R * numpy.cos(angle * numpy.pi / 180.0), Z) for angle in range(0, 360, step)])
+    points_2d = tools_pr_geom.project_points_p3x4(points_3d, p3x4)
+    idx = (points_2d[:, 0] > 0) * (points_2d[:, 1] > 0) * (points_2d[:, 0] < image.shape[1]) * (points_2d[:, 1] < image.shape[0])
+
+    image_result = image.copy()
+    if numpy.array(1 * idx).sum() > 1:
+        points_2d_visible = points_2d[idx]
+        lines_2d = [
+            (points_2d_visible[p, 0], points_2d_visible[p, 1], points_2d_visible[p + 1, 0], points_2d_visible[p + 1, 1])
+            for p in range(len(points_2d_visible) - 1)]
+        image_result = tools_draw_numpy.draw_lines(image, lines_2d, color=color, w=2)
+
+        xy = (int(points_2d_visible[:, 0].mean()), int(points_2d_visible[:, 1].mean()))
+        cv2.putText(image_result, '{0}'.format(R), xy, cv2.FONT_HERSHEY_SIMPLEX, 1.2, color, 1, cv2.LINE_AA)
+
+        if draw_labels:
+            colors = tools_draw_numpy.get_colors(len(points_2d), colormap='rainbow')
+            labels = numpy.array([('%d' % d) for d in range(0, 360, step)])
+            image_result = tools_draw_numpy.draw_points(image_result, points_2d[idx], colors[idx], labels=labels[idx])
+
+    return image_result
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_compass(image, camera_matrix, dist, rvec, tvec, R, Z=0, step=1, color=(0,128,255),draw_labels=False):
+
+
 
     points_3d = numpy.array([(R * numpy.sin(angle * numpy.pi / 180.0), R * numpy.cos(angle * numpy.pi / 180.0), Z) for angle in range(0, 360, step)])
     points_2d, jac = cv2.projectPoints(points_3d, rvec, tvec, camera_matrix, dist)
@@ -68,10 +93,10 @@ def draw_compass(image, camera_matrix, dist, rvec, tvec, R, Z=0, step=1, draw_la
     if numpy.array(1*idx).sum()>1:
         points_2d_visible = points_2d[idx]
         lines_2d =[(points_2d_visible[p,0],points_2d_visible[p,1],points_2d_visible[p+1,0],points_2d_visible[p+1,1]) for p in range(len(points_2d_visible)-1)]
-        image_result = tools_draw_numpy.draw_lines(image,lines_2d,color=(80,0,190),w=2)
+        image_result = tools_draw_numpy.draw_lines(image,lines_2d,color=color,w=2)
 
         xy = (int(points_2d_visible[:, 0].mean()), int(points_2d_visible[:, 1].mean()))
-        cv2.putText(image_result, '{0}'.format(R), xy, cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 190), 1, cv2.LINE_AA)
+        cv2.putText(image_result, '{0}'.format(R), xy, cv2.FONT_HERSHEY_SIMPLEX, 1.2, color, 1, cv2.LINE_AA)
 
         if draw_labels:
             colors = tools_draw_numpy.get_colors(len(points_2d), colormap='rainbow')
@@ -146,18 +171,17 @@ def draw_cube_numpy(img, camera_matrix, dist, rvec, tvec, scale=(1,1,1),color=(2
 
     return result
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_cube_numpy_RT(points_3d,img,RT,camera_matrix_3x3,color=(66, 0, 166),w=6,flipX=False):
-    points_2d = tools_pr_geom.project_points_M(points_3d, RT, camera_matrix_3x3, numpy.zeros(5)).reshape((-1, 2))
-    points_2d[:, 0] = img.shape[1] - points_2d[:, 0]
-    if flipX: points_2d[:, 0] = img.shape[1] - points_2d[:, 0]
-    for i,j in zip((0,1,2,3,4,5,6,7,0,1,2,3),(1,2,3,0,5,6,7,4,4,5,6,7)):
-        img = tools_draw_numpy.draw_line(img, points_2d[i, 1], points_2d[i, 0], points_2d[j, 1],points_2d[j, 0], color)
-    return img
-# ----------------------------------------------------------------------------------------------------------------------
-def draw_cube_numpy_MVP(img,mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166)):
+def draw_cube_numpy_MVP(img,mat_projection, mat_view, mat_model, mat_trns, color=(255,128, 0),w=2,points_3d=None):
 
-    points_3d = numpy.array([[-1, -1, -1], [-1, +1, -1], [+1, +1, -1], [+1, -1, -1],[-1, -1, +1], [-1, +1, +1], [+1, +1, +1], [+1, -1, +1]],dtype = numpy.float32)
-    img = draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166),do_debug=False)
+    if points_3d is None:
+        points_3d = numpy.array([[-1, -1, -1], [-1, +1, -1], [+1, +1, -1], [+1, -1, -1],[-1, -1, +1], [-1, +1, +1], [+1, +1, +1], [+1, -1, +1]],dtype = numpy.float32)
+
+    img = draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color,do_debug=False)
+    lines_3d = []
+    for i, j in zip((0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3), (1, 2, 3, 0, 5, 6, 7, 4, 4, 5, 6, 7)):
+        lines_3d.append((points_3d[i, 0], points_3d[i, 1],points_3d[i, 2], points_3d[j, 0], points_3d[j, 1],points_3d[j, 2]))
+
+    img = draw_lines_numpy_MVP(numpy.array(lines_3d), img, mat_projection, mat_view, mat_model, mat_trns,color,w)
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
@@ -192,7 +216,7 @@ def draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, m
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_points_numpy_RT(points_3d,img,RT,camera_matrix_3x3,color=(66, 0, 166),w=6,flipX=False):
+def draw_points_numpy_RT(points_3d,img,RT,camera_matrix_3x3,color=(66, 0, 166),w=6):
     points_2d = tools_pr_geom.project_points_M(points_3d, RT, camera_matrix_3x3, numpy.zeros(5)).reshape((-1, 2))
 
     for point in points_2d:
@@ -201,27 +225,21 @@ def draw_points_numpy_RT(points_3d,img,RT,camera_matrix_3x3,color=(66, 0, 166),w
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_lines_numpy_RT(lines_3d,img,RT,camera_matrix_3x3,color=(66, 0, 166),w=6,flipX=False):
+def draw_lines_numpy_RT(lines_3d,img,RT,camera_matrix_3x3,color=(66, 0, 166),w=6):
     points_2d_start = tools_pr_geom.project_points_M(lines_3d[:,:3], RT, camera_matrix_3x3, numpy.zeros(5)).reshape((-1, 2))
-    if flipX:points_2d_start[:,0] = img.shape[1]-points_2d_start[:,0]
-
     points_2d_end = tools_pr_geom.project_points_M(lines_3d[:, 3:], RT, camera_matrix_3x3, numpy.zeros(5)).reshape((-1, 2))
-    if flipX:points_2d_end[:, 0] = img.shape[1] - points_2d_end[:, 0]
 
     for point_start, point_end in zip(points_2d_start, points_2d_end):
         cv2.line(img, (int(point_start[0]), int(point_start[1])), (int(point_end[0]), int(point_end[1])), color,thickness=w)
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_ellipse_numpy_RT(points_3d,img,RT,camera_matrix_3x3,color=(66, 0, 166),w=6,flipX=False):
+def draw_lines_numpy_MVP(lines_3d, img, mat_projection, mat_view, mat_model, mat_trns,color=(66, 0, 166),w=6):
+    points_2d_start = tools_pr_geom.project_points_MVP(lines_3d[:, :3],img, mat_projection, mat_view, mat_model, mat_trns)
+    points_2d_end = tools_pr_geom.project_points_MVP(lines_3d[:, 3:], img, mat_projection, mat_view, mat_model, mat_trns)
 
-    points_2d = tools_pr_geom.project_points_M(points_3d, RT, camera_matrix_3x3, numpy.zeros(5)).reshape((-1, 2))
-    if flipX:points_2d[:,0] = img.shape[1]-points_2d[:,0]
-    ellipse = cv2.fitEllipse(numpy.array(points_2d,dtype=numpy.float32))
-    center = (int(ellipse[0][0]), int(ellipse[0][1]))
-    axes = (int(ellipse[1][0] / 2), int(ellipse[1][1] / 2))
-    rotation_angle = ellipse[2]
-    cv2.ellipse(img, center, axes, rotation_angle, startAngle=0, endAngle=360, color=color, thickness=w)
+    for point_start, point_end in zip(points_2d_start, points_2d_end):
+        cv2.line(img, (int(point_start[0]), int(point_start[1])), (int(point_end[0]), int(point_end[1])), color,thickness=w)
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
@@ -1191,3 +1209,57 @@ def get_four_point_transform_mat(p_src, target_width, target_height):
 
     return M
 # ---------------------------------------------------------------------------------------------------------------------
+def regularize_rect(point_2d, inlined = True, do_debug=False):
+    point_2d_centred = point_2d - numpy.mean(point_2d, axis=0)
+    empty = numpy.zeros((1000, 1000, 3),dtype=numpy.uint8)
+    a_range = numpy.arange(0, 180, 5)
+    losses,results = [],[]
+
+    if do_debug:
+        tools_IO.remove_files('./images/output/','*.png')
+
+    for a in a_range:
+        R = numpy.array([[math.cos(a * numpy.pi / 180), -math.sin(a * numpy.pi / 180)],[math.sin(a * numpy.pi / 180), math.cos(a * numpy.pi / 180)]])
+        p1 = R.dot(numpy.array((0,10)))
+        p2 = R.dot(numpy.array((10,0)))
+        line1 = numpy.array((0,0,p1[0],p1[1]))
+        line2 = numpy.array((0,0,p2[0],p2[1]))
+        p_perp1 = numpy.array([perp_point_line(line1, p) for p in point_2d_centred])
+        p_perp2 = numpy.array([perp_point_line(line2, p) for p in point_2d_centred])
+        idx1 = numpy.array([is_point_above_line(p, line2) for p in p_perp1])
+        idx2 = numpy.array([is_point_above_line(p, line1) for p in p_perp2])
+
+        if inlined:
+            d11 =  numpy.array([numpy.linalg.norm(p) for p in p_perp1[ idx1]]).mean()
+            d12 = -numpy.array([numpy.linalg.norm(p) for p in p_perp1[~idx1]]).mean()
+            d21 =  numpy.array([numpy.linalg.norm(p) for p in p_perp2[ idx2]]).mean()
+            d22 = -numpy.array([numpy.linalg.norm(p) for p in p_perp2[~idx2]]).mean()
+        else:
+            d11 =  numpy.array([numpy.linalg.norm(p) for p in p_perp1[ idx1]]).min()
+            d12 = -numpy.array([numpy.linalg.norm(p) for p in p_perp1[~idx1]]).min()
+            d21 =  numpy.array([numpy.linalg.norm(p) for p in p_perp2[ idx2]]).min()
+            d22 = -numpy.array([numpy.linalg.norm(p) for p in p_perp2[~idx2]]).min()
+
+        pp = numpy.array([R.dot(x) for x in numpy.array(((d21,d11),(d21,d12),(d22,d11),(d22,d12)))])
+
+        res = []
+        loss = 0
+        for p in point_2d_centred:
+            v = numpy.array([numpy.linalg.norm(x - p) for x in pp])
+            loss+=v.min()
+            res.append(pp[numpy.argmin(v)])
+        results.append(numpy.array(res))
+        losses.append(loss)
+
+        if do_debug:
+            image = tools_draw_numpy.draw_convex_hull(empty, 50 * point_2d_centred + 500, color=(0,0,255),transperency=0.5)
+            image = tools_draw_numpy.draw_convex_hull(image, 50 * pp + 500, color=(0,128,255),transperency=0.5)
+
+            image = tools_draw_numpy.draw_lines(image, [50*line1+500], (64,64,64),w=1)
+            image = tools_draw_numpy.draw_lines(image, [50*line2+500], (64,64,64),w=1)
+            cv2.imwrite('./images/output/xxx_%05d.png'%int(10*loss),image)
+
+    result = numpy.mean(point_2d, axis=0) + numpy.array(results)[numpy.argmin(numpy.array(losses))]
+
+    return result
+# ----------------------------------------------------------------------------------------------------------------------

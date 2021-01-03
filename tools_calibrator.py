@@ -36,7 +36,7 @@ class Calibrator(object):
 
         return points_gnss_3d_normed
 # ----------------------------------------------------------------------------------------------------------------------
-    def BEV_points(self,filename_points):
+    def BEV_points(self,filename_points,list_of_R = None):
         base_name = filename_points.split('/')[-1].split('.')[0]
         points_2d, points_gps, IDs = self.load_points(filename_points)
         points_xyz = self.shift_origin(points_gps, points_gps[0])
@@ -49,36 +49,51 @@ class Calibrator(object):
         xy[:,0]/=scale
         xy[:,1]-=xy[:,1].min()
         xy[:,1]/=scale
+        factor = 1.2
+
+        labels = ['ID %02d: %2.1f,%2.1f' % (pid, p[0], p[1]) for pid, p in zip(IDs, points_xyz)]
+        image_BEV = tools_draw_numpy.extend_view_from_image(numpy.full((1000,1000,3),(255,255,255),dtype=numpy.uint8), factor=factor,color_bg=(255,255,255))
+        xy_ext = tools_draw_numpy.extend_view(xy, 1000, 1000, factor)
+        image_BEV = tools_draw_numpy.draw_points(image_BEV, xy_ext[:1], color=(255, 145, 0), w=8)
+        image_BEV = tools_draw_numpy.draw_ellipses(image_BEV, [((p[0], p[1]), (25, 25), 0) for p in xy_ext[1:]],color=(0, 0, 190), w=4, labels=labels)
 
 
-        image_xy = tools_draw_numpy.extend_view_from_image(numpy.full((1000,1000,3),32,dtype=numpy.uint8), factor=2)
-        xy_ext = tools_draw_numpy.extend_view(xy, 1000, 1000, factor=2)
-        image_xy = tools_draw_numpy.draw_points(image_xy, xy_ext[:1], color=(0, 0, 190), w=8)
-        image_xy = tools_draw_numpy.draw_points(image_xy, xy_ext[1:], color=(0, 190, 255), w=8,labels=['%02d'%id for id in IDs[1:]])
+        if list_of_R is not None:
+            center_ext = tools_draw_numpy.extend_view(xy[0], 1000, 1000, factor)[0]
+            for rad in list_of_R:
+                ellipse = ((center_ext[0],center_ext[1]),(rad/scale/factor,rad/scale/factor),0)
+                image_BEV = tools_draw_numpy.draw_ellipses(image_BEV, [ellipse], color=(0,128,255), w=1)
 
-        cv2.imwrite(self.folder_out + base_name + '_BEV.png', image_xy)
+
+        cv2.imwrite(self.folder_out + base_name + '_BEV.png', image_BEV)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def AR_points(self, filename_image, filename_points, camera_matrix_init,dist=numpy.zeros(5), do_debug=False):
+    def AR_points(self, filename_image, filename_points, camera_matrix_init,dist=numpy.zeros(5), list_of_R =None,virt_obj=None):
         base_name = filename_image.split('/')[-1].split('.')[0]
         image = cv2.imread(filename_image)
         gray = tools_image.desaturate(image)
         points_2d, points_gps, IDs = self.load_points(filename_points)
         points_xyz = self.shift_origin(points_gps, points_gps[0])
-        points_xyz,points_2d =points_xyz[1:],points_2d[1:]
+        IDs, points_xyz,points_2d =IDs[1:],points_xyz[1:],points_2d[1:]
         image_AR = gray.copy()
 
         camera_matrix = numpy.array(camera_matrix_init,dtype=numpy.float32)
         rvecs, tvecs, points_2d_check = tools_pr_geom.fit_pnp(points_xyz, points_2d,camera_matrix, dist)
+        rvecs, tvecs = numpy.array(rvecs).flatten(), numpy.array(tvecs).flatten()
 
-        labels = ['(%2.1f,%2.1f)'%(p[0],p[1]) for p in points_xyz]
-        image_AR = tools_draw_numpy.draw_points(image_AR, points_2d,color=(0,0,190),w=16,labels=labels)
+        if list_of_R is not None:
+            for rad in list_of_R:image_AR = tools_render_CV.draw_compass(image_AR, camera_matrix, numpy.zeros(5), rvecs,tvecs, rad)
+
+        if virt_obj is not None:
+            for p in points_xyz:
+                cuboid_3d = p + self.construct_cuboid(virt_obj)
+                M = tools_pr_geom.compose_RT_mat(rvecs,tvecs,do_rodriges=True,do_flip=False,GL_style=False)
+                P = tools_pr_geom.compose_projection_mat_4x4(camera_matrix[0, 0], camera_matrix[1, 1],camera_matrix[0, 2] / camera_matrix[0, 0],camera_matrix[1, 2] / camera_matrix[1, 1])
+                image_AR = tools_draw_numpy.draw_cuboid(image_AR,tools_pr_geom.project_points_p3x4(cuboid_3d, numpy.matmul(P,M)))
+
+        labels = ['ID %02d: %2.1f,%2.1f'%(pid, p[0], p[1]) for pid, p in zip(IDs,points_xyz)]
+        image_AR = tools_draw_numpy.draw_ellipses(image_AR, [((p[0], p[1]), (25, 25), 0) for p in points_2d],color=(0, 0, 190), w=4,labels=labels)
         image_AR = tools_draw_numpy.draw_points(image_AR, points_2d_check, color=(0, 128, 255), w=8)
-
-        for p in points_xyz:
-            points_3d = 0.5*numpy.array([[-1, -1, 0], [-1, +1, 0], [+1, +1, 0], [+1, -1, 0], [-1, -1, -2], [-1, +1, -2], [+1, +1, -2],[+1, -1, -2]], dtype=numpy.float32)
-            points_3d[:, [0,1,2]] += p[[0,1,2]]
-            image_AR = tools_render_CV.draw_cube_numpy(image_AR, camera_matrix, dist, numpy.array(rvecs).flatten(),numpy.array(tvecs).flatten(), (0.5, 0.5, 0.5), points_3d=points_3d)
 
         cv2.imwrite(self.folder_out+base_name+'.png',image_AR)
 
@@ -111,14 +126,13 @@ class Calibrator(object):
         xmin, ymin, zmin = flat_obj[0],flat_obj[1],flat_obj[2]
         xmax, ymax, zmax = flat_obj[3],flat_obj[4],flat_obj[5]
 
-        points_3d = numpy.array(
-            [[xmin, ymin, zmin], [xmin, ymax, zmin],
-             [xmax, ymax, zmin], [xmax, ymin, zmin],
-             [xmin, ymin, zmax], [xmin, ymax, zmax],
-             [xmax, ymax, zmax], [xmax, ymin, zmax]], dtype=numpy.float32)
+        #points_3d = numpy.array([[xmin, ymin, zmin], [xmin, ymax, zmin],[xmax, ymax, zmin], [xmax, ymin, zmin],[xmin, ymin, zmax], [xmin, ymax, zmax],[xmax, ymax, zmax], [xmax, ymin, zmax]], dtype=numpy.float32)
+        points_3d = numpy.array([[xmin, ymin, zmin], [xmin, ymax, zmin],[xmax, ymin, zmin], [xmax, ymax, zmin],
+                                 [xmax, ymin, zmax], [xmax, ymax, zmax],[xmin, ymin, zmax], [xmin, ymax, zmax]], dtype=numpy.float32)
+
         return  points_3d
 # ----------------------------------------------------------------------------------------------------------------------
-    def evaluate_K_bruteforce_F(self, filename_image, filename_points, a_min=0.4, a_max=0.41,list_of_R = (1,10),virt_obj=None,filename_obj=None,do_verbose=False):
+    def evaluate_aperture(self, filename_image, filename_points, a_min=0.4, a_max=0.41, list_of_R = (1, 10), virt_obj=None, do_debug = False):
         tools_IO.remove_files(self.folder_out)
 
         base_name = filename_image.split('/')[-1].split('.')[0]
@@ -126,64 +140,86 @@ class Calibrator(object):
         W,H = image.shape[1], image.shape[0]
         gray = tools_image.desaturate(image)
         points_2d_all, points_gps_all,IDs = self.load_points(filename_points)
-        render_GL3D = None
-        if filename_obj is not None:
-            render_GL3D = tools_GL3D.render_GL3D(filename_obj, W, H, is_visible=False,do_normalize_model_file=False,projection_type='P')
+        points_xyz = self.shift_origin(points_gps_all, points_gps_all[0])
+        points_xyz, points_2d = points_xyz[1:], points_2d_all[1:]
 
-        for aperture in numpy.arange(a_min,a_max,0.005):
-            points_xyz = self.shift_origin(points_gps_all, points_gps_all[0])
-            points_xyz, points_2d = points_xyz[1:], points_2d_all[1:]
-            labels = ['(%2.1f,%2.1f)' % (p[0], p[1]) for p in points_xyz]
+        err, rvecs, tvecs = [],[],[]
+        apertures = numpy.arange(a_min, a_max, 0.005)
 
-            image_AR = gray.copy()
+        for aperture in apertures:
             camera_matrix = tools_pr_geom.compose_projection_mat_3x3(W, H, aperture, aperture)
-            rvecs, tvecs, points_2d_check = tools_pr_geom.fit_pnp(points_xyz, points_2d, camera_matrix, numpy.zeros(5))
-            rvecs, tvecs = numpy.array(rvecs).flatten(), numpy.array(tvecs).flatten()
-            err = numpy.sqrt(((points_2d_check-points_2d)**2).sum()/len(points_2d))
-            if do_verbose:
-                print(aperture,rvecs,tvecs, err)
-            #print('P%+1.2f Y%+1.2f R %+1.2f T+%2.1f %+2.1f %+2.1f : err %2.1f' % (rvecs[0]*180/numpy.pi, rvecs[1]*180/numpy.pi,rvecs[2]*180/numpy.pi,tvecs[0],tvecs[1],tvecs[2],err))
+            rvec, tvec, points_2d_check = tools_pr_geom.fit_pnp(points_xyz, points_2d, camera_matrix, numpy.zeros(5))
+            err.append(numpy.sqrt(((points_2d_check-points_2d)**2).sum()/len(points_2d)))
+            rvecs.append(rvec.flatten())
+            tvecs.append(tvec.flatten())
 
-            for rad in list_of_R:image_AR = tools_render_CV.draw_compass(image_AR, camera_matrix, numpy.zeros(5), rvecs, tvecs, rad)
+        idx_best = numpy.argmin(numpy.array(err))
 
-            image_AR = tools_draw_numpy.draw_points(image_AR, points_2d, color=(0, 0, 190), w=8, labels=labels)
-            image_AR = tools_draw_numpy.draw_points(image_AR, points_2d_check, color=(0, 128, 255), w=4)
-            if virt_obj is not None:image_AR = tools_render_CV.draw_cube_numpy(image_AR, camera_matrix, numpy.zeros(5), rvecs, tvecs,color=(255,128,0),points_3d=self.construct_cuboid(virt_obj))
+        if do_debug:
+            for i in range(len(apertures)):
+                color_markup = (159, 206, 255)
+                if i==idx_best:color_markup = (0,128,255)
+                camera_matrix = tools_pr_geom.compose_projection_mat_3x3(W, H, apertures[i], apertures[i])
+                points_2d_check, jac = cv2.projectPoints(points_xyz, rvecs[i], tvecs[i], camera_matrix, numpy.zeros(5))
+                image_AR = tools_draw_numpy.draw_ellipses(gray, [((p[0], p[1]), (25, 25), 0) for p in points_2d],color=(0, 0, 190), w=4)
+                image_AR = tools_draw_numpy.draw_points(image_AR, points_2d_check.reshape((-1,2)), color=(0, 128, 255), w=8)
+                for rad in list_of_R:
+                    image_AR = tools_render_CV.draw_compass(image_AR, camera_matrix, numpy.zeros(5), rvecs[i],tvecs[i], rad, color=color_markup)
+                if virt_obj is not None:
+                    for p in points_xyz:
+                        image_AR = tools_draw_numpy.draw_cuboid(image_AR,tools_pr_geom.project_points(p+self.construct_cuboid(virt_obj), rvecs[i], tvecs[i], camera_matrix, numpy.zeros(5))[0])
 
+                cv2.imwrite(self.folder_out + base_name + '_%05d' % (apertures[i] * 1000) + '.png', image_AR)
 
+        return apertures[idx_best], numpy.array(rvecs)[idx_best], numpy.array(tvecs)[idx_best]
+# ----------------------------------------------------------------------------------------------------------------------
+    def evaluate_matrices_GL(self,image,rvec,tvec,aperture,virt_obj=None,do_debug=False):
 
-            if render_GL3D is not None:
-                image_GL = render_GL3D.get_image_perspective(rvecs, tvecs, aperture, aperture,freeze_mat_view=True,do_debug=True)
-                #image_AR = cv2.addWeighted(image_AR,0.25,image_GL,0.7,0)
+        if numpy.any(numpy.isnan(rvec)) or numpy.any(numpy.isnan(tvec)):
+            return None, None, None, None, None
 
+        mat_projection = tools_pr_geom.compose_projection_mat_4x4_GL(aperture,aperture)
 
-            # check1
-            # cuboid = self.construct_cuboid(virt_obj)
-            # #cuboid = numpy.zeros((8,3),dtype=numpy.float32)
-            # cuboid_r = tools_pr_geom.apply_rotation(rvecs,cuboid)
-            # cuboid_rt = tools_pr_geom.apply_translation(tvecs, cuboid_r)[:, :3]
-            # image_AR1 = tools_render_CV.draw_cube_numpy(image_AR, camera_matrix, numpy.zeros(5), rvec=numpy.zeros(3),tvec=numpy.zeros(3), color=(255, 128, 0), points_3d=cuboid_rt)
-            # mat_view = tools_pr_geom.compose_RT_mat((0,0,0),(0,0,0),do_rodriges=True,do_flip=True)
-            # image_AR1 = tools_render_CV.draw_points_numpy_MVP(cuboid_rt, image_AR1, render_GL3D.mat_projection, mat_view, numpy.eye(4), numpy.eye(4),w=6)
-            #
-            # #check2
-            # MT = tools_pr_geom.compose_RT_mat((0,0,0), tvecs, do_rodriges=True, do_flip=True)
-            # MR = tools_pr_geom.compose_RT_mat(rvecs, (0,0,0), do_rodriges=True, do_flip=True)
-            # mRT = pyrr.matrix44.multiply(MT, MR)
-            # iMT = pyrr.matrix44.inverse(MT)
-            # mat_view = pyrr.matrix44.multiply(mRT, iMT)
-            #
-            #
-            # cuboid_t = tools_pr_geom.apply_translation(tvecs, cuboid)[:,:3]
-            # #M1 = tools_pr_geom.compose_RT_mat(rvecs,tvecs,do_rodriges=True,do_flip=True)
-            # #M2 = tools_pr_geom.compose_RT_mat((0,0,0), tvecs, do_rodriges=True, do_flip=True)
-            # #mat_view = pyrr.matrix44.multiply(M1,pyrr.matrix44.inverse(M2))
-            # image_AR2 = tools_render_CV.draw_points_numpy_MVP(cuboid_t, image_AR, render_GL3D.mat_projection, mat_view, numpy.eye(4), numpy.eye(4),w=6)
+        cuboid = self.construct_cuboid(virt_obj)
 
+        MT = tools_pr_geom.compose_RT_mat((0, 0, 0), tvec, do_rodriges=True, do_flip=False, GL_style=False)
+        MR = tools_pr_geom.compose_RT_mat(rvec, (0, 0, 0), do_rodriges=True, do_flip=False, GL_style=False)
+        mRT0 = tools_pr_geom.compose_RT_mat(rvec, tvec, do_rodriges=True, do_flip=False, GL_style=False)
+        mRT = pyrr.matrix44.multiply(MT, MR)
 
-            cv2.imwrite(self.folder_out + base_name + '_%05d'%(aperture*100) + '.png', image_AR)
+        mat_model = tools_pr_geom.compose_RT_mat(rvec, tvec, do_rodriges=True,do_flip=False,GL_style=True)
+        mat_view = numpy.array([[1,0,0,0],[0,-1,0,0],[0,0,-1,0],[0,0,0,1.0]])
 
-        return
+        #check 0
+        if do_debug:
+            image_AR0 = tools_render_CV.draw_cube_numpy_MVP(image, mat_projection, mat_view, mat_model, numpy.eye(4), points_3d=cuboid)
+            cv2.imwrite(self.folder_out + 'AR0.png', image_AR0)
+
+        # check 1
+        if do_debug:
+            cuboid_rt = tools_pr_geom.apply_matrix(mRT, cuboid)[:, :3]
+            image_AR1 = tools_render_CV.draw_cube_numpy_MVP(image, mat_projection, mat_view, numpy.eye(4), numpy.eye(4), points_3d=cuboid_rt)
+            cv2.imwrite(self.folder_out + 'AR1.png', image_AR1)
+
+        # check 2
+        if do_debug:
+            image_AR2 = tools_render_CV.draw_cube_numpy_MVP(image, mat_projection, mat_view, mRT0.T,numpy.eye(4), points_3d=cuboid)
+            cv2.imwrite(self.folder_out + 'AR2.png', image_AR2)
+
+        # check 3
+        shift = tools_pr_geom.apply_matrix(MR, tvec)[0, :3]
+        shift[0] *= 0
+        shift[1] *= -1
+        MT2 = tools_pr_geom.compose_RT_mat((0, 0, 0), +shift, do_rodriges=True, do_flip=False, GL_style=False)
+        iMT2 = tools_pr_geom.compose_RT_mat((0, 0, 0), -shift, do_rodriges=True, do_flip=False, GL_style=False)
+        mat_model_new = pyrr.matrix44.multiply(mRT0, iMT2).T
+        cuboid_t = tools_pr_geom.apply_matrix(MT2, cuboid)[:, :3]
+
+        if do_debug:
+            image_AR3 = tools_render_CV.draw_cube_numpy_MVP(image, mat_projection, mat_view,mat_model_new, numpy.eye(4), points_3d=cuboid_t)
+            cv2.imwrite(self.folder_out + 'AR3.png', image_AR3)
+
+        return shift[1], shift[2], aperture, mat_view, mat_model_new
 # ----------------------------------------------------------------------------------------------------------------------
     def evaluate_K_chessboard(self,folder_in):
 
