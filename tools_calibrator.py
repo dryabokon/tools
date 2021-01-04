@@ -86,7 +86,7 @@ class Calibrator(object):
 
         if virt_obj is not None:
             for p in points_xyz:
-                cuboid_3d = p + self.construct_cuboid(virt_obj)
+                cuboid_3d = p + self.construct_cuboid_v0(virt_obj)
                 M = tools_pr_geom.compose_RT_mat(rvecs,tvecs,do_rodriges=True,do_flip=False,GL_style=False)
                 P = tools_pr_geom.compose_projection_mat_4x4(camera_matrix[0, 0], camera_matrix[1, 1],camera_matrix[0, 2] / camera_matrix[0, 0],camera_matrix[1, 2] / camera_matrix[1, 1])
                 image_AR = tools_draw_numpy.draw_cuboid(image_AR,tools_pr_geom.project_points_p3x4(cuboid_3d, numpy.matmul(P,M)))
@@ -99,30 +99,7 @@ class Calibrator(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def calibrate_aruco(self,folder_in,camera_matrix,do_debug=False):
-        marker_length = 0.10
-        aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
-
-        gray_rgb = None
-
-        for filename in tools_IO.get_filenames(folder_in, '*.png'):
-            image = cv2.imread(folder_in + filename)
-            #camera_matrix = tools_pr_geom.compose_projection_mat_3x3(image.shape[1],image.shape[0])
-            gray_rgb = tools_image.desaturate(image)
-            corners, ids, rejectedImgPoints = aruco.detectMarkers(cv2.cvtColor(image,cv2.COLOR_RGB2GRAY), aruco_dict)
-
-            if len(corners) > 0:
-                gray_rgb = aruco.drawDetectedMarkers(gray_rgb, corners)
-                for each in corners:
-                    rvec, tvec, _ = aruco.estimatePoseSingleMarkers(each, marker_length, camera_matrix, numpy.zeros(5))
-                    aruco.drawAxis(gray_rgb, camera_matrix, numpy.zeros(5), rvec[0], tvec[0], marker_length / 2)
-
-        if do_debug:
-            cv2.imwrite(self.folder_out + 'aruco_calibration.png',gray_rgb)
-
-        return gray_rgb
-# ----------------------------------------------------------------------------------------------------------------------
-    def construct_cuboid(self,flat_obj=(-1,-1,0,+1,+1,0)):
+    def construct_cuboid_v0(self,flat_obj=(-1,-1,0,+1,+1,0)):
         xmin, ymin, zmin = flat_obj[0],flat_obj[1],flat_obj[2]
         xmax, ymax, zmax = flat_obj[3],flat_obj[4],flat_obj[5]
 
@@ -130,7 +107,28 @@ class Calibrator(object):
         points_3d = numpy.array([[xmin, ymin, zmin], [xmin, ymax, zmin],[xmax, ymin, zmin], [xmax, ymax, zmin],
                                  [xmax, ymin, zmax], [xmax, ymax, zmax],[xmin, ymin, zmax], [xmin, ymax, zmax]], dtype=numpy.float32)
 
+        yy=0
         return  points_3d
+# ----------------------------------------------------------------------------------------------------------------------
+    def construct_cuboid(self, dim,tvec,rvec):
+        d0, d1, d2 = dim[0], dim[1], dim[2]
+
+        #x_corners = [+d0/2, +d0/2, -d0/2, -d0/2, +d0/2, +d0/2, -d0/2, -d0/2]
+        #y_corners = [+d1/2, +d1/2, +d1/2, +d1/2, -d1/2, -d1/2, -d1/2, -d1/2]
+        #z_corners = [+d2/2, -d2/2, -d2/2, +d2/2, +d2/2, -d2/2, -d2/2, +d2/2]
+
+        x_corners = [-d0/2, -d0/2, +d0/2, +d0/2, +d0/2, +d0/2, -d0/2, -d0/2]
+        y_corners = [-d1/2, +d1/2, -d1/2, +d1/2, -d1/2, +d1/2, -d1/2, +d1/2]
+        z_corners = [-d2/2, -d2/2, -d2/2, -d2/2, +d2/2, +d2/2, +d2/2, +d2/2]
+
+        X = numpy.array([x_corners, y_corners, z_corners], dtype=numpy.float32).T
+
+        RT = tools_pr_geom.compose_RT_mat(rvec,tvec,do_rodriges=True,do_flip=False,GL_style=False)
+        Xt = tools_pr_geom.apply_matrix(RT,X)[:,:3]
+
+
+        uu=0
+        return Xt
 # ----------------------------------------------------------------------------------------------------------------------
     def evaluate_aperture(self, filename_image, filename_points, a_min=0.4, a_max=0.41, list_of_R = (1, 10), virt_obj=None, do_debug = False):
         tools_IO.remove_files(self.folder_out)
@@ -167,7 +165,7 @@ class Calibrator(object):
                     image_AR = tools_render_CV.draw_compass(image_AR, camera_matrix, numpy.zeros(5), rvecs[i],tvecs[i], rad, color=color_markup)
                 if virt_obj is not None:
                     for p in points_xyz:
-                        image_AR = tools_draw_numpy.draw_cuboid(image_AR,tools_pr_geom.project_points(p+self.construct_cuboid(virt_obj), rvecs[i], tvecs[i], camera_matrix, numpy.zeros(5))[0])
+                        image_AR = tools_draw_numpy.draw_cuboid(image_AR,tools_pr_geom.project_points(p+self.construct_cuboid_v0(virt_obj), rvecs[i], tvecs[i], camera_matrix, numpy.zeros(5))[0])
 
                 cv2.imwrite(self.folder_out + base_name + '_%05d' % (apertures[i] * 1000) + '.png', image_AR)
 
@@ -180,7 +178,7 @@ class Calibrator(object):
 
         mat_projection = tools_pr_geom.compose_projection_mat_4x4_GL(aperture,aperture)
 
-        cuboid = self.construct_cuboid(virt_obj)
+        cuboid = self.construct_cuboid_v0(virt_obj)
 
         MT = tools_pr_geom.compose_RT_mat((0, 0, 0), tvec, do_rodriges=True, do_flip=False, GL_style=False)
         MR = tools_pr_geom.compose_RT_mat(rvec, (0, 0, 0), do_rodriges=True, do_flip=False, GL_style=False)
@@ -247,7 +245,7 @@ class Calibrator(object):
 
         return points_gnss
 # ----------------------------------------------------------------------------------------------------------------------
-    def unit_test(self):
+    def unit_test_gnss(self):
 
         points_xy = numpy.array([(200, 591), (317, 84), (657, 1075), (381, 952)], numpy.float32)
         points_gnss = numpy.array([(52.228391, 21.001075), (52.227676, 21.000511), (52.227384, 21.001689), (52.227674, 21.001706)],numpy.float32)
@@ -258,4 +256,33 @@ class Calibrator(object):
         print(point_gnss)
 
         return
+# ----------------------------------------------------------------------------------------------------------------------
+    def derive_cuboid_3d(self, mat_camera_3x3, r_vec, t_vec, points_2D, base_name=None, do_debug=False):
+
+        target_centr_top = numpy.mean(points_2D[[0, 2, 4, 6]], axis=0)
+        target_centr_bottom = numpy.mean(points_2D[[1, 3, 5, 7]], axis=0)
+        target_centr_bottom_3D = \
+        tools_pr_geom.reverce_project_points_Z0([target_centr_bottom], r_vec, t_vec, mat_camera_3x3,
+                                                numpy.zeros(5))[0]
+
+        diffs, Hs = [], numpy.arange(0, 10, 0.1)
+        for h in Hs:
+            centr_top_2D, _ = tools_pr_geom.project_points(target_centr_bottom_3D - numpy.array((0, 0, h)), r_vec,t_vec, mat_camera_3x3, numpy.zeros(5))
+            diffs.append(numpy.abs(centr_top_2D[0][1] - target_centr_top[1]))
+
+        best_H = Hs[numpy.argmin(diffs)]
+
+        points_3D = tools_pr_geom.reverce_project_points_Z0(points_2D[[1, 3, 5, 7]], r_vec, t_vec, mat_camera_3x3,numpy.zeros(5))
+
+        points_3D = numpy.vstack((points_3D, points_3D))
+        points_3D[4:, 2] = -best_H
+        points_3D = points_3D[[4, 0, 5, 1, 6, 2, 7, 3]]
+
+        if do_debug:
+            sources_2D, _ = tools_pr_geom.project_points(points_3D, r_vec, t_vec, mat_camera_3x3, numpy.zeros(5))
+            image_debug = tools_draw_numpy.draw_cuboid(numpy.full((1080, 1920, 3), 32, dtype=numpy.uint8),points_2D, color=(0, 0, 200), put_text=True)
+            image_debug = tools_draw_numpy.draw_cuboid(image_debug, sources_2D, color=(255, 140, 0), put_text=True)
+            cv2.imwrite(self.folder_out + base_name + '_R.png', image_debug)
+
+        return points_3D
 # ----------------------------------------------------------------------------------------------------------------------

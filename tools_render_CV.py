@@ -1248,8 +1248,11 @@ def regularize_rect(point_2d, inlined = True, do_debug=False):
             v = numpy.array([numpy.linalg.norm(x - p) for x in pp])
             loss+=v.min()
             res.append(pp[numpy.argmin(v)])
-        results.append(numpy.array(res))
-        losses.append(loss)
+
+        res_test = set(map(sum, res))
+        if len(res_test) == 4:
+            results.append(numpy.array(res))
+            losses.append(loss)
 
         if do_debug:
             image = tools_draw_numpy.draw_convex_hull(empty, 50 * point_2d_centred + 500, color=(0,0,255),transperency=0.5)
@@ -1258,6 +1261,7 @@ def regularize_rect(point_2d, inlined = True, do_debug=False):
             image = tools_draw_numpy.draw_lines(image, [50*line1+500], (64,64,64),w=1)
             image = tools_draw_numpy.draw_lines(image, [50*line2+500], (64,64,64),w=1)
             cv2.imwrite('./images/output/xxx_%05d.png'%int(10*loss),image)
+
 
     result = numpy.mean(point_2d, axis=0) + numpy.array(results)[numpy.argmin(numpy.array(losses))]
 

@@ -674,45 +674,6 @@ def project_points_ortho_modelview(points_3d, modelview, dist,fx,fy,scale_factor
 
     return points_2d ,0
 # ----------------------------------------------------------------------------------------------------------------------
-def regularize_rect(point_2d,do_debug=True):
-
-    point_2d_centred = point_2d - numpy.mean(point_2d,axis=0)
-    d = numpy.array([numpy.linalg.norm(point_2d[i] - point_2d[j]) for i, j in zip([0, 1, 2, 3], [1, 2, 3, 0])])
-    w0 = min(d[[0, 2]].mean(), d[[1, 3]].mean())
-    h0 = max(d[[0, 2]].mean(), d[[1, 3]].mean())
-
-    a_range = numpy.arange(0,180,10)
-    loss,Z = [],[]
-    for a in a_range:
-        R = numpy.array([[math.cos(a*numpy.pi/180),-math.sin(a*numpy.pi/180)],[math.sin(a*numpy.pi/180),math.cos(a*numpy.pi/180)]])
-        X = numpy.array([R.dot(p) for p in point_2d_centred])
-        w1 = X[:,0].max()-X[:,0].min()
-        h1 = X[:,1].max()-X[:,1].min()
-        z = numpy.array([R.dot(p) for p in [[-w1 / 2, -h1 / 2], [-w1 / 2, +h1 / 2], [+w1 / 2, -h1 / 2], [+w1 / 2, +h1 / 2]]])
-        loss.append((w0-w1)**2 + (h0-h1)**2)
-        Z.append(z)
-        #image = tools_draw_numpy.draw_points(numpy.zeros((1000, 1000, 3)), 10 * Z + 100, color=(0, 128, 255))
-        #image = tools_draw_numpy.draw_points(image, 10 * point_2d_centred + 100, color=(0, 0, 255))
-        #cv2.imwrite('./images/output/xxx.png',image)
-
-
-    idx = numpy.argmin(numpy.array(loss))
-    X = numpy.array(Z)[idx]+numpy.mean(point_2d,axis=0)
-    Y = []
-    for p in point_2d:
-        v = numpy.array([numpy.linalg.norm(x-p) for x in X])
-        Y.append(X[numpy.argmin(v)])
-
-    Y=numpy.array(Y,dtype=numpy.float32)
-
-    if do_debug:
-        image_res = tools_draw_numpy.draw_points(numpy.zeros((1000,1000,3)),10*(X-numpy.mean(point_2d,axis=0))+100,color=(0,128,255))
-        image_res = tools_draw_numpy.draw_points(image_res, 10*point_2d_centred + 100, color=(0, 0, 255))
-        cv2.imwrite('./images/output/xxx.png',image_res)
-
-
-    return Y
-# ----------------------------------------------------------------------------------------------------------------------
 def derive_dims(cuboid_3d):
     idx_h = 1
     idx_lw = [0,2]
