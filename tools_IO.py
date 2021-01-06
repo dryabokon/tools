@@ -70,12 +70,13 @@ def append_CSV(csv_record, filename_out, csv_header=None, delim ='\t'):
                     f.write(delim)
             f.write('\n')
 
-        for i,each in enumerate(csv_record):
-            f.write('%2.1f'%float(each))
-            if i!=len(csv_record)-1:
-                f.write(delim)
+        if len(csv_record)>0:
+            for i,each in enumerate(csv_record):
+                f.write('%2.1f'%float(each))
+                if i!=len(csv_record)-1:
+                    f.write(delim)
 
-        f.write('\n')
+            f.write('\n')
 
     return
 # ----------------------------------------------------------------------------------------------------------------------

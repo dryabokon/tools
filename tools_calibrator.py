@@ -10,6 +10,7 @@ import tools_calibrate
 import tools_pr_geom
 import tools_render_CV
 import tools_GL3D
+import tools_wavefront
 # ----------------------------------------------------------------------------------------------------------------------
 class Calibrator(object):
     def __init__(self,folder_out=None,scale_factor_gps = 100000.0):
@@ -20,7 +21,7 @@ class Calibrator(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def load_points(self,filename_in):
         X = tools_IO.load_mat_pd(filename_in)
-        IDs = numpy.array(X[:, 0],dtype=numpy.int32)
+        IDs = numpy.array(X[:, 0],dtype=numpy.float32).astype(numpy.int)
         X = X[:, 1:]
         points_2d = numpy.array(X[:, :2], dtype=numpy.float32)
         points_gps = numpy.array(X[:, 2:], dtype=numpy.float32)
@@ -99,6 +100,15 @@ class Calibrator(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
+    def save_obj_file(self, filename_out,flat_obj=(-1, -1, 0, +1, +1, 0)):
+
+        object = tools_wavefront.ObjLoader()
+        cuboid_3d = self.construct_cuboid_v0(flat_obj)
+        idx_vertex = numpy.array([[0,1,3],[3,2,0],[6,7,5],[5,4,6],[0,1,7],[6,7,0],[3,2,5],[5,4,2],[0,2,6],[4,6,2],[1,3,7],[5,3,7]])
+        object.export_mesh(filename_out, cuboid_3d,idx_vertex=idx_vertex)
+
+        return
+# ----------------------------------------------------------------------------------------------------------------------
     def construct_cuboid_v0(self,flat_obj=(-1,-1,0,+1,+1,0)):
         xmin, ymin, zmin = flat_obj[0],flat_obj[1],flat_obj[2]
         xmax, ymax, zmax = flat_obj[3],flat_obj[4],flat_obj[5]
@@ -130,8 +140,22 @@ class Calibrator(object):
         uu=0
         return Xt
 # ----------------------------------------------------------------------------------------------------------------------
+    def stage_points(self,filename_out,points_2d_all, points_gps_all):
+
+        csv_header = ['ID', 'col', 'row', 'lat', 'long', 'height']
+        tools_IO.append_CSV([-1, 0, 0, 0, 0, 0], filename_out, csv_header=csv_header, delim='\t')
+
+        cnt=0
+        for p1, p2 in zip(points_2d_all, points_gps_all):
+            if (not numpy.any(numpy.isnan(p1))) and (not numpy.any(numpy.isnan(p2))):
+                record = ['%d'%cnt, p1[0], p1[1], p2[0], p2[1], p2[2]]
+                tools_IO.append_CSV(record, filename_out, csv_header=None, delim='\t')
+            cnt += 1
+
+        return
+# ----------------------------------------------------------------------------------------------------------------------
     def evaluate_aperture(self, filename_image, filename_points, a_min=0.4, a_max=0.41, list_of_R = (1, 10), virt_obj=None, do_debug = False):
-        tools_IO.remove_files(self.folder_out)
+
 
         base_name = filename_image.split('/')[-1].split('.')[0]
         image = cv2.imread(filename_image)
@@ -154,6 +178,7 @@ class Calibrator(object):
         idx_best = numpy.argmin(numpy.array(err))
 
         if do_debug:
+            tools_IO.remove_files(self.folder_out,'*.png')
             for i in range(len(apertures)):
                 color_markup = (159, 206, 255)
                 if i==idx_best:color_markup = (0,128,255)
@@ -171,54 +196,51 @@ class Calibrator(object):
 
         return apertures[idx_best], numpy.array(rvecs)[idx_best], numpy.array(tvecs)[idx_best]
 # ----------------------------------------------------------------------------------------------------------------------
-    def evaluate_matrices_GL(self,image,rvec,tvec,aperture,virt_obj=None,do_debug=False):
+    def get_pretty_model_rotation(self,mat_model):
 
-        if numpy.any(numpy.isnan(rvec)) or numpy.any(numpy.isnan(tvec)):
-            return None, None, None, None, None
+        rvec, tvec = tools_pr_geom.decompose_to_rvec_tvec(mat_model)
+        a_pitch_deg, a_yaw_deg, a_roll_deg =  rvec[[0,1,2]]*180/numpy.pi
 
-        mat_projection = tools_pr_geom.compose_projection_mat_4x4_GL(aperture,aperture)
+        #check
+        rvec_check = numpy.array((a_pitch_deg, a_yaw_deg, a_roll_deg)) * numpy.pi / 180
+        mat_model_check3 = tools_pr_geom.compose_RT_mat(rvec_check, (0,0,0), do_rodriges=False, do_flip=False)
 
-        cuboid = self.construct_cuboid_v0(virt_obj)
 
-        MT = tools_pr_geom.compose_RT_mat((0, 0, 0), tvec, do_rodriges=True, do_flip=False, GL_style=False)
-        MR = tools_pr_geom.compose_RT_mat(rvec, (0, 0, 0), do_rodriges=True, do_flip=False, GL_style=False)
-        mRT0 = tools_pr_geom.compose_RT_mat(rvec, tvec, do_rodriges=True, do_flip=False, GL_style=False)
-        mRT = pyrr.matrix44.multiply(MT, MR)
 
-        mat_model = tools_pr_geom.compose_RT_mat(rvec, tvec, do_rodriges=True,do_flip=False,GL_style=True)
-        mat_view = numpy.array([[1,0,0,0],[0,-1,0,0],[0,0,-1,0],[0,0,0,1.0]])
-
-        #check 0
-        if do_debug:
-            image_AR0 = tools_render_CV.draw_cube_numpy_MVP(image, mat_projection, mat_view, mat_model, numpy.eye(4), points_3d=cuboid)
-            cv2.imwrite(self.folder_out + 'AR0.png', image_AR0)
-
-        # check 1
-        if do_debug:
-            cuboid_rt = tools_pr_geom.apply_matrix(mRT, cuboid)[:, :3]
-            image_AR1 = tools_render_CV.draw_cube_numpy_MVP(image, mat_projection, mat_view, numpy.eye(4), numpy.eye(4), points_3d=cuboid_rt)
-            cv2.imwrite(self.folder_out + 'AR1.png', image_AR1)
-
-        # check 2
-        if do_debug:
-            image_AR2 = tools_render_CV.draw_cube_numpy_MVP(image, mat_projection, mat_view, mRT0.T,numpy.eye(4), points_3d=cuboid)
-            cv2.imwrite(self.folder_out + 'AR2.png', image_AR2)
-
-        # check 3
-        shift = tools_pr_geom.apply_matrix(MR, tvec)[0, :3]
-        shift[0] *= 0
-        shift[1] *= -1
-        MT2 = tools_pr_geom.compose_RT_mat((0, 0, 0), +shift, do_rodriges=True, do_flip=False, GL_style=False)
-        iMT2 = tools_pr_geom.compose_RT_mat((0, 0, 0), -shift, do_rodriges=True, do_flip=False, GL_style=False)
-        mat_model_new = pyrr.matrix44.multiply(mRT0, iMT2).T
-        cuboid_t = tools_pr_geom.apply_matrix(MT2, cuboid)[:, :3]
-
-        if do_debug:
-            image_AR3 = tools_render_CV.draw_cube_numpy_MVP(image, mat_projection, mat_view,mat_model_new, numpy.eye(4), points_3d=cuboid_t)
-            cv2.imwrite(self.folder_out + 'AR3.png', image_AR3)
-
-        return shift[1], shift[2], aperture, mat_view, mat_model_new
+        return a_pitch_deg, a_yaw_deg, a_roll_deg
 # ----------------------------------------------------------------------------------------------------------------------
+    def evaluate_matrices_GL(self, image, rvec, tvec, aperture, virt_obj=None, do_debug=False):
+
+        if numpy.any(numpy.isnan(rvec)) or numpy.any(numpy.isnan(tvec)):return None, None, None, None, None
+
+        H, W = 720, 1080# H,W = image.shape[:2]
+        gray = tools_image.desaturate(cv2.resize(image, (W, H)))
+
+        cuboid_3d = self.construct_cuboid_v0(virt_obj)
+        mRT = tools_pr_geom.compose_RT_mat(rvec, tvec, do_rodriges=True, do_flip=True, GL_style=True)
+        mR = tools_pr_geom.compose_RT_mat(rvec,  (0,0,0), do_rodriges=True, do_flip=True, GL_style=True)
+        imR = numpy.linalg.inv(mR)
+        mat_projection = tools_pr_geom.compose_projection_mat_4x4_GL(W, H, aperture, aperture)
+        #T = pyrr.matrix44.multiply(imR.T, mRT.T).T
+        T = pyrr.matrix44.multiply(mRT, imR)
+
+        filename_obj = self.folder_out + 'temp.obj'
+        self.save_obj_file(filename_obj, virt_obj)
+        R = tools_GL3D.render_GL3D(filename_obj=filename_obj, W=W, H=H, do_normalize_model_file=False,is_visible=False, projection_type='P', textured=False)
+        tools_IO.remove_file(filename_obj)
+
+        if do_debug:
+            cv2.imwrite(self.folder_out + 'AR0_GL_m1.png',R.get_image_perspective(rvec, tvec, aperture, aperture, mat_view_to_1=False, do_debug=True))
+            cv2.imwrite(self.folder_out + 'AR0_GL_v1.png',R.get_image_perspective(rvec, tvec, aperture, aperture, mat_view_to_1=True, do_debug=True))
+            cv2.imwrite(self.folder_out + 'AR0_CV.png',tools_render_CV.draw_cube_numpy_MVP_GL(gray, mat_projection, numpy.eye(4), mRT,numpy.eye(4), points_3d=cuboid_3d))
+            cv2.imwrite(self.folder_out + 'AR1_CV.png',tools_render_CV.draw_cube_numpy_MVP_GL(gray, mat_projection, mR, numpy.eye(4), T,points_3d=cuboid_3d))
+            cv2.imwrite(self.folder_out + 'AR1_GL.png',R.get_image(mat_view=numpy.eye(4),mat_model=mR,mat_trans=T,do_debug=True))
+
+
+
+        return numpy.eye(4),mR, T
+# ----------------------------------------------------------------------------------------------------------------------
+
     def evaluate_K_chessboard(self,folder_in):
 
         chess_rows, chess_cols = 7,5
@@ -248,7 +270,7 @@ class Calibrator(object):
     def unit_test_gnss(self):
 
         points_xy = numpy.array([(200, 591), (317, 84), (657, 1075), (381, 952)], numpy.float32)
-        points_gnss = numpy.array([(52.228391, 21.001075), (52.227676, 21.000511), (52.227384, 21.001689), (52.227674, 21.001706)],numpy.float32)
+        points_gnss = numpy.array([(52.228391, 21.01075), (52.227676, 21.000511), (52.227384, 21.001689), (52.227674, 21.001706)],numpy.float32)
         H = self.derive_homography(points_xy, points_gnss)
 
         point_xy = numpy.array((343, 705), numpy.float32)

@@ -207,7 +207,7 @@ def compose_projection_mat_4x4(fx, fy, aperture_x=0.5,aperture_y=0.5):
     mat_camera = numpy.array([[fx, 0, fx*aperture_x,0], [0, fy, fy*aperture_y,0],[0,0,1,0],[0,0,0,1]])
     return mat_camera
 # ----------------------------------------------------------------------------------------------------------------------
-def compose_projection_mat_4x4_GL(aperture_x=0.5, aperture_y=0.5):
+def compose_projection_mat_4x4_GL(W,H,aperture_x, aperture_y):
     near, far = 0.1, 10000.0
 
     mat_projection = numpy.zeros((4, 4), dtype=float)
@@ -218,7 +218,7 @@ def compose_projection_mat_4x4_GL(aperture_x=0.5, aperture_y=0.5):
     mat_projection[0][3] = 0.0
 
     mat_projection[1][0] = 0.0
-    mat_projection[1][1] = 1 / aperture_y
+    mat_projection[1][1] = 1 / (aperture_y*H/W)
     mat_projection[1][2] = 0.0
     mat_projection[1][3] = 0.0
 
@@ -406,6 +406,7 @@ def eulerAnglesToRotationMatrix(theta):
     return R
 # ----------------------------------------------------------------------------------------------------------------------
 def apply_matrix(M,X):
+    #M should be CV style
 
     if len(X.shape)==1:
         X = numpy.array([X])
@@ -561,7 +562,6 @@ def project_points_MVP(points_3d, img, mat_projection, mat_view, mat_model, mat_
     # points_2d = numpy.array(points_2d)[:, :2].reshape((-1, 2))
 
     camera_matrix_3x3 = compose_projection_mat_3x3(img.shape[1], img.shape[0], 1 / mat_projection[0][0],1 / mat_projection[1][1])
-
     M = pyrr.matrix44.multiply(mat_view.T,pyrr.matrix44.multiply(mat_model.T,mat_trns.T))
     X4D = numpy.full((points_3d.shape[0], 4), 1,dtype=numpy.float)
     X4D[:, :3] = points_3d[:,:]

@@ -171,32 +171,39 @@ def draw_cube_numpy(img, camera_matrix, dist, rvec, tvec, scale=(1,1,1),color=(2
 
     return result
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_cube_numpy_MVP(img,mat_projection, mat_view, mat_model, mat_trns, color=(255,128, 0),w=2,points_3d=None):
+def draw_cube_numpy_MVP_GL(img, mat_projection, mat_view, mat_model, mat_trns, color=(255, 128, 0), w=2, points_3d=None):
 
+    lines_idx = [(1, 0), (0, 2), (2, 3), (3, 1), (7, 6), (6, 4), (4, 5), (5, 7), (1, 0), (0, 6), (6, 7), (7, 1), (3, 2),(2, 4), (4, 5), (5, 3)]
     if points_3d is None:
         points_3d = numpy.array([[-1, -1, -1], [-1, +1, -1], [+1, +1, -1], [+1, -1, -1],[-1, -1, +1], [-1, +1, +1], [+1, +1, +1], [+1, -1, +1]],dtype = numpy.float32)
+        lines_idx = [(0,1),(1,2),(2,3),(3,0),(4,5),(5,6),(6,7),(7,4),(0,4),(1,5),(2,6),(3,7)]
 
-    img = draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color,do_debug=False)
+    img = draw_points_numpy_MVP_GL(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color, do_debug=False)
     lines_3d = []
-    for i, j in zip((0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3), (1, 2, 3, 0, 5, 6, 7, 4, 4, 5, 6, 7)):
+
+    for (i,j) in lines_idx:
         lines_3d.append((points_3d[i, 0], points_3d[i, 1],points_3d[i, 2], points_3d[j, 0], points_3d[j, 1],points_3d[j, 2]))
 
     img = draw_lines_numpy_MVP(numpy.array(lines_3d), img, mat_projection, mat_view, mat_model, mat_trns,color,w)
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_points_numpy_MVP(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166), w = 2, do_debug=False):
-
+def draw_points_numpy_MVP_GL(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166), w = 2, do_debug=False):
+    # all matrices should be in GL style
     camera_matrix_3x3 = tools_pr_geom.compose_projection_mat_3x3(img.shape[1], img.shape[0], 1 / mat_projection[0][0],1 / mat_projection[1][1])
 
-    M = pyrr.matrix44.multiply(mat_view.T,pyrr.matrix44.multiply(mat_model.T,mat_trns.T))
-    X4D = numpy.full((points_3d.shape[0], 4), 1,dtype=numpy.float)
-    X4D[:, :3] = points_3d[:,:]
-    L3D = pyrr.matrix44.multiply(M, X4D.T).T[:,:3]
+    #M = pyrr.matrix44.multiply(mat_view, pyrr.matrix44.multiply(mat_model, mat_trns))
+    #L3D = tools_pr_geom.apply_matrix(M.T, points_3d)
+
+    M0 = pyrr.matrix44.multiply(mat_view.T,pyrr.matrix44.multiply(mat_model.T,mat_trns.T))
+    X4D = numpy.hstack((points_3d,numpy.full((len(points_3d),1),1)))
+    L3D = pyrr.matrix44.multiply(M0, X4D.T).T[:,:3]
+
+
 
     method=1
     if method==0:
-        img = draw_points_numpy_RT(L3D,img,numpy.eye(4),camera_matrix_3x3,color,w,flipX=False)
+        img = draw_points_numpy_RT(L3D,img,numpy.eye(4),camera_matrix_3x3,color,w)
 
     elif method==1:
         #opencv equivalent
@@ -1211,7 +1218,7 @@ def get_four_point_transform_mat(p_src, target_width, target_height):
 # ---------------------------------------------------------------------------------------------------------------------
 def regularize_rect(point_2d, inlined = True, do_debug=False):
     point_2d_centred = point_2d - numpy.mean(point_2d, axis=0)
-    empty = numpy.zeros((1000, 1000, 3),dtype=numpy.uint8)
+    empty = numpy.full((1000, 1000, 3),190,dtype=numpy.uint8)
     a_range = numpy.arange(0, 180, 5)
     losses,results = [],[]
 
@@ -1255,8 +1262,8 @@ def regularize_rect(point_2d, inlined = True, do_debug=False):
             losses.append(loss)
 
         if do_debug:
-            image = tools_draw_numpy.draw_convex_hull(empty, 50 * point_2d_centred + 500, color=(0,0,255),transperency=0.5)
-            image = tools_draw_numpy.draw_convex_hull(image, 50 * pp + 500, color=(0,128,255),transperency=0.5)
+            image = tools_draw_numpy.draw_convex_hull(empty, 150 * point_2d_centred + 500, color=(0,0,255),transperency=0.5)
+            image = tools_draw_numpy.draw_convex_hull(image, 150 * pp + 500              , color=(255,200,0),transperency=0.5)
 
             image = tools_draw_numpy.draw_lines(image, [50*line1+500], (64,64,64),w=1)
             image = tools_draw_numpy.draw_lines(image, [50*line2+500], (64,64,64),w=1)

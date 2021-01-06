@@ -48,7 +48,7 @@ class VBO(object):
         for idxv,idxn,idxt in zip(object.idx_vertex,object.idx_normal,object.idx_texture):
             xxx = object.dct_obj_id[idxv[0]]
             c = object.mat_color[xxx]
-            if c is None:c = (0.75,0.75,0.75)
+            if c is None:c = (0.25,0.75,0.95)
             clr = numpy.array([c, c, c]).flatten()
 
             self.data[self.iterator:                    self.iterator                    +9] = (object.coord_vert[idxv]).flatten()
@@ -83,7 +83,7 @@ class VBO(object):
 # ----------------------------------------------------------------------------------------------------------------------
 class render_GL3D(object):
 
-    def __init__(self,filename_obj,W=640, H=480,is_visible=True,do_normalize_model_file=True,projection_type='P',scale=(1,1,1),tvec=(0,0,0)):
+    def __init__(self,filename_obj,W=640, H=480,is_visible=True,do_normalize_model_file=True,projection_type='P',textured = True, scale=(1,1,1),tvec=(0,0,0)):
 
         glfw.init()
         self.projection_type = projection_type
@@ -100,7 +100,7 @@ class render_GL3D(object):
         self.window = glfw.create_window(self.W, self.H, "GL viewer", None, None)
         glfw.make_context_current(self.window)
 
-        self.__init_shader()
+        self.__init_shader(textured)
         self.my_VBO = VBO()
 
         self.object = self.my_VBO.append_object(filename_obj,self.do_normalize_model_file,tvec = tvec)
@@ -114,11 +114,14 @@ class render_GL3D(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def __init_shader(self):
+
+# ----------------------------------------------------------------------------------------------------------------------
+    def __init_shader(self,textured=True):
         # projection * view * model * transform
         # model maps from an object's local coordinate space into world space,
         # view from world space to camera space,
         # projection from camera to screen.
+
         vert_shader = """#version 330
                                     in layout(location = 0) vec3 position;
                                     in layout(location = 1) vec3 color;
@@ -138,7 +141,7 @@ class render_GL3D(object):
                                         textureCoords = inTextureCoords;
                                     }"""
 
-        frag_shader = """#version 330
+        frag_shader_texture = """#version 330
                                     in vec3 inColor;
                                     in vec3 fragNormal;
                                     in vec2 textureCoords;
@@ -155,11 +158,39 @@ class render_GL3D(object):
                                         vec4 materialColor = vec4(inColor*lightIntensity, 1);
                                         
                                         //outColor = materialColor;
-                                        outColor = texel;//soccer
+                                        outColor = texel; //eg for soccer - texture without lighting effect 
                                         //outColor = texel* materialColor;//
                                         //outColor = vec4(texel.rgb * lightIntensity, 1);
-                                        outColor.a = 0.99;                                        
+                                        outColor.a = 1.00;                                        
                                     }"""
+
+        frag_shader_color = """#version 330
+                                    in vec3 inColor;
+                                    in vec3 fragNormal;
+                                    in vec2 textureCoords;
+                                    out vec4 outColor;
+                                    uniform sampler2D samplerTexture;
+                                    void main()
+                                    {
+                                        vec3 ambientLightIntensity  = vec3(0.01f, 0.01f, 0.01f);
+                                        vec3 sunLightIntensity      = vec3(1.0f, 1.0f, 1.0f);
+                                        vec3 sunLightDirection      = normalize(vec3(+0.0f, -1.0f, +0.0f));
+                                        vec4 texel = texture(samplerTexture, textureCoords);
+
+                                        vec3 lightIntensity = ambientLightIntensity + sunLightIntensity * dot(fragNormal, sunLightDirection);
+                                        vec4 materialColor = vec4(inColor*lightIntensity, 1);
+
+                                        outColor = materialColor; // color material with lighting and shaddow effect 
+                                        //outColor = texel;//soccer
+                                        //outColor = texel* materialColor;//
+                                        //outColor = vec4(texel.rgb * lightIntensity, 1);
+                                        outColor.a = 0.80;                                        
+                                    }"""
+
+        if textured:
+            frag_shader = frag_shader_texture
+        else:
+            frag_shader = frag_shader_color
 
         self.shader = OpenGL.GL.shaders.compileProgram(OpenGL.GL.shaders.compileShader(vert_shader, GL_VERTEX_SHADER),
                                                        OpenGL.GL.shaders.compileShader(frag_shader, GL_FRAGMENT_SHADER))
@@ -223,7 +254,7 @@ class render_GL3D(object):
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_projection_perspective(self, aperture_x=0.5, aperture_y=0.5):
-        self.mat_projection = tools_pr_geom.compose_projection_mat_4x4_GL(aperture_x, aperture_y)
+        self.mat_projection = tools_pr_geom.compose_projection_mat_4x4_GL(self.W,self.H,aperture_x, aperture_y)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "projection"), 1, GL_FALSE, self.mat_projection)
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -255,8 +286,8 @@ class render_GL3D(object):
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def init_mat_view_RT(self, rvec,tvec,do_flip=True,do_rodriges=False):
-        self.mat_view = tools_pr_geom.compose_RT_mat(rvec,tvec,do_flip,do_rodriges)
+    def init_mat_view_RT(self, rvec,tvec,do_rodriges=False,do_flip=True):
+        self.mat_view = tools_pr_geom.compose_RT_mat(rvec,tvec,do_rodriges=do_rodriges,do_flip=do_flip)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -265,8 +296,8 @@ class render_GL3D(object):
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "model"), 1, GL_FALSE, self.mat_model)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def init_mat_model(self, rvec, tvec, do_rodriges=False):
-        self.mat_model = tools_pr_geom.compose_RT_mat(rvec, tvec, do_flip=False, do_rodriges=do_rodriges)
+    def init_mat_model(self, rvec, tvec, do_rodriges=False,do_flip=False):
+        self.mat_model = tools_pr_geom.compose_RT_mat(rvec, tvec,do_rodriges=do_rodriges, do_flip=do_flip)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "model"), 1, GL_FALSE, self.mat_model)
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -275,6 +306,11 @@ class render_GL3D(object):
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "transform"), 1, GL_FALSE, self.mat_trns)
         return
 # ----------------------------------------------------------------------------------------------------------------------
+    def init_mat_transform_direct(self, mat_transform):
+        self.mat_trns = mat_transform
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "transform"), 1, GL_FALSE, self.mat_trns)
+        return
+    # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_light(self,r_vec):
         self.mat_light = pyrr.matrix44.create_from_eulers(r_vec)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "light")    , 1, GL_FALSE,self.mat_light )
@@ -285,7 +321,19 @@ class render_GL3D(object):
         glDrawArrays(GL_TRIANGLES, 0, self.my_VBO.iterator//3)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def get_image(self, do_debug=False):
+    def get_image(self, mat_proj=None, mat_view=None, mat_model=None, mat_trans=None, do_debug=False):
+
+        if mat_proj is not None:self.mat_projection = mat_proj
+        if mat_view is not None: self.mat_view= mat_view
+        if mat_model is not None: self.mat_model = mat_model
+        if mat_trans is not None: self.mat_trns= mat_trans
+
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "projection"), 1, GL_FALSE, self.mat_projection)
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "model"), 1, GL_FALSE, self.mat_model)
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "transform"), 1, GL_FALSE, self.mat_trns)
+
+
         self.draw()
         image_buffer = glReadPixels(0, 0, self.W, self.H, OpenGL.GL.GL_RGB, OpenGL.GL.GL_UNSIGNED_BYTE)
         image = numpy.frombuffer(image_buffer, dtype=numpy.uint8).reshape(self.H, self.W, 3)
@@ -294,23 +342,24 @@ class render_GL3D(object):
         return image
 # ----------------------------------------------------------------------------------------------------------------------
     def init_perspective_view_1_mat_model(self, rvec, tvec, aperture_x=0.5, aperture_y=0.5, scale=(1, 1, 1)):
+        # OK
         tvec = numpy.array(tvec, dtype=float)
         self.init_mat_view_RT(numpy.array(rvec, dtype=float), tvec, do_rodriges=True,do_flip=True)
-        self.init_mat_model((0, 0, 0), (0, 0, 0))
+        self.init_mat_model_direct(numpy.eye(4))
         self.__init_mat_transform(scale)
         self.__init_mat_projection_perspective(aperture_x,aperture_y)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def init_perspective_view_1_mat_view(self, rvec, tvec, aperture_x=0.5, aperture_y=0.5, scale=(1, 1, 1)):
         tvec = numpy.array(tvec, dtype=float)
-        self.init_mat_model(numpy.array(rvec, dtype=float), tvec, do_rodriges=True)
-        self.init_mat_view_RT((0, 0, 0), (0, 0, 0))
+        self.init_mat_model(numpy.array(rvec, dtype=float), tvec, do_rodriges=True,do_flip=True)
+        self.init_mat_view_direct(numpy.eye(4))
         self.__init_mat_transform(scale)
         self.__init_mat_projection_perspective(aperture_x, aperture_y)
         return
     # ----------------------------------------------------------------------------------------------------------------------
-    def get_image_perspective(self, rvec, tvec, aperture_x=0.5,aperture_y=0.5,scale=(1,1,1),lookback=False,freeze_mat_view=True,do_debug=False):
-        if freeze_mat_view:
+    def get_image_perspective(self, rvec, tvec, aperture_x=0.5, aperture_y=0.5, scale=(1,1,1), lookback=False, mat_view_to_1=True, do_debug=False):
+        if mat_view_to_1:
             self.init_perspective_view_1_mat_view(rvec, tvec, aperture_x,aperture_y,scale)
             if lookback:
                 self.mat_view*=-1
@@ -318,8 +367,9 @@ class render_GL3D(object):
         else:
             self.init_perspective_view_1_mat_model(rvec, tvec, aperture_x, aperture_y, scale)
 
-            glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
-        return self.get_image(do_debug)
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
+        glUniformMatrix4fv(glGetUniformLocation(self.shader, "model"), 1, GL_FALSE, self.mat_model)
+        return self.get_image(do_debug=do_debug)
 # ----------------------------------------------------------------------------------------------------------------------
     def get_image_perspective_M(self, mat_M, aperture_x=0.5, aperture_y=0.5, scale=(1, 1, 1),lookback=False, do_debug=False):
 
@@ -335,7 +385,7 @@ class render_GL3D(object):
         self.__init_mat_transform(scale)
         self.__init_mat_projection_perspective(aperture_x, aperture_y)
 
-        return self.get_image(do_debug)
+        return self.get_image(do_debug=do_debug)
 # ----------------------------------------------------------------------------------------------------------------------
     def init_ortho_view(self, rvec, tvec, scale_factor):
         rvec = numpy.array(rvec)
@@ -346,13 +396,13 @@ class render_GL3D(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def get_image_ortho(self, rvec, tvec, scale_factor, do_debug=False):
         self.init_ortho_view(rvec, tvec, scale_factor)
-        return self.get_image(do_debug)
+        return self.get_image(do_debug=do_debug)
 # ----------------------------------------------------------------------------------------------------------------------
     def draw_debug_info(self,image):
 
         if self.projection_type=='P':
             #print('[ %1.2f, %1.2f, %1.2f], [%1.2f,  %1.2f,  %1.2f]' % (rvec_i[0], rvec_i[1], rvec_i[2], tvec_i[0], tvec_i[1], tvec_i[2]))
-            result = tools_render_CV.draw_points_numpy_MVP(self.object.coord_vert, image, self.mat_projection,self.mat_view, self.mat_model, self.mat_trns,do_debug=False)
+            result = tools_render_CV.draw_points_numpy_MVP_GL(self.object.coord_vert, image, self.mat_projection, self.mat_view, self.mat_model, self.mat_trns, do_debug=False)
             #result = cv2.flip(result,1)
         else:
             scale_factor = 1 / self.mat_projection[0, 0]
@@ -588,7 +638,7 @@ class render_GL3D(object):
 
         rvec = tools_pr_geom.quaternion_to_euler(Q)
         rvec+= numpy.array(delta_angle)
-        self.standardize_rvec(rvec)
+        #self.standardize_rvec(rvec)
 
         self.init_mat_model(rvec, tvec)
 
