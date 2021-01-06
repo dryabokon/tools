@@ -1,7 +1,5 @@
 import cv2
 import numpy
-from cv2 import aruco
-import pyrr
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_draw_numpy
 import tools_image
@@ -154,7 +152,7 @@ class Calibrator(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def evaluate_aperture(self, filename_image, filename_points, a_min=0.4, a_max=0.41, list_of_R = (1, 10), virt_obj=None, do_debug = False):
+    def evaluate_fov(self, filename_image, filename_points, a_min=0.4, a_max=0.41, list_of_R = (1, 10), virt_obj=None, do_debug = False):
 
 
         base_name = filename_image.split('/')[-1].split('.')[0]
@@ -166,10 +164,10 @@ class Calibrator(object):
         points_xyz, points_2d = points_xyz[1:], points_2d_all[1:]
 
         err, rvecs, tvecs = [],[],[]
-        apertures = numpy.arange(a_min, a_max, 0.005)
+        a_fovs = numpy.arange(a_min, a_max, 0.005)
 
-        for aperture in apertures:
-            camera_matrix = tools_pr_geom.compose_projection_mat_3x3(W, H, aperture, aperture)
+        for a_fov in a_fovs:
+            camera_matrix = tools_pr_geom.compose_projection_mat_3x3(W, H, a_fov, a_fov)
             rvec, tvec, points_2d_check = tools_pr_geom.fit_pnp(points_xyz, points_2d, camera_matrix, numpy.zeros(5))
             err.append(numpy.sqrt(((points_2d_check-points_2d)**2).sum()/len(points_2d)))
             rvecs.append(rvec.flatten())
@@ -179,10 +177,10 @@ class Calibrator(object):
 
         if do_debug:
             tools_IO.remove_files(self.folder_out,'*.png')
-            for i in range(len(apertures)):
+            for i in range(len(a_fovs)):
                 color_markup = (159, 206, 255)
                 if i==idx_best:color_markup = (0,128,255)
-                camera_matrix = tools_pr_geom.compose_projection_mat_3x3(W, H, apertures[i], apertures[i])
+                camera_matrix = tools_pr_geom.compose_projection_mat_3x3(W, H, a_fovs[i], a_fovs[i])
                 points_2d_check, jac = cv2.projectPoints(points_xyz, rvecs[i], tvecs[i], camera_matrix, numpy.zeros(5))
                 image_AR = tools_draw_numpy.draw_ellipses(gray, [((p[0], p[1]), (25, 25), 0) for p in points_2d],color=(0, 0, 190), w=4)
                 image_AR = tools_draw_numpy.draw_points(image_AR, points_2d_check.reshape((-1,2)), color=(0, 128, 255), w=8)
@@ -192,9 +190,9 @@ class Calibrator(object):
                     for p in points_xyz:
                         image_AR = tools_draw_numpy.draw_cuboid(image_AR,tools_pr_geom.project_points(p+self.construct_cuboid_v0(virt_obj), rvecs[i], tvecs[i], camera_matrix, numpy.zeros(5))[0])
 
-                cv2.imwrite(self.folder_out + base_name + '_%05d' % (apertures[i] * 1000) + '.png', image_AR)
+                cv2.imwrite(self.folder_out + base_name + '_%05d' % (a_fovs[i] * 1000) + '.png', image_AR)
 
-        return apertures[idx_best], numpy.array(rvecs)[idx_best], numpy.array(tvecs)[idx_best]
+        return a_fovs[idx_best], numpy.array(rvecs)[idx_best], numpy.array(tvecs)[idx_best]
 # ----------------------------------------------------------------------------------------------------------------------
     def get_pretty_model_rotation(self,mat_model):
 
@@ -209,34 +207,32 @@ class Calibrator(object):
 
         return a_pitch_deg, a_yaw_deg, a_roll_deg
 # ----------------------------------------------------------------------------------------------------------------------
-    def evaluate_matrices_GL(self, image, rvec, tvec, aperture, virt_obj=None, do_debug=False):
+    def evaluate_matrices_GL(self, image, rvec, tvec, a_fov, virt_obj=None, do_debug=False):
 
-        if numpy.any(numpy.isnan(rvec)) or numpy.any(numpy.isnan(tvec)):return None, None, None, None, None
-
-        H, W = 720, 1080# H,W = image.shape[:2]
-        gray = tools_image.desaturate(cv2.resize(image, (W, H)))
+        if numpy.any(numpy.isnan(rvec)) or numpy.any(numpy.isnan(tvec)):return None, None, None
+        H,W = image.shape[:2]
 
         cuboid_3d = self.construct_cuboid_v0(virt_obj)
         mRT = tools_pr_geom.compose_RT_mat(rvec, tvec, do_rodriges=True, do_flip=True, GL_style=True)
         mR = tools_pr_geom.compose_RT_mat(rvec,  (0,0,0), do_rodriges=True, do_flip=True, GL_style=True)
         imR = numpy.linalg.inv(mR)
-        mat_projection = tools_pr_geom.compose_projection_mat_4x4_GL(W, H, aperture, aperture)
-        #T = pyrr.matrix44.multiply(imR.T, mRT.T).T
-        T = pyrr.matrix44.multiply(mRT, imR)
-
-        filename_obj = self.folder_out + 'temp.obj'
-        self.save_obj_file(filename_obj, virt_obj)
-        R = tools_GL3D.render_GL3D(filename_obj=filename_obj, W=W, H=H, do_normalize_model_file=False,is_visible=False, projection_type='P', textured=False)
-        tools_IO.remove_file(filename_obj)
+        mat_projection = tools_pr_geom.compose_projection_mat_4x4_GL(W, H, a_fov, a_fov)
+        T = numpy.matmul(mRT, imR)
 
         if do_debug:
-            cv2.imwrite(self.folder_out + 'AR0_GL_m1.png',R.get_image_perspective(rvec, tvec, aperture, aperture, mat_view_to_1=False, do_debug=True))
-            cv2.imwrite(self.folder_out + 'AR0_GL_v1.png',R.get_image_perspective(rvec, tvec, aperture, aperture, mat_view_to_1=True, do_debug=True))
+
+            gray = tools_image.desaturate(cv2.resize(image, (W, H)))
+
+            filename_obj = self.folder_out + 'temp.obj'
+            self.save_obj_file(filename_obj, virt_obj)
+            tools_IO.remove_file(filename_obj)
+
+            R = tools_GL3D.render_GL3D(filename_obj=filename_obj, W=W, H=H, do_normalize_model_file=False,is_visible=False, projection_type='P', textured=False)
+            cv2.imwrite(self.folder_out + 'AR0_GL_m1.png', R.get_image_perspective(rvec, tvec, a_fov, a_fov, mat_view_to_1=False, do_debug=True))
+            cv2.imwrite(self.folder_out + 'AR0_GL_v1.png', R.get_image_perspective(rvec, tvec, a_fov, a_fov, mat_view_to_1=True, do_debug=True))
             cv2.imwrite(self.folder_out + 'AR0_CV.png',tools_render_CV.draw_cube_numpy_MVP_GL(gray, mat_projection, numpy.eye(4), mRT,numpy.eye(4), points_3d=cuboid_3d))
             cv2.imwrite(self.folder_out + 'AR1_CV.png',tools_render_CV.draw_cube_numpy_MVP_GL(gray, mat_projection, mR, numpy.eye(4), T,points_3d=cuboid_3d))
             cv2.imwrite(self.folder_out + 'AR1_GL.png',R.get_image(mat_view=numpy.eye(4),mat_model=mR,mat_trans=T,do_debug=True))
-
-
 
         return numpy.eye(4),mR, T
 # ----------------------------------------------------------------------------------------------------------------------

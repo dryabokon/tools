@@ -3,8 +3,6 @@ import numpy
 import math
 import cv2
 from OpenGL.GL import *
-from OpenGL.GLU import *
-from OpenGL.GL import *
 import OpenGL.GL.shaders
 from OpenGL.GLUT import *
 import glfw
@@ -14,7 +12,6 @@ import pyrr
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_IO
 import tools_render_CV
-import tools_wavefront
 import tools_pr_geom
 import tools_wavefront
 # ----------------------------------------------------------------------------------------------------------------------
@@ -253,8 +250,8 @@ class render_GL3D(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def __init_mat_projection_perspective(self, aperture_x=0.5, aperture_y=0.5):
-        self.mat_projection = tools_pr_geom.compose_projection_mat_4x4_GL(self.W,self.H,aperture_x, aperture_y)
+    def __init_mat_projection_perspective(self, a_fov_x=0.5, a_fov_y=0.5):
+        self.mat_projection = tools_pr_geom.compose_projection_mat_4x4_GL(self.W, self.H, a_fov_x, a_fov_y)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "projection"), 1, GL_FALSE, self.mat_projection)
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -269,9 +266,9 @@ class render_GL3D(object):
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "projection"), 1, GL_FALSE, self.mat_projection)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def init_mat_projection(self, aspect_x=0.5, aspect_y=0.5):
+    def init_mat_projection(self, a_fov_x=0.5, a_fov_y=0.5):
         if self.projection_type == 'P':
-            self.__init_mat_projection_perspective(aspect_x,aspect_y)
+            self.__init_mat_projection_perspective(a_fov_x, a_fov_y)
         else:
             self.__init_mat_projection_ortho()
         return
@@ -341,37 +338,37 @@ class render_GL3D(object):
         if do_debug:image = self.draw_debug_info(image)
         return image
 # ----------------------------------------------------------------------------------------------------------------------
-    def init_perspective_view_1_mat_model(self, rvec, tvec, aperture_x=0.5, aperture_y=0.5, scale=(1, 1, 1)):
+    def init_perspective_view_1_mat_model(self, rvec, tvec, a_fov_x=0.5, a_fov_y=0.5, scale=(1, 1, 1)):
         # OK
         tvec = numpy.array(tvec, dtype=float)
         self.init_mat_view_RT(numpy.array(rvec, dtype=float), tvec, do_rodriges=True,do_flip=True)
         self.init_mat_model_direct(numpy.eye(4))
         self.__init_mat_transform(scale)
-        self.__init_mat_projection_perspective(aperture_x,aperture_y)
+        self.__init_mat_projection_perspective(a_fov_x, a_fov_y)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def init_perspective_view_1_mat_view(self, rvec, tvec, aperture_x=0.5, aperture_y=0.5, scale=(1, 1, 1)):
+    def init_perspective_view_1_mat_view(self, rvec, tvec, a_fov_x=0.5, a_fov_y=0.5, scale=(1, 1, 1)):
         tvec = numpy.array(tvec, dtype=float)
         self.init_mat_model(numpy.array(rvec, dtype=float), tvec, do_rodriges=True,do_flip=True)
         self.init_mat_view_direct(numpy.eye(4))
         self.__init_mat_transform(scale)
-        self.__init_mat_projection_perspective(aperture_x, aperture_y)
+        self.__init_mat_projection_perspective(a_fov_x, a_fov_y)
         return
     # ----------------------------------------------------------------------------------------------------------------------
-    def get_image_perspective(self, rvec, tvec, aperture_x=0.5, aperture_y=0.5, scale=(1,1,1), lookback=False, mat_view_to_1=True, do_debug=False):
+    def get_image_perspective(self, rvec, tvec, a_fov_x=0.5, a_fov_y=0.5, scale=(1, 1, 1), lookback=False, mat_view_to_1=True, do_debug=False):
         if mat_view_to_1:
-            self.init_perspective_view_1_mat_view(rvec, tvec, aperture_x,aperture_y,scale)
+            self.init_perspective_view_1_mat_view(rvec, tvec, a_fov_x, a_fov_y, scale)
             if lookback:
                 self.mat_view*=-1
                 self.mat_view[-1,-1]*=-1
         else:
-            self.init_perspective_view_1_mat_model(rvec, tvec, aperture_x, aperture_y, scale)
+            self.init_perspective_view_1_mat_model(rvec, tvec, a_fov_x, a_fov_y, scale)
 
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "model"), 1, GL_FALSE, self.mat_model)
         return self.get_image(do_debug=do_debug)
 # ----------------------------------------------------------------------------------------------------------------------
-    def get_image_perspective_M(self, mat_M, aperture_x=0.5, aperture_y=0.5, scale=(1, 1, 1),lookback=False, do_debug=False):
+    def get_image_perspective_M(self, mat_M, a_fov_x=0.5, a_fov_y=0.5, scale=(1, 1, 1), lookback=False, do_debug=False):
 
         self.mat_view = mat_M
         if lookback:
@@ -383,7 +380,7 @@ class render_GL3D(object):
 
         self.init_mat_model((0, 0, 0), (0, 0, 0))
         self.__init_mat_transform(scale)
-        self.__init_mat_projection_perspective(aperture_x, aperture_y)
+        self.__init_mat_projection_perspective(a_fov_x, a_fov_y)
 
         return self.get_image(do_debug=do_debug)
 # ----------------------------------------------------------------------------------------------------------------------
@@ -525,15 +522,15 @@ class render_GL3D(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def scale_projection(self,factor):
         scale_current = self.mat_projection[0][0]/2
-        aspect_current  = (0.5 / scale_current)
+        a_fov_current  = (0.5 / scale_current)
 
-        self.init_mat_projection(factor * aspect_current, factor * aspect_current)
+        self.init_mat_projection(factor * a_fov_current, factor * a_fov_current)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def translate_view_by_scale(self, scale):
         rvec,tvec = tools_pr_geom.decompose_to_rvec_tvec(self.mat_view,do_flip=True)
         tvec*=scale
-        self.__init_mat_view_RT(rvec,tvec)
+        self.init_mat_view_RT(rvec,tvec)
 
         #E,T,U = tools_pr_geom.mat_view_to_ETU(self.mat_view)
         #F = T-E

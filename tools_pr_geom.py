@@ -5,7 +5,6 @@ import numpy
 from sklearn.linear_model import LinearRegression
 from scipy.linalg import polar
 # ---------------------------------------------------------------------------------------------------------------------
-import tools_IO
 import tools_draw_numpy
 import tools_render_CV
 # ---------------------------------------------------------------------------------------------------------------------
@@ -196,29 +195,27 @@ def fit_manual(X3D,target_2d,fx, fy,xref=None,lref=None,do_debug=True):
 
     return M
 # ----------------------------------------------------------------------------------------------------------------------
-def compose_projection_mat_3x3(fx, fy, aperture_x=0.5,aperture_y=0.5):
-    #mat_camera = numpy.array([[fx / (aperture_x/0.5 ), 0, fx / 2], [0, fy / (aperture_y/0.5 ), fy/2], [0, 0, 1]],dtype=numpy.float)
-
-    f = fx/(aperture_x/0.5)
+def compose_projection_mat_3x3(fx, fy, a_fov_x=0.5, a_fov_y=0.5):
+    f = fx/(a_fov_x / 0.5)
     mat_camera = numpy.array([[f, 0., fx/2], [0., f, fy/2], [0., 0., 1.]])
     return mat_camera
 # ----------------------------------------------------------------------------------------------------------------------
-def compose_projection_mat_4x4(fx, fy, aperture_x=0.5,aperture_y=0.5):
-    mat_camera = numpy.array([[fx, 0, fx*aperture_x,0], [0, fy, fy*aperture_y,0],[0,0,1,0],[0,0,0,1]])
+def compose_projection_mat_4x4(fx, fy, a_fov_x=0.5, a_fov_y=0.5):
+    mat_camera = numpy.array([[fx, 0, fx * a_fov_x, 0], [0, fy, fy * a_fov_y, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
     return mat_camera
 # ----------------------------------------------------------------------------------------------------------------------
-def compose_projection_mat_4x4_GL(W,H,aperture_x, aperture_y):
+def compose_projection_mat_4x4_GL(W, H, a_fov_x, a_fov_y):
     near, far = 0.1, 10000.0
 
     mat_projection = numpy.zeros((4, 4), dtype=float)
 
-    mat_projection[0][0] = 1 / aperture_x
+    mat_projection[0][0] = 1 / a_fov_x
     mat_projection[0][1] = 0.0
     mat_projection[0][2] = 0.0
     mat_projection[0][3] = 0.0
 
     mat_projection[1][0] = 0.0
-    mat_projection[1][1] = 1 / (aperture_y*H/W)
+    mat_projection[1][1] = 1 / (a_fov_y * H / W)
     mat_projection[1][2] = 0.0
     mat_projection[1][3] = 0.0
 
