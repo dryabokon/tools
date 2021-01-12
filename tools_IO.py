@@ -72,8 +72,11 @@ def append_CSV(csv_record, filename_out, csv_header=None, delim ='\t'):
 
         if csv_record is not None and len(csv_record)>0:
             for i,each in enumerate(csv_record):
-                #f.write('%2.1f'%float(each))
-                f.write(each)
+                if type(each) is str:
+                    f.write(each)
+                else:
+                    f.write('%2.1f'%float(each))
+
                 if i!=len(csv_record)-1:
                     f.write(delim)
 

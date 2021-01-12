@@ -5,6 +5,7 @@ import numpy
 from sklearn.linear_model import LinearRegression
 from scipy.linalg import polar
 # ---------------------------------------------------------------------------------------------------------------------
+import tools_IO
 import tools_draw_numpy
 import tools_render_CV
 # ---------------------------------------------------------------------------------------------------------------------
@@ -82,7 +83,7 @@ def fit_affine(X_source,X_target,do_debug=False):
         image = debug_projection(X_source, X_target, result)
     return A, result
 # ----------------------------------------------------------------------------------------------------------------------
-def fit_homography(X_source,X_target,method = cv2.RANSAC,do_debug=None):
+def fit_homography(X_source,X_target,method = cv2.RANSAC,do_debug=True):
 
     #method = cv2.LMEDS
     #method = cv2.RHO
@@ -90,7 +91,9 @@ def fit_homography(X_source,X_target,method = cv2.RANSAC,do_debug=None):
     result  = cv2.perspectiveTransform(X_source.reshape((-1, 1, 2)),H).reshape((-1,2))
 
     loss =  ((result-X_target)**2).mean()
-    if do_debug: debug_projection(X_source, X_target, result)
+    if do_debug:
+        image_debug = debug_projection(X_source, X_target, result)
+        cv2.imwrite('./images/output/image_dbug.png',image_debug)
 
     return H, result
 # ----------------------------------------------------------------------------------------------------------------------
@@ -195,27 +198,27 @@ def fit_manual(X3D,target_2d,fx, fy,xref=None,lref=None,do_debug=True):
 
     return M
 # ----------------------------------------------------------------------------------------------------------------------
-def compose_projection_mat_3x3(fx, fy, a_fov_x=0.5, a_fov_y=0.5):
-    f = fx/(a_fov_x / 0.5)
+def compose_projection_mat_3x3(fx, fy, fov_x=0.5, fov_y=0.5):
+    f = 0.5*fx/(fov_x)
     mat_camera = numpy.array([[f, 0., fx/2], [0., f, fy/2], [0., 0., 1.]])
     return mat_camera
 # ----------------------------------------------------------------------------------------------------------------------
-def compose_projection_mat_4x4(fx, fy, a_fov_x=0.5, a_fov_y=0.5):
-    mat_camera = numpy.array([[fx, 0, fx * a_fov_x, 0], [0, fy, fy * a_fov_y, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+def compose_projection_mat_4x4(fx, fy, fov_x=0.5, fov_y=0.5):
+    mat_camera = numpy.array([[fx, 0, fx * fov_x, 0], [0, fy, fy * fov_y, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
     return mat_camera
 # ----------------------------------------------------------------------------------------------------------------------
-def compose_projection_mat_4x4_GL(W, H, a_fov_x, a_fov_y):
+def compose_projection_mat_4x4_GL(W, H, fov_x, fov_y):
     near, far = 0.1, 10000.0
 
     mat_projection = numpy.zeros((4, 4), dtype=float)
 
-    mat_projection[0][0] = 1 / a_fov_x
+    mat_projection[0][0] = 1 / fov_x
     mat_projection[0][1] = 0.0
     mat_projection[0][2] = 0.0
     mat_projection[0][3] = 0.0
 
     mat_projection[1][0] = 0.0
-    mat_projection[1][1] = 1 / (a_fov_y * H / W)
+    mat_projection[1][1] = 1 / (fov_y * H / W)
     mat_projection[1][2] = 0.0
     mat_projection[1][3] = 0.0
 
@@ -402,40 +405,39 @@ def eulerAnglesToRotationMatrix(theta):
 
     return R
 # ----------------------------------------------------------------------------------------------------------------------
-def apply_matrix(M,X):
-    #M should be CV style
+def apply_matrix_GL(M, X):
+
+    if M.shape[0]==3 and M.shape[1]==3:
+        M = pyrr.matrix44.create_from_matrix33(M)
+
+
+
+    X = numpy.array(X)
 
     if len(X.shape)==1:
         X = numpy.array([X])
 
-    X = numpy.array(X)
-    if len(X.shape)==1:
-        X=numpy.array([X])
-
-
     if X.shape[1]==3:
-        X4D = numpy.full((X.shape[0], 4), 1,dtype=numpy.float)
-        X4D[:, :3] = X
+        X4D = numpy.hstack((X,numpy.full((X.shape[0],1),1)))
     else:
         X4D = X
 
-    Y1 = pyrr.matrix44.multiply(M, X4D.T).T
-    #Y2 = numpy.array([pyrr.matrix44.apply_to_vector(M.T, x) for x in X4D])
+    Y1 = M.dot(X4D.T).T
 
-    #if X.shape[0]==1:
-    #    Y1=Y1[0]
+    if X.shape[1] == 3:
+        Y1 = Y1[:, :3]
 
     return Y1
 # ----------------------------------------------------------------------------------------------------------------------
 def apply_rotation(rvec,X):
     R = pyrr.matrix44.create_from_eulers(rvec)
     #R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(rvec)[0])
-    Y = apply_matrix(R, X)
+    Y = apply_matrix_GL(R, X)
     return Y
 # ----------------------------------------------------------------------------------------------------------------------
 def apply_translation(tvec,X):
     T = pyrr.matrix44.create_from_translation(tvec).T
-    Y = apply_matrix(T,X)
+    Y = apply_matrix_GL(T, X)
     return Y
 # ----------------------------------------------------------------------------------------------------------------------
 def apply_RT(rvec,tvec,X):
@@ -443,7 +445,7 @@ def apply_RT(rvec,tvec,X):
     R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(numpy.array(rvec,dtype=numpy.float))[0])
     T = pyrr.matrix44.create_from_translation(tvec).T
     M = pyrr.matrix44.multiply(T,R)
-    Y = apply_matrix(M,X)
+    Y = apply_matrix_GL(M, X)
     return Y
 # ----------------------------------------------------------------------------------------------------------------------
 def compose_RT_mat(rvec,tvec,do_rodriges=False,do_flip=True,GL_style=True):
@@ -481,7 +483,7 @@ def perspective_transform(points_2d,homography):
         M = pyrr.matrix44.create_from_matrix33(homography)
 
 
-        Z = apply_matrix(M, Y)
+        Z = apply_matrix_GL(M, Y)
         Z[:, 0] = Z[:, 0] / Z[:, 2]
         Z[:, 1] = Z[:, 1] / Z[:, 2]
         res = Z[:,:2].reshape((-1,1,2))
@@ -559,6 +561,7 @@ def project_points_MVP(points_3d, img, mat_projection, mat_view, mat_model, mat_
     # points_2d = numpy.array(points_2d)[:, :2].reshape((-1, 2))
 
     camera_matrix_3x3 = compose_projection_mat_3x3(img.shape[1], img.shape[0], 1 / mat_projection[0][0],1 / mat_projection[1][1])
+
     M = pyrr.matrix44.multiply(mat_view.T,pyrr.matrix44.multiply(mat_model.T,mat_trns.T))
     X4D = numpy.full((points_3d.shape[0], 4), 1,dtype=numpy.float)
     X4D[:, :3] = points_3d[:,:]
@@ -584,7 +587,7 @@ def project_points(points_3d, rvec, tvec, camera_matrix_3x3, dist):
     M = pyrr.matrix44.multiply(T, R)
     PM = pyrr.matrix44.multiply(P, M)
 
-    points_2d = apply_matrix(PM, points_3d)
+    points_2d = apply_matrix_GL(PM, points_3d)
 
     points_2d[:, 0] = points_2d[:, 0] / points_2d[:, 2]
     points_2d[:, 1] = points_2d[:, 1] / points_2d[:, 2]
@@ -592,13 +595,19 @@ def project_points(points_3d, rvec, tvec, camera_matrix_3x3, dist):
 
     return points_2d,0
 # ----------------------------------------------------------------------------------------------------------------------
-def project_points_p3x4(points_3d, p4x4):
+def project_points_p3x4(points_3d, p4x4,check_reverce=False):
 
-    points_2d = apply_matrix(p4x4, points_3d)
+    points_2d = apply_matrix_GL(p4x4, points_3d)
+
+    Z = points_2d[:, 2]
 
     points_2d[:, 0] = points_2d[:, 0] / points_2d[:, 2]
     points_2d[:, 1] = points_2d[:, 1] / points_2d[:, 2]
     points_2d = numpy.array(points_2d)[:, :2].reshape((-1, 2))
+
+    if check_reverce:
+        points_2d[:,0][Z<0] = numpy.nan
+        points_2d[:,1][Z<0] = numpy.nan
 
     return points_2d
 # ----------------------------------------------------------------------------------------------------------------------
@@ -636,7 +645,7 @@ def project_points_M(points_3d, RT, camera_matrix_3x3, dist):
 
     PM = pyrr.matrix44.multiply(P, RT)
 
-    points_2d = apply_matrix(PM, points_3d)
+    points_2d = apply_matrix_GL(PM, points_3d)
     points_2d[:, 0] = points_2d[:, 0] / points_2d[:, 2]
     points_2d[:, 1] = points_2d[:, 1] / points_2d[:, 2]
     points_2d = numpy.array(points_2d,dtype=numpy.float32)[:, :2].reshape((-1,2))

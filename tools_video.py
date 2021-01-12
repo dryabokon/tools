@@ -77,13 +77,13 @@ def reconvert_video(filename_in,filename_out):
     vidcap.release()
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_sec=1000000,scale=1):
+def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_sec=None,stride=1,scale=1):
 
     tools_IO.remove_files(folder_out,create=True)
     vidcap = cv2.VideoCapture(filename_in)
     total_frames = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = vidcap.get(cv2.CAP_PROP_FPS)
-    #end_time = vidcap.get(cv2.CAP_PROP_POS_MSEC)
+    end_time = vidcap.get(cv2.CAP_PROP_POS_MSEC)
     vidcap.set(cv2.CAP_PROP_POS_MSEC, start_time_sec*1000)
 
     success, image = vidcap.read()
@@ -96,10 +96,35 @@ def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_se
         cv2.imwrite(folder_out+prefix+'%05d.jpg' % count, image)
         success, image = vidcap.read()
         if success and scale != 1: image = tools_image.do_rescale(image, scale)
-        if end_time_sec<1000000:
+        if end_time_sec is not None and end_time_sec<1000000:
             current_time = vidcap.get(cv2.CAP_PROP_POS_MSEC)
             if current_time > 1000*end_time_sec: success = False
         count += 1
+
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+def extract_frames_v2(filename_in,folder_out,prefix='',start_frame=0, end_frame=None,step=1,scale=1,silent=True):
+
+    vidcap = cv2.VideoCapture(filename_in)
+    success, image = vidcap.read()
+    total_frames = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    cnt = start_frame
+    if not silent:
+        bar = progressbar.ProgressBar(max_value=total_frames)
+    while success:
+        if not silent:
+            bar.update(cnt)
+        vidcap.set(cv2.CAP_PROP_POS_FRAMES, cnt)
+        success, image = vidcap.read()
+        if success and scale != 1:
+            image = tools_image.do_rescale(image, scale)
+        if not success:continue
+        cv2.imwrite(folder_out + prefix + '_%06d.jpg'%cnt,image)
+        success, image = vidcap.read()
+        cnt+=step
+        if end_frame is not None and cnt >= end_frame:
+            success = False
 
     return
 # ----------------------------------------------------------------------------------------------------------------------

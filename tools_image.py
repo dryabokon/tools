@@ -334,6 +334,15 @@ def gre2viridis(rgb):
     colormap = numpy.flip((numpy.array(cm.cmaps_listed['viridis'].colors) * 256).astype(int), axis=1)
     return colormap[int(rgb[0])]
 # ----------------------------------------------------------------------------------------------------------------------
+def gre2colormap(gray_rgb,cm_name):
+    cmap = plt.get_cmap(cm_name)
+    colors = 255 * numpy.array([cmap(i / 256) for i in range(256)])
+    colors[0] = colors[1]
+    colors[-1]=colors[-2]
+    colors = colors[:, [2, 1, 0]]
+
+    return colors[int(gray_rgb[0])]
+# ----------------------------------------------------------------------------------------------------------------------
 def hitmap2d_to_viridis(hitmap_2d):
     colormap = (numpy.array(cm.cmaps_listed['viridis'].colors)*256).astype(int)
     colormap = numpy.flip(colormap,axis=1)

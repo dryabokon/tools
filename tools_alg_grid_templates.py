@@ -9,7 +9,7 @@ import math
 from scipy.stats import  entropy
 from scipy import signal
 import cv2
-from scipy.misc import toimage
+#from scipy.misc import toimage
 from scipy import ndimage
 from scipy.signal import fftconvolve
 #----------------------------------------------------------------------------------------------------------------------

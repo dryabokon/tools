@@ -79,19 +79,26 @@ def draw_compass_p3x4(image, p3x4, R, Z=0, step=1, color=(0,128,255),draw_labels
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_compass(image, camera_matrix, dist, rvec, tvec, R, Z=0, step=1, color=(0,128,255),draw_labels=False):
 
-
-
     points_3d = numpy.array([(R * numpy.sin(angle * numpy.pi / 180.0), R * numpy.cos(angle * numpy.pi / 180.0), Z) for angle in range(0, 360, step)])
-    points_2d, jac = cv2.projectPoints(points_3d, rvec, tvec, camera_matrix, dist)
-    points_2d=points_2d.reshape((-1,2))
 
-    M = pyrr.matrix44.multiply(pyrr.matrix44.create_from_translation(numpy.array(tvec,dtype=float).flatten()).T, pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(numpy.array(rvec, dtype=float).flatten())[0]))
-    points_2dx = tools_pr_geom.apply_matrix(M, points_3d)
+    if camera_matrix.shape[0]==3 and camera_matrix.shape[1]==3:
+        points_2d, jac = cv2.projectPoints(points_3d, rvec, tvec, camera_matrix, dist)
+        points_2d=points_2d.reshape((-1,2))
+        M = pyrr.matrix44.multiply(pyrr.matrix44.create_from_translation(numpy.array(tvec,dtype=float).flatten()).T, pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(numpy.array(rvec, dtype=float).flatten())[0]))
+        points_2dx = tools_pr_geom.apply_matrix_GL(M, points_3d)
+        is_front = points_2dx[:, 2] > 0
+    else:
+        points_2d = tools_pr_geom.project_points_p3x4(points_3d, camera_matrix)
+        points_2dx = tools_pr_geom.project_points_p3x4(points_3d, camera_matrix, check_reverce=True)
+        is_front = numpy.array([~numpy.any(numpy.isnan(p)) for p in points_2dx])
 
-    idx = (points_2d[:,0]>0) * (points_2d[:,1]>0) * (points_2d[:,0]<image.shape[1]) * (points_2d[:,1]<image.shape[0]) * (points_2dx[:,2]>0)
+
+    idx = (points_2d[:,0]>0) * (points_2d[:,1]>0) * (points_2d[:,0]<image.shape[1]) * (points_2d[:,1]<image.shape[0]) * (is_front[:])
     image_result = image.copy()
     if numpy.array(1*idx).sum()>1:
         points_2d_visible = points_2d[idx]
+        idx = numpy.argsort(points_2d_visible[:,0])
+        points_2d_visible = points_2d_visible[idx]
         lines_2d =[(points_2d_visible[p,0],points_2d_visible[p,1],points_2d_visible[p+1,0],points_2d_visible[p+1,1]) for p in range(len(points_2d_visible)-1)]
         image_result = tools_draw_numpy.draw_lines(image,lines_2d,color=color,w=2)
 
@@ -211,7 +218,10 @@ def draw_points_numpy_MVP_GL(points_3d, img, mat_projection, mat_view, mat_model
         points_2d, jac = tools_pr_geom.project_points(L3D, numpy.array((0, 0, 0)), numpy.array((0, 0, 0)), camera_matrix_3x3, numpy.zeros(4))
         points_2d = points_2d.reshape((-1,2))
         points_2d[:, 0] = img.shape[1] - points_2d[:, 0]
-        for point in points_2d:img = tools_draw_numpy.draw_circle(img, int(point[1]), int(point[0]), w, color)
+        for point in points_2d:
+            if numpy.any(numpy.isnan(point)):continue
+            if numpy.any(numpy.isinf(point)): continue
+            img = tools_draw_numpy.draw_circle(img, int(point[1]), int(point[0]), w, color)
 
     if do_debug:
         posx,posy = img.shape[1]-250,0
@@ -246,6 +256,8 @@ def draw_lines_numpy_MVP(lines_3d, img, mat_projection, mat_view, mat_model, mat
     points_2d_end = tools_pr_geom.project_points_MVP(lines_3d[:, 3:], img, mat_projection, mat_view, mat_model, mat_trns)
 
     for point_start, point_end in zip(points_2d_start, points_2d_end):
+        if numpy.any(numpy.isnan(point_start)) or numpy.any(numpy.isnan(point_end)):continue
+        if numpy.any(numpy.isinf(point_start)) or numpy.any(numpy.isinf(point_end)): continue
         cv2.line(img, (int(point_start[0]), int(point_start[1])), (int(point_end[0]), int(point_end[1])), color,thickness=w)
 
     return img

@@ -172,8 +172,13 @@ def get_colors(N, shuffle = False,colormap = 'jet',alpha_blend=None):
         colors = numpy.array([(int(255 * i / (N - 1)), int(255 * i / (N - 1)), int(255 * i / (N - 1))) for i in range(N)])
         colors = [gre2viridis(c) for c in colors]
 
-    else:
+    elif colormap == 'gray':
         colors = numpy.array([(int(255 * i / (N - 1)), int(255 * i / (N - 1)), int(255 * i / (N - 1))) for i in range(N)])
+
+    else:
+        grays = numpy.array([(int(255 * i / (N - 1)), int(255 * i / (N - 1)), int(255 * i / (N - 1))) for i in range(N)])
+        colors = [tools_image.gre2colormap(c,colormap) for c in grays]
+
 
     if alpha_blend is not None:
         colors = [((alpha_blend) * numpy.array((255, 255, 255)) + (1 - alpha_blend) * numpy.array(color)) for color in colors]
