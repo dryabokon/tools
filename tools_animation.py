@@ -46,6 +46,7 @@ def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png', frame
     filenames = tools_IO.get_filenames(path_input,mask)
 
     bar = progressbar.ProgressBar(max_value=len(filenames))
+    bar.start()
     for b, filename_in in enumerate(filenames):
         bar.update(b)
         image = cv2.imread(path_input+filename_in)
@@ -69,11 +70,9 @@ def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png', frame
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
-def folder_to_video(folder_in, filename_out, mask='*.jpg', framerate=24, resize_W=None, resize_H=None, do_reverce=False):
+def folder_to_video(folder_in, filename_out, mask='*.jpg', framerate=24, resize_W=None, resize_H=None, do_reverce=False,silent=False):
     fileslist = tools_IO.get_filenames(folder_in,mask)
     fileslist.sort()
-
-    print(len(fileslist))
 
     if resize_W is None or resize_H is None:
         image = cv2.imread(os.path.join(folder_in, fileslist[0]))
@@ -82,10 +81,12 @@ def folder_to_video(folder_in, filename_out, mask='*.jpg', framerate=24, resize_
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(filename_out,fourcc, framerate, (resize_W,resize_H))
 
-    bar = progressbar.ProgressBar(len(fileslist))
-    bar.start()
+    if not silent:
+        bar = progressbar.ProgressBar(len(fileslist))
+        bar.start()
     for b,filename in enumerate(fileslist):
-        bar.update(b)
+        if not silent:
+            bar.update(b)
         image = cv2.imread(os.path.join(folder_in, filename))
         if resize_W is not None and resize_H is not None:
             image = cv2.resize(image,(resize_W,resize_H),interpolation=cv2.INTER_CUBIC)
