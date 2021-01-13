@@ -93,7 +93,7 @@ def fit_homography(X_source,X_target,method = cv2.RANSAC,do_debug=True):
     loss =  ((result-X_target)**2).mean()
     if do_debug:
         image_debug = debug_projection(X_source, X_target, result)
-        cv2.imwrite('./images/output/image_dbug.png',image_debug)
+        #cv2.imwrite('./images/output/image_dbug.png',image_debug)
 
     return H, result
 # ----------------------------------------------------------------------------------------------------------------------
@@ -132,6 +132,10 @@ def fit_regression(X_source,X_target,do_debug=None):
     return H,result
 # ----------------------------------------------------------------------------------------------------------------------
 def fit_pnp(landmarks_3d,landmarks_2d,mat_camera_3x3,dist=numpy.zeros(5)):
+
+    if len(landmarks_3d)<=3:
+        return None,None,None
+
     (_, r_vec, t_vec) = cv2.solvePnP(landmarks_3d, landmarks_2d,mat_camera_3x3, dist)
     landmarks_2d_check, jac = cv2.projectPoints(landmarks_3d, r_vec, t_vec, mat_camera_3x3, dist)
     landmarks_2d_check = numpy.reshape(landmarks_2d_check, (-1, 2))
