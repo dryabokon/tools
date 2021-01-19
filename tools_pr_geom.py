@@ -202,6 +202,40 @@ def fit_manual(X3D,target_2d,fx, fy,xref=None,lref=None,do_debug=True):
 
     return M
 # ----------------------------------------------------------------------------------------------------------------------
+def fit_R(points_3d,points_2d,camera_matrix,rvec,tvec):
+
+    #empty = numpy.full((1080,1920,3),32,dtype=numpy.uint8)
+
+    a_roll_deg = 0
+    range_pitch = numpy.arange(-2,2,0.1)
+    range_yaw = [0]#numpy.arange(-2, 2, 0.1)
+
+    g_loss = None
+    g_r = None
+
+    tvec_new = numpy.array((0,0,0))
+    #tvec_new = numpy.array(tvec).flatten()
+
+    for a_pitch_deg in range_pitch:
+        for a_yaw_deg in range_yaw:
+            r = numpy.array(rvec).flatten() + numpy.array((a_pitch_deg*numpy.pi/180,a_yaw_deg*numpy.pi/180,a_roll_deg*numpy.pi/180))
+            points_2d_cand,err = project_points(points_3d, r, tvec_new, camera_matrix,numpy.zeros(5))
+            loss = ((points_2d_cand-points_2d)**2).sum()
+            if g_loss is None or loss<g_loss:
+                g_loss = loss
+                g_r = r
+
+            # image_result = tools_draw_numpy.draw_points(empty, points_2d_cand, color=(0, 128, 255), w=16)
+            # image_result = tools_draw_numpy.draw_points(image_result, points_2d, color=(0, 0, 255), w=8)
+            # cv2.imwrite('D:/Soccer/output/xxx_%1.3f.png' % (180 + a_yaw_deg), image_result)
+
+    points_2d_cand, err = project_points(points_3d, g_r, tvec_new, camera_matrix, numpy.zeros(5))
+    # image_result = tools_draw_numpy.draw_points(empty, points_2d_cand, color=(0, 128, 255), w=16)
+    # image_result = tools_draw_numpy.draw_points(image_result, points_2d, color=(0, 0, 255), w=8)
+    # cv2.imwrite('D:/Soccer/output/yyy_%04d.png'%camera_matrix[0,0], image_result)
+
+    return g_r,tvec_new,points_2d_cand
+# ----------------------------------------------------------------------------------------------------------------------
 def compose_projection_mat_3x3(fx, fy, fov_x=0.5, fov_y=0.5):
     f = 0.5*fx/(fov_x)
     mat_camera = numpy.array([[f, 0., fx/2], [0., f, fy/2], [0., 0., 1.]])
@@ -577,7 +611,25 @@ def project_points_MVP(points_3d, img, mat_projection, mat_view, mat_model, mat_
 
     return points_2d
 # ----------------------------------------------------------------------------------------------------------------------
-def project_points(points_3d, rvec, tvec, camera_matrix_3x3, dist):
+def project_points_MVP_GL(points_3d, img, mat_projection, mat_view, mat_model, mat_trns):
+
+    camera_matrix_3x3 = compose_projection_mat_3x3(img.shape[1], img.shape[0], 1 / mat_projection[0][0],1 / mat_projection[1][1])
+
+    M0 = pyrr.matrix44.multiply(mat_view.T,pyrr.matrix44.multiply(mat_model.T,mat_trns.T))
+    X4D = numpy.hstack((points_3d,numpy.full((len(points_3d),1),1)))
+    L3D = pyrr.matrix44.multiply(M0, X4D.T).T[:,:3]
+
+    #opencv equivalent
+    #points_2d, jac = cv2.projectPoints(           L3D, numpy.array((0, 0, 0)), numpy.array((0, 0, 0)), camera_matrix_3x3, numpy.zeros(4,dtype=float))
+
+    points_2d, jac = project_points(L3D, numpy.array((0, 0, 0)), numpy.array((0, 0, 0)), camera_matrix_3x3, numpy.zeros(4))
+    points_2d = points_2d.reshape((-1,2))
+    points_2d[:, 0] = img.shape[1] - points_2d[:, 0]
+
+    return points_2d
+# ----------------------------------------------------------------------------------------------------------------------
+
+def project_points(points_3d, rvec, tvec, camera_matrix_3x3, dist=numpy.zeros(5)):
     #https: // docs.opencv.org / 2.4 / modules / calib3d / doc / camera_calibration_and_3d_reconstruction.html
 
     P = compose_projection_mat_4x4(camera_matrix_3x3[0,0],camera_matrix_3x3[1,1],camera_matrix_3x3[0,2]/camera_matrix_3x3[0,0],camera_matrix_3x3[1, 2] / camera_matrix_3x3[1,1])
@@ -639,7 +691,7 @@ def reverce_project_points_Z0(points_2d, rvec, tvec, camera_matrix_3x3, dist):
 
     return points_3d
 # ----------------------------------------------------------------------------------------------------------------------
-def project_points_M(points_3d, RT, camera_matrix_3x3, dist):
+def project_points_M(points_3d, RT, camera_matrix_3x3, dist=numpy.zeros(5),do_flip=False):
     # RT shoule be Transformed !!!
     if camera_matrix_3x3.shape[0]==3 and camera_matrix_3x3.shape[1]==3:
         P = compose_projection_mat_4x4(camera_matrix_3x3[0,0],camera_matrix_3x3[1,1],camera_matrix_3x3[0,2]/camera_matrix_3x3[0,0],camera_matrix_3x3[1, 2] / camera_matrix_3x3[1,1])
@@ -653,6 +705,9 @@ def project_points_M(points_3d, RT, camera_matrix_3x3, dist):
     points_2d[:, 0] = points_2d[:, 0] / points_2d[:, 2]
     points_2d[:, 1] = points_2d[:, 1] / points_2d[:, 2]
     points_2d = numpy.array(points_2d,dtype=numpy.float32)[:, :2].reshape((-1,2))
+
+    if do_flip:
+        points_2d[:, 0] = camera_matrix_3x3[0,0] - points_2d[:, 0]
 
     return points_2d
 # ----------------------------------------------------------------------------------------------------------------------

@@ -212,14 +212,15 @@ class Calibrator(object):
         uu=0
         return Xt
 # ----------------------------------------------------------------------------------------------------------------------
-    def evaluate_fov(self, filename_image, filename_points, a_min=0.4, a_max=0.41, list_of_R = [], virt_obj=None, do_debug = False):
+    def evaluate_fov(self, filename_image, filename_points, a_min=0.4, a_max=0.41, do_shift=True, zero_tvec = False, list_of_R = [], virt_obj=None, do_debug = False):
 
         base_name = filename_image.split('/')[-1].split('.')[0]
         image = cv2.imread(filename_image)
         W,H = image.shape[1], image.shape[0]
         gray = tools_image.desaturate(image)
-        points_2d_all, points_gps_all,IDs = self.load_points(filename_points)
-        points_xyz = self.shift_scale(points_gps_all, points_gps_all[0])
+        points_2d_all, points_xyz,IDs = self.load_points(filename_points)
+        if do_shift:
+            points_xyz = self.shift_scale(points_xyz, points_xyz[0])
         points_xyz, points_2d = points_xyz[1:], points_2d_all[1:]
         if len(points_xyz)<=3:
             return numpy.nan,numpy.full(3,numpy.nan),numpy.full(3,numpy.nan)
@@ -230,6 +231,10 @@ class Calibrator(object):
         for a_fov in a_fovs:
             camera_matrix = tools_pr_geom.compose_projection_mat_3x3(W, H, a_fov, a_fov)
             rvec, tvec, points_2d_check = tools_pr_geom.fit_pnp(points_xyz, points_2d, camera_matrix, numpy.zeros(5))
+
+            if zero_tvec:
+                rvec,tvec,points_2d_check = tools_pr_geom.fit_R(points_xyz,points_2d,camera_matrix,rvec,tvec)
+
             err.append(numpy.sqrt(((points_2d_check-points_2d)**2).sum()/len(points_2d)))
             rvecs.append(rvec.flatten())
             tvecs.append(tvec.flatten())
@@ -242,7 +247,7 @@ class Calibrator(object):
                 color_markup = (159, 206, 255)
                 if i==idx_best:color_markup = (0,128,255)
                 camera_matrix = tools_pr_geom.compose_projection_mat_3x3(W, H, a_fovs[i], a_fovs[i])
-                points_2d_check, jac = cv2.projectPoints(points_xyz, rvecs[i], tvecs[i], camera_matrix, numpy.zeros(5))
+                points_2d_check, jac = tools_pr_geom.project_points(points_xyz, rvecs[i], tvecs[i], camera_matrix, numpy.zeros(5))
                 image_AR = tools_draw_numpy.draw_ellipses(gray, [((p[0], p[1]), (25, 25), 0) for p in points_2d],color=(0, 0, 190), w=4)
                 image_AR = tools_draw_numpy.draw_points(image_AR, points_2d_check.reshape((-1,2)), color=color_markup, w=8)
                 for rad in list_of_R:
@@ -270,7 +275,7 @@ class Calibrator(object):
 
         return a_pitch_deg, a_yaw_deg, a_roll_deg
 # ----------------------------------------------------------------------------------------------------------------------
-    def evaluate_matrices_GL(self, image, rvec, tvec, a_fov, virt_obj=None, do_debug=False):
+    def evaluate_matrices_GL(self, image, rvec, tvec, a_fov, points_3d=None,virt_obj=None, do_debug=False):
 
         if numpy.any(numpy.isnan(rvec)) or numpy.any(numpy.isnan(tvec)):return numpy.full((4,4),numpy.nan), numpy.full((4,4),numpy.nan), numpy.full((4,4),numpy.nan)
         H,W = image.shape[:2]
@@ -283,19 +288,10 @@ class Calibrator(object):
         mat_projection = tools_pr_geom.compose_projection_mat_4x4_GL(W, H, a_fov, a_fov)
         T = numpy.matmul(mRT, imR)
 
-        T_forced = tools_pr_geom.compose_RT_mat((0,0,0), (0, -65, 20), do_rodriges=True, do_flip=False, GL_style=True)
-        mR_forced = numpy.matmul((numpy.matmul(T, numpy.linalg.inv(T_forced))),mR)
-
-
         if do_debug:
             import tools_GL3D
             cuboid_3d = self.construct_cuboid_v0(virt_obj)
             gray = tools_image.desaturate(cv2.resize(image, (W, H)))
-
-            checksum_0 = tools_pr_geom.apply_matrix_GL(mRT, cuboid_3d)
-            checksum_1 = tools_pr_geom.apply_matrix_GL(numpy.matmul(mR, T), cuboid_3d)
-            checksum_2 = tools_pr_geom.apply_matrix_GL(numpy.matmul(mR_forced, T_forced), cuboid_3d)
-
 
             filename_obj = self.folder_out + 'temp.obj'
             self.save_obj_file(filename_obj, virt_obj)
@@ -304,15 +300,14 @@ class Calibrator(object):
 
             cv2.imwrite(self.folder_out + 'AR0_GL_m1.png', R.get_image_perspective(rvec, tvec, a_fov, a_fov, mat_view_to_1=False, do_debug=True))
             cv2.imwrite(self.folder_out + 'AR0_GL_v1.png', R.get_image_perspective(rvec, tvec, a_fov, a_fov, mat_view_to_1=True, do_debug=True))
-            cv2.imwrite(self.folder_out + 'AR0_CV.png',tools_render_CV.draw_cube_numpy_MVP_GL(gray, mat_projection, numpy.eye(4), mRT,numpy.eye(4), points_3d=cuboid_3d))
+            cv2.imwrite(self.folder_out + 'AR0_CV_cube.png',tools_render_CV.draw_cube_numpy_MVP_GL(gray, mat_projection, numpy.eye(4), mRT,numpy.eye(4), points_3d=cuboid_3d))
+            cv2.imwrite(self.folder_out + 'AR0_CV_pnts.png',tools_render_CV.draw_points_numpy_MVP_GL(points_3d,gray, mat_projection, numpy.eye(4), mRT, numpy.eye(4),w = 8))
+
+            #cv2.imwrite(self.folder_out + 'AR1_CV_pnts.png',tools_render_CV.draw_points_numpy_MVP_GL(points_3dt, gray, mat_projection, numpy.eye(4), mR,numpy.eye(4), w=8))
             cv2.imwrite(self.folder_out + 'AR1_CV.png',tools_render_CV.draw_cube_numpy_MVP_GL(gray, mat_projection, mR, numpy.eye(4), T,points_3d=cuboid_3d))
             cv2.imwrite(self.folder_out + 'AR1_GL.png',R.get_image(mat_view=numpy.eye(4),mat_model=mR,mat_trans=T,do_debug=True))
 
-            cv2.imwrite(self.folder_out + 'AR2_CV.png',tools_render_CV.draw_cube_numpy_MVP_GL(gray, mat_projection, mR_forced, numpy.eye(4), T_forced,points_3d=cuboid_3d))
-            cv2.imwrite(self.folder_out + 'AR2_GL.png',R.get_image(mat_view=numpy.eye(4), mat_model=mR_forced, mat_trans=T_forced, do_debug=True))
-
-        return numpy.eye(4),mR_forced, T_forced
-        #return #numpy.eye(4),mR, T
+        return numpy.eye(4),mR, T
 # ----------------------------------------------------------------------------------------------------------------------
     def evaluate_K_chessboard(self,folder_in):
 

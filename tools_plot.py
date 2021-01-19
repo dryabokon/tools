@@ -393,7 +393,6 @@ def plot_2D_scores(plt,fig,filename_data_pos,filename_data_neg,filename_data_gri
         plt.savefig(filename_out)
 
     return
-
 # ----------------------------------------------------------------------------------------------------------------------
 def display_roc_curve_from_descriptions(plt,figure,filename_scores_pos, filename_scores_neg,delim=' ',caption='',inverse_score=0,filename_out=None):
 
@@ -461,8 +460,6 @@ def display_roc_curve_from_descriptions(plt,figure,filename_scores_pos, filename
         plot_tp_fp(plt,figure,tpr, fpr,roc_auc,caption,filename_out)
     else:
         plot_tp_fp(plt, figure, fpr, tpr, 1-roc_auc,caption,filename_out)
-
-
 # ----------------------------------------------------------------------------------------------------------------------
 def display_distributions(plt,fig,path_scores1, path_scores2,delim=' ',inverse_score=0,filename_out=None):
     scores1 = []
@@ -605,26 +602,14 @@ def plot_feature_importance(plt,fig,X,Y,header,filename_out=None):
 
     model = XGBClassifier()
     model.fit(X, Y)
-
-    keys, values = [],[]
-
     feature_importances = model.get_booster().get_score()
-    for k, v in feature_importances.items():
-        keys.append(k)
-        values.append(v)
-
-
-
-    values = numpy.array(values)
+    values = numpy.array([ v[1] for v in feature_importances.items()])
     idx = numpy.argsort(-values)
-    keys = numpy.array(keys)[idx]
-    values = values[idx]
-    header = header[idx]
+    values,header = values[idx],header[idx]
 
     N=5
     ax = fig.gca()
     ax.pie(values[:N],  labels=header[:N], autopct='%1.1f%%',shadow=False, startangle=90)
-    #plt.set_title('Feature importance')
     if filename_out is not None:
         plt.savefig(filename_out)
 

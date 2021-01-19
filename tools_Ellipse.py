@@ -258,6 +258,11 @@ class Ellipse_Processor(object):
 
         X, success = tools_IO.load_if_exists(self.folder_cache,base_name , '_ellipse.dat')
         if (not do_debug) and success:
+            if X is not None and len(X)>=1:
+                if len(X[0])==3:
+                    X = X[0]
+            else:
+                X = None
             return X
 
 

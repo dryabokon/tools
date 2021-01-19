@@ -297,7 +297,7 @@ def draw_points(image, points,color=(255,255,255),w=4,put_text=False,labels=None
 
         cv2.circle(result, (int(x1), int(y1)), w, clr,thickness=-1)
         if put_text:
-            cv2.putText(result, '{0}'.format(id), (min(W - 10, max(10, x1)), min(H - 5, max(10, y1))),cv2.FONT_HERSHEY_SIMPLEX, 0.6, clr, 1, cv2.LINE_AA)
+            cv2.putText(result, '{0}'.format(id), (min(W - 10, max(10, x1)), min(H - 5, max(10, y1))),cv2.FONT_HERSHEY_SIMPLEX, 1*w/12, clr, 1, cv2.LINE_AA)
 
         if labels is not None:
             cv2.putText(result, '{0}'.format(labels[id]), (min(W - 10, max(10, x1)), min(H - 5, max(10, y1))),cv2.FONT_HERSHEY_SIMPLEX, 0.6, clr, 1, cv2.LINE_AA)
@@ -390,8 +390,9 @@ def draw_cuboid(image, points_2d, lines_idx = None, color=(255, 255, 255), w=2, 
     idx_face = [0,1,2,3]
 
     result = draw_convex_hull(image, points_2d, color, transperency=0.80)
-    result = draw_convex_hull(result, points_2d[idx_face], color, transperency=0.70)
+    result = draw_convex_hull(result, points_2d[idx_face], color, transperency=0.60)
     result = draw_lines(result, numpy.array(lines), color, w)
+    result = draw_lines(result, numpy.array(lines)[idx_face], color, w+4)
     if put_text:
         result = draw_points(result, points_2d, color, put_text=put_text)
 
