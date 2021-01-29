@@ -15,6 +15,7 @@ from matplotlib.colors import LinearSegmentedColormap
 import tools_IO
 import tools_draw_numpy
 # ----------------------------------------------------------------------------------------------------------------------
+
 def plot_tp_fp(plt,fig,tpr,fpr,roc_auc,caption='',filename_out=None):
 
     #ax = fig.gca()
@@ -598,23 +599,7 @@ def plot_features_PCA(plt,features,Y,patterns,filename_out=None):
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def plot_feature_importance(plt,fig,X,Y,header,filename_out=None):
 
-    model = XGBClassifier()
-    model.fit(X, Y)
-    feature_importances = model.get_booster().get_score()
-    values = numpy.array([ v[1] for v in feature_importances.items()])
-    idx = numpy.argsort(-values)
-    values,header = values[idx],header[idx]
-
-    N=5
-    ax = fig.gca()
-    ax.pie(values[:N],  labels=header[:N], autopct='%1.1f%%',shadow=False, startangle=90)
-    if filename_out is not None:
-        plt.savefig(filename_out)
-
-    return
-# ----------------------------------------------------------------------------------------------------------------------
 def plot_corelation(plt,fig,X,Y,header):
 
     N = X.shape[1]

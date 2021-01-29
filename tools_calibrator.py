@@ -120,10 +120,10 @@ class Calibrator(object):
 
         return image_AR
 # ----------------------------------------------------------------------------------------------------------------------
-    def BEV_points(self, image, filename_points, do_shift_scale, target_W, target_H, list_of_R=None,filename_points_cuboids=None):
+    def BEV_points(self, image, filename_points, do_shift_scale, target_W, target_H, dots_pr_meter =None,draw_points = True, list_of_R=None,cuboids_3d =None, points_2d = None):
 
         factor = 1.2
-        gray = tools_image.desaturate(image)
+        gray = tools_image.desaturate(image,level=0.5)
         empty = numpy.full((target_H, target_W, 3), (255, 255, 255), dtype=numpy.uint8)
         image_R = empty.copy()
 
@@ -131,19 +131,25 @@ class Calibrator(object):
         if do_shift_scale: marker_xy = self.shift_scale(marker_xy, marker_xy[0])
 
         scale, shift1, shift2, do_flip_v, shift_h = self.get_adjustment_params(marker_xy[:, :2], target_W, target_H)
+        if dots_pr_meter is not None:
+            scale=1/dots_pr_meter
         marker_xy = self.adjust_2d(marker_xy[:, :2], target_W, target_H, scale, shift1, shift2, do_flip_v, shift_h)
         marker_xy_ext = tools_draw_numpy.extend_view(marker_xy, target_H, target_W, factor)
 
-        if filename_points_cuboids is not None:
-            cuboids_2d, cuboids_3d, cuboid_IDs = self.load_points(filename_points_cuboids)
-            cuboids_2d, cuboids_3d, cuboid_IDs = cuboids_2d[1:], cuboids_3d[1:], cuboid_IDs[1:]
-            cuboids_xy = self.adjust_2d(cuboids_3d[:, :2], target_W, target_H, scale, shift1, shift2, do_flip_v,shift_h)
-            cuboids_xy_ext = tools_draw_numpy.extend_view(cuboids_xy, target_H, target_W, factor)
-        else:
-            cuboids_xy_ext, cuboid_IDs = [], []
+        cuboids_xy_ext, cuboid_IDs = [], []
+        if cuboids_3d is not None:
+            for i, each in enumerate(cuboids_3d.XYZs):
+                cuboid_3d = each.reshape((-1,3))[:4,[0,2,1]]
+                cuboid_3d[:,0]*=-1
+                cuboid_xy = self.adjust_2d(cuboid_3d[:, :2], target_W, target_H, scale, shift1, shift2, do_flip_v,shift_h)
+                cuboids_xy_ext.append(tools_draw_numpy.extend_view(cuboid_xy, target_H, target_W, factor))
+                cuboid_IDs.append(i)
 
-        colors_ln = tools_draw_numpy.get_colors(len(list_of_R), colormap=self.colormap_circles)[::-1]
+            cuboid_IDs = numpy.array(cuboid_IDs)
+            cuboids_xy_ext = numpy.array(cuboids_xy_ext)
+
         if list_of_R is not None and len(list_of_R) > 0:
+            colors_ln = tools_draw_numpy.get_colors(len(list_of_R), colormap=self.colormap_circles)[::-1]
             RR = -numpy.sort(-numpy.array(list_of_R).flatten())
             center_ext = tools_draw_numpy.extend_view(marker_xy[0], target_H, target_W, factor)[0]
             colors_GB = numpy.arange(180, 255, (255 - 180) / len(list_of_R))[::-1]
@@ -152,25 +158,50 @@ class Calibrator(object):
                 image_R = tools_draw_numpy.draw_circle(image_R, center_ext[1], center_ext[0], rad / scale / factor,color_bg, alpha_transp=0)
                 ellipse = ((center_ext[0], center_ext[1]), ((2 * rad / scale / factor), 2 * rad / scale / factor), 0)
                 image_R = tools_draw_numpy.draw_ellipses(image_R, [ellipse], color=color_ln.tolist(), w=1)
+        else:
+            colors_ln = tools_draw_numpy.get_colors(1, colormap=self.colormap_circles)[::-1]
 
         H = self.derive_homography(marker_2d[1:], marker_xy[1:])
         image_warped = cv2.warpPerspective(gray, H, (target_W, target_H), borderValue=(255, 255, 255))
         image_warped = tools_draw_numpy.extend_view_from_image(image_warped, factor=factor,color_bg=(255, 255, 255))
-
         image_BEV = tools_image.put_layer_on_image(image_R, image_warped, (255, 255, 255))
-        image_BEV = tools_draw_numpy.draw_points(image_BEV, marker_xy_ext[:1], color=colors_ln[-1].tolist(), w=8)
+
+        points_2d_ext, points_IDs = [], []
+        if points_2d is not None:
+            for i, each in enumerate(points_2d.XYs):
+                point_xy = cv2.perspectiveTransform(each.reshape((-1, 1, 2)).astype(numpy.float32), H).reshape((-1, 2))
+                points_2d_ext.append(tools_draw_numpy.extend_view(point_xy, target_H, target_W, factor))
+                points_IDs.append(i)
+
+            points_IDs = numpy.array(points_IDs)
+            points_2d_ext = numpy.array(points_2d_ext)
+
+
+        if draw_points:
+            image_BEV = tools_draw_numpy.draw_points(image_BEV, marker_xy_ext[:1], color=colors_ln[-1].tolist(), w=8)
 
         if len(cuboid_IDs) > 0:
             col_obj = tools_draw_numpy.get_colors(len(numpy.unique(cuboid_IDs)), colormap=self.colormap_objects)
             for i, id in enumerate(numpy.unique(cuboid_IDs)):
-                p = cuboids_xy_ext[cuboid_IDs == id]
-                image_BEV = tools_draw_numpy.draw_convex_hull(image_BEV, p, color=col_obj[i].tolist())
-        else:
+                p = cuboids_xy_ext[cuboid_IDs == id][0]
+                image_BEV = tools_draw_numpy.draw_contours(image_BEV, p, color_fill=col_obj[i].tolist(),color_outline=col_obj[i].tolist(),transp_fill=0.3,transp_outline=1.0)
+                image_BEV = tools_draw_numpy.draw_lines(image_BEV, numpy.array([[p[0,0],p[0,1],p[1,0],p[1,1]]]),color=col_obj[i].tolist(),w=5)
+
+        if len(points_IDs) > 0:
+            col_obj = tools_draw_numpy.get_colors(len(numpy.unique(points_IDs)), colormap=self.colormap_objects)
+            for i, id in enumerate(numpy.unique(points_IDs)):
+                p = points_2d_ext[points_IDs == id][0]
+                if len(p)==1:
+                    image_BEV = tools_draw_numpy.draw_points(image_BEV, p,col_obj[i].tolist(),w=12)
+                else:
+                    image_BEV = tools_draw_numpy.draw_contours(image_BEV, p, color_fill=col_obj[i].tolist(),color_outline=col_obj[i].tolist(), transp_fill=0.3,transp_outline=1.0)
+
+
+        if draw_points:
             labels = ['ID %02d: %2.1f,%2.1f' % (pid, p[0], p[1]) for pid, p in zip(IDs, marker_xy)]
             image_BEV = tools_draw_numpy.draw_ellipses(image_BEV,[((p[0], p[1]), (25, 25), 0) for p in marker_xy_ext[1:]],color=(0, 0, 190), w=4, labels=labels[1:])
 
         return image_BEV
-
 # ----------------------------------------------------------------------------------------------------------------------
     def save_obj_file(self, filename_out,flat_obj=(-1, -1, 0, +1, +1, 0)):
         import tools_wavefront
@@ -192,7 +223,7 @@ class Calibrator(object):
         yy=0
         return  points_3d
 # ----------------------------------------------------------------------------------------------------------------------
-    def construct_cuboid(self, dim,tvec,rvec):
+    def construct_cuboid(self, dim,rvec,tvec):
         d0, d1, d2 = dim[0], dim[1], dim[2]
 
         #x_corners = [+d0/2, +d0/2, -d0/2, -d0/2, +d0/2, +d0/2, -d0/2, -d0/2]
@@ -347,7 +378,7 @@ class Calibrator(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def derive_cuboid_3d(self, mat_camera_3x3, r_vec, t_vec, points_2D,LWH, base_name=None, do_debug=False):
+    def derive_cuboid_3d(self, mat_camera_3x3, r_vec, t_vec, points_2D,LWH, base_name='', do_debug=False):
 
         target_centr_top = numpy.mean(points_2D[[0, 2, 4, 6]], axis=0)
         target_centr_bottom = numpy.mean(points_2D[[1, 3, 5, 7]], axis=0)

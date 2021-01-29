@@ -83,12 +83,13 @@ def fit_affine(X_source,X_target,do_debug=False):
         image = debug_projection(X_source, X_target, result)
     return A, result
 # ----------------------------------------------------------------------------------------------------------------------
-def fit_homography(X_source,X_target,method = cv2.RANSAC,do_debug=True):
+def fit_homography(X_source,X_target,method = cv2.RANSAC,do_debug=False):
 
     #method = cv2.LMEDS
     #method = cv2.RHO
     H, mask = cv2.findHomography(X_source, X_target, method, 3.0)
-    result  = cv2.perspectiveTransform(X_source.reshape((-1, 1, 2)),H).reshape((-1,2))
+    xxx = X_source.reshape((-1, 1, 2)).astype(numpy.float32)
+    result  = cv2.perspectiveTransform(xxx,H).reshape((-1,2))
 
     loss =  ((result-X_target)**2).mean()
     if do_debug:
@@ -679,13 +680,19 @@ def reverce_project_points_Z0(points_2d, rvec, tvec, camera_matrix_3x3, dist):
     M = pyrr.matrix44.multiply(T, R)
     PM = pyrr.matrix44.multiply(P, M)
 
+    points_3d = reverce_project_points_Z0_M(points_2d, PM)
+
+    return points_3d
+# ----------------------------------------------------------------------------------------------------------------------
+def reverce_project_points_Z0_M(points_2d, PM):
+
     points_3d = []
-    for (i,j) in points_2d:
-        A = numpy.array((((PM[0,0]-i*PM[2,0]),(PM[0,1]-i*PM[2,1])),((PM[1,0]-j*PM[2,0]),(PM[1,1]-j*PM[2,1]))))
+    for (i, j) in points_2d:
+        A = numpy.array((((PM[0, 0] - i * PM[2, 0]), (PM[0, 1] - i * PM[2, 1])),((PM[1, 0] - j * PM[2, 0]), (PM[1, 1] - j * PM[2, 1]))))
         iA = numpy.linalg.inv(A)
-        b = numpy.array(((i*PM[2,3]-PM[0,3]),(j*PM[2,3]-PM[1,3])))
+        b = numpy.array(((i * PM[2, 3] - PM[0, 3]), (j * PM[2, 3] - PM[1, 3])))
         xx = iA.dot(b)
-        points_3d.append((xx[0],xx[1],0))
+        points_3d.append((xx[0], xx[1], 0))
 
     points_3d = numpy.array(points_3d)
 

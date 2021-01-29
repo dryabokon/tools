@@ -46,7 +46,7 @@ def draw_classes_on_image(image, boxes_yxyx, scores, color,draw_score=False):
         bottom = min(image.shape[0], numpy.floor(bottom + 0.5).astype('int32'))
         right = min(image.shape[1], numpy.floor(right + 0.5).astype('int32'))
 
-        image = tools_draw_numpy.draw_rect(image, top, left, bottom,right,  color, alpha_transp=1.0-score)
+        image = tools_draw_numpy.draw_rect(image, left,top,right,bottom, color, alpha_transp=1.0-score)
         if draw_score==True:
             position = top - 6 if top - 6 > 10 else top + 26
             cv2.putText(image, '{0:.2f}'.format(score), (left + 4, position), cv2.FONT_HERSHEY_SIMPLEX,0.4, color, 1, cv2.LINE_AA)

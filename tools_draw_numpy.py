@@ -1,4 +1,5 @@
 import cv2
+import cv2
 import numpy
 import matplotlib.cm as cm
 from scipy.spatial import ConvexHull
@@ -50,14 +51,22 @@ def draw_line(array_bgr, row1, col1, row2, col2, color_bgr, alpha_transp=0.0):
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_rect(array_bgr, row_up, col_left, row_down, col_right, color_bgr, alpha_transp=0):
-    res_rgb = array_bgr.copy()
-    res_rgb = draw_line(res_rgb, row_up  , col_left , row_up  , col_right, color_bgr, alpha_transp)
-    res_rgb = draw_line(res_rgb, row_up  , col_right, row_down, col_right, color_bgr, alpha_transp)
-    res_rgb = draw_line(res_rgb, row_down, col_right, row_down, col_left , color_bgr, alpha_transp)
-    res_rgb = draw_line(res_rgb, row_down, col_left , row_up  , col_left , color_bgr, alpha_transp)
-    return res_rgb
 
+def draw_rect(image, col_left, row_up, col_right, row_down, color, w=2, alpha_transp=0.8):
+
+    lines = numpy.array(((col_left, row_up, col_left, row_down),(col_left, row_down, col_right, row_down),(col_right, row_down, col_right, row_up),(col_right, row_up,col_left,row_up)))
+    points_2d = numpy.array(((col_left, row_up),(col_left, row_down),(col_right, row_down),(col_right, row_up)))
+    result = draw_convex_hull(image, points_2d, color, transperency=alpha_transp)
+    result = draw_lines(result, lines, color=color, w=w)
+
+    return result
+
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_rects(image, rects, color, w=2, alpha_transp=0.8):
+    for r in rects:
+        image = draw_rect(image,r[0,0], r[0,1], r[1,0], r[1,1], color, w, alpha_transp)
+
+    return image
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_contours_cv(image, points, color=(255,255,255),transperency=0.0):
 
@@ -121,20 +130,6 @@ def draw_convex_hull(image,points,color=(255, 0, 0),transperency=0.0):
         del draw
     except:
         return image
-    return result
-# ----------------------------------------------------------------------------------------------------------------------
-def draw_rectangle(image,p1,p2,color=(255, 0, 0),transperency=0.0):
-
-    pImage = Image.fromarray(image)
-    if len((image.shape)) == 3:
-        draw = ImageDraw.Draw(pImage, 'RGBA')
-        draw.rectangle((p1,p2), fill=(color[0], color[1], color[2], int(transperency * 255)),outline= (color[0], color[1], color[2],255))
-    else:
-        draw = ImageDraw.Draw(pImage)
-        draw.rectangle((p1, p2))
-
-    result = numpy.array(pImage)
-    del draw
     return result
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_ellipse(image,p,color=(255, 0, 0),transperency=0.0):
@@ -377,7 +372,7 @@ def draw_signals_lines(signals,colors=None,w=3):
 
     return image_signal
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_cuboid(image, points_2d, lines_idx = None, color=(255, 255, 255), w=2, put_text=False):
+def draw_cuboid(image, points_2d, lines_idx = None, color=(255, 255, 255), w=1, put_text=False):
 
     if lines_idx is None:
         lines_idx  = [(1,0),(0,2),(2,3),(3,1), (7,6),(6,4),(4,5),(5,7), (1,0),(0,6),(6,7),(7,1), (3,2),(2,4),(4,5),(5, 3)]
@@ -392,7 +387,7 @@ def draw_cuboid(image, points_2d, lines_idx = None, color=(255, 255, 255), w=2, 
     result = draw_convex_hull(image, points_2d, color, transperency=0.80)
     result = draw_convex_hull(result, points_2d[idx_face], color, transperency=0.60)
     result = draw_lines(result, numpy.array(lines), color, w)
-    result = draw_lines(result, numpy.array(lines)[idx_face], color, w+4)
+    result = draw_lines(result, numpy.array(lines)[idx_face], color, w+1)
     if put_text:
         result = draw_points(result, points_2d, color, put_text=put_text)
 
