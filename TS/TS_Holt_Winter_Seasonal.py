@@ -12,7 +12,7 @@ class TS_Holt_Winter_Seasonal(object):
         self.train_Y = []
         return
 # ----------------------------------------------------------------------------------------------------------------
-    def learn(self, array_X, array_Y):
+    def train(self, array_X, array_Y):
         self.train_X = array_X
         self.train_Y = array_Y
         self.model = ExponentialSmoothing(array_Y, seasonal_periods=self.seasonal_periods, trend='add', seasonal='add')

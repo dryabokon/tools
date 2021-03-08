@@ -372,7 +372,7 @@ def draw_signals_lines(signals,colors=None,w=3):
 
     return image_signal
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_cuboid(image, points_2d, lines_idx = None, color=(255, 255, 255), w=1, put_text=False):
+def draw_cuboid(image, points_2d, lines_idx = None, color=(255, 255, 255), w=1, put_text=False, label=None):
 
     if lines_idx is None:
         lines_idx  = [(1,0),(0,2),(2,3),(3,1), (7,6),(6,4),(4,5),(5,7), (1,0),(0,6),(6,7),(7,1), (3,2),(2,4),(4,5),(5, 3)]
@@ -384,12 +384,19 @@ def draw_cuboid(image, points_2d, lines_idx = None, color=(255, 255, 255), w=1, 
 
     idx_face = [0,1,2,3]
 
-    result = draw_convex_hull(image, points_2d, color, transperency=0.80)
+    result = image.copy()
+    result = draw_convex_hull(result, points_2d, color, transperency=0.80)
     result = draw_convex_hull(result, points_2d[idx_face], color, transperency=0.60)
     result = draw_lines(result, numpy.array(lines), color, w)
     result = draw_lines(result, numpy.array(lines)[idx_face], color, w+1)
     if put_text:
         result = draw_points(result, points_2d, color, put_text=put_text)
+
+    if label is not None:
+        txt = '{0}'.format(label)
+        x,y = int(points_2d[:, 0].mean()), int(points_2d[:, 1].mean())
+        clr = (color[0], color[1], color[2])
+        result = cv2.putText(result, txt, (x,y),cv2.FONT_HERSHEY_SIMPLEX, 1.0, clr, 1, cv2.LINE_AA)
 
     return result
 # ----------------------------------------------------------------------------------------------------------------------

@@ -1,4 +1,3 @@
-from sklearn.linear_model import BayesianRidge
 from sklearn.kernel_ridge import KernelRidge
 # --------------------------------------------------------------------------------------------------------------------
 class TS_BayesianRidge(object):
@@ -8,11 +7,13 @@ class TS_BayesianRidge(object):
         self.folder_debug = folder_debug
         return
 # ----------------------------------------------------------------------------------------------------------------
-    def learn(self, array_X, array_Y):
+    def train(self, array_X, array_Y):
         self.model = KernelRidge(kernel='rbf')
-        self.model.fit(array_X, array_Y)
-        return self.predict(array_X,array_Y)
+        self.model = self.model.fit(array_X, array_Y)
+        Y_pred = self.predict(array_X,array_Y)
+        return Y_pred
 #----------------------------------------------------------------------------------------------------------------------
     def predict(self, array_X,array_Y):
-        return self.model.predict(array_X)
+        Y_pred = self.model.predict(array_X)
+        return Y_pred
 # ----------------------------------------------------------------------------------------------------------------------

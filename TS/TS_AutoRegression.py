@@ -9,12 +9,10 @@ class TS_AutoRegression(object):
         return
 # ----------------------------------------------------------------------------------------------------------------
     def train(self, array_X, array_Y):
-        self.train_X = array_X
+
         self.train_Y = array_Y
         self.model = AR(array_Y)
         self.fit = self.model.fit()
-        res = self.fit.fittedvalues
-        res = numpy.hstack((array_Y[:array_Y.shape[0]-res.shape[0]],res))
 
         window = self.fit.k_ar
         res2 = self.fit.predict(start=window, end=array_Y.shape[0]-1, dynamic=False)

@@ -70,7 +70,9 @@ class Calibrator(object):
 
         return scale,shift1,shift2,do_flip_v,shift_h
 # ----------------------------------------------------------------------------------------------------------------------
-    def adjust_2d(self, xy, target_W, target_H, scale, shift1, shift2, do_flip_v, shift_h=None):
+    def adjust_2d(self, xy0, target_W, target_H, scale, shift1, shift2, do_flip_v, shift_h=None):
+
+        xy = xy0.copy()
 
         xy[:, 0] -= shift1
         xy[:, 0] /= scale
@@ -120,82 +122,113 @@ class Calibrator(object):
 
         return image_AR
 # ----------------------------------------------------------------------------------------------------------------------
-    def BEV_points(self, image, filename_points, do_shift_scale, target_W, target_H, dots_pr_meter =None,draw_points = True, list_of_R=None,cuboids_3d =None, points_2d = None):
+    def draw_ticks(self,image_R,marker_xy,major_ticks,minor_ticks,target_H, target_W,factor,scale):
 
-        factor = 1.2
-        gray = tools_image.desaturate(image,level=0.5)
-        empty = numpy.full((target_H, target_W, 3), (255, 255, 255), dtype=numpy.uint8)
-        image_R = empty.copy()
+        if major_ticks is not None and len(major_ticks) > 0:
+            RR = -numpy.sort(-numpy.array(major_ticks).flatten())
+            center_ext = tools_draw_numpy.extend_view(marker_xy[0], target_H, target_W, factor)[0]
+            colors_GB = numpy.arange(180, 255, (255 - 180) / len(major_ticks))[::-1]
 
-        marker_2d, marker_xy, IDs = self.load_points(filename_points)
+            for rad, color_bg in zip(RR, colors_GB):
+                image_R = tools_draw_numpy.draw_circle(image_R, center_ext[1], center_ext[0], rad / scale / factor,color_bg, alpha_transp=0)
+
+        # if minor_ticks is not None and len(minor_ticks) > 0:
+        #     RR = -numpy.sort(-numpy.array(minor_ticks).flatten())
+        #     center_ext = tools_draw_numpy.extend_view(marker_xy[0], target_H, target_W, factor)[0]
+        #     colors_GB = numpy.arange(180, 255, (255 - 180) / len(minor_ticks))[::-1]
+        #
+        #     for rad, color_bg in zip(RR, colors_GB):
+        #         ellipse = ((center_ext[0], center_ext[1]), ((2 * rad / scale / factor), 2 * rad / scale / factor), 0)
+        #         image_R = tools_draw_numpy.draw_ellipses(image_R, [ellipse], color=color_bg, w=1)
+
+
+        if major_ticks is not None and len(major_ticks) > 0:
+            RR = -numpy.sort(-numpy.array(major_ticks).flatten())
+            center_ext = tools_draw_numpy.extend_view(marker_xy[0], target_H, target_W, factor)[0]
+
+            for rad in RR:
+                ellipse = ((center_ext[0], center_ext[1]), ((2 * rad / scale / factor), 2 * rad / scale / factor), 0)
+                image_R = tools_draw_numpy.draw_ellipses(image_R, [ellipse], color=(128,128,128), w=1)
+
+        return image_R
+# ----------------------------------------------------------------------------------------------------------------------
+    def prepare_assets(self, marker_2d,marker_xy, do_shift_scale, target_W, target_H, dots_pr_meter, factor, major_ticks=None, minor_ticks=None, cuboids_3d=None, points_2d=None):
+
+        image_R = numpy.full((target_H, target_W, 3), (255, 255, 255), dtype=numpy.uint8)
+
         if do_shift_scale: marker_xy = self.shift_scale(marker_xy, marker_xy[0])
 
         scale, shift1, shift2, do_flip_v, shift_h = self.get_adjustment_params(marker_xy[:, :2], target_W, target_H)
         if dots_pr_meter is not None:
-            scale=1/dots_pr_meter
+            scale = 1 / dots_pr_meter
+
+
         marker_xy = self.adjust_2d(marker_xy[:, :2], target_W, target_H, scale, shift1, shift2, do_flip_v, shift_h)
         marker_xy_ext = tools_draw_numpy.extend_view(marker_xy, target_H, target_W, factor)
 
-        cuboids_xy_ext, cuboid_IDs = [], []
+        H = self.derive_homography(marker_2d[1:], marker_xy[1:])
+        #image_R = self.draw_ticks(image_R, marker_xy, major_ticks, minor_ticks, target_H, target_W, factor, scale)
+
+        cuboids_xy_ext  = []
         if cuboids_3d is not None:
             for i, each in enumerate(cuboids_3d.XYZs):
-                cuboid_3d = each.reshape((-1,3))[:4,[0,2,1]]
-                cuboid_3d[:,0]*=-1
+                cuboid_3d = each.reshape((-1, 3))[:4, [0, 2, 1]]
+                cuboid_3d[:, 0] *= -1
                 cuboid_xy = self.adjust_2d(cuboid_3d[:, :2], target_W, target_H, scale, shift1, shift2, do_flip_v,shift_h)
                 cuboids_xy_ext.append(tools_draw_numpy.extend_view(cuboid_xy, target_H, target_W, factor))
-                cuboid_IDs.append(i)
 
-            cuboid_IDs = numpy.array(cuboid_IDs)
             cuboids_xy_ext = numpy.array(cuboids_xy_ext)
 
-        if list_of_R is not None and len(list_of_R) > 0:
-            colors_ln = tools_draw_numpy.get_colors(len(list_of_R), colormap=self.colormap_circles)[::-1]
-            RR = -numpy.sort(-numpy.array(list_of_R).flatten())
-            center_ext = tools_draw_numpy.extend_view(marker_xy[0], target_H, target_W, factor)[0]
-            colors_GB = numpy.arange(180, 255, (255 - 180) / len(list_of_R))[::-1]
-
-            for rad, color_bg, color_ln in zip(RR, colors_GB, colors_ln):
-                image_R = tools_draw_numpy.draw_circle(image_R, center_ext[1], center_ext[0], rad / scale / factor,color_bg, alpha_transp=0)
-                ellipse = ((center_ext[0], center_ext[1]), ((2 * rad / scale / factor), 2 * rad / scale / factor), 0)
-                image_R = tools_draw_numpy.draw_ellipses(image_R, [ellipse], color=color_ln.tolist(), w=1)
-        else:
-            colors_ln = tools_draw_numpy.get_colors(1, colormap=self.colormap_circles)[::-1]
-
-        H = self.derive_homography(marker_2d[1:], marker_xy[1:])
-        image_warped = cv2.warpPerspective(gray, H, (target_W, target_H), borderValue=(255, 255, 255))
-        image_warped = tools_draw_numpy.extend_view_from_image(image_warped, factor=factor,color_bg=(255, 255, 255))
-        image_BEV = tools_image.put_layer_on_image(image_R, image_warped, (255, 255, 255))
-
-        points_2d_ext, points_IDs = [], []
+        points_2d_ext  = []
         if points_2d is not None:
             for i, each in enumerate(points_2d.XYs):
                 point_xy = cv2.perspectiveTransform(each.reshape((-1, 1, 2)).astype(numpy.float32), H).reshape((-1, 2))
                 points_2d_ext.append(tools_draw_numpy.extend_view(point_xy, target_H, target_W, factor))
-                points_IDs.append(i)
 
-            points_IDs = numpy.array(points_IDs)
             points_2d_ext = numpy.array(points_2d_ext)
 
+        return marker_xy,marker_xy_ext, cuboids_xy_ext, points_2d_ext, image_R, H
+# ----------------------------------------------------------------------------------------------------------------------
+    def BEV_points(self, image, filename_points, do_shift_scale, target_W, target_H,
+                   dots_pr_meter =None, draw_points = True, major_ticks=None,minor_ticks=None, cuboids_3d =None, points_2d = None,
+                   draw_hits=False,col_hit=(128, 255, 0),col_miss=(0,64,255),iou=0.3):
+
+        factor = 1.2
+        gray = tools_image.desaturate(image,level=0.5)
+
+        marker_2d, marker_xy, IDs = self.load_points(filename_points)
+
+        marker_xy, marker_xy_ext, cuboids_xy_ext, points_2d_ext, image_R, H = self.prepare_assets(marker_2d,marker_xy, do_shift_scale, target_W, target_H, dots_pr_meter, factor, major_ticks, minor_ticks, cuboids_3d, points_2d)
+
+        numpy.set_printoptions(precision=4)
+        print(H)
+
+        image_warped = cv2.warpPerspective(gray, H, (target_W, target_H), borderValue=(255, 255, 255))
+
+
+        image_warped = tools_draw_numpy.extend_view_from_image(image_warped, factor=factor,color_bg=(255, 255, 255))
+        image_BEV = tools_image.put_layer_on_image(image_R, image_warped, (255, 255, 255))
 
         if draw_points:
+            colors_ln = tools_draw_numpy.get_colors(1, colormap=self.colormap_circles)[::-1]
             image_BEV = tools_draw_numpy.draw_points(image_BEV, marker_xy_ext[:1], color=colors_ln[-1].tolist(), w=8)
 
-        if len(cuboid_IDs) > 0:
-            col_obj = tools_draw_numpy.get_colors(len(numpy.unique(cuboid_IDs)), colormap=self.colormap_objects)
-            for i, id in enumerate(numpy.unique(cuboid_IDs)):
-                p = cuboids_xy_ext[cuboid_IDs == id][0]
-                image_BEV = tools_draw_numpy.draw_contours(image_BEV, p, color_fill=col_obj[i].tolist(),color_outline=col_obj[i].tolist(),transp_fill=0.3,transp_outline=1.0)
-                image_BEV = tools_draw_numpy.draw_lines(image_BEV, numpy.array([[p[0,0],p[0,1],p[1,0],p[1,1]]]),color=col_obj[i].tolist(),w=5)
+        if len(cuboids_xy_ext) > 0:
+            col_obj = tools_draw_numpy.get_colors(len(cuboids_xy_ext), colormap=self.colormap_objects)
+            for p,clr,metainfo in zip(cuboids_xy_ext,col_obj,cuboids_3d.metainfo):
+                if draw_hits and metainfo is not None:
+                    clr = numpy.array(col_hit) if float(metainfo) >= iou else numpy.array(col_miss)
 
-        if len(points_IDs) > 0:
-            col_obj = tools_draw_numpy.get_colors(len(numpy.unique(points_IDs)), colormap=self.colormap_objects)
-            for i, id in enumerate(numpy.unique(points_IDs)):
-                p = points_2d_ext[points_IDs == id][0]
+                image_BEV = tools_draw_numpy.draw_contours(image_BEV, p, color_fill=clr.tolist(),color_outline=clr.tolist(),transp_fill=0.3,transp_outline=1.0)
+                image_BEV = tools_draw_numpy.draw_lines(image_BEV, numpy.array([[p[0,0],p[0,1],p[1,0],p[1,1]]]),color=clr.tolist(),w=5)
+
+        if len(points_2d_ext) > 0:
+            col_obj = tools_draw_numpy.get_colors(len(points_2d_ext), colormap=self.colormap_objects)
+            for p,clr in zip(points_2d_ext,col_obj):
                 if len(p)==1:
-                    image_BEV = tools_draw_numpy.draw_points(image_BEV, p,col_obj[i].tolist(),w=12)
+                    image_BEV = tools_draw_numpy.draw_points(image_BEV, p,clr.tolist(),w=12)
                 else:
-                    image_BEV = tools_draw_numpy.draw_contours(image_BEV, p, color_fill=col_obj[i].tolist(),color_outline=col_obj[i].tolist(), transp_fill=0.3,transp_outline=1.0)
-
+                    image_BEV = tools_draw_numpy.draw_contours(image_BEV, p, color_fill=clr.tolist(),color_outline=clr.tolist(), transp_fill=0.3,transp_outline=1.0)
 
         if draw_points:
             labels = ['ID %02d: %2.1f,%2.1f' % (pid, p[0], p[1]) for pid, p in zip(IDs, marker_xy)]

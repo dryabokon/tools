@@ -79,7 +79,7 @@ def reconvert_video(filename_in,filename_out):
 # ----------------------------------------------------------------------------------------------------------------------
 def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_sec=None,stride=1,scale=1):
 
-    tools_IO.remove_files(folder_out,create=True)
+    #tools_IO.remove_files(folder_out,create=True)
     vidcap = cv2.VideoCapture(filename_in)
     total_frames = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = vidcap.get(cv2.CAP_PROP_FPS)
