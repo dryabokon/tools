@@ -1,37 +1,45 @@
+from matplotlib import pyplot as plt
+from statsmodels.tsa.arima.model import ARIMA
 
-from statsmodels.tsa.api import ARIMA
-import pandas as pd
 import numpy
 # --------------------------------------------------------------------------------------------------------------------
 class TS_ARIMA(object):
-    def __init__(self,folder_debug=None,filename_weights=None):
+    def __init__(self,folder_out,order=(1,0,0),do_debug=False):
         self.name = 'TS_ARIMA'
         self.model = []
-        self.folder_debug = folder_debug
+        self.folder_out = folder_out
+        self.order = order
+        self.do_debug = do_debug
         return
 # ----------------------------------------------------------------------------------------------------------------
     def train(self, array_X, array_Y):
-        self.train_X = array_X
+
         self.train_Y = array_Y
-        model = ARIMA(endog=pd.DataFrame(numpy.concatenate((array_Y.reshape(-1,1), array_X), axis=1)),order=(0, 1, 1))
-        fit = model.fit()
-        res = fit.fittedvalues.values[:,0]
-        res = numpy.hstack((res[0], res))
-        return res
+        self.model = ARIMA(array_Y,order=self.order)
+        self.fit = self.model.fit()
+        predict = array_Y + self.fit.resid
+
+        if self.do_debug:
+            self.fit.plot_diagnostics(figsize=(15, 12))
+            plt.savefig(self.folder_out + self.name+'_diagnostics.png')
+
+        return predict
 # ---------------------------------------------------------------------------------------------------------------------
-    def predict(self, test_X, test_Y):
-        predictions = numpy.empty(0)
+    def predict(self, test_X, Y):
+        history = self.train_Y.copy().flatten()
+        predictions = []
 
-        array_train = numpy.concatenate((numpy.array([self.train_Y]).T, self.train_X), axis=1)
-        array_test  = numpy.concatenate((numpy.array([test_Y]).T, test_X), axis=1)
-
-        for t in range(0, test_Y.shape[0]):
-            array = numpy.vstack((array_train, array_test[:t]))
-            model = ARIMA(endog=pd.DataFrame(data=array))
+        for t in range(0, Y.shape[0]):
+            model = ARIMA(history,order=self.order)
             fit = model.fit()
-            lag = fit.k_ar
-            pred = fit.forecast(array[-lag:],1)[0]
-            predictions = numpy.append(predictions,pred[0])
+            predictions.append(fit.forecast())
+            history = numpy.append(history,[Y[t]])
+        return numpy.array(predictions).flatten()
+# ----------------------------------------------------------------------------------------------------------------------
+    def predict_n_steps_ahead(self, n_steps):
+        start = self.train_Y.shape[0]
+        res = self.fit.predict(start=start, end=start + n_steps - 1, dynamic=True)
+        ci = self.fit.get_forecast(steps=n_steps).conf_int(0.05)
 
-        return predictions
+        return res, ci
 # ----------------------------------------------------------------------------------------------------------------------

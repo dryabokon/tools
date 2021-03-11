@@ -118,7 +118,23 @@ class Plotter(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def plot_1D_features_pos_neg(self,X, Y, labels=None, filename_out=None):
+    def plot_hist(self,X,x_range=None,figsize=(3.5,3.5),filename_out=None):
+
+        fig = plt.figure(figsize=figsize)
+        fig = self.turn_light_mode(fig)
+
+        plt.hist(X)
+        if x_range is not None:
+            plt.xlim(x_range)
+
+
+        plt.tight_layout()
+        if filename_out is not None:
+            plt.savefig(self.folder_out + filename_out, facecolor=fig.get_facecolor())
+
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def plot_1D_features_pos_neg(self,X, Y, labels=None, bins=None,filename_out=None):
 
         fig = plt.figure()
         fig = self.turn_light_mode(fig)
@@ -126,7 +142,7 @@ class Plotter(object):
         patches = []
 
         plt.xlim([-1, X.max()+1])
-        bins = numpy.arange(-0.5,X.max()+0.5,0.25)
+
 
         for i,y in enumerate(numpy.unique(Y)):
             if int(y)<=0:
@@ -248,7 +264,7 @@ class Plotter(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def plot_fact_predict(self,y_fact, y_pred,figsize=(3.5,3.5),filename_out=None):
+    def plot_fact_predict(self,y_fact,y_pred,figsize=(3.5,3.5),filename_out=None):
 
         fig = plt.figure(figsize=figsize)
         fig = self.turn_light_mode(fig)
@@ -351,7 +367,8 @@ class Plotter(object):
             df = df0[[target, c1]]
             df = df.dropna()
             df = tools_DF.hash_categoricals(df)
-            self.plot_1D_features_pos_neg(df[[c1]].to_numpy(), df[target].to_numpy(), labels=c1, filename_out='plot_%02d_%02d_%s.png' % (i, i,c1))
+            bins = numpy.arange(-0.5, df[[c1]].max() + 0.5, 0.25)
+            self.plot_1D_features_pos_neg(df[[c1]].to_numpy(), df[target].to_numpy(), labels=c1, bins=bins,filename_out='plot_%02d_%02d_%s.png' % (i, i,c1))
 
 
         return
@@ -371,20 +388,35 @@ class Plotter(object):
         return
 
 # ----------------------------------------------------------------------------------------------------------------------
-    def TS_matplotlib(self,df,idx_target,idx_feature,color=None,filename_out=None):
+    def TS_matplotlib(self, df, idxs_target,idx_feature,idxs_fill=None,remove_legend=False,x_range=None,y_range=None,figsize=(22, 3),filename_out=None):
 
-        fig = plt.figure(figsize=(12, 4))
+        fig = plt.figure(figsize=figsize)
         fig = self.turn_light_mode(fig)
         ax = plt.gca()
-        if color is None:color = seaborn.color_palette(palette='tab10', n_colors=1)[0]
+        XX = numpy.linspace(0,df.shape[0]-1,df.shape[0])
         X = None if idx_feature is None else df.columns[idx_feature]
-        df.plot(x=X,y=df.columns[idx_target],ax=ax,color=color)
-        legend = plt.legend()
-        self.recolor_legend_plt(legend)
+        if not isinstance(idxs_target, list): idxs_target = [idxs_target]
+        colors = seaborn.color_palette(palette='tab10', n_colors=len(idxs_target))
+
+
+        for i, idx_target in enumerate(idxs_target):
+            df.plot(x=X, y=df.columns[idx_target], ax=ax, color=colors[i])
+            #plt.plot(XX, df.iloc[:,idx_target],color = colors[i])
+
+        if idxs_fill is not None:
+            plt.fill_between(XX,df.iloc[:,idxs_fill[0]],df.iloc[:,idxs_fill[1]],color=self.clr_grid)
+
+        if remove_legend:
+            plt.legend([], [], frameon=False)
+        else:
+            legend = plt.legend(loc="upper left")
+            self.recolor_legend_plt(legend)
+
+        if x_range is not None:plt.xlim(x_range)
+
         plt.xticks([])
         plt.yticks([])
         plt.tight_layout()
-
 
         if filename_out is not None:
             plt.savefig(self.folder_out+filename_out, facecolor=fig.get_facecolor())
@@ -394,9 +426,9 @@ class Plotter(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def TS_seaborn(self,df,idxs_target,idx_feature,mode='pointplot',filename_out=None):
+    def TS_seaborn(self,df,idxs_target,idx_feature,mode='pointplot',remove_legend=False,figsize=(12, 4),filename_out=None):
 
-        fig = plt.figure(figsize=(12, 4))
+        fig = plt.figure(figsize=figsize)
         fig = self.turn_light_mode(fig)
         X = df.index if idx_feature is None else df.columns[idx_feature]
         if not isinstance(idxs_target, list):idxs_target = [idxs_target]
@@ -409,8 +441,11 @@ class Plotter(object):
             else:
                 g = seaborn.lineplot(data=df, x=X, y=df.columns[idx_target],color=colors[i],label=df.columns[idx_target])
 
-        legend = plt.legend(handles=patches)
-        self.recolor_legend_plt(legend)
+        if remove_legend:
+            plt.legend([], [], frameon=False)
+        else:
+            legend = plt.legend(handles=patches)
+            self.recolor_legend_plt(legend)
 
         g.set_ylabel('')
         g.set(xticks=[])
@@ -418,8 +453,8 @@ class Plotter(object):
         if filename_out is not None:
             plt.savefig(self.folder_out+filename_out,facecolor=fig.get_facecolor())
 
-        plt.close(fig)
-        return
+        #plt.close(fig)
+        return fig
 # ----------------------------------------------------------------------------------------------------------------------
     def TS_plotly(self,df,idx_target,idx_feature,filename_out=None):
         import plotly.express as px
@@ -517,7 +552,7 @@ class Plotter(object):
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def plot_squarify(self,weights,labels,filename_out=None):
-        colors2 = (tools_draw_numpy.get_colors(1 + len(labels), colormap='tab20', alpha_blend=0.25,shuffle=True) / 255)[1:]
+        colors2 = (tools_draw_numpy.get_colors(1 + len(labels), colormap='tab10', alpha_blend=0.25,shuffle=True) / 255)[1:]
         colors2 = numpy.hstack((colors2, numpy.full((len(labels), 1), 1)))
 
         fig = plt.figure(figsize=(12, 4))
