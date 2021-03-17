@@ -1,9 +1,12 @@
+import datetime
+import pandas as pd
 import os
 import numpy
 from sklearn import metrics
 from sklearn.model_selection import train_test_split, RepeatedStratifiedKFold, cross_val_score
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_plot_v2
+import tools_DF
 # ----------------------------------------------------------------------------------------------------------------------
 class ML(object):
     def __init__(self,Classifier,folder_out=None,dark_mode=False):
@@ -50,15 +53,27 @@ class ML(object):
 
         return  xx, yy
 # ----------------------------------------------------------------------------------------------------------------------
-    def plot_ROC(self, df, idx_target,caption='',filename_out=None):
+    def evaluate_metrics(self, df, idx_target, is_train):
 
         Y = df.iloc[:, [idx_target]].to_numpy().flatten()
         scores = self.predict_df(df, idx_target)
+        pred = numpy.full(df.shape[0],0.05)
+        pred[scores.flatten()>50]=1-0.05
         fpr, tpr, thresholds = metrics.roc_curve(Y, scores)
         auc = metrics.auc(fpr, tpr)
         accuracy = self.get_accuracy(tpr, fpr, nPos=numpy.count_nonzero(Y > 0),nNeg=numpy.count_nonzero(Y <= 0))
 
-        self.P.plot_tp_fp(tpr, fpr, auc, caption=caption, filename_out=filename_out)
+        if is_train:caption = 'Train'
+        else:caption = 'Test'
+
+        self.P.plot_tp_fp(tpr, fpr, auc, caption=caption, filename_out=caption + '_auc.png')
+        print('ACC_%s = %1.3f' % (caption, accuracy))
+        print('AUC_%s = %1.3f' % (caption, auc))
+        df_temp = pd.DataFrame({'GT':Y,'pred': pred},index=df.index)
+        df_temp = tools_DF.remove_dups(df_temp)
+
+        self.P.TS_seaborn(df_temp, idxs_target=[0,1], idx_feature=None, mode='pointplot', remove_xticks=False,major_step=60,filename_out=caption+'_fact_pred1.png')
+
         return accuracy, auc
 # ----------------------------------------------------------------------------------------------------------------------
     def plot_report(self,df, idx_target):
@@ -84,25 +99,33 @@ class ML(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
+    def cross_validation_train_test(self,df, idx_target):
+        X, Y = self.df_to_XY(df, idx_target)
+        auc_cross = cross_val_score(self.classifier.model, X, Y, scoring='roc_auc' ,cv=RepeatedStratifiedKFold(n_splits=2, n_repeats=10)).mean()
+        acc_cross = cross_val_score(self.classifier.model, X, Y, scoring='accuracy',cv=RepeatedStratifiedKFold(n_splits=2, n_repeats=10)).mean()
+        print('acc_cross = %1.3f' %acc_cross)
+        print('auc_cross = %1.3f' %auc_cross)
+        print()
+
+        return
+# ----------------------------------------------------------------------------------------------------------------------
     def E2E_train_test_df(self,df,idx_target,do_density=False,do_pca = False,idx_columns=None):
 
         if idx_columns is not None:
             df = df.iloc[:,[idx_target]+idx_columns]
             idx_target = 0
 
-        df_train, df_test = train_test_split(df.dropna(), test_size=0.5,shuffle=True)
-        self.learn_df(df_train,idx_target)
+        df = df.dropna()
+        df = tools_DF.remove_dups(df)
 
-        X, Y = self.df_to_XY(df, idx_target)
-        auc_cross = cross_val_score(self.classifier.model, X, Y, scoring='roc_auc' ,cv=RepeatedStratifiedKFold(n_splits=2, n_repeats=10)).mean()
-        acc_cross = cross_val_score(self.classifier.model, X, Y, scoring='accuracy',cv=RepeatedStratifiedKFold(n_splits=2, n_repeats=10)).mean()
-        acc_train, auc_train = self.plot_ROC(df_train, idx_target, caption='Train',filename_out='ROC_train.png')
-        acc_test , auc_test  = self.plot_ROC(df_test , idx_target, caption='Test' ,filename_out='ROC_test.png')
-        print('acc_train = %1.3f\tacc_test = %1.3f' % (acc_train, acc_test))
-        print('auc_train = %1.3f\tauc_test = %1.3f' % (auc_train, auc_test))
-        print('acc_cross = %1.3f' %acc_cross)
-        print('auc_cross = %1.3f' %auc_cross)
-        print()
+        df_train, df_test = train_test_split(df, test_size=0.5,shuffle=False)
+        # df_train = pd.concat([df, df_train], axis=1, sort=True).iloc[:, df.shape[1]:]
+        # df_test  = pd.concat([df, df_test] , axis=1, sort=True).iloc[:, df.shape[1]:]
+
+        self.learn_df(df_train.dropna(),idx_target)
+
+        self.evaluate_metrics(df_train, idx_target,is_train=True)
+        self.evaluate_metrics(df_test , idx_target,is_train=False)
 
         if do_density and df_train.shape[1]==3:
             idx_col = numpy.delete(numpy.arange(0, len(df.columns.to_numpy())), idx_target)
@@ -111,9 +134,7 @@ class ML(object):
             x_range = numpy.array([X.iloc[:,0].min(), X.iloc[:,0].max()])
             y_range = numpy.array([X.iloc[:,1].min(), X.iloc[:,1].max()])
             self.plot_density_2d(df_train, idx_target, filename_out = 'density_train.png',x_range=x_range,y_range=y_range)
-            self.plot_density_2d(df_test , idx_target, filename_out = 'density_test.png',x_range=x_range,y_range=y_range)
-        # else:
-        #     self.plot_density_multi_dim(df_train, idx_target)
+            self.plot_density_2d(df_test , idx_target, filename_out = 'density_test.png' ,x_range=x_range,y_range=y_range)
 
         if do_pca and df_train.shape[1]>3:
             self.P.plot_SVD(df_train, idx_target,'dim_SVD.png')

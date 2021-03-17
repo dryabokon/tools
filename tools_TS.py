@@ -12,7 +12,7 @@ class tools_TS(object):
         return
 # ---------------------------------------------------------------------------------------------------------------------
     def do_train(self,X, Y):
-        Y_train_predict = self.classifier.train(X, Y)
+        Y_train_predict = self.classifier.prepare_data(X, Y)
         return Y_train_predict
 # ---------------------------------------------------------------------------------------------------------------------
     def do_predict(self,X,Y):

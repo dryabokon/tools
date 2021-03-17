@@ -4,6 +4,7 @@ from sklearn import linear_model
 from sklearn.metrics import r2_score
 from xgboost import XGBClassifier
 import numpy
+import time
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_DF
 import tools_plot_v2
@@ -85,12 +86,35 @@ def feature_imporance_XGB(df, idx_target):
 
     return numpy.array(values)
 # ----------------------------------------------------------------------------------------------------------------------
+def feature_imporance_info(df, idx_target):
+    X, Y = preprocess(df, idx_target)
+
+    feature_importances = mutual_info_classif(X,Y)
+
+    return feature_importances
+# ----------------------------------------------------------------------------------------------------------------------
 def evaluate_feature_importance(df, idx_target):
     columns = df.columns.to_numpy()[numpy.delete(numpy.arange(0, df.shape[1]), idx_target)]
+
+    start_time = time.time()
     S1 = feature_imporance_F_score(df, idx_target)
+    #print('F_score %s sec\n\n' % (time.time() - start_time))
+
+    start_time = time.time()
     S2 = feature_imporance_R2(df, idx_target)
+    #print('R2 %s sec\n\n' % (time.time() - start_time))
+
+    start_time = time.time()
     S3 = feature_imporance_C(df, idx_target)
+    #print('C %s sec\n\n' % (time.time() - start_time))
+
+    start_time = time.time()
     S4 = feature_imporance_XGB(df, idx_target)
+    #print('XGB %s sec\n\n' % (time.time() - start_time))
+
+    start_time = time.time()
+    S5 = feature_imporance_info(df, idx_target)
+    # print('info %s sec\n\n' % (time.time() - start_time))
 
 
     df = pd.DataFrame({
@@ -98,6 +122,7 @@ def evaluate_feature_importance(df, idx_target):
         'R2': S2,
         'C': S3,
         'XGB': S4,
+        'I': S5,
         'features': columns
     })
 
