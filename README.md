@@ -1,3 +1,3 @@
 # About
-A dependency for other projects in my account
+Dependencies for other projects in my account
 
