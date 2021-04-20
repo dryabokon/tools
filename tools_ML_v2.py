@@ -53,6 +53,24 @@ class ML(object):
 
         return  xx, yy
 # ----------------------------------------------------------------------------------------------------------------------
+    def get_precision_recall_fpr(self, Y_GT, Y_pred):
+
+        n_pos = numpy.sum(Y_GT)
+        n_neg = numpy.sum(1-Y_GT)
+
+        n_hit = numpy.sum(numpy.array((Y_GT-Y_pred)==0)*numpy.array((Y_GT > 0)))
+        n_pred_pos = numpy.sum((Y_pred==1))
+        n_pred_neg = numpy.sum((Y_pred==0))
+
+
+
+        precision, recall,fpr = 0,0,0
+        if n_pred_pos>0:precision = n_hit/n_pred_pos
+        if n_pos>0 :recall = n_hit/n_pos
+        if n_neg>0: fpr = n_pred_neg / n_neg
+
+        return precision, recall, fpr
+# ----------------------------------------------------------------------------------------------------------------------
     def evaluate_metrics(self, df, idx_target, is_train):
 
         Y = df.iloc[:, [idx_target]].to_numpy().flatten()

@@ -7,7 +7,7 @@ from scipy.spatial import distance as dist
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_draw_numpy
 import tools_IO
-import tools_pr_geom
+from CV import tools_pr_geom
 # ----------------------------------------------------------------------------------------------------------------------
 numpy.set_printoptions(suppress=True)
 numpy.set_printoptions(precision=2)

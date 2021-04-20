@@ -1,18 +1,11 @@
 # ---------------------------------------------------------------------------------------------------------------------
-import os
 import numpy
 import cv2
 import math
-#from scipy.misc import toimage
 from scipy import ndimage
-from scipy.spatial import Delaunay
 from scipy.interpolate import griddata
-
 # ---------------------------------------------------------------------------------------------------------------------
-import tools_IO
 import tools_image
-import tools_draw_numpy
-import tools_calibrate
 # ---------------------------------------------------------------------------------------------------------------------
 def calc_hit_field(image_base, image_pattern):
     x1 = int(1 * image_pattern.shape[0] / 4)

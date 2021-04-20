@@ -5,6 +5,7 @@ from sklearn.metrics import r2_score
 from xgboost import XGBClassifier
 import numpy
 import time
+from scipy.stats import chi2, chisquare
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_DF
 import tools_plot_v2
@@ -92,6 +93,28 @@ def feature_imporance_info(df, idx_target):
     feature_importances = mutual_info_classif(X,Y)
 
     return feature_importances
+# ----------------------------------------------------------------------------------------------------------------------
+def feature_imporance_cross_H(df, idx_target):
+    X, Y = preprocess(df, idx_target)
+
+    xp = X[Y>0]
+    xn = X[Y<=0]
+    n_p = xp.shape[0]
+    n_n = xn.shape[0]
+
+    cross_H = []
+
+
+    for i in range(X.shape[1]):
+        p_p1 = xp[:,i].sum()/n_p
+        p_p0 = (1-p_p1)
+        p_n1 = xn[:,i].sum()/n_n
+        p_n0 = 1-p_n1
+
+        v = chisquare([p_p0,p_p1],[p_n0,p_n1])[0]
+        cross_H.append(v)
+
+    return numpy.array(cross_H)
 # ----------------------------------------------------------------------------------------------------------------------
 def evaluate_feature_importance(df, idx_target):
     columns = df.columns.to_numpy()[numpy.delete(numpy.arange(0, df.shape[1]), idx_target)]

@@ -402,8 +402,8 @@ class Plotter(object):
 
 
         for i, idx_target in enumerate(idxs_target):
-            df.plot(x=X, y=df.columns[idx_target], ax=ax, color=colors[i])
-            #plt.plot(XX, df.iloc[:,idx_target],color = colors[i])
+            #df.plot(x=X, y=df.columns[idx_target], ax=ax, color=colors[i])
+            plt.plot(XX, df.iloc[:,idx_target],color = colors[i])
 
         if idxs_fill is not None:
             plt.fill_between(XX,df.iloc[:,idxs_fill[0]],df.iloc[:,idxs_fill[1]],color=self.clr_grid)
@@ -429,7 +429,7 @@ class Plotter(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def TS_seaborn(self,df,idxs_target,idx_feature,mode='pointplot',remove_legend=False,remove_xticks=True,x_range=None,major_step=None,palette='tab10',figsize=(22, 3),filename_out=None):
+    def TS_seaborn(self,df,idxs_target,idx_feature,mode='pointplot',remove_legend=False,remove_xticks=True,x_range=None,major_step=None,palette='tab10',transparency=0,figsize=(15, 3),filename_out=None):
 
         fig = plt.figure(figsize=figsize)
         fig = self.turn_light_mode(fig)
@@ -442,13 +442,16 @@ class Plotter(object):
         for i,idx_target in enumerate(idxs_target):
             patches.append(mpatches.Patch(color=colors[i], label=df.columns[idx_target]))
             if mode=='pointplot':
-                g = seaborn.pointplot(data=df, x=X, y=df.columns[idx_target], scale=0.25,color=colors[i],markers='o',label=df.columns[idx_target])
+                g = seaborn.pointplot(data=df, x=X, y=df.columns[idx_target], scale=0.25,color=colors[i],markers='o', linestyles=None,label=df.columns[idx_target])
+            elif mode == 'scatterplot':
+                g = seaborn.scatterplot(data=df, x=X, y=df.columns[idx_target],size=numpy.full(df.shape[0],0.25),color=colors[i],alpha=1-transparency,edgecolor=None,markers='0',label=df.columns[idx_target])
             else:
                 g = seaborn.lineplot(data=df, x=X, y=df.columns[idx_target],color=colors[i],label=df.columns[idx_target])
 
+        g.set_xlabel('')
         g.set_ylabel('')
 
-        #plt.grid(color=self.clr_grid)
+        plt.grid(color=self.clr_grid)
 
         if major_step is not None:
             for i,label in enumerate(g.get_xticklabels()):label.set_visible(i%major_step==0)
