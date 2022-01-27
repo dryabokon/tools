@@ -4,6 +4,7 @@ from os import listdir
 import fnmatch
 import numpy
 import math
+import tensorflow as tf
 from keras.models import Model, load_model, Sequential
 from keras.layers import BatchNormalization, Input, Dense, Dropout, Flatten, Activation, InputLayer, Conv2DTranspose,UpSampling2D, LeakyReLU
 from keras.layers.convolutional import MaxPooling2D, ZeroPadding2D, Conv2D, Conv3D
@@ -37,7 +38,10 @@ class classifier_FC_Keras(object):
         return
 # ----------------------------------------------------------------------------------------------------------------
     def init_model(self, input_shape, num_classes):
-        return self.init_model_conv(input_shape, num_classes)
+        #return self.init_model_conv(input_shape, num_classes)
+        self.init_model_dense(input_shape, num_classes)
+
+        return
 # ----------------------------------------------------------------------------------------------------------------
     def init_model_conv(self, input_shape, num_classes):
         n_filters = 96
@@ -68,6 +72,8 @@ class classifier_FC_Keras(object):
 # ----------------------------------------------------------------------------------------------------------------
     def init_model_dense(self, input_shape, num_classes):
 
+        self.input_shape = input_shape
+
         self.model = Sequential()
 
         self.model.add(BatchNormalization(input_shape=input_shape))
@@ -97,28 +103,37 @@ class classifier_FC_Keras(object):
         idx_train = numpy.sort(numpy.random.choice(M, int(1*M/2), replace=False))
         idx_valid = numpy.array([x for x in range(0, M) if x not in idx_train])
 
-        early_stopping_monitor = EarlyStopping(monitor='acc', patience=10)
+        early_stopping_monitor = EarlyStopping(monitor='val_loss', patience=10)
 
-        hist = self.model.fit(data_train[idx_train].astype(numpy.float32), target_train[idx_train], nb_epoch=self.epochs,
+        hist = self.model.fit(data_train[idx_train].astype(numpy.float32), target_train[idx_train], epochs=self.epochs,
                               verbose=self.verbose,validation_data=(data_train[idx_valid], target_train[idx_valid]), callbacks=[early_stopping_monitor])
         if self.folder_debug is not None:
             self.save_stats(hist)
             self.save_model(self.folder_debug+self.name+'_model.h5')
 
         #acc = hist.history['val_acc'][-1]
-        prob = self.predict(data_train[idx_valid])
+
+        prob = self.model.predict(data_train[idx_valid].astype(numpy.float32))
+
         label_pred = numpy.argmax(prob, axis=1)
         label_fact = tools_IO.from_categorical(target_train[idx_valid])
         matches = numpy.array([1*(label_fact[i]==label_pred[i]) for i in range(0,label_pred.shape[0])]).astype(int)
         acc2 = float(numpy.average(matches))
 
-
-
+        print('Training complete..')
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
+    def maybe_reshape(self, X):
+        if len(X.shape) == 1+len(self.input_shape):
+            return X
+        else:
+            return numpy.expand_dims(X,axis=0)
+# ----------------------------------------------------------------------------------------------------------------------
     def predict(self,array):
-        return self.model.predict(array,verbose=0)
+        #res = self.model.predict(array, verbose=0)
+        res = self.model.predict(self.maybe_reshape(array).astype(numpy.float32))
+        return res
 # ----------------------------------------------------------------------------------------------------------------------
     def images_to_features(self,images):
         feature_layer = -2

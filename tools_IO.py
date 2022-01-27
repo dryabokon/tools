@@ -21,6 +21,12 @@ def smart_index(array, value):
     return numpy.array([i for i, v in enumerate(array) if (v == value)])
 
 # ----------------------------------------------------------------------------------------------------------------------
+def rank(A):
+    rank = numpy.arange(0, A.shape[0])
+    idx = numpy.argsort(-A)
+    rank[idx] = 1 + numpy.arange(0, A.shape[0])
+    return rank
+# ----------------------------------------------------------------------------------------------------------------------
 def remove_file(filename):
     if os.path.isfile(filename):
         os.remove(filename)
@@ -89,7 +95,7 @@ def get_filenames(path_input,list_of_masks):
     for mask in list_of_masks.split(','):
         local_filenames += fnmatch.filter(listdir(path_input), mask)
 
-    return local_filenames
+    return numpy.sort(numpy.array(local_filenames))
 # ----------------------------------------------------------------------------------------------------------------------
 def get_next_folder_out(base_folder_out):
     sub_folders = get_sub_folder_from_folder(base_folder_out)

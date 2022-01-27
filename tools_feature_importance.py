@@ -2,17 +2,18 @@ import pandas as pd
 from sklearn.feature_selection import SelectKBest,f_regression, f_classif, mutual_info_classif
 from sklearn import linear_model
 from sklearn.metrics import r2_score
-from xgboost import XGBClassifier
+from xgboost import XGBClassifier,XGBRegressor
 import numpy
 import time
 from scipy.stats import chi2, chisquare
+import shap
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_DF
 import tools_plot_v2
 # ----------------------------------------------------------------------------------------------------------------------
 def select_features(X, Y):
-    #score_func = mutual_info_classif
-    score_func = f_regression
+    score_func = mutual_info_classif
+    #score_func = f_regression
     fs = SelectKBest(score_func=score_func, k='all')
 
     for c in range(X.shape[1]):
@@ -47,7 +48,7 @@ def feature_imporance_F_score(df, idx_target=0):
 
     return f_scores
 # ----------------------------------------------------------------------------------------------------------------------
-def feature_imporance_C(df, idx_target=0):
+def feature_importance_C(df, idx_target=0):
     #https://scikit-learn.org/stable/auto_examples/inspection/plot_linear_model_coefficient_interpretation.html#sphx-glr-auto-examples-inspection-plot-linear-model-coefficient-interpretation-py
 
     X, Y = preprocess(df, idx_target)
@@ -56,7 +57,21 @@ def feature_imporance_C(df, idx_target=0):
     values = numpy.abs(ridgereg.coef_ * X.std(axis=0))
     return  values
 # ----------------------------------------------------------------------------------------------------------------------
-def feature_imporance_R2(df, idx_target=0):
+def feature_importance_SHAP(df, idx_target=0):
+
+    X, Y = preprocess(df, idx_target)
+
+    #model = XGBRegressor().fit(X, Y)
+    model = XGBClassifier().fit(X, Y)
+
+    explainer = shap.Explainer(model)
+    shap_values = explainer(X).values
+
+    values = numpy.abs(numpy.mean(shap_values,axis=0))
+
+    return values
+# ----------------------------------------------------------------------------------------------------------------------
+def feature_importance_R2(df, idx_target=0):
 
     X, Y = preprocess(df, idx_target)
     regr = linear_model.LinearRegression()
@@ -74,7 +89,7 @@ def feature_imporance_R2(df, idx_target=0):
 
     return R2s
 # ----------------------------------------------------------------------------------------------------------------------
-def feature_imporance_XGB(df, idx_target):
+def feature_importance_XGB(df, idx_target):
     X, Y = preprocess(df, idx_target)
 
     model = XGBClassifier()
@@ -94,7 +109,7 @@ def feature_imporance_info(df, idx_target):
 
     return feature_importances
 # ----------------------------------------------------------------------------------------------------------------------
-def feature_imporance_cross_H(df, idx_target):
+def feature_importance_cross_H(df, idx_target):
     X, Y = preprocess(df, idx_target)
 
     xp = X[Y>0]
@@ -124,30 +139,37 @@ def evaluate_feature_importance(df, idx_target):
     #print('F_score %s sec\n\n' % (time.time() - start_time))
 
     start_time = time.time()
-    S2 = feature_imporance_R2(df, idx_target)
+    S2 = feature_importance_R2(df, idx_target)
     #print('R2 %s sec\n\n' % (time.time() - start_time))
 
     start_time = time.time()
-    S3 = feature_imporance_C(df, idx_target)
+    S3 = feature_importance_C(df, idx_target)
     #print('C %s sec\n\n' % (time.time() - start_time))
 
     start_time = time.time()
-    S4 = feature_imporance_XGB(df, idx_target)
+    S4 = feature_importance_XGB(df, idx_target)
     #print('XGB %s sec\n\n' % (time.time() - start_time))
 
     start_time = time.time()
-    S5 = feature_imporance_info(df, idx_target)
-    # print('info %s sec\n\n' % (time.time() - start_time))
+    S5 = feature_importance_SHAP(df, idx_target)
+    # print('XGB %s sec\n\n' % (time.time() - start_time))
 
+    start_time = time.time()
+    S6 = feature_imporance_info(df, idx_target)
+    # print('info %s sec\n\n' % (time.time() - start_time))
 
     df = pd.DataFrame({
         'F_score': S1,
         'R2': S2,
         'C': S3,
         'XGB': S4,
-        'I': S5,
+        'SHAP': S5,
+        'I': S6,
         'features': columns
     })
+
+    df.sort_values(by=df.columns[0],inplace=True)
+    df = df.reset_index()
 
     return df
 # ----------------------------------------------------------------------------------------------------------------------

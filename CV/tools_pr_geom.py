@@ -633,12 +633,15 @@ def project_points_MVP_GL(points_3d, img, mat_projection, mat_view, mat_model, m
 def project_points(points_3d, rvec, tvec, camera_matrix_3x3, dist=numpy.zeros(5)):
     #https: // docs.opencv.org / 2.4 / modules / calib3d / doc / camera_calibration_and_3d_reconstruction.html
 
-    P = compose_projection_mat_4x4(camera_matrix_3x3[0,0],camera_matrix_3x3[1,1],camera_matrix_3x3[0,2]/camera_matrix_3x3[0,0],camera_matrix_3x3[1, 2] / camera_matrix_3x3[1,1])
+    P = compose_projection_mat_4x4(camera_matrix_3x3[0,0],camera_matrix_3x3[1,1],
+                                   camera_matrix_3x3[0,2]/camera_matrix_3x3[0,0],camera_matrix_3x3[1, 2] / camera_matrix_3x3[1,1])
 
     if len(rvec.shape)==2 and rvec.shape[0]==3 and rvec.shape[1]==3:
         R = pyrr.matrix44.create_from_matrix33(rvec)
     else:
         R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(numpy.array(rvec, dtype=float).flatten())[0])
+
+    #cv2.Rodrigues(numpy.array(rvec, dtype=float).flatten())
 
     T = pyrr.matrix44.create_from_translation(numpy.array(tvec,dtype=float).flatten()).T
     M = pyrr.matrix44.multiply(T, R)
@@ -669,15 +672,10 @@ def project_points_p3x4(points_3d, p4x4,check_reverce=False):
     return points_2d
 # ----------------------------------------------------------------------------------------------------------------------
 def reverce_project_points_Z0(points_2d, rvec, tvec, camera_matrix_3x3, dist):
-    P = compose_projection_mat_4x4(camera_matrix_3x3[0,0],camera_matrix_3x3[1,1],camera_matrix_3x3[0,2]/camera_matrix_3x3[0,0],camera_matrix_3x3[1, 2] / camera_matrix_3x3[1,1])
+    P = compose_projection_mat_4x4(camera_matrix_3x3[0,0],camera_matrix_3x3[1,1],
+                                   camera_matrix_3x3[0,2]/camera_matrix_3x3[0,0],camera_matrix_3x3[1, 2] / camera_matrix_3x3[1,1])
 
-    if len(rvec.shape)==2 and rvec.shape[0]==3 and rvec.shape[1]==3:
-        R = pyrr.matrix44.create_from_matrix33(rvec)
-    else:
-        R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(numpy.array(rvec, dtype=float).flatten())[0])
-
-    T = pyrr.matrix44.create_from_translation(numpy.array(tvec,dtype=float).flatten()).T
-    M = pyrr.matrix44.multiply(T, R)
+    M = compose_RT_mat(rvec, tvec, do_rodriges=True, do_flip=False, GL_style=False)
     PM = pyrr.matrix44.multiply(P, M)
 
     points_3d = reverce_project_points_Z0_M(points_2d, PM)

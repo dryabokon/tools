@@ -34,14 +34,18 @@ class TS_AutoRegression(object):
 
         return self.predict_train
 #----------------------------------------------------------------------------------------------------------------------
-    def predict(self, test_X,test_Y):#ongoing_relearn
-        predictions = numpy.empty(0)
-        for t in range(0, test_Y.shape[0]):
-            array = numpy.hstack((self.train_Y, test_Y[:t]))
-            model = AutoReg(array,lags=self.lags,seasonal=self.seasonal,period=self.period,old_names=False)
-            fit = model.fit()
-            prediction = fit.predict(start=array.shape[0], end=array.shape[0], dynamic=False)
-            predictions = numpy.append(predictions,prediction)
+    def predict(self, test_X,test_Y,ongoing_retrain=False):
+        if ongoing_retrain:
+            predictions = numpy.empty(0)
+            for t in range(0, test_Y.shape[0]):
+                array = numpy.hstack((self.train_Y, test_Y[:t]))
+                model = AutoReg(array,lags=self.lags,seasonal=self.seasonal,period=self.period,old_names=False)
+                fit = model.fit()
+                prediction = fit.predict(start=array.shape[0], end=array.shape[0], dynamic=False)
+                predictions = numpy.append(predictions,prediction)
+        else:
+            predictions, ci = self.predict_n_steps_ahead(test_Y.shape[0])
+
         return predictions
 # ----------------------------------------------------------------------------------------------------------------------
     def predict_n_steps_ahead(self, n_steps):

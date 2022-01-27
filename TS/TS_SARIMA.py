@@ -25,15 +25,17 @@ class TS_SARIMA(object):
 
         return predict
 # ---------------------------------------------------------------------------------------------------------------------
-    def predict(self, test_X, Y):
-        history = self.train_Y.copy().flatten()
+    def predict(self, test_X, Y,ongoing_retrain):
         predictions = []
-
-        for t in range(0, Y.shape[0]):
-            model = sm.tsa.statespace.SARIMAX(history,order=self.order)
-            fit = model.fit(disp=False)
-            predictions.append(fit.forecast())
-            history = numpy.append(history,[Y[t]])
+        if ongoing_retrain:
+            history = self.train_Y.copy().flatten()
+            for t in range(0, Y.shape[0]):
+                model = sm.tsa.statespace.SARIMAX(history,order=self.order)
+                fit = model.fit(disp=False)
+                predictions.append(fit.forecast())
+                history = numpy.append(history,[Y[t]])
+        else:
+            predictions, ci = self.predict_n_steps_ahead(Y.shape[0])
         return numpy.array(predictions).flatten()
 # ----------------------------------------------------------------------------------------------------------------------
     def predict_n_steps_ahead(self, n_steps):

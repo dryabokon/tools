@@ -2,16 +2,11 @@ import numpy
 import cv2
 import tools_image
 import dlib
-import tools_draw_numpy
 from scipy.spatial import Delaunay
-from scipy import ndimage
-import math
-import tools_GL
 import tools_IO
 import pyrr
 import tools_render_CV
-import tools_pr_geom
-import tools_pr_geom
+from CV import tools_pr_geom
 # --------------------------------------------------------------------------------------------------------------------
 class detector_landmarks(object):
     def __init__(self,filename_config,filename_3dmarkers=None):

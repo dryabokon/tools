@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 # ---------------------------------------------------------------------------------------------------------------------
 import tools_IO
 # ---------------------------------------------------------------------------------------------------------------------
-def fit_sample_into_range(signal, N):
-    interp = scipy.interpolate.interp1d(numpy.arange(signal.shape[0]), signal)
+def fit_sample_into_range(signal, N,kind='linear'):
+    interp = scipy.interpolate.interp1d(numpy.arange(signal.shape[0]), signal,kind=kind)
     signal_interp = interp(numpy.linspace(0, signal.shape[0]-1, N))
     return signal_interp
 # ---------------------------------------------------------------------------------------------------------------------

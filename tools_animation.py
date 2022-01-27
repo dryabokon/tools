@@ -29,6 +29,20 @@ def folder_to_animated_gif_ffmpeg(path_input, path_out, filename_out, mask='.png
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
+def folder_to_video_ffmpeg(folder_in, filename_out, mask='*.png', framerate=24):
+
+    fileslist = tools_IO.get_filenames(folder_in,mask)
+    prefix = fileslist[0].split('0')[0]
+    command_make_video =  'ffmpeg -framerate %d -i %s%s%s %s -vcodec libx264 -y ' % (framerate, prefix,'%04d',mask[1:],filename_out)
+
+    cur_dir = os.getcwd()
+    os.chdir(folder_in)
+    print(command_make_video+'\n\n')
+    os.system(command_make_video)
+    os.chdir(cur_dir)
+
+    return
+# ---------------------------------------------------------------------------------------------------------------------
 def folders_to_animated_gif_ffmpeg(path_input,path_out, mask='.png', framerate=10,resize_H=64, resize_W=64):
     tools_IO.remove_files(path_out, create=True)
 
@@ -39,18 +53,19 @@ def folders_to_animated_gif_ffmpeg(path_input,path_out, mask='.png', framerate=1
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
-def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png', framerate=10,resize_H=64, resize_W=64,do_reverce=False):
+def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png', framerate=10,resize_H=None, resize_W=None,do_reverce=False):
     tools_IO.remove_file(filename_out)
 
     images = []
     filenames = tools_IO.get_filenames(path_input,mask)
 
-    bar = progressbar.ProgressBar(max_value=len(filenames))
+    bar = progressbar.ProgressBar(maxval=len(filenames))
     bar.start()
     for b, filename_in in enumerate(filenames):
         bar.update(b)
         image = cv2.imread(path_input+filename_in)
-        image = tools_image.do_resize(image,(resize_W,resize_H))
+        if resize_H is not None and resize_W is not None:
+            image = tools_image.do_resize(image,(resize_W,resize_H))
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         images.append(image)
 
@@ -79,6 +94,10 @@ def folder_to_video(folder_in, filename_out, mask='*.jpg', framerate=24, resize_
         resize_H, resize_W = image.shape[:2]
 
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    #fourcc = cv2.VideoWriter_fourcc(*'H264')
+    #fourcc = cv2.VideoWriter_fourcc(*'avc1')
+
+    fourcc = cv2.VideoWriter_fourcc(*'MSVC')
     out = cv2.VideoWriter(filename_out,fourcc, framerate, (resize_W,resize_H))
 
     if not silent:
@@ -101,7 +120,6 @@ def folder_to_video(folder_in, filename_out, mask='*.jpg', framerate=24, resize_
 
     out.release()
     cv2.destroyAllWindows()
-
 # ---------------------------------------------------------------------------------------------------------------------
 def crop_images_in_folder(path_input,path_output,top, left, bottom, right,mask='*.jpg'):
     tools_IO.remove_files(path_output,create=True)
@@ -194,5 +212,48 @@ def merge_all_folders(list_of_folders,folder_out,target_W,target_H,filename_wate
             cnt+=1
             print(base_name)
 
+    return
+# ---------------------------------------------------------------------------------------------------------------------
+def merge_videos_ffmpeg(folder_in,mask):
+    fileslist = numpy.array(tools_IO.get_filenames(folder_in,mask)).reshape((-1,1))
+
+    A = numpy.hstack((numpy.full((fileslist.shape[0],1),'file'),fileslist))
+
+    filename_temp = 'tmplist.txt'
+    tools_IO.save_mat(A, folder_in+filename_temp,fmt='%s',delim=' ')
+    command_make_video = 'ffmpeg -f concat -safe 0 -i %s -map 0:v:0 -pix_fmt yuv420p res.mp4'%filename_temp
+
+    cur_dir = os.getcwd()
+    os.chdir(folder_in)
+    print(command_make_video+'\n\n')
+    os.system(command_make_video)
+    os.remove(filename_temp)
+
+    os.chdir(cur_dir)
+
+    return
+# ---------------------------------------------------------------------------------------------------------------------
+def to_seconds(offset):
+    splits = offset.split(':')
+    result = 0
+    mul = 1
+    for split in splits[::-1]:
+        result+=int(split)*mul
+        mul*=60
+    return result
+# ---------------------------------------------------------------------------------------------------------------------
+def extract_audio(folder_in,filename_video,filename_result):
+
+    cur_dir = os.getcwd()
+    os.chdir(folder_in)
+
+    command = 'ffmpeg ' \
+    '-i {filename_video} ' \
+    '-filter_complex "apad" ' \
+    '{filename_result} -y'.format(filename_video=filename_video,filename_result=filename_result)
+    print(command + '\n\n')
+    os.system(command)
+
+    os.chdir(cur_dir)
     return
 # ---------------------------------------------------------------------------------------------------------------------

@@ -11,34 +11,27 @@ class tools_TS(object):
         self.folder_out = folder_out
         return
 # ---------------------------------------------------------------------------------------------------------------------
-    def do_train(self,X, Y):
-        Y_train_predict = self.classifier.prepare_data(X, Y)
-        return Y_train_predict
-# ---------------------------------------------------------------------------------------------------------------------
-    def do_predict(self,X,Y):
-        Y_predict = self.classifier.predict(X,Y)
-        return Y_predict
-# ---------------------------------------------------------------------------------------------------------------------
-    def do_train_test(self,X, Y,train_size):
-        Y_train_predict = self.do_train(X[:train_size], Y[:train_size])
-        Y_test_predict = self.do_predict(X[train_size:],Y[train_size:])
+    def do_train_test(self,X, Y,train_size,ongoing_retrain):
+
+        test_size = Y.shape[0]-train_size
+        Y_train_predict = self.classifier.train(X[:train_size], Y[:train_size])
+        Y_test_predict = self.classifier.predict(X, Y,ongoing_retrain)[-test_size:]
+
         return Y_train_predict,Y_test_predict
 # ---------------------------------------------------------------------------------------------------------------------
-    def E2E_train_test(self, df, idx_target, ratio=0.5,do_debug=False):
+    def E2E_train_test(self, df, idx_target, ratio=0.5,ongoing_retrain=False,do_debug=False):
 
         X, Y = tools_DF.df_to_XY(df,idx_target)
         train_size = int(Y.shape[0]*ratio)
 
-        Y_train_pred,Y_test_pred = self.do_train_test(X,Y,train_size)
+        Y_train_pred,Y_test_pred = self.do_train_test(X,Y,train_size,ongoing_retrain)
 
         if do_debug:
             df_train = pd.DataFrame({'fact': Y[:train_size], 'pred': Y_train_pred})
             df_test =  pd.DataFrame({'fact': Y[train_size:], 'pred': Y_test_pred})
-            df_train.to_csv(self.folder_out + 'train.csv', index=False,sep='\t')
-            df_test.to_csv(self.folder_out + 'test_%s.csv'%self.classifier.name , index=False,sep='\t')
 
-            self.Plotter.TS_seaborn(df_train, idxs_target=[0, 1], idx_feature=None, filename_out='train_%s.png'%self.classifier.name)
-            self.Plotter.TS_seaborn(df_test , idxs_target=[0, 1], idx_feature=None, filename_out='test_%s.png'%self.classifier.name)
+            self.Plotter.TS_seaborn(df_train, idxs_target=[0, 1], idx_time=None, filename_out='train_%s.png' % self.classifier.name)
+            self.Plotter.TS_seaborn(df_test, idxs_target=[0, 1], idx_time=None, filename_out='test_%s.png' % self.classifier.name)
 
             self.Plotter.plot_fact_predict(Y[:train_size], Y_train_pred,filename_out='train_fact_pred_%s.png'%self.classifier.name)
             self.Plotter.plot_fact_predict(Y[train_size:], Y_test_pred ,filename_out='test_fact_pred_%s.png'%self.classifier.name)
@@ -47,12 +40,14 @@ class tools_TS(object):
 
             self.Plotter.plot_hist(Y[:train_size] - Y_train_pred, x_range=[-x_max,+x_max],filename_out='train_err_%s.png'%self.classifier.name)
             self.Plotter.plot_hist(Y[train_size:] - Y_test_pred , x_range=[-x_max,+x_max],filename_out='test_err_%s.png' % self.classifier.name)
+            df_train.to_csv(self.folder_out + 'train.csv', index=False, sep='\t')
+            df_test.to_csv(self.folder_out + 'test_%s.csv' % self.classifier.name, index=False, sep='\t')
 
         return
 # ---------------------------------------------------------------------------------------------------------------------
     def predict_n_steps_ahead(self,df, idx_target,n_steps,do_debug=False):
         X, Y = tools_DF.df_to_XY(df, idx_target)
-        Y_pred_train = self.do_train(X, Y)
+        Y_pred_train = self.classifier.train(X, Y)
         Y_pred_ahead,CI_pred_ahead = self.classifier.predict_n_steps_ahead(n_steps)
 
         df_step = pd.DataFrame( {'predict_ahead' : Y_pred_ahead,

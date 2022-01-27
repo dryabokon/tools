@@ -25,20 +25,23 @@ class TS_ARIMA(object):
 
         return predict
 # ---------------------------------------------------------------------------------------------------------------------
-    def predict(self, test_X, Y):
-        history = self.train_Y.copy().flatten()
+    def predict(self, test_X, Y,ongoing_retrain):
         predictions = []
+        if ongoing_retrain:
+            history = self.train_Y.copy().flatten()
+            for t in range(0, Y.shape[0]):
+                model = ARIMA(history,order=self.order)
+                fit = model.fit()
+                predictions.append(fit.forecast())
+                history = numpy.append(history,[Y[t]])
+        else:
+            predictions, ci = self.predict_n_steps_ahead(Y.shape[0])
 
-        for t in range(0, Y.shape[0]):
-            model = ARIMA(history,order=self.order)
-            fit = model.fit()
-            predictions.append(fit.forecast())
-            history = numpy.append(history,[Y[t]])
         return numpy.array(predictions).flatten()
 # ----------------------------------------------------------------------------------------------------------------------
     def predict_n_steps_ahead(self, n_steps):
         start = self.train_Y.shape[0]
-        res = self.fit.predict(start=start, end=start + n_steps - 1, dynamic=True)
+        res = self.fit.predict(start=start, end=start + n_steps - 1, dynamic=False)
         ci = self.fit.get_forecast(steps=n_steps).conf_int(0.05)
 
         return res, ci

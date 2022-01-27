@@ -4,8 +4,8 @@ import numpy
 import tools_draw_numpy
 import tools_image
 import tools_IO
-import tools_calibrate
-import tools_pr_geom
+from CV import tools_calibrate
+from CV import tools_pr_geom
 import tools_render_CV
 # ----------------------------------------------------------------------------------------------------------------------
 class Calibrator(object):

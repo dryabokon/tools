@@ -4,7 +4,7 @@ from scipy.stats import entropy
 from sklearn.feature_selection import mutual_info_classif
 from sklearn.preprocessing import MinMaxScaler
 # ----------------------------------------------------------------------------------------------------------------------
-def df_to_XY(df,idx_target,keep_categoirical=True,drop_na=True):
+def df_to_XY(df,idx_target,keep_categoirical=True,drop_na=True,numpy_style=True):
     if drop_na:
         df = df.dropna()
     columns = df.columns.to_numpy()
@@ -16,8 +16,11 @@ def df_to_XY(df,idx_target,keep_categoirical=True,drop_na=True):
         are_categoirical = numpy.delete(are_categoirical, idx_target)
         idx = idx[~are_categoirical]
 
-    X = df.iloc[:,idx].to_numpy()
-    Y = df.iloc[:,[idx_target]].to_numpy().flatten()
+    Y = df.iloc[:, [idx_target]].to_numpy().flatten()
+    if numpy_style:
+        X = df.iloc[:,idx].to_numpy()
+    else:
+        X = df.iloc[:, idx]
     return X,Y
 # ---------------------------------------------------------------------------------------------------------------------
 def get_names(df,idx_target,keep_categoirical=True):
@@ -31,9 +34,11 @@ def get_names(df,idx_target,keep_categoirical=True):
 
     return columns[idx]
 # ----------------------------------------------------------------------------------------------------------------------
-def hash_categoricals(df):
+def hash_categoricals(df,drop_na=True):
 
     df_res = df.copy()
+    if drop_na:
+        df_res = df_res.dropna()
 
     col_types = numpy.array([str(t) for t in df.dtypes])
     are_categoirical = \

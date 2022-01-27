@@ -1,8 +1,8 @@
-from dtreeviz.trees import dtreeviz
-import pydotplus
+#from dtreeviz.trees import dtreeviz
+#import pydotplus
 from sklearn import tree
 import numpy
-import graphviz
+#import graphviz
 import os
 from matplotlib import pyplot as plt
 # --------------------------------------------------------------------------------------------------------------------

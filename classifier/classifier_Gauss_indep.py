@@ -12,6 +12,7 @@ class classifier_Gauss_indep(object):
         self.mean1 = []
         self.D0 = []
         self.D1 = []
+        self.model = None
 # ----------------------------------------------------------------------------------------------------------------
     def maybe_reshape(self, X):
         if numpy.ndim(X) == 2:

@@ -6,7 +6,7 @@ import tools_IO
 class classifier_RF(object):
     def __init__(self):
         self.name = "RF"
-        self.max_depth = 3
+        self.max_depth = 2
         self.model = RandomForestClassifier(max_depth=self.max_depth,n_estimators=50)
 # ----------------------------------------------------------------------------------------------------------------------
     def maybe_reshape(self, X):

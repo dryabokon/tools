@@ -3,8 +3,9 @@ import cv2
 import numpy
 import matplotlib.cm as cm
 from scipy.spatial import ConvexHull
-from skimage.draw import circle, line_aa,ellipse
-from PIL import Image, ImageDraw
+from skimage.draw import disk, line_aa,ellipse,circle_perimeter_aa
+from PIL import Image, ImageDraw,ImageFont
+import matplotlib.pyplot as plt
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_image
 # ----------------------------------------------------------------------------------------------------------------------
@@ -28,9 +29,11 @@ def draw_circle(array_bgr, row, col, rad, color_brg, alpha_transp=0):
     color_brg = numpy.array(color_brg)
     res_rgb = array_bgr.copy()
     if alpha_transp > 0:
-        res_rgb[circle(int(row), int(col), int(rad), shape=array_bgr.shape)] = array_bgr[circle(int(row), int(col), int(rad), shape=array_bgr.shape)] * alpha_transp + color_brg * (1 - alpha_transp)
+        res_rgb[disk((int(row), int(col)), int(rad), shape=array_bgr.shape)] = array_bgr[disk((int(row), int(col)), int(rad), shape=array_bgr.shape)] * alpha_transp + color_brg * (1 - alpha_transp)
     else:
-        res_rgb[circle(int(row), int(col), int(rad), shape=array_bgr.shape)] = color_brg
+        res_rgb[disk((int(row), int(col)), int(rad), shape=array_bgr.shape)] = color_brg
+
+
     return res_rgb
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_line(array_bgr, row1, col1, row2, col2, color_bgr, alpha_transp=0.0):
@@ -51,7 +54,20 @@ def draw_line(array_bgr, row1, col1, row2, col2, color_bgr, alpha_transp=0.0):
 
 
 # ----------------------------------------------------------------------------------------------------------------------
+def draw_circle_aa(image,row, col, radius,color_brg, clr_bg,alpha_transp=0):
 
+    cc, rr, val = circle_perimeter_aa(col, row, radius)
+
+    if alpha_transp > 0:
+        color_brg = color_brg*(1-alpha_transp)+numpy.array(clr_bg)*(alpha_transp)
+
+    idx = numpy.array(cc>0)*numpy.array(rr>0)*numpy.array(cc<image.shape[1])*numpy.array(rr<image.shape[0])
+    image[rr[idx], cc[idx], 0] = val[idx] * color_brg[0] + (1-val[idx]) * clr_bg[0]
+    image[rr[idx], cc[idx], 1] = val[idx] * color_brg[1] + (1-val[idx]) * clr_bg[1]
+    image[rr[idx], cc[idx], 2] = val[idx] * color_brg[2] + (1-val[idx]) * clr_bg[2]
+
+    return image
+# ----------------------------------------------------------------------------------------------------------------------
 def draw_rect(image, col_left, row_up, col_right, row_down, color, w=2, alpha_transp=0.8):
 
     lines = numpy.array(((col_left, row_up, col_left, row_down),(col_left, row_down, col_right, row_down),(col_right, row_down, col_right, row_up),(col_right, row_up,col_left,row_up)))
@@ -149,7 +165,7 @@ def draw_ellipse(image,p,color=(255, 0, 0),transperency=0.0):
     del draw
     return result
 # ----------------------------------------------------------------------------------------------------------------------
-def get_colors(N, shuffle = False,colormap = 'jet',alpha_blend=None):
+def get_colors(N, shuffle = False,colormap = 'jet',alpha_blend=None,clr_blend=(255,255,255)):
     colors = []
     if N==1:
         colors.append(numpy.array([255, 0, 0]))
@@ -174,9 +190,20 @@ def get_colors(N, shuffle = False,colormap = 'jet',alpha_blend=None):
         grays = numpy.array([(int(255 * i / (N - 1)), int(255 * i / (N - 1)), int(255 * i / (N - 1))) for i in range(N)])
         colors = [tools_image.gre2colormap(c,colormap) for c in grays]
 
+        # cmap = plt.get_cmap(colormap)
+        # colors = 255 * numpy.array([cmap(i) for i in range(len(cmap.colors))])[:N, [2, 1, 0]]
+        # if colors.shape[0]<N:
+        #     idx = numpy.random.choice(colors.shape[0],N-colors.shape[0])
+        #     colors = numpy.concatenate((colors,colors[idx]),axis=0)
+
+
+
+
+
 
     if alpha_blend is not None:
-        colors = [((alpha_blend) * numpy.array((255, 255, 255)) + (1 - alpha_blend) * numpy.array(color)) for color in colors]
+        colors = [((alpha_blend) * numpy.array(clr_blend) + (1 - alpha_blend) * numpy.array(color)) for color in colors]
+
 
     colors = numpy.array(colors, dtype=numpy.uint8)
 
@@ -444,3 +471,49 @@ def extend_view_from_image(image,factor=4,color_bg=(32,32,32)):
 
     return image_result
 # ----------------------------------------------------------------------------------------------------------------------
+def draw_text(image,label,pos,color_fg,clr_bg,font_size,alpha_transp=0,align='center'):
+
+    pImage = Image.fromarray(image)
+    fnt = ImageFont.truetype("calibri.ttf", font_size, encoding="unic")
+    draw = ImageDraw.Draw(pImage)
+
+    clr = (numpy.array(color_fg)*(1-alpha_transp)+numpy.array(clr_bg)*(alpha_transp)).astype(numpy.int)
+
+    #draw.text((int(pos[0]),int(pos[1])), '%s'%label,font=fnt,fill=clr_outline)
+    #draw.text((int(pos[0]), int(pos[1])), '{0:s}'.format(label), font=fnt, fill=clr)
+    draw.multiline_text((int(pos[0]), int(pos[1])), '{0:s}'.format(label), font=fnt, fill=(clr[0],clr[1],clr[2]),align=align)
+    #draw.text((int(pos[0]), int(pos[1])), '{0:s}'.format(label), font=fnt, fill=(clr[0], clr[1], clr[2]),align='left', anchor='l')
+
+    result = numpy.array(pImage)
+    del draw
+    return result
+# ----------------------------------------------------------------------------------------------------------------------
+def get_position_sign(sign,W, H,font_size, align='center'):
+
+    image = numpy.zeros((H, W, 3), dtype=numpy.uint8)
+    image = draw_text(image, sign, (int(10), int(H // 2)), (255, 255, 255), (0, 0, 0),
+                                       font_size=int(font_size), align=align)
+
+    # image = cv2.putText(image, '{0:s}'.format(sign), (int(10), int(H//2)), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255),1, cv2.LINE_AA)
+    # image = cv2.rectangle(image, (min_x,min_y), (max_x,max_y), (255,0,0))
+    # cv2.imwrite(folder_out+'xxx.png',image)
+
+    A = numpy.max(image[:, :, 0], axis=0)
+    NZ = numpy.nonzero(A)
+    min_x = NZ[0].min()
+    max_x = NZ[0].max()
+
+    A = numpy.max(image[:, :, 0], axis=1)
+    NZ = numpy.nonzero(A)
+    min_y = NZ[0].min()
+    max_y = NZ[0].max()
+
+    sx = max_x - min_x
+    sy = max_y - min_y
+    shift_x = -sx / 2 - min_x + 10
+    shift_y = -sy / 2 - min_y + int(H // 2)
+    # image_small = image[min_y:max_y+1, min_x:max_x+1]
+    # cv2.imwrite(self.folder_out+'small.png',image_small)
+
+    return shift_x, shift_y, sx, sy
+# ---------------------------------------------------------------------------------------------------------------------

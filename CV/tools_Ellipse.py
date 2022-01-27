@@ -1,17 +1,13 @@
 import math
-import os
 import cv2
 import numpy
-import subprocess
-import uuid
 from scipy.special import ellipeinc
 from scipy import optimize
-from sklearn.linear_model import LinearRegression
 # ----------------------------------------------------------------------------------------------------------------
 import tools_IO
 import tools_image
 import tools_render_CV
-import tools_Skeletone
+from CV import tools_Skeletone
 # ----------------------------------------------------------------------------------------------------------------
 class Ellipse_Processor(object):
     def __init__(self,folder_out=None):

@@ -3,7 +3,9 @@ import pandas as pd
 import os
 import numpy
 from sklearn import metrics
-from sklearn.model_selection import train_test_split, RepeatedStratifiedKFold, cross_val_score
+from sklearn.model_selection import train_test_split, RepeatedStratifiedKFold, cross_validate
+from sklearn.manifold import TSNE
+from sklearn.decomposition import PCA
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_plot_v2
 import tools_DF
@@ -25,6 +27,7 @@ class ML(object):
             FP = nNeg*fpr
             TN = nNeg-FP
             accuracy.append((TP+TN)/(nPos+nNeg))
+
         return numpy.max(numpy.array(accuracy))
 # ---------------------------------------------------------------------------------------------------------------------
     def df_to_XY(self,df,idx_target):
@@ -38,9 +41,20 @@ class ML(object):
         Y = df.iloc[:, [idx_target]].to_numpy().flatten()
         return X,Y
 # ---------------------------------------------------------------------------------------------------------------------
+    def predict_X(self, X):
+        #scores = numpy.array([(100 * self.classifier.predict(x)[:, 1]).astype(int) for x in X])
+        scores = (100*self.classifier.predict(X)[:, 1]).astype(int)
+        return scores
+# ---------------------------------------------------------------------------------------------------------------------
+    def predict_df(self, df, idx_target):
+        X, Y = self.df_to_XY(df, idx_target)
+        scores = self.predict_X(X)
+        return scores
+# ---------------------------------------------------------------------------------------------------------------------
     def learn_df(self, df, idx_target):
         X,Y = self.df_to_XY(df, idx_target)
         self.classifier.learn(X,Y)
+
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def get_datagrid_for_2d(self, X, N = 10):
@@ -62,8 +76,6 @@ class ML(object):
         n_pred_pos = numpy.sum((Y_pred==1))
         n_pred_neg = numpy.sum((Y_pred==0))
 
-
-
         precision, recall,fpr = 0,0,0
         if n_pred_pos>0:precision = n_hit/n_pred_pos
         if n_pos>0 :recall = n_hit/n_pos
@@ -71,28 +83,36 @@ class ML(object):
 
         return precision, recall, fpr
 # ----------------------------------------------------------------------------------------------------------------------
-    def evaluate_metrics(self, df, idx_target, is_train):
+    def evaluate_metrics(self, df, idx_target,scores,is_train,plot_charts=False,xlim=None,description=''):
 
-        Y = df.iloc[:, [idx_target]].to_numpy().flatten()
-        scores = self.predict_df(df, idx_target)
-        pred = numpy.full(df.shape[0],0.05)
-        pred[scores.flatten()>50]=1-0.05
+        X, Y = tools_DF.df_to_XY(df, idx_target)
         fpr, tpr, thresholds = metrics.roc_curve(Y, scores)
-        auc = metrics.auc(fpr, tpr)
+        precisions, recalls, thresholds = metrics.precision_recall_curve(Y, scores)
+        idx_th = numpy.argmax([p * r / (p + r + 1e-4) for p, r in zip(precisions, recalls)])
+
         accuracy = self.get_accuracy(tpr, fpr, nPos=numpy.count_nonzero(Y > 0),nNeg=numpy.count_nonzero(Y <= 0))
+        auc = metrics.auc(fpr, tpr)
+        mAP = metrics.average_precision_score(Y, scores)
 
-        if is_train:caption = 'Train'
-        else:caption = 'Test'
+        keylist = ['train_AUC', 'train_ACC', 'train_mAP','train_P','train_R'] if is_train else ['test_AUC', 'test_ACC', 'test_mAP','test_P','test_R']
+        dct_res = dict(zip(keylist,[auc,accuracy,mAP,precisions[idx_th],recalls[idx_th]]))
 
-        self.P.plot_tp_fp(tpr, fpr, auc, caption=caption, filename_out=caption + '_auc.png')
-        print('ACC_%s = %1.3f' % (caption, accuracy))
-        print('AUC_%s = %1.3f' % (caption, auc))
-        df_temp = pd.DataFrame({'GT':Y,'pred': pred},index=df.index)
-        df_temp = tools_DF.remove_dups(df_temp)
+        if plot_charts:
+            suffix = 'Train' if is_train else 'Test'
+            caption_auc = 'AUC_'+suffix
+            caption_map = 'mAP_'+suffix
 
-        self.P.TS_seaborn(df_temp, idxs_target=[0,1], idx_feature=None, mode='pointplot', remove_xticks=False,major_step=60,filename_out=caption+'_fact_pred1.png')
+            self.P.plot_tp_fp(tpr, fpr, auc, caption=caption_auc, filename_out=description+caption_auc + '.png')
+            self.P.plot_PR(precisions,recalls, mAP, caption=caption_map,filename_out=description+caption_map + '.png')
+            self.P.plot_1D_features_pos_neg(scores, Y, labels=True, bins=numpy.linspace(0,100,100),colors = [(0.5,0.5,0.5),(0.75,0.25,0)],xlim=xlim,filename_out=description+'scores_'+suffix+'.png')
+            #self.P.plot_TP_FP_PCA_scatter(scores, X,Y,filename_out=description + 'TP_FP_PCA_' + suffix + '.png')
+            self.P.plot_TP_FP_rectangles(scores, X,Y,filename_out=description + 'TP_FP_' + suffix + '.png')
 
-        return accuracy, auc
+            # df_temp = pd.DataFrame({'GT': Y, 'pred': pred}, index=df.index)
+            # df_temp = tools_DF.remove_dups(df_temp)
+            #self.P.TS_seaborn(df_temp, idxs_target=[0,1], idx_time=None, mode='pointplot', remove_xticks=False, major_step=60, filename_out=caption + '_fact_pred1.png')
+
+        return dct_res
 # ----------------------------------------------------------------------------------------------------------------------
     def plot_report(self,df, idx_target):
         X, Y_target = self.df_to_XY(df, idx_target)
@@ -117,60 +137,84 @@ class ML(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def cross_validation_train_test(self,df, idx_target):
-        X, Y = self.df_to_XY(df, idx_target)
-        auc_cross = cross_val_score(self.classifier.model, X, Y, scoring='roc_auc' ,cv=RepeatedStratifiedKFold(n_splits=2, n_repeats=10)).mean()
-        acc_cross = cross_val_score(self.classifier.model, X, Y, scoring='accuracy',cv=RepeatedStratifiedKFold(n_splits=2, n_repeats=10)).mean()
-        print('acc_cross = %1.3f' %acc_cross)
-        print('auc_cross = %1.3f' %auc_cross)
-        print()
+    def combine_metrics(self,dct_metrics_train,dct_metrics_test,dct_metric_crossval=None):
 
-        return
+        name = numpy.array(['AUC', 'ACC', 'mAP','P','R'])
+        metrics_train = [dct_metrics_train['train_%s'%s]for s in name]
+        metrics_test  = [dct_metrics_test['test_%s' %s] for s in name]
+
+        df = pd.DataFrame({'metric':name,'train':metrics_train,'test':metrics_test})
+
+        if dct_metric_crossval is not None:
+            metrics_train_cv = numpy.array([dct_metric_crossval['train_AUC'], dct_metric_crossval['train_ACC'], dct_metric_crossval['train_mAP']])
+            metrics_test_cv = numpy.array([dct_metric_crossval['test_AUC'], dct_metric_crossval['test_ACC'],dct_metric_crossval['test_mAP']])
+            name_cv = numpy.array(['CV AUC', 'CV ACC', 'CV mAP'])
+            df2 = pd.DataFrame({'metric': name_cv, 'train': metrics_train_cv, 'test': metrics_test_cv})
+            df = df.append(df2, ignore_index=True)
+
+        return df
 # ----------------------------------------------------------------------------------------------------------------------
-    def E2E_train_test_df(self,df,idx_target,do_density=False,do_pca = False,idx_columns=None):
+    def cross_validation_train_test(self,df, idx_target):
+
+        def my_custom_MAPE(model, X, Y):return metrics.average_precision_score(Y, model.predict_proba(X)[:,1].reshape((-1,1)))
+
+        if self.classifier.model is None:
+            return None
+
+        X, Y = self.df_to_XY(df, idx_target)
+        cross_val = RepeatedStratifiedKFold(n_splits=2, n_repeats=10)
+        scoring_type = {'AUC': 'roc_auc', 'ACC': 'accuracy','mAP': my_custom_MAPE}
+        cv_results = cross_validate(self.classifier.model, X, Y, cv=cross_val,return_train_score=True, scoring=scoring_type)
+
+        dct_res = {}
+        for key in scoring_type.keys():
+            dct_res['train_'+key] = cv_results['train_'+key].mean()
+            dct_res['test_'+key] = cv_results['test_' + key].mean()
+
+        return dct_res
+# ----------------------------------------------------------------------------------------------------------------------
+    def E2E_train_test_df(self,df_train,df_test=None,idx_target=0,do_charts=False,do_density=False,do_pca = False,idx_columns=None,description=''):
+
+        if df_test is None:
+            df_train, df_test = train_test_split(df_train, test_size=0.5,shuffle=False)
+
+        df_train = tools_DF.remove_dups(df_train.dropna())
+        df_test = tools_DF.remove_dups(df_test.dropna())
 
         if idx_columns is not None:
-            df = df.iloc[:,[idx_target]+idx_columns]
+            df_train = df_train.iloc[:,[idx_target]+idx_columns]
+            df_test  = df_test.iloc[:, [idx_target] + idx_columns]
             idx_target = 0
-
-        df = df.dropna()
-        df = tools_DF.remove_dups(df)
-
-        df_train, df_test = train_test_split(df, test_size=0.5,shuffle=False)
-        # df_train = pd.concat([df, df_train], axis=1, sort=True).iloc[:, df.shape[1]:]
-        # df_test  = pd.concat([df, df_test] , axis=1, sort=True).iloc[:, df.shape[1]:]
 
         self.learn_df(df_train.dropna(),idx_target)
 
-        self.evaluate_metrics(df_train, idx_target,is_train=True)
-        self.evaluate_metrics(df_test , idx_target,is_train=False)
+        scores_train = self.predict_df(df_train, idx_target)
+        scores_test =self.predict_df(df_test, idx_target)
+        S = numpy.concatenate((scores_train, scores_test))
+        xlim = [numpy.floor(numpy.quantile(S,0.01)),numpy.ceil(1+numpy.quantile(S,0.99))]
+
+        dct_metrics_train = self.evaluate_metrics(df_train, idx_target,scores=scores_train,is_train=True,plot_charts=do_charts,xlim=xlim,description=description)
+        dct_metrics_test  = self.evaluate_metrics(df_test , idx_target,scores=scores_test,is_train=False,plot_charts=do_charts,xlim=xlim,description=description)
+        dct_metric_crossval =self.cross_validation_train_test(df_train, idx_target)
+
+        df_metrics = self.combine_metrics(dct_metrics_train,dct_metrics_test,dct_metric_crossval)
 
         if do_density and df_train.shape[1]==3:
-            idx_col = numpy.delete(numpy.arange(0, len(df.columns.to_numpy())), idx_target)
-            X = df.iloc[:, idx_col]
+            idx_col = numpy.delete(numpy.arange(0, len(df_train.columns.to_numpy())), idx_target)
+            X = df_train.iloc[:, idx_col]
 
             x_range = numpy.array([X.iloc[:,0].min(), X.iloc[:,0].max()])
             y_range = numpy.array([X.iloc[:,1].min(), X.iloc[:,1].max()])
-            self.plot_density_2d(df_train, idx_target, filename_out = 'density_train.png',x_range=x_range,y_range=y_range)
-            self.plot_density_2d(df_test , idx_target, filename_out = 'density_test.png' ,x_range=x_range,y_range=y_range)
+            self.plot_density_2d(df_train, idx_target, filename_out = description+'density_train.png',x_range=x_range,y_range=y_range)
+            self.plot_density_2d(df_test , idx_target, filename_out = description+'density_test.png' ,x_range=x_range,y_range=y_range)
 
         if do_pca and df_train.shape[1]>3:
-            self.P.plot_SVD(df_train, idx_target,'dim_SVD.png')
-            self.P.plot_tSNE(df_train, idx_target,'dim_tSNE.png')
-            self.P.plot_PCA(df_train, idx_target,'dim_PCA.png')
-            self.P.plot_LLE(df_train, idx_target,'dim_LLE.png')
-            self.P.plot_ISOMAP(df_train, idx_target,'dim_ISOMAP.png')
-            #self.P.plot_UMAP(df_train, idx_target,'dim_UMAP.png')
+            #self.P.plot_SVD(df_train, idx_target,filename_out=description+'dim_SVD.png')
+            self.P.plot_tSNE(df_train, idx_target,filename_out=description+'dim_tSNE.png')
+            #self.P.plot_PCA(df_train, idx_target,filename_out=description+'dim_PCA.png')
+            #self.P.plot_LLE(df_train, idx_target,filename_out=description+'dim_LLE.png')
+            #self.P.plot_ISOMAP(df_train, idx_target,filename_out=description+'dim_ISOMAP.png')
+            #self.P.plot_UMAP(df_train, idx_target,filename_out=description+'dim_UMAP.png')
 
-
-        return
-# ---------------------------------------------------------------------------------------------------------------------
-    def predict_X(self, X):
-        scores = numpy.array([(100 * self.classifier.predict(x)[:, 1]).astype(int) for x in X])
-        return scores
-# ---------------------------------------------------------------------------------------------------------------------
-    def predict_df(self, df,idx_target):
-        X, Y = self.df_to_XY(df, idx_target)
-        scores = self.predict_X(X)
-        return scores
-# ---------------------------------------------------------------------------------------------------------------------
+        return df_metrics
+# ----------------------------------------------------------------------------------------------------------------------

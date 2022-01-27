@@ -163,7 +163,7 @@ def plot_precision_recall(plt,figure,precision,recall,caption=''):
     AP = numpy.trapz(precision, x=recall)
 
     lw = 2
-    plt.plot(recall,precision, color='darkgreen', lw=lw, label='AP = %0.2f' % AP)
+    plt.plot(recall, precision, color='darkgreen', lw=lw, label='AP = %0.2f' % AP)
     plt.plot([0, 1.0], [1.0, 0], color='lightgray', lw=lw, linestyle='--')
     plt.set_title(caption + (' %0.4f' % AP))
     plt.grid(which='major', color='lightgray', linestyle='--')

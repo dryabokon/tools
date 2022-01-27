@@ -3,9 +3,6 @@ import cv2
 import numpy
 from keras.models import Model
 from keras.layers.convolutional import  Conv2D,UpSampling2D, Conv2DTranspose,Cropping2D
-#--------------------------------------------------------------------------------------------------------------------------
-import tools_image
-
 # ----------------------------------------------------------------------------------------------------------------------
 def inverce_weight(W,b_size):
 

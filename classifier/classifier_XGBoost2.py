@@ -7,8 +7,8 @@ import tools_IO
 class classifier_XGBoost2(object):
     def __init__(self):
         self.name = "XGBoost2"
-        self.max_depth = 6
-        self.model = XGBClassifier(max_depth=self.max_depth,n_estimators=50)
+        self.max_depth = 3
+        self.model = XGBClassifier(max_depth=self.max_depth,n_estimators=50,use_label_encoder=False)
         return
 # ----------------------------------------------------------------------------------------------------------------
     def maybe_reshape(self, X):
@@ -24,7 +24,8 @@ class classifier_XGBoost2(object):
         else:
             eval_set = None
 
-        self.model.fit(preprocessing.normalize(self.maybe_reshape(data_train), axis=1), target_train,eval_set=eval_set)
+        self.model.fit(preprocessing.normalize(self.maybe_reshape(data_train), axis=1), target_train.astype('int'),eval_set=eval_set)
+
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def predict(self, array):

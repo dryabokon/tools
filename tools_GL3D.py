@@ -12,7 +12,7 @@ import pyrr
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_IO
 import tools_render_CV
-import tools_pr_geom
+from CV import tools_pr_geom
 import tools_wavefront
 # ----------------------------------------------------------------------------------------------------------------------
 numpy.set_printoptions(suppress=True)
@@ -181,7 +181,7 @@ class render_GL3D(object):
                                         //outColor = texel;//soccer
                                         //outColor = texel* materialColor;//
                                         //outColor = vec4(texel.rgb * lightIntensity, 1);
-                                        outColor.a = 0.80;                                        
+                                        outColor.a = 0.95;                                        
                                     }"""
 
         if textured:
