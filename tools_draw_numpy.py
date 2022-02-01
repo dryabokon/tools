@@ -197,10 +197,6 @@ def get_colors(N, shuffle = False,colormap = 'jet',alpha_blend=None,clr_blend=(2
         #     colors = numpy.concatenate((colors,colors[idx]),axis=0)
 
 
-
-
-
-
     if alpha_blend is not None:
         colors = [((alpha_blend) * numpy.array(clr_blend) + (1 - alpha_blend) * numpy.array(color)) for color in colors]
 
@@ -213,6 +209,27 @@ def get_colors(N, shuffle = False,colormap = 'jet',alpha_blend=None,clr_blend=(2
         colors = colors[idx]
     return numpy.array(colors)
 # ----------------------------------------------------------------------------------------------------------------------
+def get_colors_warm(N,dark_mode=False):
+
+    if dark_mode:colors_warm = get_colors(256, colormap='YlOrRd', alpha_blend=0.2,clr_blend=(0, 0, 0), shuffle=False)
+    else:colors_warm = get_colors(256, colormap='YlOrRd', alpha_blend=0.0, clr_blend=(0, 0, 0), shuffle=False)
+    res_colors = numpy.array([colors_warm[int(i)] for i in numpy.linspace(64,192, N)])
+    return res_colors
+# ----------------------------------------------------------------------------------------------------------------------
+def get_colors_cool(N,dark_mode=False):
+
+    if dark_mode:
+        c1 = get_colors(256, colormap='Blues', alpha_blend=0.2, clr_blend=(0, 0, 0), shuffle=False)
+        c2 = get_colors(256, colormap='Greens', alpha_blend=0.2, clr_blend=(0, 0, 0),shuffle=False)
+    else:
+        c1 = get_colors(256, colormap='Blues', alpha_blend=0.0, clr_blend=(255, 255, 255), shuffle=False)
+        c2 = get_colors(256, colormap='Greens', alpha_blend=0.0, clr_blend=(255, 255, 255),shuffle=False)
+
+    colors_cool = (6.0 * c1 + 4.0 * c2)[::-1] / 10
+
+    res_colors = numpy.array([colors_cool[int(i)] for i in numpy.linspace(64, 192, N)])
+    return res_colors
+# ---------------------------------------------------------------------------------------------------------------------
 def draw_ellipse_axes(image, ellipse, color=(255, 255, 255), w=4):
     center = (int(ellipse[0][0]), int(ellipse[0][1]))
     axes = (int(ellipse[1][0] / 2), int(ellipse[1][1] / 2))

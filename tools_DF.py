@@ -3,6 +3,8 @@ import numpy
 from scipy.stats import entropy
 from sklearn.feature_selection import mutual_info_classif
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.impute import SimpleImputer
+from collections import Counter
 # ----------------------------------------------------------------------------------------------------------------------
 def df_to_XY(df,idx_target,keep_categoirical=True,drop_na=True,numpy_style=True):
     if drop_na:
@@ -34,29 +36,71 @@ def get_names(df,idx_target,keep_categoirical=True):
 
     return columns[idx]
 # ----------------------------------------------------------------------------------------------------------------------
+def get_categoricals_hash_map(df,drop_na=True):
+
+    res_dict= {}
+
+    if drop_na:
+        df = df.dropna()
+
+    are_categoirical = numpy.array([cc in ['object', 'category', 'bool'] for cc in [str(t) for t in df.dtypes]])
+    columns_categorical = df.columns[are_categoirical]
+    for column in columns_categorical:
+
+        idx = df[column].isna()
+        S = pd.Series(df[column]).astype(str)
+        S[idx] = 'N/A'
+        df[column] = S
+
+        types = numpy.array([str(type(v)) for v in df[column]])
+        values = df[column].values
+        idx = numpy.argsort(types)
+
+        values = values[idx]
+        types = types[idx]
+        for typ in Counter(types).keys():
+            values_typ = values[types==typ].copy()
+            idx = numpy.argsort(values_typ)
+            values[types==typ] = values_typ[idx]
+
+        keys = numpy.unique(values)
+
+        dct = dict(zip(keys,numpy.arange(0,len(keys))))
+        res_dict[column] = dct
+
+    return res_dict
+# ----------------------------------------------------------------------------------------------------------------------
 def hash_categoricals(df,drop_na=True):
 
-    df_res = df.copy()
-    if drop_na:
-        df_res = df_res.dropna()
+    dct_hashmap = get_categoricals_hash_map(df,drop_na)
 
-    col_types = numpy.array([str(t) for t in df.dtypes])
-    are_categoirical = \
-        numpy.array([cc in ['object', 'category', 'bool']
-                     for cc in col_types])
-    C = numpy.arange(0, df.shape[1])[are_categoirical]
+    for column,dct in zip(dct_hashmap.keys(),dct_hashmap.values()):
+        df[column] = df[column].map(dct).astype('int32')
 
-    columns = df.columns.to_numpy()
-    for column in columns[C]:
-        vv = df.loc[:, column].dropna()
+    return df
+# ----------------------------------------------------------------------------------------------------------------------
+def impute_na(df,strategy='constant',strategy_bool='int'):
 
-        keys = numpy.unique(vv.to_numpy())
-        values = numpy.arange(0,len(keys))
-        dct = dict(zip(keys,values))
-        df_res[column] = df[column].map(dct)
-        df_res = df_res.astype({column: 'int32'})
+    #strategies = ['mean', 'median', 'most_frequent', 'interpolate', 'constant']
 
-    return df_res
+    imp = SimpleImputer(missing_values=numpy.nan, strategy=strategy)
+    for column in df.columns:
+        if column=='deck':
+            ii=0
+        if any([isinstance(v, bool) for v in df[column]]) and strategy_bool == 'int':
+            df[column] = df[column].fillna(numpy.nan).map(dict(zip([False,numpy.nan,True], [-1,0,1]))).astype('int32')
+        else:
+            vvv = numpy.array([v for v in df[column].values])
+            if any([isinstance(v, str) for v in df[column]]):
+                idx = df[column].isna()
+                S = pd.Series(df[column]).astype(str)
+                S[idx] = 'N/A'
+                df[column]=S
+            else:
+                df[column] = imp.fit_transform(vvv.reshape(-1, 1))
+
+
+    return df
 # ----------------------------------------------------------------------------------------------------------------------
 def scale(df):
     scaler = MinMaxScaler(feature_range=(0, 1))
@@ -127,3 +171,61 @@ def remove_dups(df):
     df = df[~df.index.duplicated(keep='first')]
     return df
 # ----------------------------------------------------------------------------------------------------------------------
+def remove_by_quantiles(df0,idx_target,q_left,q_right):
+
+    df=df0.copy()
+
+    columns = df0.columns
+    idx = numpy.delete(numpy.arange(0, columns.shape[0]), idx_target)
+    types = numpy.array([str(t) for t in df0.dtypes])
+
+    for column, typ in zip(columns[idx], types[idx]):
+        if typ not in ['object', 'category', 'bool']:
+            idx = numpy.full(df.shape[0], True)
+            ql = df[column].quantile(q_left)
+            qr = df[column].quantile(q_right)
+            if q_left > 0: idx = ((idx) & (df[column] >= ql))
+            if q_right > 0: idx = (idx) & (df[column] <= qr)
+            df.iloc[idx,df.columns.get_loc(column)] = numpy.nan
+
+    return df
+# ----------------------------------------------------------------------------------------------------------------------
+def re_order_by_freq(df,idx_values=1,th=0.01,max_count=None):
+    C = df.iloc[:,idx_values].value_counts().sort_index(ascending=False).sort_values(ascending=False)
+
+    critical = sum(C.values) * th
+
+    idx_is_good  = [C.values[i:].sum() >= critical for i in range(C.values.shape[0])]
+    c_is_good = C.index.values[idx_is_good]
+    if max_count is not None:
+        c_is_good=c_is_good[:max_count]
+
+    df = df[df.iloc[:,idx_values].isin(c_is_good)].copy()
+    dct_map = dict((k,v)for k,v in zip(C.index.values, numpy.argsort(-C.values)))
+    df['#'] = df.iloc[:,idx_values].map(dct_map)
+    df_res = df.sort_values(by='#').copy().iloc[:,:-1]
+
+    return df_res
+# ----------------------------------------------------------------------------------------------------------------------
+def my_agg(df,cols_groupby,cols_value,aggs,list_res_names=None,order_idx=None,ascending=True):
+    dct_agg={}
+    for v,a in zip(cols_value,aggs):
+        if a=='top': a=(lambda x: x.value_counts().index[0] if any(x.value_counts()) else numpy.nan)
+
+        if isinstance(a,list):
+            dct_agg[v]=[item for item in a]
+        else:
+            dct_agg[v] = a
+
+    df_res = df.groupby(cols_groupby).agg(dct_agg)
+    df_res = df_res.reset_index()
+
+    df_res.columns = [''.join(col) for col in df_res.columns]
+
+    if list_res_names is not None:
+        df_res = df_res.rename(columns=dict(zip(df_res.columns[-len(list_res_names):],list_res_names)))
+    if order_idx is not None:
+        df_res = df_res.sort_values(by=df_res.columns[order_idx], ascending=ascending)
+
+    return df_res
+# ---------------------------------------------------------------------------------------------------------------------

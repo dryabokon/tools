@@ -1,3 +1,4 @@
+import os
 import cv2
 import io
 from mpl_toolkits.mplot3d import Axes3D
@@ -6,11 +7,11 @@ import seaborn
 import pandas as pd
 import operator
 import matplotlib
+import math
 matplotlib.use('Agg')
-from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt,colors
 import matplotlib.patches as mpatches
 import matplotlib.cm as cm
-from matplotlib import colors
 from sklearn.manifold import TSNE, LocallyLinearEmbedding, Isomap
 from sklearn.decomposition import PCA, TruncatedSVD
 import squarify
@@ -20,18 +21,13 @@ from sklearn.feature_selection import mutual_info_classif
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_DF
 import tools_draw_numpy
+import tools_Hyptest
 # ----------------------------------------------------------------------------------------------------------------------
 class Plotter(object):
     def __init__(self,folder_out=None,dark_mode=False):
         self.folder_out = folder_out
         self.dark_mode = dark_mode
         self.init_colors()
-
-        #self.dct_color = {}
-        #self.colors = tools_draw_numpy.get_colors(256, colormap='jet',alpha_blend=0.2, clr_blend=(0, 0, 0),shuffle=False)
-        #self.colors = tools_draw_numpy.get_colors(256, colormap='rainbow', alpha_blend=0.0,clr_blend=(0, 0, 0), shuffle=True)
-        #self.colors = tools_draw_numpy.get_colors(256, colormap='tab10', alpha_blend=0.0,clr_blend=(0, 0, 0), shuffle=False)
-
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def init_colors(self,cmap='tab20',shuffle=True):
@@ -56,7 +52,7 @@ class Plotter(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def get_color(self, label,alpha_blend=0.0):
         if label not in self.dct_color:
-            if isinstance(label, numpy.int32):
+            if isinstance(label, numpy.int32) or isinstance(label, numpy.int):
                 n = label
             else:
                 n = numpy.array([ord(l) for l in label]).sum() % self.colors.shape[0]
@@ -140,24 +136,28 @@ class Plotter(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def empty(self,figsize=(3.5,3.5)):
         fig = plt.figure(figsize=figsize)
-        self.turn_light_mode()
+        self.turn_light_mode(fig)
 
         plt.plot(0, 0)
         plt.grid(color=self.clr_grid)
         plt.tight_layout()
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def plot_image(self, image):
-        fig = plt.figure()
-        self.turn_light_mode()
+    def plot_image(self, image,filename_out):
+        fig = plt.figure(figsize=(image.shape[1]/10.0,image.shape[0]/10.0))
+        self.turn_light_mode(fig)
 
         plt.imshow(image[:, :, [2, 1, 0]])
         plt.axis('off')
+        plt.tight_layout()
+        if filename_out is not None:
+            plt.savefig(self.folder_out+filename_out,facecolor=fig.get_facecolor())
+
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def plot_regression_df(self,df, idx_target, idx_num, idx_cat, filename_out=None):
         fig = plt.figure()
-        self.turn_light_mode()
+        self.turn_light_mode(fig)
 
         columns = df.columns.to_numpy()
         name_num, name_cat, name_target = columns[[idx_num, idx_cat, idx_target]]
@@ -204,7 +204,7 @@ class Plotter(object):
 
         patches = []
 
-        plt.xlim([-1, X.max()+1])
+        #plt.xlim([-1, X.max()+1])
 
         if colors is None:
             colors = seaborn.color_palette(palette)
@@ -228,17 +228,38 @@ class Plotter(object):
             plt.savefig(self.folder_out+filename_out,facecolor=fig.get_facecolor())
         return
 # ----------------------------------------------------------------------------------------------------------------------
+    def patch_labels(self,labels_str,dct):
+
+        dct_inv = dict(zip(dct.values(),dct.keys()))
+
+        label_res = []
+        for l in labels_str:
+            if '−' in l:
+                label_res.append('')
+            elif float(l) == math.floor(float(l)) and int(float(l)) in dct_inv.keys():
+                label_res.append(dct_inv[int(float(l))])
+            else:
+                label_res.append('')
+        return label_res
+# ----------------------------------------------------------------------------------------------------------------------
     def plot_2D_features(self, df, x_range=None, y_range=None, add_noice=False, remove_legend=False, transparency=0.0, colors=None,palette='tab10', figsize=(8, 6), filename_out=None):
 
         fig = plt.figure(figsize=figsize)
         fig = self.turn_light_mode(fig)
 
+        categoricals_hash_map = {}
         if add_noice:
-            noice = 0.05 - 0.1 * numpy.random.random_sample(df.shape)
+            categoricals_hash_map = tools_DF.get_categoricals_hash_map(df)
+            df=tools_DF.hash_categoricals(df)
+            A = 0.10
+            noice = A - 2*A * numpy.random.random_sample(df.shape)
             df.iloc[:,1:]+= noice[:,1:]
 
         my_pal = colors if colors is not None else palette
-        J = seaborn.scatterplot(data=df,x=df.columns[1],y=df.columns[2],hue=df.columns[0],palette=my_pal,edgecolor=None,alpha=1-transparency)
+        plt.rcParams.update({'lines.markersize': 3})
+        J = seaborn.scatterplot(data=df,x=df.columns[1],y=df.columns[2],hue=df.columns[0],marker='o',palette=my_pal,edgecolor='none',alpha=1-transparency)
+
+
 
         plt.grid(color=self.clr_grid)
         if remove_legend:
@@ -251,14 +272,22 @@ class Plotter(object):
         if y_range is not None:plt.ylim(y_range)
 
         plt.tight_layout()
+
+        if add_noice and (df.columns[1] in categoricals_hash_map):
+            labels_new = self.patch_labels([str(item.get_text()) for item in plt.gca().get_xticklabels()],categoricals_hash_map[df.columns[1]])
+            plt.gca().set_xticklabels(labels_new)
+
+        if add_noice and (df.columns[2] in categoricals_hash_map):
+            labels_new = self.patch_labels([str(item.get_text()) for item in plt.gca().get_yticklabels()],categoricals_hash_map[df.columns[2]])
+            plt.gca().set_yticklabels(labels_new)
+
         if filename_out is not None:
             plt.savefig(self.folder_out + filename_out, facecolor=fig.get_facecolor())
 
         return fig
 # ----------------------------------------------------------------------------------------------------------------------
-    def plot_2D_features_cumul(self, df, figsize=(3.5,3.5),remove_legend=False,filename_out=None):
+    def plot_2D_features_cumul(self, df, figsize=(6,6),remove_legend=False,filename_out=None):
         def max_element_by_value(dct):return max(dct.items(), key=operator.itemgetter(1))
-
 
         fig = plt.figure(figsize=figsize)
         fig = self.turn_light_mode(fig)
@@ -273,7 +302,6 @@ class Plotter(object):
         for x in X[Y<=0]:
             if tuple(x) not in dict_neg:dict_neg[tuple(x)]=1
             else:dict_neg[tuple(x)]+=1
-
 
         col_neg  = (0, 0.5, 1, 1)
         col_pos  = (1, 0.5, 0, 1)
@@ -303,7 +331,7 @@ class Plotter(object):
             plt.legend([], [], frameon=False)
 
         plt.xlabel(df.columns[1])
-        plt.ylabel(df.columns[1])
+        plt.ylabel(df.columns[2])
 
         plt.tight_layout()
         if filename_out is not None:
@@ -375,6 +403,8 @@ class Plotter(object):
 
         precision_random = precisions[recalls==1].max()
         plt.plot([0, 1], [precision_random, precision_random], color='lightgray', lw=1, linestyle='--')
+        plt.xlim([-0.05, 1.05])
+        plt.ylim([-0.05, 1.05])
 
         legend = plt.legend(loc='upper left')
         self.recolor_legend_plt(legend)
@@ -475,39 +505,79 @@ class Plotter(object):
             plt.savefig(self.folder_out+filename_out,facecolor=fig.get_facecolor())
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def jointplots_df(self,df0, idx_target=0,transparency=0,palette='tab10'):
+    def histoplots_df(self,df0,idx_target=0,transparency=0.5,palette='tab10',remove_legend=False,figsize=(6,6)):
 
-        columns = df0.columns.to_numpy()
+        columns = df0.columns
         target = columns[idx_target]
-        idx = numpy.delete(numpy.arange(0, len(columns)), idx_target)
+        idx = numpy.delete(numpy.arange(0, columns.shape[0]), idx_target)
 
+        unique_targets = df0.iloc[:,idx_target].unique().tolist()
+        HT = tools_Hyptest.HypTest()
 
-        for i in range(len(idx)):
-            c = columns[idx[i]]
-            df = df0[[target, c]]
-            df = df.dropna()
-            df = tools_DF.hash_categoricals(df)
+        types = numpy.array([str(t) for t in df0.dtypes])
+        for column, typ in zip(columns[idx],types[idx]):
 
-            fig = plt.figure()
+            fig = plt.figure(figsize=figsize)
             fig = self.turn_light_mode(fig)
             plt.grid(color=self.clr_grid)
-            J = seaborn.histplot(data=df, x=c, hue=target, palette=palette,element='poly',legend=True)
 
-            legend = J._get_patches_for_fill.axes.legend_
-            self.recolor_legend_seaborn(legend)
-            plt.savefig(self.folder_out + 'plot_%02d_%02d_%s.png' % (i, i,c),facecolor=fig.get_facecolor())
-            plt.close()
+            df = df0[[target, column]].copy()
+            df.dropna(inplace=True)
+
+            is_categorical = (typ in ['object', 'category', 'bool'])
+            if is_categorical:
+                df[column] = df[column].astype(str)
+            df = tools_DF.re_order_by_freq(df,th=0.01,max_count=(30 if is_categorical else None))
+
+            if df[column].unique().shape[0]>=20 and is_categorical:
+                J = seaborn.histplot(data=df, y=column, hue=target, palette=palette, alpha=1 - transparency)
+            else:
+                J = seaborn.histplot(data=df, x=column, hue=target, palette=palette, alpha=1 - transparency)
+
+            if remove_legend:
+                plt.legend([], [], frameon=False)
+            else:
+                self.recolor_legend_seaborn(J._get_patches_for_fill.axes.legend_)
+
+            I = 0
+            if len(unique_targets)==2:
+                I = int(100*HT.distribution_distance(df[df[target]==unique_targets[0]].iloc[:,1:],df[df[target]==unique_targets[1]].iloc[:,1:]))
+
+            file_out = 'histo_%s.png' % (column)
+            plt.savefig(self.folder_out + file_out, facecolor=fig.get_facecolor())
+            plt.close(fig)
+
+            mode = 'a+' if os.path.exists(self.folder_out + 'descript.ion') else 'w'
+            f_handle = open(self.folder_out + "descript.ion", mode=mode)
+            f_handle.write("%s %s\n" % (file_out, '%03d' % I))
+            f_handle.close()
+
+        return
+
+# ----------------------------------------------------------------------------------------------------------------------
+    def jointplots_df(self,df0,idx_target=0,transparency=0.25,palette='tab10',remove_legend=False,figsize=(6,6)):
+
+        columns = df0.columns
+        target = columns[idx_target]
+        idx = numpy.delete(numpy.arange(0, columns.shape[0]), idx_target)
 
         for i in range(len(idx)-1):
             for j in range(i+1,len(idx)):
                 c1, c2 = columns[idx[i]], columns[idx[j]]
-                df = df0[[target, c1, c2]]
-                df = df.dropna()
-                df = tools_DF.hash_categoricals(df)
+                df = df0[[target, c1, c2]].copy()
+                df.dropna(inplace=True)
+                is_categorical1 = str(df.dtypes[1]) in ['object', 'category', 'bool']
+                is_categorical2 = str(df.dtypes[2]) in ['object', 'category', 'bool']
 
-                fig = plt.figure()
+                if is_categorical1:df[c1] = df[c1].astype(str)
+                if is_categorical2:df[c2] = df[c2].astype(str)
+
+                df = tools_DF.re_order_by_freq(df,idx_values=1,th=0.01,max_count=(30 if is_categorical1 else None))
+                df = tools_DF.re_order_by_freq(df,idx_values=2,th=0.01,max_count=(30 if is_categorical2 else None))
+
+                fig = plt.figure(figsize=figsize)
                 fig = self.turn_light_mode(fig)
-                J = seaborn.jointplot(data=df, x=c1, y=c2, hue=target,palette=palette,edgecolor=None,alpha=1-transparency)
+                J = seaborn.jointplot(data=df, x=c1, y=c2, hue=target,palette=palette,edgecolor=None,alpha=1-transparency,legend=(not remove_legend))
                 J.ax_joint.grid(color=self.clr_grid)
                 J.ax_joint.set_facecolor(self.clr_bg)
                 J.ax_marg_x.set_facecolor(self.clr_bg)
@@ -515,71 +585,79 @@ class Plotter(object):
                 J.ax_joint.xaxis.label.set_color(self.clr_font)
                 J.ax_joint.yaxis.label.set_color(self.clr_font)
 
-                legend = J.ax_joint.legend()
-                self.recolor_legend_plt(legend)
+                if remove_legend:
+                    plt.legend([], [], frameon=False)
+                else:
+                    legend = J.ax_joint.legend()
+                    self.recolor_legend_plt(legend)
 
-                I = int(10000 * mutual_info_classif(df.iloc[:, [1, 2]], df.iloc[:, 0]).sum())
-                file_out = 'pairplot_%02d_%02d_%s_%s.png'%(i,j,c1,c2)
+                I = int(100 * mutual_info_classif(df.iloc[:, [1, 2]], df.iloc[:, 0]).sum())
+                file_out = 'jointplot_%02d_%02d_%s_%s.png'%(i,j,c1,c2)
                 plt.savefig(self.folder_out + file_out,facecolor=fig.get_facecolor())
                 plt.close(fig)
 
-                f_handle = open(self.folder_out + "descript.ion", "a+")
+                mode = 'a+' if os.path.exists(self.folder_out + 'descript.ion') else 'w'
+                f_handle = open(self.folder_out + 'descript.ion', mode)
                 f_handle.write("%s %s\n" % (file_out, '%03d' % I))
                 f_handle.close()
 
-
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def pairplots_df(self,df0, idx_target=0,palette = 'tab10',transparency=0,cumul_mode=False,add_noise=False,mode2d=True):
-
-        f_handle = open(self.folder_out + "descript.ion", "w+")
-        f_handle.close()
+    def pairplots_df(self,df0, idx_target=0,df_Q=None,palette = 'tab10',transparency=0,cumul_mode=False,add_noise=False,mode2d=True,remove_legend=False,figsize=(6,6)):
 
         columns = df0.columns.to_numpy()
         target = columns[idx_target]
         idx = numpy.delete(numpy.arange(0, len(columns)), idx_target)
 
+        unique_targets = df0.iloc[:, idx_target].unique().tolist()
+        HT = tools_Hyptest.HypTest()
+
         if add_noise:
-            transparency = 0.95
+            transparency = 0.97
 
         for i in range(len(idx)-1):
             for j in range(i+1,len(idx)):
                 c1, c2 = columns[idx[i]], columns[idx[j]]
-                df = df0[[target,c1,c2]]
-                df = df.dropna()
-                df = tools_DF.hash_categoricals(df)
-                I = int(10000*mutual_info_classif(df.iloc[:,[1, 2]], df.iloc[:,0]).sum())
+
+                if df_Q is not None and df_Q.iloc[i,j]==False:continue
+
+                df = df0[[target,c1,c2]].copy()
+                df.dropna(inplace=True)
+
+                is_categorical1 = str(df.dtypes[1]) in ['object', 'category', 'bool']
+                is_categorical2 = str(df.dtypes[2]) in ['object', 'category', 'bool']
+
+                if is_categorical1: df[c1] = df[c1].astype(str)
+                if is_categorical2: df[c2] = df[c2].astype(str)
+
+                df = tools_DF.re_order_by_freq(df, idx_values=1, th=0.01, max_count=(30 if is_categorical1 else None))
+                df = tools_DF.re_order_by_freq(df, idx_values=2, th=0.01, max_count=(30 if is_categorical2 else None))
+
+                I=0
+                if len(unique_targets) == 2:
+                    I = int(100 * HT.distribution_distance(df[df[target] == unique_targets[0]].iloc[:,1:],
+                                                           df[df[target] == unique_targets[1]].iloc[:,1:]))
+
                 file_out = 'pairplot_%02d_%02d_%s_%s_%02d.png' % (i, j, c1, c2, I)
                 if cumul_mode:
-                    self.plot_2D_features_cumul(df, remove_legend=True,filename_out=file_out)
+                    self.plot_2D_features_cumul(df, remove_legend=remove_legend,figsize=figsize,filename_out=file_out)
                 else:
                     if mode2d:
-                        self.plot_2D_features(df, add_noice=add_noise, transparency=transparency, remove_legend=True, palette=palette, filename_out=file_out)
+                        self.plot_2D_features(df, add_noice=add_noise, transparency=transparency, remove_legend=remove_legend, figsize=figsize, filename_out=file_out)
                     else:
-                        self.plot_2D_features_in_3D(df, add_noice=add_noise, transparency=transparency, remove_legend=True,palette=palette, filename_out=file_out)
+                        self.plot_2D_features_in_3D(df, add_noice=add_noise, transparency=transparency, remove_legend=remove_legend,palette=palette,figsize=figsize, filename_out=file_out)
 
-                f_handle = open(self.folder_out + "descript.ion", "a+")
+                if remove_legend:
+                    plt.legend([], [], frameon=False)
+
+                mode = 'a+' if os.path.exists(self.folder_out + 'descript.ion') else 'w'
+                f_handle = open(self.folder_out + "descript.ion", mode)
                 f_handle.write("%s %s\n" % (file_out, '%03d'%I))
                 f_handle.close()
-
-
-        for i in range(len(idx)):
-            c1 = columns[idx[i]]
-            df = df0[[target, c1]]
-            df = df.dropna()
-            df = tools_DF.hash_categoricals(df)
-
-            #bins = numpy.arange(-0.5, df[[c1]].max() + 0.5, 0.25)
-            bins = None
-            self.plot_1D_features_pos_neg(df[[c1]].to_numpy(), df[target].to_numpy(), labels=True, bins=bins,filename_out='plot_%02d_%02d_%s.png' % (i, i,c1))
-
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def pairplots_df_3d(self, df0, idx_target=0, palette='tab10',add_noise=False):
-
-        f_handle = open(self.folder_out + "descript.ion", "w+")
-        f_handle.close()
 
         columns = df0.columns.to_numpy()
         target = columns[idx_target]
@@ -603,8 +681,8 @@ class Plotter(object):
                 ax.scatter(df.iloc[:,1], df.iloc[:,2], df.iloc[:,0], c=df.iloc[:,0], cmap=palette, linewidth=0.5)
                 plt.savefig(self.folder_out + file_out)
 
-
-                f_handle = open(self.folder_out + "descript.ion", "a+")
+                mode = 'a+' if os.path.exists(self.folder_out + 'descript.ion') else 'w'
+                f_handle = open(self.folder_out + "descript.ion", mode)
                 f_handle.write("%s %s\n" % (file_out, '%03d' % I))
                 f_handle.close()
 
@@ -697,8 +775,8 @@ class Plotter(object):
 
         return xtick_labels,idx_visible
 # ----------------------------------------------------------------------------------------------------------------------
-    def TS_seaborn(self, df, idxs_target, idx_time, idx_hue=None,mode='pointplot', idxs_fill=None,remove_legend=False, remove_xticks=True, x_range=None,
-                   out_format_x=None, major_step=None, lw=2,transparency=0, figsize=(15, 3), filename_out=None):
+    def TS_seaborn(self, df, idxs_target, idx_time, idx_hue=None,mode='pointplot', idxs_fill=None,remove_legend=False,remove_grid=False,
+                   remove_xticks=False,remove_yticks=False, x_range=None,out_format_x=None, major_step=None,invert_y=False,lw=2,transparency=0, figsize=(15, 3), filename_out=None):
 
         fig = plt.figure(figsize=figsize)
         fig = self.turn_light_mode(fig)
@@ -712,7 +790,7 @@ class Plotter(object):
         hue = df.columns[idx_hue] if idx_hue is not None else None
 
         for i,idx_target in enumerate(idxs_target):
-            if   mode == 'pointplot'  :g = seaborn.pointplot(data=df, x=X, y=df.columns[idx_target], scale=0.25,color=colors[i],markers='o', label=df.columns[idx_target],errwidth=4)
+            if   mode == 'pointplot'  :g = seaborn.pointplot(data=df, x=X, y=df.columns[idx_target], scale=0.25,color=colors[i],markers='', label=df.columns[idx_target],errwidth=4)
             elif mode == 'scatterplot':g = seaborn.scatterplot(data=df, x=X, y=df.columns[idx_target],size=numpy.full(df.shape[0],2.25),color=colors[i],alpha=1-transparency,edgecolor=None,markers='0',label=df.columns[idx_target])
             elif mode == 'barplot'    :g = seaborn.barplot(data=df,x=X, y=df.columns[idx_target],hue=hue,color=colors[i])
             else:                      g = seaborn.lineplot(data=df, x=X, y=df.columns[idx_target],color=colors[i],label=df.columns[idx_target])
@@ -728,7 +806,12 @@ class Plotter(object):
         else:
             patches = [mpatches.Patch(color=colors[i], label=columns[idx_target]) for i, idx_target in enumerate(idxs_target)]
 
-        plt.grid(color=self.clr_grid,which='major')
+        if not remove_grid:
+            plt.grid(color=self.clr_grid,which='major')
+        else:
+            # plt.grid(b=None,which='major')
+            # plt.grid(b=None, which='minor')
+            plt.gca().yaxis.grid(False)
 
         if major_step is not None:
             xtick_labels,idx_visible = self.get_xtick_labels(df,idx_time,out_format_x,major_step)
@@ -742,6 +825,12 @@ class Plotter(object):
             plt.xlim(x_range)
         elif remove_xticks:
             g.set(xticks=[])
+
+        if remove_yticks:
+            g.set(yticks=[])
+            plt.yticks([])
+
+        if invert_y: plt.gca().invert_yaxis()
 
         if remove_legend:
             plt.legend([], [], frameon=False)
@@ -821,7 +910,7 @@ class Plotter(object):
         df = pd.DataFrame(numpy.concatenate((Y.reshape(-1, 1), X_TSNE), axis=1), columns=['tSNE', 'x0', 'x1'])
         #df = df.astype({'tSNE': 'int32'})
         df.sort_values(by=df.columns[0], inplace=True)
-        self.plot_2D_features(df, remove_legend=True, palette=palette, transparency=0.3, filename_out=filename_out)
+        self.plot_2D_features(df, remove_legend=False, palette=palette, transparency=0.3, filename_out=filename_out)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def plot_PCA(self,df, idx_target,palette='tab10',filename_out=None):
@@ -830,7 +919,7 @@ class Plotter(object):
         df = pd.DataFrame(numpy.concatenate((Y.reshape(-1, 1), X_PCA), axis=1), columns=['PCA', 'x0', 'x1'])
         #df = df.astype({'PCA': 'int32'})
         df.sort_values(by=df.columns[0],inplace=True)
-        self.plot_2D_features(df, remove_legend=True, palette=palette, filename_out=filename_out)
+        self.plot_2D_features(df, remove_legend=False, palette=palette, filename_out=filename_out)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def plot_UMAP(self,df, idx_target,palette='tab10',filename_out=None):

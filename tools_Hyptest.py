@@ -1,19 +1,26 @@
+import pandas as pd
 import numpy
-from scipy.stats import chi2, chisquare
+from scipy.stats import chi2, chisquare, entropy
 import matplotlib.pyplot as plt
 from scipy.stats import fisher_exact,f_oneway
+from scipy.spatial import distance
+from scipy.special import rel_entr
+from sklearn.metrics import mutual_info_score
 # ----------------------------------------------------------------------------------------------------------------------
 # https://stats.oarc.ucla.edu/spss/whatstat/what-statistical-analysis-should-i-usestatistical-analyses-using-spss
-
 # Chi-square goodness of fit: whether the observed proportions for a categorical variable differ from hypothesized proportions
 # Chi-square test: if there is a relationship between two categorical variables.
 # Fisher’s exact test: used when you want to conduct a chi-square test but one or more of your cells has an expected frequency of five or less.
-
 # One sample t-test: whether a sample mean of a normally distributed interval variable significantly differs from a hypothesized value
 # Two independent samples t-test: compare the means of a normally distributed interval dependent variable for two independent groups
 # One-way analysis of variance (ANOVA):  is used when you have a categorical independent variable (with two or more categories) and a normally distributed interval dependent variable and you wish to test for differences in the means of the dependent variable broken down by the levels of the independent variable
-
-
+# ----------------------------------------------------------------------------------------------------------------------
+# https://stats.stackexchange.com/questions/4044/measuring-the-distance-between-two-multivariate-distributions
+# Measuring distance between two distributions
+# Heuristic: # Minkowski-form, Weighted-Mean-Variance (WMV),
+# Nonparametric test statistics: 2 (Chi Square),Kolmogorov-Smirnov (KS),Cramer/von Mises (CvM),
+# Information-theory divergences: Kullback-Liebler (KL), Jensen–Shannon divergence (metric), Jeffrey-divergence (numerically stable and symmetric)
+# Ground distance measures
 # ----------------------------------------------------------------------------------------------------------------------
 class HypTest(object):
     def __init__(self):
@@ -121,5 +128,66 @@ class HypTest(object):
         stat_value, p_value = f_oneway(X_obs, X_exp)
         result = p_value <= a_significance_level
 
-        return
-# ----------------------------------------------------------------------------------------------------------------------
+        return result, p_value
+# ---------------------------------------------------------------------------------------------------------------------
+    def distribution_distance(self, S_raw1, S_raw2):
+
+        C1 = S_raw1.value_counts()
+        C2 = S_raw2.value_counts()
+        df_agg1 = pd.DataFrame({'K':C1.index.values,'V':C1.values})
+        df_agg2 = pd.DataFrame({'K':C2.index.values,'V':C2.values})
+
+        S0 = pd.concat([pd.Series(C1.index.values),pd.Series(C2.index.values)]).rename('K')
+        S0.drop_duplicates(inplace=True)
+
+        df_ref = pd.merge(S0, df_agg1, how='left', on=['K'])
+        df_ref.fillna(0, inplace=True)
+        df_insp = pd.merge(S0, df_agg2, how='left', on=['K'])
+        df_insp.fillna(0, inplace=True)
+
+        if (df_insp.shape[0] == df_ref.shape[0] == 1):
+            res = 0
+        else:
+            X_obs, X_exp = numpy.array(df_insp.iloc[:, 1].values), numpy.array(df_ref.iloc[:, 1].values)
+            X_exp = X_exp/(X_exp.sum())
+            X_obs = X_obs/(X_obs.sum())
+
+            res = distance.minkowski(X_obs, X_exp,2)
+            #res = min(entropy(X_obs, X_exp), entropy(X_exp, X_obs))
+
+        return res
+# ---------------------------------------------------------------------------------------------------------------------
+    def distribution_distances(self,df, idx_target):
+
+        columns = df.columns
+        target = columns[idx_target]
+        idx = numpy.delete(numpy.arange(0, len(columns)), idx_target)
+        unique_targets = df.iloc[:, idx_target].unique().tolist()
+
+        Q = numpy.zeros((len(idx),len(idx)))
+
+        for i in range(len(idx)-1):
+            print(i)
+            for j in range(i+1,len(idx)):
+                c1, c2 = columns[idx[i]], columns[idx[j]]
+                df_temp = df[[target, c1, c2]].copy()
+                df_temp.dropna(inplace=True)
+                if len(unique_targets) == 2:
+                    Q[i,j] = Q[j,i]= self.distribution_distance(df_temp[df_temp[target] == unique_targets[0]].iloc[:, 1:],
+                                                                df_temp[df_temp[target] == unique_targets[1]].iloc[:, 1:])
+
+        Q = pd.DataFrame(Q,columns=columns[idx],index=columns[idx])
+
+        return Q
+# ---------------------------------------------------------------------------------------------------------------------
+    def encode_p_value(self,p_value):
+
+        if p_value is None:
+            res = 'na'
+        else:
+            res = '%f'%p_value
+        #elif (p_value>1e-6) or (p_value==0):res = '%1.6f'%p_value
+        #else:res = '0.e%05d'%(numpy.log(p_value)/numpy.log(10))
+        res=res.replace('.', '_')
+        return res
+# ---------------------------------------------------------------------------------------------------------------------

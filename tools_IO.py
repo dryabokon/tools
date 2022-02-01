@@ -63,10 +63,7 @@ def remove_folders(path):
 # ----------------------------------------------------------------------------------------------------------------------
 def append_CSV(csv_record, filename_out, csv_header=None, delim ='\t'):
 
-    if os.path.exists(filename_out):
-        mode = 'a'
-    else:
-        mode = 'w'
+    mode = 'a' if os.path.exists(filename_out) else 'w'
 
     with open(filename_out, mode, encoding='utf-8') as f:
         if mode=='w' and csv_header is not None:

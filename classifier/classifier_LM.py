@@ -15,10 +15,12 @@ class classifier_LM(object):
             return numpy.reshape(X, (-1,X.shape[0]))
 # ----------------------------------------------------------------------------------------------------------------------
     def learn(self,data_train, target_train):
-        #self.model.fit(self.maybe_reshape(data_train), target_train)
-        param_grid = {'penalty': ['l1', 'l2'], 'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100, 1000]}
-        clf = GridSearchCV(self.model, param_grid=param_grid,cv=3,scoring='f1_micro')
-        self.model = clf.fit(self.maybe_reshape(data_train), target_train)
+        self.model.fit(self.maybe_reshape(data_train), target_train)
+
+
+        # param_grid = {'penalty': ['l1', 'l2'], 'C': [1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100, 1000]}
+        # clf = GridSearchCV(self.model, param_grid=param_grid,cv=3,scoring='f1_micro')
+        # self.model = clf.fit(self.maybe_reshape(data_train), target_train)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def predict(self, array):

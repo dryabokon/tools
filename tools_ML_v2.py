@@ -1,4 +1,3 @@
-import datetime
 import pandas as pd
 import os
 import numpy
@@ -176,7 +175,10 @@ class ML(object):
     def E2E_train_test_df(self,df_train,df_test=None,idx_target=0,do_charts=False,do_density=False,do_pca = False,idx_columns=None,description=''):
 
         if df_test is None:
-            df_train, df_test = train_test_split(df_train, test_size=0.5,shuffle=False)
+            df_train, df_test = train_test_split(df_train, test_size=0.5,shuffle=True)
+            # df_train.to_csv(self.folder_out+'df_train.csv',index=False)
+            # df_test.to_csv(self.folder_out + 'df_test.csv', index=False)
+
 
         df_train = tools_DF.remove_dups(df_train.dropna())
         df_test = tools_DF.remove_dups(df_test.dropna())
@@ -195,7 +197,7 @@ class ML(object):
 
         dct_metrics_train = self.evaluate_metrics(df_train, idx_target,scores=scores_train,is_train=True,plot_charts=do_charts,xlim=xlim,description=description)
         dct_metrics_test  = self.evaluate_metrics(df_test , idx_target,scores=scores_test,is_train=False,plot_charts=do_charts,xlim=xlim,description=description)
-        dct_metric_crossval =self.cross_validation_train_test(df_train, idx_target)
+        dct_metric_crossval = self.cross_validation_train_test(df_train, idx_target)
 
         df_metrics = self.combine_metrics(dct_metrics_train,dct_metrics_test,dct_metric_crossval)
 
@@ -213,8 +215,8 @@ class ML(object):
             self.P.plot_tSNE(df_train, idx_target,filename_out=description+'dim_tSNE.png')
             #self.P.plot_PCA(df_train, idx_target,filename_out=description+'dim_PCA.png')
             #self.P.plot_LLE(df_train, idx_target,filename_out=description+'dim_LLE.png')
-            #self.P.plot_ISOMAP(df_train, idx_target,filename_out=description+'dim_ISOMAP.png')
-            #self.P.plot_UMAP(df_train, idx_target,filename_out=description+'dim_UMAP.png')
+            self.P.plot_ISOMAP(df_train, idx_target,filename_out=description+'dim_ISOMAP.png')
+            self.P.plot_UMAP(df_train, idx_target,filename_out=description+'dim_UMAP.png')
 
         return df_metrics
 # ----------------------------------------------------------------------------------------------------------------------

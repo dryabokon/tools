@@ -9,7 +9,6 @@ from scipy.stats import chi2, chisquare
 import shap
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_DF
-import tools_plot_v2
 # ----------------------------------------------------------------------------------------------------------------------
 def select_features(X, Y):
     score_func = mutual_info_classif
@@ -168,8 +167,7 @@ def evaluate_feature_importance(df, idx_target):
         'features': columns
     })
 
-    df.sort_values(by=df.columns[0],inplace=True)
-    df = df.reset_index()
+    df.sort_values(by=df.columns[-1],inplace=True)
 
     return df
 # ----------------------------------------------------------------------------------------------------------------------
