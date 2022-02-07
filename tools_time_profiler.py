@@ -1,6 +1,7 @@
 import os
 import numpy
 import time
+import pandas as pd
 #----------------------------------------------------------------------------------------------------------------------
 class Time_Profiler():
     
@@ -56,7 +57,14 @@ class Time_Profiler():
             return
         else:
             self.dict_event_time[event] = time.time() - self.current_start
-            value = '%2.2f sec' % (self.dict_event_time[event])
+            if self.dict_event_time[event]<60:
+                format = '%M:%S'
+            elif self.dict_event_time[event]<60*60:
+                format = '%M:%S'
+            else:
+                format = '%H:%M:%S'
+
+            value = pd.to_datetime(pd.Series([self.dict_event_time[event]]), unit='s').dt.strftime(format).iloc[0]
             print(value,'-',event)
         return
 # ----------------------------------------------------------------------------------------------------------------------

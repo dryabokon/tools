@@ -166,10 +166,15 @@ def draw_ellipse(image,p,color=(255, 0, 0),transperency=0.0):
     return result
 # ----------------------------------------------------------------------------------------------------------------------
 def get_colors(N, shuffle = False,colormap = 'jet',alpha_blend=None,clr_blend=(255,255,255)):
-    colors = []
-    if N==1:
-        colors.append(numpy.array([255, 0, 0]))
-        return colors
+
+    N_orig = N
+    if N == 1:
+        N_orig,N = 1,2
+
+    do_inv = False
+    if (isinstance(colormap,str)) and ('~' in colormap):
+        colormap=colormap[1:]
+        do_inv = True
 
     if colormap=='rainbow':
         colors = [int(180 * i / (N - 1)) for i in range(N)]
@@ -186,6 +191,11 @@ def get_colors(N, shuffle = False,colormap = 'jet',alpha_blend=None,clr_blend=(2
     elif colormap == 'gray':
         colors = numpy.array([(int(255 * i / (N - 1)), int(255 * i / (N - 1)), int(255 * i / (N - 1))) for i in range(N)])
 
+    elif colormap == 'warm':
+        colors = get_colors_warm(N, dark_mode=False)
+
+    elif colormap=='cool':
+        colors = get_colors_cool(N, dark_mode=False)
     else:
         grays = numpy.array([(int(255 * i / (N - 1)), int(255 * i / (N - 1)), int(255 * i / (N - 1))) for i in range(N)])
         colors = [tools_image.gre2colormap(c,colormap) for c in grays]
@@ -200,14 +210,18 @@ def get_colors(N, shuffle = False,colormap = 'jet',alpha_blend=None,clr_blend=(2
     if alpha_blend is not None:
         colors = [((alpha_blend) * numpy.array(clr_blend) + (1 - alpha_blend) * numpy.array(color)) for color in colors]
 
-
     colors = numpy.array(colors, dtype=numpy.uint8)
 
     if shuffle:
         numpy.random.seed(1024)
         idx = numpy.random.choice(len(colors), len(colors))
         colors = colors[idx]
-    return numpy.array(colors)
+
+    colors = colors[:N_orig]
+    if do_inv:
+        colors=colors[::-1]
+
+    return colors
 # ----------------------------------------------------------------------------------------------------------------------
 def get_colors_warm(N,dark_mode=False):
 
@@ -492,6 +506,7 @@ def draw_text(image,label,pos,color_fg,clr_bg,font_size,alpha_transp=0,align='ce
 
     pImage = Image.fromarray(image)
     fnt = ImageFont.truetype("calibri.ttf", font_size, encoding="unic")
+    #fnt = None
     draw = ImageDraw.Draw(pImage)
 
     clr = (numpy.array(color_fg)*(1-alpha_transp)+numpy.array(clr_bg)*(alpha_transp)).astype(numpy.int)
@@ -533,4 +548,10 @@ def get_position_sign(sign,W, H,font_size, align='center'):
     # cv2.imwrite(self.folder_out+'small.png',image_small)
 
     return shift_x, shift_y, sx, sy
+# ---------------------------------------------------------------------------------------------------------------------
+def blend(col1_255,col2_255,alpha):
+    c1 = numpy.array(col1_255).astype(numpy.uint8)
+    c2 = numpy.array(col2_255).astype(numpy.uint8)
+    res = cv2.addWeighted(c1.reshape((1,1,3)), alpha, c2.reshape((1,1,3)), 1-alpha, 0)
+    return res[0,0]
 # ---------------------------------------------------------------------------------------------------------------------

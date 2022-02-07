@@ -1,22 +1,14 @@
 import pandas as pd
 import numpy
-from scipy.stats import entropy
-from sklearn.feature_selection import mutual_info_classif
-from sklearn.preprocessing import MinMaxScaler
 from sklearn.impute import SimpleImputer
+from sklearn import preprocessing
 from collections import Counter
+from tabulate import tabulate
 # ----------------------------------------------------------------------------------------------------------------------
-def df_to_XY(df,idx_target,keep_categoirical=True,drop_na=True,numpy_style=True):
-    if drop_na:
-        df = df.dropna()
-    columns = df.columns.to_numpy()
-    col_types = numpy.array([str(t) for t in df.dtypes])
-    idx = numpy.delete(numpy.arange(0, len(columns)), idx_target)
+def df_to_XY(df,idx_target,numpy_style=True):
 
-    if keep_categoirical==False:
-        are_categoirical = numpy.array([cc in ['object', 'category', 'bool'] for cc in col_types])
-        are_categoirical = numpy.delete(are_categoirical, idx_target)
-        idx = idx[~are_categoirical]
+    columns = df.columns.to_numpy()
+    idx = numpy.delete(numpy.arange(0, len(columns)), idx_target)
 
     Y = df.iloc[:, [idx_target]].to_numpy().flatten()
     if numpy_style:
@@ -25,70 +17,73 @@ def df_to_XY(df,idx_target,keep_categoirical=True,drop_na=True,numpy_style=True)
         X = df.iloc[:, idx]
     return X,Y
 # ---------------------------------------------------------------------------------------------------------------------
-def get_names(df,idx_target,keep_categoirical=True):
-    columns = df.columns.to_numpy()
-    col_types = numpy.array([str(t) for t in df.dtypes])
-    idx = numpy.delete(numpy.arange(0, len(columns)), idx_target)
-    if keep_categoirical==False:
-        are_categoirical = numpy.array([cc in ['object', 'category', 'bool'] for cc in col_types])
-        are_categoirical = numpy.delete(are_categoirical, idx_target)
-        idx = idx[~are_categoirical]
-
-    return columns[idx]
-# ----------------------------------------------------------------------------------------------------------------------
-def get_categoricals_hash_map(df,drop_na=True):
+def get_categoricals_hash_map(df):
 
     res_dict= {}
 
-    if drop_na:
-        df = df.dropna()
+    for column,typ in zip(df.columns,df.dtypes):
+        is_categoirical = str(typ) in ['object', 'category']
+        is_bool = str(typ) in ['bool']
+        if not is_categoirical and not is_bool:continue
 
-    are_categoirical = numpy.array([cc in ['object', 'category', 'bool'] for cc in [str(t) for t in df.dtypes]])
-    columns_categorical = df.columns[are_categoirical]
-    for column in columns_categorical:
+        if column=='adult_male':
+            ii=0
 
-        idx = df[column].isna()
-        S = pd.Series(df[column]).astype(str)
-        S[idx] = 'N/A'
-        df[column] = S
+        K = [k for k in Counter(df[column]).keys()]
+        T1 = [(isinstance(k, float) and numpy.isnan(k)) for k in K]
+        T2 = [isinstance(k, bool) for k in K]
+        if all([t1 or t2 for t1,t2 in zip(T1,T2)]):
+            is_bool= True
+            is_categoirical = False
 
-        types = numpy.array([str(type(v)) for v in df[column]])
-        values = df[column].values
-        idx = numpy.argsort(types)
+        if is_categoirical:
+            S = pd.Series(df[column])
+            idx = df[column].isna()
+            S = S.astype(str)
+            S[idx] = 'N/A'
 
-        values = values[idx]
-        types = types[idx]
-        for typ in Counter(types).keys():
-            values_typ = values[types==typ].copy()
-            idx = numpy.argsort(values_typ)
-            values[types==typ] = values_typ[idx]
+            types = numpy.array([str(type(v)) for v in S])
+            values = S.values
+            idx = numpy.argsort(types)
 
-        keys = numpy.unique(values)
+            values = values[idx]
+            types = types[idx]
+            for typ in Counter(types).keys():
+                values_typ = values[types==typ].copy()
+                idx = numpy.argsort(values_typ)
+                values[types==typ] = values_typ[idx]
 
-        dct = dict(zip(keys,numpy.arange(0,len(keys))))
-        res_dict[column] = dct
+            keys = numpy.unique(values)
+            dct = dict(zip(keys,numpy.arange(0,len(keys))))
+            res_dict[column] = dct
+        elif is_bool:
+            res_dict[column] = {False:-1,numpy.nan:0,True:1}
 
     return res_dict
 # ----------------------------------------------------------------------------------------------------------------------
-def hash_categoricals(df,drop_na=True):
+def hash_categoricals(df):
 
-    dct_hashmap = get_categoricals_hash_map(df,drop_na)
+    dct_hashmap = get_categoricals_hash_map(df)
+    df_res = df.copy()
 
     for column,dct in zip(dct_hashmap.keys(),dct_hashmap.values()):
-        df[column] = df[column].map(dct).astype('int32')
+        df_res[column]=df_res[column].map(dct)
 
-    return df
+    return df_res
 # ----------------------------------------------------------------------------------------------------------------------
-def impute_na(df,strategy='constant',strategy_bool='int'):
+def impute_na(df,strategy='constant',strategy_bool='str'):
 
-    #strategies = ['mean', 'median', 'most_frequent', 'interpolate', 'constant']
+    if df.shape[0]==0:
+        return df
 
     imp = SimpleImputer(missing_values=numpy.nan, strategy=strategy)
     for column in df.columns:
-        if column=='deck':
-            ii=0
-        if any([isinstance(v, bool) for v in df[column]]) and strategy_bool == 'int':
-            df[column] = df[column].fillna(numpy.nan).map(dict(zip([False,numpy.nan,True], [-1,0,1]))).astype('int32')
+
+        if any([isinstance(v, bool) for v in df[column]]):
+            if strategy_bool == 'int':
+                df[column] = df[column].fillna(numpy.nan).map(dict(zip([False,numpy.nan,True], [-1,0,1]))).astype('int32')
+            elif strategy_bool == 'str':
+                df[column] = df[column].fillna(numpy.nan).map(dict(zip([False, numpy.nan, True], ['false', 'N/A', 'true']))).astype(str)
         else:
             vvv = numpy.array([v for v in df[column].values])
             if any([isinstance(v, str) for v in df[column]]):
@@ -99,113 +94,34 @@ def impute_na(df,strategy='constant',strategy_bool='int'):
             else:
                 df[column] = imp.fit_transform(vvv.reshape(-1, 1))
 
-
     return df
-# ----------------------------------------------------------------------------------------------------------------------
-def scale(df):
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    df2 = pd.DataFrame(scaler.fit_transform(df),columns=df.columns)
-    return df2
-# ----------------------------------------------------------------------------------------------------------------------
-def get_conf_mat(df,idx_target):
-
-    df = df.dropna()
-    df = hash_categoricals(df)
-    columns = df.columns.to_numpy()
-    idx = numpy.delete(numpy.arange(0, len(columns)), idx_target)
-    columns = columns[idx]
-
-    M = numpy.eye((len(columns)))
-    for i in range(len(columns)):
-        v1 = df[columns[i]].to_numpy()
-        for j in range(len(columns)):
-            v2 = df[columns[j]].to_numpy()
-            M[i,j]=numpy.corrcoef(v1,v2)[0,1]
-
-    return M
-# ----------------------------------------------------------------------------------------------------------------------
-def get_entropy(df,idx_target,idx_c1,idx_c2):
-
-    df = df.dropna()
-    df = hash_categoricals(df)
-    columns = df.columns.to_numpy()
-    Y = df[columns[idx_target]].to_numpy()
-    X = df[[columns[idx_c1], columns[idx_c2]]].to_numpy()
-    x_tpl = [(x[0], x[1]) for x in X]
-
-    dct_f0 = dict(zip(x_tpl, numpy.zeros(len(x_tpl))))
-    dct_f1 = dict(zip(x_tpl, numpy.zeros(len(x_tpl))))
-
-    for x,y in zip(x_tpl,Y):
-        if y<=0:
-            dct_f0[x]+=1
-        else:
-            dct_f1[x]+=1
-
-    P0 = numpy.array([v for v in dct_f0.values()]).astype(numpy.int)
-    P0 = P0.astype(numpy.float32)/Y.shape[0]
-
-    P1 = numpy.array([v for v in dct_f1.values()]).astype(numpy.int)
-    P1 = P1.astype(numpy.float32) / Y.shape[0]
-
-
-    loss = entropy(P0,P1)
-
-    if numpy.isinf(loss):
-        loss = 1
-
-    return loss
-# ----------------------------------------------------------------------------------------------------------------------
-def get_Mutual_Information(df,idx_target,i1,i2):
-    # df = df.dropna()
-    # df = hash_categoricals(df)
-    columns = df.columns
-    target = columns[idx_target]
-
-    c1, c2 = columns[i1], columns[i2]
-    I = mutual_info_classif(df[[c1, c2]], df[target]).sum()
-
-    return I
 # ----------------------------------------------------------------------------------------------------------------------
 def remove_dups(df):
     df = df[~df.index.duplicated(keep='first')]
     return df
 # ----------------------------------------------------------------------------------------------------------------------
-def remove_by_quantiles(df0,idx_target,q_left,q_right):
+def remove_long_tail(df,idx_target=0,th=0.01,order=False):
+    idxs = numpy.delete(numpy.arange(0, df.shape[1]), idx_target)
 
-    df=df0.copy()
+    for idx in idxs:
+        C = df.iloc[:, idx].value_counts().sort_index(ascending=False).sort_values(ascending=False)
+        critical = sum(C.values) * th
+        idx_is_good = [C.values[i:].sum() >= critical for i in range(C.values.shape[0])]
+        c_is_good = C.index.values[idx_is_good]
+        max_count = 30 if str(df.dtypes[idx]) in ['object', 'category', 'bool'] else None
+        if max_count is not None:
+            c_is_good = c_is_good[:max_count]
 
-    columns = df0.columns
-    idx = numpy.delete(numpy.arange(0, columns.shape[0]), idx_target)
-    types = numpy.array([str(t) for t in df0.dtypes])
+        if order and str(df.dtypes[idx]) in ['object', 'category', 'bool']:
+            dct_map = dict((k, v) for k, v in zip(C.index.values, numpy.argsort(-C.values)))
+            df['#'] = df.iloc[:, idx].map(dct_map)
 
-    for column, typ in zip(columns[idx], types[idx]):
-        if typ not in ['object', 'category', 'bool']:
-            idx = numpy.full(df.shape[0], True)
-            ql = df[column].quantile(q_left)
-            qr = df[column].quantile(q_right)
-            if q_left > 0: idx = ((idx) & (df[column] >= ql))
-            if q_right > 0: idx = (idx) & (df[column] <= qr)
-            df.iloc[idx,df.columns.get_loc(column)] = numpy.nan
+        df.iloc[~df.iloc[:, idx].isin(c_is_good),idx]=numpy.nan
+    df.dropna(inplace=True)
+    if '#' in df.columns:
+        df = df.sort_values(by='#').iloc[:, :-1]
 
     return df
-# ----------------------------------------------------------------------------------------------------------------------
-def re_order_by_freq(df,idx_values=1,th=0.01,max_count=None):
-    C = df.iloc[:,idx_values].value_counts().sort_index(ascending=False).sort_values(ascending=False)
-
-    critical = sum(C.values) * th
-
-    idx_is_good  = [C.values[i:].sum() >= critical for i in range(C.values.shape[0])]
-    c_is_good = C.index.values[idx_is_good]
-    if max_count is not None:
-        c_is_good=c_is_good[:max_count]
-
-    df = df[df.iloc[:,idx_values].isin(c_is_good)].copy()
-    dct_map = dict((k,v)for k,v in zip(C.index.values, numpy.argsort(-C.values)))
-    df['#'] = df.iloc[:,idx_values].map(dct_map)
-    df_res = df.sort_values(by='#').copy().iloc[:,:-1]
-
-    return df_res
 # ----------------------------------------------------------------------------------------------------------------------
 def my_agg(df,cols_groupby,cols_value,aggs,list_res_names=None,order_idx=None,ascending=True):
     dct_agg={}
@@ -228,4 +144,159 @@ def my_agg(df,cols_groupby,cols_value,aggs,list_res_names=None,order_idx=None,as
         df_res = df_res.sort_values(by=df_res.columns[order_idx], ascending=ascending)
 
     return df_res
+# ---------------------------------------------------------------------------------------------------------------------
+def add_noise_smart(df,idx_target=0,A = 0.2):
+
+    df_res  =df.copy()
+
+    idx = numpy.delete(numpy.arange(0, df.shape[1]), idx_target)
+    df.iloc[:,idx[0]]=df.iloc[:,idx[0]].astype(float)
+    df.iloc[:,idx[1]]=df.iloc[:,idx[1]].astype(float)
+
+    uX = df.iloc[:, idx[0]].unique()
+    uY = df.iloc[:, idx[1]].unique()
+
+    if uY.shape[0]>20 or uX.shape[0]>20:
+        return df_res
+
+    N = []
+    for x in uX:
+        for y in uY:
+            idx_pos = (df.iloc[:, idx[0]] == x) & (df.iloc[:, idx[1]] == y) & (df.iloc[:, idx_target] > 0)
+            idx_neg = (df.iloc[:, idx[0]] == x) & (df.iloc[:, idx[1]] == y) & (df.iloc[:, idx_target] <= 0)
+            N.append(idx_pos.sum()+idx_neg.sum())
+
+    aspect_xy= 1 if (uY.max() == uY.min()) else (uX.max()-uX.min())/(uY.max()-uY.min())
+    dpi =  numpy.sqrt(max(N))/A
+
+    for x in uX:
+        for y in uY:
+            idx_pos = (df.iloc[:, idx[0]] == x) & (df.iloc[:, idx[1]] == y) & (df.iloc[:, idx_target] > 0)
+            idx_neg = (df.iloc[:, idx[0]] == x) & (df.iloc[:, idx[1]] == y) & (df.iloc[:, idx_target] <= 0)
+            n_pos = idx_pos.sum()
+            n_neg = idx_neg.sum()
+            if n_pos+n_neg==0:continue
+
+            r = [numpy.sqrt(n)/dpi for n in range(n_pos+n_neg)]
+            step_alpha = numpy.pi / 45.0
+            alpha = [0]
+            for rr in r[1:]:
+                prev = alpha[-1]
+                alpha.append(prev+step_alpha/rr)
+
+            nx,ny=r*numpy.sin(alpha),r*numpy.cos(alpha)
+            if aspect_xy>1:
+                ny/=aspect_xy
+            else:
+                nx*=aspect_xy
+
+            noise_x, noise_y = numpy.random.multivariate_normal([0, 0], [[max(nx)/1000, 0], [0, max(ny)/1000]], len(r)).T
+            nx+=noise_x
+            ny+=noise_y
+
+            na = min(idx_pos.sum(),idx_neg.sum())
+            nx_a,ny_a = nx[:na],ny[:na]
+            nx_b,ny_b = nx[na:],ny[na:]
+
+            df_res.iloc[numpy.where(idx_pos)[0],idx[0]]+=nx_a if n_pos<n_neg else nx_b
+            df_res.iloc[numpy.where(idx_pos)[0],idx[1]]+=ny_a if n_pos<n_neg else ny_b
+            df_res.iloc[numpy.where(idx_neg)[0],idx[0]]+=nx_b if n_pos<n_neg else nx_a
+            df_res.iloc[numpy.where(idx_neg)[0],idx[1]]+=ny_b if n_pos<n_neg else ny_a
+
+    return df_res
+# ---------------------------------------------------------------------------------------------------------------------
+def from_multi_column(df,idx_time):
+    columns = df.columns.to_numpy()
+    idx = numpy.delete(numpy.arange(0, len(columns)), idx_time)
+    col_time = columns[idx_time]
+
+    df_res = pd.DataFrame()
+
+    for col in columns[idx]:
+        value = df.loc[:, col]
+        df_frame = pd.DataFrame({col_time:df.iloc[:, 0],'label':col,'value':value})
+        df_res = df_res.append(df_frame, ignore_index=True)
+
+    return df_res
+# ---------------------------------------------------------------------------------------------------------------------
+def to_multi_column(df,idx_time,idx_label,idx_value,order_by_value=False):
+    columns = [c for c in df.columns]
+    col_time = columns[idx_time]
+    col_label = columns[idx_label]
+    col_value = columns[idx_value]
+
+    #df.to_csv(self.folder_out+'xxx.csv',index = False)
+    df.drop_duplicates(inplace=True)
+
+    df_res = df.pivot(index=col_time, columns=col_label)[col_value]
+    df_res.replace({numpy.NaN: 0}, inplace=True)
+    if order_by_value:
+        cols = numpy.array([c for c in df_res.columns])
+        values = df_res.sum(axis=0).values
+        idx = numpy.argsort(-values)
+        df_res = df_res[cols[idx]]
+
+        values = df_res.sum(axis=1).values
+        idx = numpy.argsort(-values)
+        df_res=df_res.iloc[idx,:]
+
+    df_res.reset_index(level=0, inplace=True)
+
+    dct_new_columns = dict(zip(df_res.columns,[str(c) for c in df_res.columns]))
+    df_res = df_res.rename(columns=dct_new_columns)
+
+    return df_res
+# ---------------------------------------------------------------------------------------------------------------------
+def preprocess(df,dct_methods):
+    if df.shape[0]==0:
+        return df
+
+    pt = preprocessing.PowerTransformer()
+    dct_rename={}
+
+    for col in df.columns:
+        if col in dct_methods:
+            if dct_methods[col]=='log':
+                df[col]= pt.fit_transform(df[col].values.reshape((-1, 1)))
+                dct_rename[col]=col+'_log'
+            elif dct_methods[col]=='numeric':
+                df[col] = df[col].astype(float)
+            elif dct_methods[col]=='ignore':
+                df[col] = numpy.nan
+            elif dct_methods[col]=='cat':
+                df[col]=df[col].astype(str)
+                dct_rename[col] = col + '_cat'
+
+    df = df.rename(columns=dct_rename)
+
+    return df
+# ---------------------------------------------------------------------------------------------------------------------
+def apply_filter(df,col_name,filter):
+
+    if filter is None:
+        return df
+    elif isinstance(filter,(list,tuple,numpy.ndarray,pd.Series)):
+        idx = numpy.full(df.shape[0], True)
+        if len(filter)==0:
+            idx= ~idx
+        elif len(filter)==1:
+            idx = (df[col_name] == filter)
+        elif len(filter)==2:
+            if isinstance(filter,(list,tuple,numpy.ndarray)):
+                if filter[0] is not None:
+                    idx = (idx) & (df[col_name]>=filter[0])
+                if filter[1] is not None:
+                    idx = (idx) & (df[col_name]<filter[1])
+            else:
+                idx = df[col_name].isin(filter)
+        elif len(filter)>2:
+            idx = df[col_name].isin(filter)
+    else:
+        idx = (df[col_name] == filter)
+
+    return df[idx]
+# ---------------------------------------------------------------------------------------------------------------------
+def pretty_print(df):
+    print(tabulate(df,headers=df.columns,tablefmt='psql'))
+    return
 # ---------------------------------------------------------------------------------------------------------------------

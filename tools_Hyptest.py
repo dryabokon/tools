@@ -130,30 +130,35 @@ class HypTest(object):
 
         return result, p_value
 # ---------------------------------------------------------------------------------------------------------------------
-    def distribution_distance(self, S_raw1, S_raw2):
-
-        C1 = S_raw1.value_counts()
-        C2 = S_raw2.value_counts()
-        df_agg1 = pd.DataFrame({'K':C1.index.values,'V':C1.values})
-        df_agg2 = pd.DataFrame({'K':C2.index.values,'V':C2.values})
-
-        S0 = pd.concat([pd.Series(C1.index.values),pd.Series(C2.index.values)]).rename('K')
+    def distribution_distance_aggs(self,df_agg1,df_agg2):
+        S0 = pd.concat([df_agg1.iloc[:,0],df_agg2.iloc[:,0]]).rename(df_agg1.columns[0])
         S0.drop_duplicates(inplace=True)
 
-        df_ref = pd.merge(S0, df_agg1, how='left', on=['K'])
+        df_ref = pd.merge(S0, df_agg1, how='left', on=[df_agg1.columns[0]])
         df_ref.fillna(0, inplace=True)
-        df_insp = pd.merge(S0, df_agg2, how='left', on=['K'])
+        df_insp = pd.merge(S0, df_agg2, how='left', on=[df_agg1.columns[0]])
         df_insp.fillna(0, inplace=True)
 
         if (df_insp.shape[0] == df_ref.shape[0] == 1):
             res = 0
         else:
             X_obs, X_exp = numpy.array(df_insp.iloc[:, 1].values), numpy.array(df_ref.iloc[:, 1].values)
-            X_exp = X_exp/(X_exp.sum())
-            X_obs = X_obs/(X_obs.sum())
+            if X_exp.sum() * X_obs.sum() == 0:
+                res = 1
+            else:
+                X_exp = X_exp/(X_exp.sum())
+                X_obs = X_obs/(X_obs.sum())
+                res = distance.minkowski(X_obs, X_exp,2)
 
-            res = distance.minkowski(X_obs, X_exp,2)
-            #res = min(entropy(X_obs, X_exp), entropy(X_exp, X_obs))
+        return res
+# ---------------------------------------------------------------------------------------------------------------------
+    def distribution_distance(self, S_raw1, S_raw2):
+
+        C1 = S_raw1.value_counts()
+        C2 = S_raw2.value_counts()
+        df_agg1 = pd.DataFrame({'K':C1.index.values,'V':C1.values})
+        df_agg2 = pd.DataFrame({'K':C2.index.values,'V':C2.values})
+        res = self.distribution_distance_aggs(df_agg1,df_agg2)
 
         return res
 # ---------------------------------------------------------------------------------------------------------------------
