@@ -10,7 +10,7 @@ import tools_plot_v2
 import tools_DF
 # ----------------------------------------------------------------------------------------------------------------------
 class ML(object):
-    def __init__(self,Classifier,folder_out=None,dark_mode=False):
+    def __init__(self,Classifier,folder_out=None,dark_mode=True):
         self.classifier = Classifier
         self.P = tools_plot_v2.Plotter(folder_out,dark_mode)
         self.init_plot_params()
@@ -20,8 +20,8 @@ class ML(object):
         return
 # ---------------------------------------------------------------------------------------------------------------------
     def init_plot_params(self):
-        self.marker_transparency = 0.95
-        self.marker_size = 2
+        self.marker_transparency = 0.80
+        self.marker_size = 8
         self.figsize = (3.5, 3.5)
         return
 # ---------------------------------------------------------------------------------------------------------------------

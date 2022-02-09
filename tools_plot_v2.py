@@ -27,7 +27,31 @@ class Plotter(object):
     def __init__(self,folder_out=None,dark_mode=False):
         self.folder_out = folder_out
         self.dark_mode = dark_mode
+        self.init_base_colors()
         self.init_colors()
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def init_base_colors(self):
+        self.color_black = numpy.array((0, 0, 0))
+        self.color_white = numpy.array((255, 255, 255))
+        self.color_gray = numpy.array((64, 64, 64))
+        self.color_light_gray = numpy.array((180, 180, 180))
+
+        self.color_bright_red = numpy.array((0, 32, 255))
+        self.color_red = numpy.array((0, 0, 255))
+        self.color_amber = numpy.array((0, 128, 255))
+        self.color_coral = numpy.array((0, 90, 255))
+
+        self.color_aqua = numpy.array((180, 200, 0))
+        self.color_diamond = numpy.array((120, 200, 0))
+        self.color_green = numpy.array((0, 200, 0))
+        self.color_grass = numpy.array((0, 200, 140))
+
+        self.color_marsala = numpy.array((0, 0, 180))
+        self.color_gold = numpy.array((0, 200, 255))
+        self.color_grass_dark = numpy.array((63, 77, 73))
+        self.color_grass_dark2 = numpy.array((97, 111, 107))
+        self.color_blue = numpy.array((255, 128, 0))
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def turn_light_mode(self, fig, ax=None):
@@ -544,6 +568,7 @@ class Plotter(object):
                         plt.plot(df_t[column], df_t['#'], color=self.get_color(t)[[2, 1, 0]] / 255.0, lw=3, label=t)
                         plt.fill_between(df_t[column], df_t['#'],df_t['#']*0, color=tools_draw_numpy.blend(self.get_color(t)[[2, 1, 0]], 255*self.clr_bg, transparency)/255.0, zorder=0)
                     else:
+                        df_t.sort_values(by=column,inplace=True)
                         plt.bar(x=df_t[column], height=df_t['#'], color=self.get_color(t)[[2, 1, 0]] / 255.0,alpha=1 - transparency, label=t)
 
             plt.xlabel(column)
@@ -615,7 +640,7 @@ class Plotter(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def pairplots_df(self,df0, idx_target=0,df_Q=None,palette = 'tab10',marker_size=3,transparency=0.90,cumul_mode=False,add_noise=False,mode2d=True,remove_legend=False,figsize=(6,6)):
+    def pairplots_df(self,df0, idx_target=0,df_Q=None,palette = 'tab10',marker_size=6,transparency=0.75,cumul_mode=False,add_noise=False,mode2d=True,remove_legend=False,figsize=(6,6)):
 
         columns = df0.columns.to_numpy()
         target = columns[idx_target]
