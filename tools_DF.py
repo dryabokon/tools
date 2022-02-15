@@ -78,12 +78,17 @@ def impute_na(df,strategy='constant',strategy_bool='str'):
 
     imp = SimpleImputer(missing_values=numpy.nan, strategy=strategy)
     for column in df.columns:
-
         if any([isinstance(v, bool) for v in df[column]]):
             if strategy_bool == 'int':
                 df[column] = df[column].fillna(numpy.nan).map(dict(zip([False,numpy.nan,True], [-1,0,1]))).astype('int32')
             elif strategy_bool == 'str':
-                df[column] = df[column].fillna(numpy.nan).map(dict(zip([False, numpy.nan, True], ['false', 'N/A', 'true']))).astype(str)
+                idx_true = (df[column].isin([True,'True','TRUE','true']))
+                idx_false = (df[column].isin([False,'False','FALSE','false']))
+                V1 = pd.Series(numpy.full(df.shape[0],'n/a')).astype(str)
+                V1[idx_true] = 'true'
+                V1[idx_false] = 'false'
+                df[column] = V1
+
         else:
             vvv = numpy.array([v for v in df[column].values])
             if any([isinstance(v, str) for v in df[column]]):
@@ -104,19 +109,21 @@ def remove_long_tail(df,idx_target=0,th=0.01,order=False):
     idxs = numpy.delete(numpy.arange(0, df.shape[1]), idx_target)
 
     for idx in idxs:
-        C = df.iloc[:, idx].value_counts().sort_index(ascending=False).sort_values(ascending=False)
-        critical = sum(C.values) * th
-        idx_is_good = [C.values[i:].sum() >= critical for i in range(C.values.shape[0])]
-        c_is_good = C.index.values[idx_is_good]
         max_count = 30 if str(df.dtypes[idx]) in ['object', 'category', 'bool'] else None
-        if max_count is not None:
+        C = df.iloc[:, idx].value_counts().sort_index(ascending=False).sort_values(ascending=False)
+        #c_is_good = numpy.full(df.shape[0],True)
+        if max_count is not None and C.shape[0]>max_count:
+            critical = sum(C.values) * th
+            idx_is_good = [C.values[i:].sum() >= critical for i in range(C.values.shape[0])]
+            c_is_good = C.index.values[idx_is_good]
             c_is_good = c_is_good[:max_count]
 
-        if order and str(df.dtypes[idx]) in ['object', 'category', 'bool']:
-            dct_map = dict((k, v) for k, v in zip(C.index.values, numpy.argsort(-C.values)))
-            df['#'] = df.iloc[:, idx].map(dct_map)
+            if order and str(df.dtypes[idx]) in ['object', 'category', 'bool']:
+                dct_map = dict((k, v) for k, v in zip(C.index.values, numpy.argsort(-C.values)))
+                df['#'] = df.iloc[:, idx].map(dct_map)
 
-        df.iloc[~df.iloc[:, idx].isin(c_is_good),idx]=numpy.nan
+            df.iloc[~df.iloc[:, idx].isin(c_is_good),idx]=numpy.nan
+
     df.dropna(inplace=True)
     if '#' in df.columns:
         df = df.sort_values(by='#').iloc[:, :-1]
@@ -271,7 +278,7 @@ def preprocess(df,dct_methods):
 
     return df
 # ---------------------------------------------------------------------------------------------------------------------
-def apply_filter(df,col_name,filter):
+def apply_filter(df,col_name,filter,inverce=False):
 
     if filter is None:
         return df
@@ -294,9 +301,35 @@ def apply_filter(df,col_name,filter):
     else:
         idx = (df[col_name] == filter)
 
+    if inverce:
+        idx=~idx
+
     return df[idx]
 # ---------------------------------------------------------------------------------------------------------------------
 def pretty_print(df):
     print(tabulate(df,headers=df.columns,tablefmt='psql'))
     return
+# ---------------------------------------------------------------------------------------------------------------------
+def save_XL(filename_out,dataframes,sheet_names):
+
+    writer = pd.ExcelWriter(filename_out, engine='openpyxl')
+    for df,sheet_name in zip(dataframes,sheet_names):
+        df.to_excel(writer, sheet_name=sheet_name,index=False)
+
+    writer.save()
+    return
+# ---------------------------------------------------------------------------------------------------------------------
+def fetch(df1,col_name1,df2,col_name2,col_value):
+    df_res = df1.copy()
+
+    if isinstance(col_value,list):
+        for col in col_value:
+            V = pd.merge(df1[col_name1], df2[[col_name2, col]].drop_duplicates(subset=[col_name2]), how='left',left_on=col_name1, right_on=col_name2)[col]
+            df_res[col] = [v for v in V.values]
+    else:
+        ddd = df2[[col_name2, col_value]].drop_duplicates(subset=[col_name2])
+        V = pd.merge(df1[col_name1],ddd,how='left',left_on=col_name1,right_on=col_name2)[col_value]
+        df_res[col_value] = [v for v in V.values]
+
+    return df_res
 # ---------------------------------------------------------------------------------------------------------------------

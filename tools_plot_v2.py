@@ -537,6 +537,9 @@ class Plotter(object):
 
         types = numpy.array([str(t) for t in df0.dtypes])
         for column, typ in zip(columns[idx],types[idx]):
+            if column=='UserCountry':
+                ii=0
+
             #print(column)
             fig = plt.figure(figsize=figsize)
             fig = self.turn_light_mode(fig)
