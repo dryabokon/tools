@@ -10,7 +10,7 @@ import fnmatch
 import tools_image
 import tools_YOLO
 import tools_IO
-import detector_Mask_RCNN_core
+from detector import detector_Mask_RCNN_core
 # ----------------------------------------------------------------------------------------------------------------------
 class InferenceConfig(detector_Mask_RCNN_core.CocoConfig):
     GPU_COUNT = 1

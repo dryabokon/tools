@@ -77,14 +77,13 @@ def draw_compass_p3x4(image, p3x4, R, Z=0, step=1, color=(0,128,255),draw_labels
 
     return image_result
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_compass(image, camera_matrix, dist, rvec, tvec, R, Z=0, step=1, color=(0,128,255),draw_labels=False):
+def draw_compass(image, camera_matrix, M, R, Z=0, step=1, color=(0,128,255),draw_labels=False):
 
     points_3d = numpy.array([(R * numpy.sin(angle * numpy.pi / 180.0), R * numpy.cos(angle * numpy.pi / 180.0), Z) for angle in range(0, 360, step)])
 
     if camera_matrix.shape[0]==3 and camera_matrix.shape[1]==3:
-        points_2d, jac = cv2.projectPoints(points_3d, rvec, tvec, camera_matrix, dist)
+        points_2d = tools_pr_geom.project_points_M(points_3d, M, camera_matrix)
         points_2d=points_2d.reshape((-1,2))
-        M = pyrr.matrix44.multiply(pyrr.matrix44.create_from_translation(numpy.array(tvec,dtype=float).flatten()).T, pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(numpy.array(rvec, dtype=float).flatten())[0]))
         points_2dx = tools_pr_geom.apply_matrix_GL(M, points_3d)
         is_front = points_2dx[:, 2] > 0
     else:
@@ -436,6 +435,19 @@ def do_lines_intersect(line1, line2):
     else:
         return False
 #----------------------------------------------------------------------------------------------------------------------
+def angle_between_lines(lineA,lineB):
+    # def slope(x1, y1, x2, y2):return (y2-y1)/(x2-x1)
+    # def angle(s1, s2): return math.degrees(math.atan((s2-s1)/(1+(s2*s1))))
+    # slope1 = slope(lineA[0], lineA[1], lineA[2], lineA[3])
+    # slope2 = slope(lineB[0], lineB[1], lineB[2], lineB[3])
+    # ang0 = angle(slope1, slope2)
+
+    a = (lineA[0]-lineA[2],lineA[1]-lineA[3])
+    b = (lineB[0]-lineB[2],lineB[1]-lineB[3])
+    d = numpy.dot(a, b)/(numpy.linalg.norm(a)*numpy.linalg.norm(b))
+    ang = math.degrees(math.acos(d))
+    return ang
+#----------------------------------------------------------------------------------------------------------------------
 def is_point_above_line(point,line,tol=0.01):
     res = numpy.cross(point - line[:2], point - line[2:]) < tol
     return res
@@ -716,12 +728,12 @@ def distance_between_lines(line1, line2, clampAll=False, clampA0=False, clampA1=
 
 
     # Lines criss-cross: Calculate the projected closest points
-    t = (b0 - a0);
+    t = (b0 - a0)
     detA = numpy.linalg.det([t, _B, cross])
     detB = numpy.linalg.det([t, _A, cross])
 
-    t0 = detA/denom;
-    t1 = detB/denom;
+    t0 = detA/denom
+    t1 = detB/denom
 
     pA = a0 + (_A * t0) # Projected closest point on segment A
     pB = b0 + (_B * t1) # Projected closest point on segment B
@@ -1174,7 +1186,7 @@ def get_inverce_perspective_mat(image,point_vanishing,line_up,line_bottom,target
 
     return M
 # ---------------------------------------------------------------------------------------------------------------------
-def get_inverce_perspective_mat_v2(image,target_W,target_H,point_van_xy,tol_up = 100,pad_left=0,pad_right=0):
+def get_inverce_perspective_mat_v2(image,target_W,target_H,point_van_xy,tol_up = 100,pad_left=0,pad_right=0,do_check=False):
     H, W = image.shape[:2]
 
 
@@ -1192,13 +1204,76 @@ def get_inverce_perspective_mat_v2(image,target_W,target_H,point_van_xy,tol_up =
     dst = numpy.array([(0, 0), (target_W, 0), (0, target_H), (target_W, target_H)], dtype=numpy.float32)
     h_ipersp = cv2.getPerspectiveTransform(src, dst)
 
-    #check
-    #dst_check = cv2.perspectiveTransform(src.reshape((-1, 1, 2)), h_ipersp).reshape((-1, 2))
-    #image = tools_draw_numpy.draw_convex_hull(image, numpy.array([p1, p2, p3, p4]), color=(36, 10, 255),transperency=0.5)
-    #cv2.imwrite('./images/output/xxx.png', image)
+    if do_check:
+        # dst_check = cv2.perspectiveTransform(src.reshape((-1, 1, 2)), h_ipersp).reshape((-1, 2))
+        image = tools_draw_numpy.draw_convex_hull(image, numpy.array([p1, p2, p3, p4]), color=(36, 10, 255),transperency=0.5)
 
 
     return h_ipersp
+# ----------------------------------------------------------------------------------------------------------------------
+def get_inverce_perspective_mat_v3(image,point_van_xy,cam_fov_deg,do_debug=False):
+    H, W = image.shape[:2]
+    target_H = H
+
+    tol_up = 0.15 * (H - point_van_xy[1])
+    if point_van_xy[1] + tol_up<0:
+        tol_up=-point_van_xy[1]
+
+    upper_line = (0, point_van_xy[1] + tol_up, W, point_van_xy[1] + tol_up)
+    bottom_line = (0, H, W, H)
+
+    line1 = (0, H, point_van_xy[0], point_van_xy[1])
+    line2 = (W, H, point_van_xy[0], point_van_xy[1])
+    p1 = line_intersection(upper_line, line1)
+    p2 = line_intersection(upper_line, line2)
+    p3 = line_intersection(bottom_line, line1)
+    p4 = line_intersection(bottom_line, line2)
+    p5 = line_intersection(upper_line, (0, 0, 0, H))
+    p6 = line_intersection(upper_line, (W, 0, W, H))
+    p7 = numpy.array((W/2, upper_line[1]))
+
+    src = numpy.array([(p1[0], p1[1]), (p2[0], p2[1]), (p3[0], p3[1]), (p4[0], p4[1])], dtype=numpy.float32)
+
+    min_delta = numpy.inf
+    h_ipersp_best = None
+    best_target_W = None
+    best_target_H = None
+    rotation_deg = 0
+
+    for target_W in range(int(target_H*0.01),int(target_H*2.5)):
+
+        dst = numpy.array([(0, 0), (target_W, 0), (0, target_H), (target_W, target_H)], dtype=numpy.float32)
+        h_ipersp = cv2.getPerspectiveTransform(src, dst)
+
+        p5_new = cv2.perspectiveTransform(p5.reshape((-1,1,2)),h_ipersp).flatten()
+        p6_new = cv2.perspectiveTransform(p6.reshape((-1,1,2)),h_ipersp).flatten()
+        p7_new = (p5_new+p6_new)/2
+        line1 = (p5_new[0], p5_new[1], 0, target_H)
+        line2 = (p6_new[0], p6_new[1], target_W, target_H)
+
+        a = angle_between_lines(line1,line2)
+        target_W=target_W+1 if a>cam_fov_deg else target_W-1
+
+        #print(target_W,a,abs(a-cam_fov_deg))
+        if abs(a-cam_fov_deg)<min_delta:
+            min_delta = abs(a - cam_fov_deg)
+            best_target_H = target_H
+            best_target_W = int(p6_new[0]-p5_new[0])
+            new_dst = dst.copy()
+            new_dst[:,0]+=abs(p5_new[0])
+            h_ipersp_best = cv2.getPerspectiveTransform(src, new_dst)
+
+            p_up = (p7_new[0]+abs(p5_new[0]),0)
+            p_dn = (target_W/2 + abs(p5_new[0]),best_target_H)
+            rotation_deg = -math.degrees(numpy.arctan((p_up[0]-p_dn[0])/(p_up[1]-p_dn[1])))
+            if do_debug:
+                image_BEV = cv2.warpPerspective(image, h_ipersp_best, (best_target_W, best_target_H), borderValue=(32, 32, 32))
+                image_BEV = tools_draw_numpy.draw_lines(image_BEV,[(p_dn[0],p_dn[1],p_up[0],p_up[1])],w=1,color=(128,0,255))
+                cv2.imwrite('./images/output/xx_%03d.png'%target_W, image_BEV)
+        else:
+            break
+
+    return h_ipersp_best,best_target_W, best_target_H,rotation_deg
 # ----------------------------------------------------------------------------------------------------------------------
 def get_four_point_transform_mat(p_src, target_width, target_height):
     def order_points(pts):

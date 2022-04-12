@@ -1,13 +1,12 @@
 import cv2
 import numpy
+from skimage import exposure
 from skimage.morphology import skeletonize
 from sklearn.linear_model import LinearRegression
 # ----------------------------------------------------------------------------------------------------------------
 #from numba.errors import NumbaWarning
 #import warnings
 #warnings.simplefilter('ignore', category=NumbaWarning)
-# ----------------------------------------------------------------------------------------------------------------
-import sknw
 # ----------------------------------------------------------------------------------------------------------------
 import tools_IO
 import tools_image
@@ -34,6 +33,18 @@ class Skelenonizer(object):
         self.W,self.H = None,None
         self.reg = MyLR()
         return
+# ----------------------------------------------------------------------------------------------------------------
+    def preprocess_amplify(self,image,kernel=(18,7)):
+        gray = tools_image.desaturate_2d(image)
+        sobel = numpy.zeros(kernel, dtype=numpy.float32)
+        sobel[:, sobel.shape[1] // 2:] = +1
+        sobel[:, :sobel.shape[1] // 2] = -1
+        sobel = sobel / sobel.sum()
+
+        result = cv2.filter2D(gray, 0, sobel)
+        result2 = numpy.maximum(255 - result, result)
+        result2 = exposure.adjust_gamma(result2, 6)
+        return result2
 # ----------------------------------------------------------------------------------------------------------------
     def binarize(self,image):
         if len(image.shape)==3:
@@ -235,6 +246,11 @@ class Skelenonizer(object):
 
         return result
 # ----------------------------------------------------------------------------------------------------------------
+    def filter_short_segments2(self, segments, ratio=0.05):
+        idx = numpy.argsort([-len(s) for s in segments])[:int(ratio*len(segments))]
+        result = [segments[i] for i in idx]
+        return result
+# ----------------------------------------------------------------------------------------------------------------
     def interpolate_segment_by_line_slow(self, XY):
         reg = LinearRegression()
         X = numpy.array([XY[:, 0]]).astype(numpy.float).T
@@ -269,6 +285,17 @@ class Skelenonizer(object):
             line = numpy.array([X_inter[0], Y_inter[0], X_inter[1], Y_inter[1]]).flatten()
 
         return line
+# ----------------------------------------------------------------------------------------------------------------------
+    def interpolate_segments_by_lines(self,segments):
+        lines = [self.interpolate_segment_by_line(segment) for segment in segments]
+        return lines
+# ----------------------------------------------------------------------------------------------------------------------
+    def detect_lines_LSD(self, img):
+        img_copy = tools_image.desaturate_2d(img)
+        lsd = cv2.createLineSegmentDetector(0)
+        lines = lsd.detect(img_copy)[0]
+        lines = lines[:, 0]
+        return lines
 # ----------------------------------------------------------------------------------------------------------------------
     def keep_double_segments(self, segments, line_upper_bound, base_name=None, do_debug=False):
 
@@ -382,7 +409,7 @@ class Skelenonizer(object):
     def line_length(self, x1, y1, x2, y2):return numpy.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
 # ----------------------------------------------------------------------------------------------------------------
     def segmentize_slow(self, binarized,min_len=0):
-
+        import sknw
         ske = skeletonize(binarized> 0).astype(numpy.uint8)
         segments = [[]]
 

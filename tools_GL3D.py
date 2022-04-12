@@ -444,6 +444,8 @@ class render_GL3D(object):
         return image
 # ----------------------------------------------------------------------------------------------------------------------
     def stage_data(self,folder_out):
+        if not os.path.exists(folder_out):
+                os.mkdir(folder_out)
         filenames = tools_IO.get_filenames(folder_out,'screenshot*.png')
         ids = [(f.split('.')[0]).split('_')[1] for f in filenames]
         if len(ids)>0:

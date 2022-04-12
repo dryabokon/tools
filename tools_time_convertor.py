@@ -18,3 +18,20 @@ def add_delta(str_value,str_delta,format='%Y-%m-%d'):
 
     return res
 # ----------------------------------------------------------------------------------------------------------------------
+def generate_date_range(dt_start,dt_stop,freq):
+
+    if isinstance(dt_start,str):
+        dt_start = str_to_datetime(dt_start)
+
+    dates = []
+    now = dt_stop if not isinstance(dt_stop,str) else str_to_datetime(dt_stop)
+    while now>=(dt_start if not isinstance(dt_start,str) else str_to_datetime(dt_start)):
+        dates.append(now)
+        now= now - pd.Timedelta('1'+freq)
+    dates = dates[::-1]
+
+    if isinstance(dt_start, str):
+        dates = datetime_to_str(pd.Series(dates))
+
+    return dates
+# ----------------------------------------------------------------------------------------------------------------------

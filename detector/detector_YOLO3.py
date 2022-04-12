@@ -9,7 +9,7 @@ import fnmatch
 import time
 import progressbar
 # ----------------------------------------------------------------------------------------------------------------------
-import detector_YOLO3_core
+from detector import detector_YOLO3_core
 import tools_YOLO
 import tools_image
 import tools_IO

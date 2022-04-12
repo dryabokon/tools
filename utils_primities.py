@@ -1,10 +1,10 @@
-import cv2
 import os
 import numpy
 # ----------------------------------------------------------------------------------------------------------------------
+import pandas as pd
+
 import tools_IO
 import tools_render_CV
-import tools_pr_geom
 # ----------------------------------------------------------------------------------------------------------------------
 class Lines(object):
     def __init__(self):
@@ -351,174 +351,19 @@ class Ellipses(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-class Balls(object):
-    def __init__(self,filename_in = None, dict_filenames=None):
-        self.filename_IDs = []
-        self.xyxy = []
-        self.confidence = []
-
-        if filename_in is not None and dict_filenames is not None:
-            self.read_from_file(filename_in,dict_filenames)
-
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def make_arrays(self):
-        self.filename_IDs = numpy.array(self.filename_IDs).flatten()
-        self.xyxy = numpy.array(self.xyxy)
-        self.confidence = numpy.array(self.confidence)
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def read_from_folder(self, folder_in):
-        self.__init__()
-
-        if not os.path.exists(folder_in):
-            self.make_arrays()
-            return
-
-        filenames = tools_IO.get_filenames(folder_in,'*.txt')
-        filenames = numpy.array([f.split('.')[0] for f in filenames], dtype=int)
-        filename_IDs = numpy.sort(filenames).astype(numpy.chararray)
-        filenames = [str(id) +'.txt' for id in filename_IDs]
-
-
-        for filename, id in zip(filenames,filename_IDs):
-            print(filename,id)
-            data = tools_IO.load_mat_pd(folder_in+filename,delim=' ')
-            if len(data)==0:continue
-            for X in data:
-                self.xyxy.append(numpy.array(X[2:],dtype=float))
-                self.filename_IDs.append(int(id)-1)
-                self.confidence.append((int(X[1])))
-
-        self.make_arrays()
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def read_from_folder2(self, folder_in):
-        self.__init__()
-
-        if not os.path.exists(folder_in):
-            self.make_arrays()
-            return
-
-        filenames = tools_IO.get_filenames(folder_in, '*.txt')
-        filenames = numpy.array([f.split('.')[0] for f in filenames], dtype=int)
-        filename_IDs = numpy.sort(filenames).astype(numpy.chararray)
-        filenames = [str(id) + '.txt' for id in filename_IDs]
-
-        for filename, id in zip(filenames, filename_IDs):
-            print(filename, id)
-            data = tools_IO.load_mat_var_size(folder_in + filename)[1:]
-            #data = numpy.array(data)
-            if len(data) == 0: continue
-            #if len((data))==1:
-            #    data = [data]
-            for X in data:
-                X=X[0].split(' ')
-                self.xyxy.append(numpy.array(X[2:], dtype=float))
-                self.filename_IDs.append(int(id) - 1)
-                self.confidence.append((int(X[1])))
-
-        self.make_arrays()
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def read_from_file(self, filename_in, dict_filenames):
-        self.__init__()
-        if not os.path.isfile(filename_in): return
-        data = tools_IO.load_mat_pd(filename_in, delim=' ', dtype=numpy.chararray)
-
-        mode_filenames = isinstance(data[0][0],numpy.str)
-
-        for each in data:
-            key = each[0]
-            if not mode_filenames:
-                self.filename_IDs.append(key)
-                self.xyxy.append(numpy.array(each[1:-1], dtype=numpy.float))
-                self.confidence.append(1.0)
-            else:
-                if key in dict_filenames:
-                    self.filename_IDs.append(dict_filenames[key])
-                    self.xyxy.append(numpy.array(each[1:-1], dtype=numpy.float))
-                    self.confidence.append(1.0)
-
-
-
-        self.make_arrays()
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def standartize(self, xyxy):
-        res = xyxy
-        if xyxy[1] < xyxy[3]:
-            res = (xyxy[2], xyxy[3], xyxy[0], xyxy[1])
-        elif xyxy[1] == xyxy[3]:
-            if xyxy[0] > xyxy[2]:
-                res = (xyxy[2], xyxy[3], xyxy[0], xyxy[1])
-
-        return res
-# ----------------------------------------------------------------------------------------------------------------------
-    def add(self,filename_ID,xyxy,classID):
-        self.filename_IDs =  numpy.insert(self.filename_IDs,len(self.filename_IDs),filename_ID)
-        xyxy = self.standartize(xyxy)
-        if len(self.xyxy)>0:
-            self.xyxy = numpy.vstack((self.xyxy,numpy.array([[int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3])]])))
-        else:
-            self.xyxy = numpy.array([xyxy])
-
-        self.ids = numpy.insert(self.ids,len(self.ids),int(classID))
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def append(self, filename_out, imagename, xy):
-        if xy is None: return
-
-        if not os.path.isfile(filename_out):
-            f = open(filename_out, 'a')
-            f.write('filename x y x y c\n')
-            f.close()
-
-        xxx = [imagename] + (xy.flatten()).tolist() + [1]
-        tools_IO.save_raw_vec(xxx, filename_out, mode=(os.O_RDWR | os.O_APPEND), fmt='%s', delim=' ')
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def save_to_file(self, filename_out, filenames):
-        f = open(filename_out, 'w')
-        f.write('filename x y x y c\n')
-        f.close()
-
-        for filename_ID, xyxy, cnf in zip(self.filename_IDs, self.xyxy, self.confidence):
-            if numpy.any(numpy.isnan(xyxy)): continue
-            tools_IO.save_raw_vec(
-                [filenames[filename_ID], int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]), cnf], filename_out,mode=(os.O_RDWR | os.O_APPEND), fmt='%s', delim=' ')
-
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def get(self,filename_id):
-        idx = (self.filename_IDs == filename_id)
-        res = Balls()
-        if 1*idx.sum()>0:
-            res.filename_IDs = self.filename_IDs[idx]
-            res.xyxy = self.xyxy[idx]
-            res.confidence= self.confidence[idx]
-        return res
-# ----------------------------------------------------------------------------------------------------------------------
-    def transform(self,h_3x3):
-        if self.xyxy is not None and len(self.xyxy)>0:
-            self.xyxy = tools_pr_geom.perspective_transform(numpy.array(self.xyxy).reshape((-1, 1, 2)).astype(numpy.float32), h_3x3).reshape((-1,4))
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def erode(self,R):
-        if self.xyxy is not None and len(self.xyxy)>0:
-            for i in range(len(self.xyxy)):
-                self.xyxy[i] = numpy.array((self.xyxy[i][0]-R,self.xyxy[i][1]-R,self.xyxy[i][2]+R,self.xyxy[i][3]+R))
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-class Players(object):
-    def __init__(self,filename_in = None, dict_filenames=None):
+class Boxes(object):
+    def __init__(self,filename_in = None, dict_filenames=None,sep=',',idx_ID=0,idx_pos=1):
         self.filename_IDs = []
         self.xyxy = []
         self.ids = []
+        self.orig_columns = []
+        self.sep = sep
+        self.idx_ID = idx_ID
+        self.idx_pos = idx_pos
 
 
         if filename_in is not None and dict_filenames is not None:
-            self.read_from_file(filename_in,dict_filenames)
+            self.read_from_file(filename_in,dict_filenames,sep=sep,idx_ID=idx_ID,idx_pos=idx_pos)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def make_arrays(self):
@@ -527,65 +372,47 @@ class Players(object):
         self.ids = numpy.array(self.ids)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def read_from_folder(self, folder_in):
-        self.__init__()
-
-        if not os.path.exists(folder_in):
-            self.make_arrays()
-            return
-
-        filenames = tools_IO.get_filenames(folder_in,'*.txt')
-        filenames = numpy.array([f.split('.')[0] for f in filenames], dtype=int)
-        filename_IDs = numpy.sort(filenames).astype(numpy.chararray)
-        filenames = [str(id) +'.txt' for id in filename_IDs]
-
-
-        for filename, id in zip(filenames,filename_IDs):
-            data = tools_IO.load_mat_pd(folder_in+filename,delim=' ')
-            if len(data)==0:continue
-            for X in data:
-                self.xyxy.append(numpy.array(X[2:],dtype=float))
-                self.filename_IDs.append(int(id)-1)
-                self.confidence.append((int(X[1])))
-
-        self.make_arrays()
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def read_from_file(self, filename_in, dict_filenames):
-        self.__init__()
+    def read_from_file(self, filename_in, dict_filenames,sep=' ',idx_ID=0,idx_pos=1,idx_class=None):
+        #self.__init__()
         if not os.path.isfile(filename_in): return
-        data = tools_IO.load_mat_pd(filename_in, delim=' ', dtype=numpy.chararray)
+        data = pd.read_csv(filename_in, sep=sep)
+        self.orig_columns = data.columns
 
-        mode_filenames = isinstance(data[0][0],numpy.str)
+        mode_filenames = isinstance(data.iloc[0,0],numpy.str)
 
-        for each in data:
-            key = each[0]
+        for r,each in data.iterrows():
+            key = each.iloc[idx_ID]
             if not mode_filenames:
                 self.filename_IDs.append(key)
-                self.xyxy.append(numpy.array(each[1:-1], dtype=numpy.float))
+                self.xyxy.append(numpy.array(each[idx_pos:idx_pos+4], dtype=numpy.float))
                 self.ids.append(each[-1])
             else:
                 if key in dict_filenames:
                     self.filename_IDs.append(dict_filenames[key])
-                    self.xyxy.append(numpy.array(each[1:-1], dtype=numpy.float))
-                    self.ids.append(int(each[-1]))
-
-
+                    self.xyxy.append(numpy.array(each[idx_pos:idx_pos+4], dtype=numpy.float))
+                    classid = int(each[idx_class]) if idx_class is not None else 0
+                    self.ids.append(classid)
 
         self.make_arrays()
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def save_to_file(self, filename_out, filenames):
 
-        data = [['filename','x1','y1','x2','y2','c']]
+        df_res = pd.DataFrame([])
+        for c,col_name in enumerate(self.orig_columns):
+            if c==self.idx_ID:
+                df = pd.DataFrame(filenames[self.filename_IDs], columns=[self.orig_columns[c]])
+            elif c==self.idx_pos:
+                df = pd.DataFrame(self.xyxy, columns=self.orig_columns[c:c + 4]).astype(int)
+            elif c in [self.idx_pos+1,self.idx_pos+2,self.idx_pos+3]:
+                continue
+            else:
+                df = pd.DataFrame(['']*self.xyxy.shape[0], columns=[self.orig_columns[c]])
+            df_res = pd.concat([df_res,df],axis=1,ignore_index=True)
 
-        for filename_ID, box, id in zip(self.filename_IDs, self.xyxy, self.ids):
-            if numpy.any(numpy.isnan(box)): continue
-            vec = [filenames[filename_ID], int(box[0]), int(box[1]), int(box[2]), int(box[3]), id]
-            data.append(vec)
+        df_res = df_res.rename(columns=dict(zip(df_res.columns,self.orig_columns)))
+        df_res.to_csv(filename_out,sep=self.sep,index=False)
 
-        data = numpy.array(data)
-        tools_IO.save_mat(data, filename_out,fmt='%s',delim=' ')
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def append(self, filename_out, imagename, xy):
@@ -633,7 +460,7 @@ class Players(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def get(self,filename_id):
         idx = (self.filename_IDs == filename_id)
-        res = Players()
+        res = Boxes()
         if 1*idx.sum()>0:
             res.filename_IDs = self.filename_IDs[idx]
             res.xyxy = self.xyxy[idx]
@@ -671,41 +498,5 @@ class Players(object):
                     self.ids = numpy.delete(self.ids, i, axis=0)
             i+=1
 
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-class Polygons(object):
-    def __init__(self,filename_in = None, dict_filenames=None):
-        self.filename_IDs = []
-        self.xy = []
-        self.ids = []
-
-
-        if filename_in is not None and dict_filenames is not None:
-            self.read_from_file(filename_in,dict_filenames)
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def make_arrays(self):
-        self.filename_IDs = numpy.array(self.filename_IDs).flatten()
-        self.xy = numpy.array(self.xy)
-        self.ids = numpy.array(self.ids)
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def read_from_file(self, filename_in, dict_filenames):
-        self.__init__()
-        if not os.path.isfile(filename_in): return
-        #data = tools_IO.load_mat_pd(filename_in, delim=' ', dtype=numpy.chararray)
-        data = tools_IO.load_mat_var_size(filename_in,dtype=numpy.chararray,delim=' ')[1:]
-
-        mode_filenames = True
-
-        for each in data:
-            key = each[0]
-            if key in dict_filenames:
-                self.filename_IDs.append(dict_filenames[key])
-                #self.xyxy.append(numpy.array(each[1:-1], dtype=numpy.float))
-                #self.ids.append(int(each[-1]))
-
-
-        self.make_arrays()
         return
 # ----------------------------------------------------------------------------------------------------------------------

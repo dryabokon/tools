@@ -26,9 +26,6 @@ def get_categoricals_hash_map(df):
         is_bool = str(typ) in ['bool']
         if not is_categoirical and not is_bool:continue
 
-        if column=='adult_male':
-            ii=0
-
         K = [k for k in Counter(df[column]).keys()]
         T1 = [(isinstance(k, float) and numpy.isnan(k)) for k in K]
         T2 = [isinstance(k, bool) for k in K]
@@ -82,22 +79,26 @@ def impute_na(df,strategy='constant',strategy_bool='str'):
             if strategy_bool == 'int':
                 df[column] = df[column].fillna(numpy.nan).map(dict(zip([False,numpy.nan,True], [-1,0,1]))).astype('int32')
             elif strategy_bool == 'str':
-                idx_true = (df[column].isin([True,'True','TRUE','true']))
-                idx_false = (df[column].isin([False,'False','FALSE','false']))
-                V1 = pd.Series(numpy.full(df.shape[0],'n/a')).astype(str)
+                idx_true = df[column].isin([True,'True','TRUE','true']).values
+                idx_false =df[column].isin([False,'False','FALSE','false']).values
+                V1 = numpy.full(df.shape[0],'N/A',dtype=numpy.chararray)
                 V1[idx_true] = 'true'
                 V1[idx_false] = 'false'
                 df[column] = V1
 
         else:
-            vvv = numpy.array([v for v in df[column].values])
-            if any([isinstance(v, str) for v in df[column]]):
-                idx = df[column].isna()
-                S = pd.Series(df[column]).astype(str)
-                S[idx] = 'N/A'
-                df[column]=S
+            if all(pd.isna(df[column]).values.tolist()):
+                df[column]='N/A'
+                df[column]=df[column].astype(str)
             else:
-                df[column] = imp.fit_transform(vvv.reshape(-1, 1))
+                if any([isinstance(v, str) for v in df[column]]):
+                    idx = df[column].isna()
+                    S = pd.Series(df[column]).astype(str)
+                    S[idx] = 'N/A'
+                    df[column]=S
+                else:
+                    vvv = numpy.array([v for v in df[column].values])
+                    df[column] = imp.fit_transform(vvv.reshape(-1, 1))
 
     return df
 # ----------------------------------------------------------------------------------------------------------------------
@@ -140,7 +141,7 @@ def my_agg(df,cols_groupby,cols_value,aggs,list_res_names=None,order_idx=None,as
         else:
             dct_agg[v] = a
 
-    df_res = df.groupby(cols_groupby).agg(dct_agg)
+    df_res = df.groupby(cols_groupby,dropna=False).agg(dct_agg)
     df_res = df_res.reset_index()
 
     df_res.columns = [''.join(col) for col in df_res.columns]
@@ -226,7 +227,7 @@ def from_multi_column(df,idx_time):
 
     return df_res
 # ---------------------------------------------------------------------------------------------------------------------
-def to_multi_column(df,idx_time,idx_label,idx_value,order_by_value=False):
+def to_multi_column(df,idx_time,idx_label,idx_value,replace_nan=True,order_by_value=False):
     columns = [c for c in df.columns]
     col_time = columns[idx_time]
     col_label = columns[idx_label]
@@ -236,7 +237,8 @@ def to_multi_column(df,idx_time,idx_label,idx_value,order_by_value=False):
     df.drop_duplicates(inplace=True)
 
     df_res = df.pivot(index=col_time, columns=col_label)[col_value]
-    df_res.replace({numpy.NaN: 0}, inplace=True)
+    if replace_nan:
+        df_res.replace({numpy.NaN: 0}, inplace=True)
     if order_by_value:
         cols = numpy.array([c for c in df_res.columns])
         values = df_res.sum(axis=0).values
@@ -254,20 +256,48 @@ def to_multi_column(df,idx_time,idx_label,idx_value,order_by_value=False):
 
     return df_res
 # ---------------------------------------------------------------------------------------------------------------------
-def preprocess(df,dct_methods):
+def preprocess(df,dct_methods,skip_first_col=False,do_binning=False):
+
     if df.shape[0]==0:
         return df
 
     pt = preprocessing.PowerTransformer()
     dct_rename={}
+    q = [0, .2, .4, .6, .8, 1]
 
-    for col in df.columns:
+    for c in range(df.shape[1]):
+        if skip_first_col and c==0:continue
+        col = df.columns[c]
+
+        #try convert to numeric
+        S = [str(u) for u in df[col].unique()]
+        U = [s[1:] if (len(s)>0 and s[0]=='-') else s for s in S]
+        U = [u.split('e+')[0] for u in U]
+        U = [u.split('e-')[0] for u in U]
+        I4 = [str(u).replace('.', '', 1).isdigit() for u in U]
+        if all(I4):
+            df[col] = df[col].astype(float)
+            II = [u.is_integer() for u in df[col].unique()]
+            if all(II): df[col] = df[col].astype(int)
+            if do_binning and df[col].unique().shape[0]>50:
+                U, Q = pd.qcut(df[col].rank(method='first'), q=q, retbins=True)
+                df[col] = U.map(dict((k, v) for k, v in zip(U, [float(u.left) for u in U])))
+                dct_rename[col] = col + '_bin'
+                df[col] = df[col].astype(float)
+        else:
+            df[col] = df[col].astype(str)
+            df[col] = df[col].str.encode('ascii', 'ignore').str.decode('ascii')
+
         if col in dct_methods:
             if dct_methods[col]=='log':
                 df[col]= pt.fit_transform(df[col].values.reshape((-1, 1)))
                 dct_rename[col]=col+'_log'
-            elif dct_methods[col]=='numeric':
+            elif dct_methods[col]=='binning':
+                U, Q = pd.qcut(df[col].rank(method='first'), q=q, retbins=True)
+                dct = dict((k,v) for k,v in zip(U,[float(u.left) for u in U]))
+                df[col] = U.map(dct)
                 df[col] = df[col].astype(float)
+                dct_rename[col] = col + '_bin'
             elif dct_methods[col]=='ignore':
                 df[col] = numpy.nan
             elif dct_methods[col]=='cat':
@@ -306,9 +336,9 @@ def apply_filter(df,col_name,filter,inverce=False):
 
     return df[idx]
 # ---------------------------------------------------------------------------------------------------------------------
-def pretty_print(df):
-    print(tabulate(df,headers=df.columns,tablefmt='psql'))
-    return
+def prettify(df,showindex=True,tablefmt='psql'):
+    res = tabulate(df, headers=df.columns, tablefmt=tablefmt, showindex=showindex)
+    return res
 # ---------------------------------------------------------------------------------------------------------------------
 def save_XL(filename_out,dataframes,sheet_names):
 
@@ -319,17 +349,142 @@ def save_XL(filename_out,dataframes,sheet_names):
     writer.save()
     return
 # ---------------------------------------------------------------------------------------------------------------------
-def fetch(df1,col_name1,df2,col_name2,col_value):
+def fetch(df1,col_name1,df2,col_name2,col_value,col_new_name=None):
     df_res = df1.copy()
 
     if isinstance(col_value,list):
-        for col in col_value:
+        for c,col in enumerate(col_value):
             V = pd.merge(df1[col_name1], df2[[col_name2, col]].drop_duplicates(subset=[col_name2]), how='left',left_on=col_name1, right_on=col_name2)[col]
-            df_res[col] = [v for v in V.values]
+            df_res[col if col_new_name is None else col_new_name[c]] = [v for v in V.values]
     else:
         ddd = df2[[col_name2, col_value]].drop_duplicates(subset=[col_name2])
         V = pd.merge(df1[col_name1],ddd,how='left',left_on=col_name1,right_on=col_name2)[col_value]
-        df_res[col_value] = [v for v in V.values]
+        df_res[(col_value if col_new_name is None else col_new_name)] = [v for v in V.values]
 
     return df_res
+# ---------------------------------------------------------------------------------------------------------------------
+def is_categorical(df,col_name):
+
+    types = numpy.array([str(t) for t in df.dtypes])
+    typ = types[df.columns==col_name]
+    is_categorical = (typ in ['object', 'category', 'bool'])
+
+    return is_categorical
+# ---------------------------------------------------------------------------------------------------------------------
+def pretty_size(value):
+
+    if   value > 1e+15: res = '%dP'% int(value/1e+15)
+    elif value > 1e+12: res = '%dT'% int(value/1e+12)
+    elif value > 1e+9 : res = '%dG'% int(value/1e+9)
+    elif value > 1e+6 : res = '%dM'% int(value/1e+6)
+    elif value > 1e+3 : res = '%dk'% int(value/1e+3)
+    else:           res = '%d' % value
+
+    return res
+# ---------------------------------------------------------------------------------------------------------------------
+def apply_format(df,format='%.2f',str_na=''):
+
+    df_res = df.copy()
+
+    if isinstance(df,(pd.Series)):
+        df_res = df_res.apply(lambda x: (format % x) if not numpy.isnan(x) else str_na).astype(str)
+    else:
+        for c in df.columns:
+            df_res[c] = df_res[c].apply(lambda x: (format % x) if not numpy.isnan(x) else str_na).astype(str)
+
+    return df_res
+# ---------------------------------------------------------------------------------------------------------------------
+def get_seasonality_daily(df):
+
+    mean = df.iloc[:, 1].mean()
+    col = df.columns[1]
+    df['avg'] = df.rolling(7).mean()
+    df['DOW'] =pd.to_datetime(df.iloc[:,0], format='%Y-%m-%d', errors='ignore').dt.strftime('%a')
+    df['DOW_num'] = pd.to_datetime(df.iloc[:, 0], format='%Y-%m-%d', errors='ignore').dt.dayofweek
+    df.iloc[:,1] = df.iloc[:,1]/df['avg']
+    df = df.dropna()
+    df_agg = my_agg(df,['DOW','DOW_num'],[col],['mean'],list_res_names=['DOW'],order_idx=1)
+    df_agg.iloc[:,2]*=mean
+
+    return df_agg.iloc[:,[0,2]]
+# ---------------------------------------------------------------------------------------------------------------------
+def my_append(df,idx_col,values):
+    if len(values)==0:return df
+    #if values.shape[0]==0:return df
+
+    df_temp = pd.DataFrame({df.columns[idx_col]:values})
+    df_res = df.append(df_temp, ignore_index=True)
+    return df_res
+# ---------------------------------------------------------------------------------------------------------------------
+def build_hierarchical_dataframe0(df, cols_labels_level, col_size, cols_metric=None, function=None):
+    df_hierarchical = pd.DataFrame(columns=['id', 'parent_id', 'size', 'metric'])
+    for i, level in enumerate(cols_labels_level):
+        df_tree = pd.DataFrame(columns=['id', 'parent_id', 'size', 'metric'])
+
+        g = cols_labels_level[i:]
+        df_agg = df.groupby(g).sum()
+        df_agg2 = df.groupby(g)
+
+        df_agg = df_agg.reset_index()
+        df_tree['id'] = df_agg[level].copy()
+        if i < len(cols_labels_level) - 1:
+            df_tree['parent_id'] = df_agg[cols_labels_level[i + 1]].copy()
+        else:
+            df_tree['parent_id'] = 'TOTAL'
+        df_tree['size'] = df_agg[col_size]
+        if cols_metric is not None and function is not None:
+            aaa = function(*[df_agg[col] for col in cols_metric])
+            df_tree['metric'] = aaa
+
+        df_hierarchical = df_hierarchical.append(df_tree, ignore_index=True)
+
+    total = pd.Series(dict(id='TOTAL', parent_id=numpy.nan, size=numpy.nan,metric=numpy.nan))
+    df_hierarchical = df_hierarchical.append(total, ignore_index=True)
+    df_hierarchical = df_hierarchical.sort_values(by=['parent_id','id'])
+
+    return df_hierarchical
+# ---------------------------------------------------------------------------------------------------------------------
+def build_hierarchical_dataframe(df, cols_labels_level, col_size, concat_labels=False, dct_function=None, metrics_for_aggs=True,description_total='TOTAL'):
+
+    cols_metric = dct_function['cols_metric'] if dct_function is not None else None
+    metric_function = dct_function['metric_function'] if dct_function is not None else None
+    do_calc_metrics = cols_metric is not None and metric_function is not None
+    df0 = df.copy()
+
+    if concat_labels:
+        for col,col_agg in zip(cols_labels_level[::-1][1:],cols_labels_level[::-1][:-1]):
+            df[col] = df[col_agg].astype(str) + '_' + col + '_' +df[col].astype(str)
+
+    res = pd.DataFrame()
+    for i, level in enumerate(cols_labels_level):
+        res_level = pd.DataFrame()
+        for l in df[level].unique():
+            idx = (df[level] == l)
+            df_level = df[idx]
+            df_metric_level = df0[idx]
+            parend_ids = df_level[cols_labels_level[i + 1]] if i < len(cols_labels_level) - 1 else description_total
+            if do_calc_metrics:
+                metric = metric_function(*[numpy.array(df_metric_level[col]) for col in cols_metric])
+            else:
+                metric = numpy.nan
+            res_level = res_level.append(pd.DataFrame({'id':df_level[level],'parent_id':parend_ids,'size':df_level[col_size],'metric':metric}))
+
+        if (i>0):
+            res_level_agg = my_agg(res_level,cols_groupby=['id','parent_id'],cols_value=['size'],aggs=['sum']).copy()
+            if do_calc_metrics and metrics_for_aggs:
+                res_level_agg['metric'] = [metric_function(*[numpy.array(df0[df[level] == id][col]) for col in cols_metric]).mean() for id in res_level_agg['id']]
+            else:
+                res_level_agg['metric'] = numpy.nan
+            res = res.append(res_level_agg)
+        else:
+            res = res.append(res_level)
+
+    if do_calc_metrics and metrics_for_aggs:
+        metric = metric_function(*[numpy.array(df0[col]) for col in cols_metric]).mean()
+    else:
+        metric = numpy.nan
+
+    res = res.sort_values(by=['parent_id', 'id'])
+    res = res.append(pd.Series({'id':description_total, 'parent_id':'', 'size':df[col_size].sum(), 'metric':metric}),ignore_index=True)
+    return res
 # ---------------------------------------------------------------------------------------------------------------------

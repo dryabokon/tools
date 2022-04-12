@@ -3,7 +3,7 @@ import fnmatch
 from os import listdir
 import cv2
 import numpy
-import progressbar
+from PIL import Image
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_image
 import tools_IO
@@ -33,13 +33,30 @@ def folder_to_video_ffmpeg(folder_in, filename_out, mask='*.png', framerate=24):
 
     fileslist = tools_IO.get_filenames(folder_in,mask)
     prefix = fileslist[0].split('0')[0]
-    command_make_video =  'ffmpeg -framerate %d -i %s%s%s %s -vcodec libx264 -y ' % (framerate, prefix,'%04d',mask[1:],filename_out)
+    command_make_video =  'ffmpeg -framerate %d -i %s%s%s %s -vcodec libx264 -y ' % (framerate, prefix,'%05d',mask[1:],filename_out)
 
     cur_dir = os.getcwd()
     os.chdir(folder_in)
     print(command_make_video+'\n\n')
     os.system(command_make_video)
     os.chdir(cur_dir)
+
+    return
+# ---------------------------------------------------------------------------------------------------------------------
+def animated_gif_uncover(filename_out,image,N,framerate=10,stop_ms=None):
+    col_bg = 255
+    images = []
+    for i in range(N):
+        tmp_image = image.copy()
+        pos = int(image.shape[1]*i/N)
+        tmp_image[:, pos:] = col_bg
+        images += [tmp_image[:,:,[2,1,0]]]
+
+    if stop_ms is not None:
+        images+=[images[-1]]*int(stop_ms*framerate/1000)
+
+    images = numpy.array(images,dtype=numpy.uint8)
+    imageio.mimsave(filename_out, images, 'GIF', duration=1/framerate)
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
@@ -53,21 +70,22 @@ def folders_to_animated_gif_ffmpeg(path_input,path_out, mask='.png', framerate=1
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
-def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png', framerate=10,resize_H=None, resize_W=None,do_reverce=False):
+def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png', framerate=10,stop_ms=None,resize_H=None, resize_W=None,stride=1,do_reverce=False):
     tools_IO.remove_file(filename_out)
 
     images = []
     filenames = tools_IO.get_filenames(path_input,mask)
 
-    bar = progressbar.ProgressBar(maxval=len(filenames))
-    bar.start()
-    for b, filename_in in enumerate(filenames):
-        bar.update(b)
+    for b in numpy.arange(0,len(filenames),stride):
+        filename_in = filenames[b]
         image = cv2.imread(path_input+filename_in)
         if resize_H is not None and resize_W is not None:
             image = tools_image.do_resize(image,(resize_W,resize_H))
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         images.append(image)
+
+    if stop_ms is not None:
+        images+=[image]*int(stop_ms*framerate/1000)
 
     images = numpy.array(images,dtype=numpy.uint8)
 
@@ -77,10 +95,9 @@ def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png', frame
         images_all = []
         for image in images:images_all.append(image)
         for image in reversed(images): images_all.append(image)
-
         images_all = numpy.array(images_all,dtype=images.dtype)
-
         imageio.mimsave(filename_out, images_all, 'GIF', duration=1 / framerate)
+
 
 
     return
@@ -96,16 +113,11 @@ def folder_to_video(folder_in, filename_out, mask='*.jpg', framerate=24, resize_
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     #fourcc = cv2.VideoWriter_fourcc(*'H264')
     #fourcc = cv2.VideoWriter_fourcc(*'avc1')
+    #fourcc = cv2.VideoWriter_fourcc(*'MSVC')
 
-    fourcc = cv2.VideoWriter_fourcc(*'MSVC')
     out = cv2.VideoWriter(filename_out,fourcc, framerate, (resize_W,resize_H))
 
-    if not silent:
-        bar = progressbar.ProgressBar(len(fileslist))
-        bar.start()
     for b,filename in enumerate(fileslist):
-        if not silent:
-            bar.update(b)
         image = cv2.imread(os.path.join(folder_in, filename))
         if resize_W is not None and resize_H is not None:
             image = cv2.resize(image,(resize_W,resize_H),interpolation=cv2.INTER_CUBIC)
@@ -119,7 +131,8 @@ def folder_to_video(folder_in, filename_out, mask='*.jpg', framerate=24, resize_
             out.write(image)
 
     out.release()
-    cv2.destroyAllWindows()
+    #cv2.destroyAllWindows()
+    return
 # ---------------------------------------------------------------------------------------------------------------------
 def crop_images_in_folder(path_input,path_output,top, left, bottom, right,mask='*.jpg'):
     tools_IO.remove_files(path_output,create=True)

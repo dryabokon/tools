@@ -8,7 +8,7 @@ import progressbar
 import tools_draw_numpy
 import tools_image
 import tools_IO
-import detector_YOLO3_core
+from detector import detector_YOLO3_core
 import xml.etree.cElementTree as ET
 import matplotlib.pyplot as plt
 from PIL import Image

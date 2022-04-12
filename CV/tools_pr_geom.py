@@ -137,7 +137,9 @@ def fit_pnp(landmarks_3d,landmarks_2d,mat_camera_3x3,dist=numpy.zeros(5)):
     if len(landmarks_3d)<=3:
         return None,None,None
 
-    (_, r_vec, t_vec) = cv2.solvePnP(landmarks_3d, landmarks_2d,mat_camera_3x3, dist)
+    #(_, r_vec, t_vec) = cv2.solvePnP(landmarks_3d, landmarks_2d,mat_camera_3x3, dist)
+    _, r_vec, t_vec ,_ = cv2.solvePnPRansac(landmarks_3d, landmarks_2d, mat_camera_3x3, dist)
+
     landmarks_2d_check, jac = cv2.projectPoints(landmarks_3d, r_vec, t_vec, mat_camera_3x3, dist)
     landmarks_2d_check = numpy.reshape(landmarks_2d_check, (-1, 2))
 
@@ -203,48 +205,64 @@ def fit_manual(X3D,target_2d,fx, fy,xref=None,lref=None,do_debug=True):
 
     return M
 # ----------------------------------------------------------------------------------------------------------------------
-def fit_R(points_3d,points_2d,camera_matrix,rvec,tvec):
-
-    #empty = numpy.full((1080,1920,3),32,dtype=numpy.uint8)
+def fit_R(points_3d,points_2d,camera_matrix,rvec):
 
     a_roll_deg = 0
-    range_pitch = numpy.arange(-2,2,0.1)
-    range_yaw = [0]#numpy.arange(-2, 2, 0.1)
-
+    range_pitch = numpy.arange(-10,10,1)
+    range_yaw = numpy.arange(-10,10,1)
     g_loss = None
-    g_r = None
+    g_rvec = None
+    g_tvec = None
 
-    tvec_new = numpy.array((0,0,0))
-    #tvec_new = numpy.array(tvec).flatten()
+    for height in numpy.arange(0,20,0.19):
+        for a_pitch_deg in range_pitch:
+            for a_yaw_deg in range_yaw:
+                tvec_new = numpy.array((0, height, 0 ))
 
-    for a_pitch_deg in range_pitch:
-        for a_yaw_deg in range_yaw:
-            r = numpy.array(rvec).flatten() + numpy.array((a_pitch_deg*numpy.pi/180,a_yaw_deg*numpy.pi/180,a_roll_deg*numpy.pi/180))
-            points_2d_cand,err = project_points(points_3d, r, tvec_new, camera_matrix,numpy.zeros(5))
-            loss = ((points_2d_cand-points_2d)**2).sum()
-            if g_loss is None or loss<g_loss:
-                g_loss = loss
-                g_r = r
+                r = numpy.array(rvec).flatten() + numpy.array((a_pitch_deg*numpy.pi/180,a_yaw_deg*numpy.pi/180,a_roll_deg*numpy.pi/180))
+                points_2d_cand,err = project_points(points_3d, r, tvec_new, camera_matrix,numpy.zeros(5))
+                loss = ((points_2d_cand-points_2d)**2).sum()
+                if g_loss is None or loss<g_loss:
+                    g_loss = loss
+                    g_rvec = r
+                    g_tvec = tvec_new
 
-            # image_result = tools_draw_numpy.draw_points(empty, points_2d_cand, color=(0, 128, 255), w=16)
-            # image_result = tools_draw_numpy.draw_points(image_result, points_2d, color=(0, 0, 255), w=8)
-            # cv2.imwrite('D:/Soccer/output/xxx_%1.3f.png' % (180 + a_yaw_deg), image_result)
+                # image_result = tools_draw_numpy.draw_points(empty, points_2d_cand, color=(0, 128, 255), w=16)
+                # image_result = tools_draw_numpy.draw_points(image_result, points_2d, color=(0, 0, 255), w=8)
+                # cv2.imwrite('./output/xxx_%1.3f.png' % (180 + a_yaw_deg), image_result)
 
-    points_2d_cand, err = project_points(points_3d, g_r, tvec_new, camera_matrix, numpy.zeros(5))
+    points_2d_cand, err = project_points(points_3d, g_rvec, g_tvec, camera_matrix, numpy.zeros(5))
     # image_result = tools_draw_numpy.draw_points(empty, points_2d_cand, color=(0, 128, 255), w=16)
     # image_result = tools_draw_numpy.draw_points(image_result, points_2d, color=(0, 0, 255), w=8)
     # cv2.imwrite('D:/Soccer/output/yyy_%04d.png'%camera_matrix[0,0], image_result)
 
-    return g_r,tvec_new,points_2d_cand
+    return g_rvec,g_tvec,points_2d_cand
 # ----------------------------------------------------------------------------------------------------------------------
 def compose_projection_mat_3x3(fx, fy, fov_x=0.5, fov_y=0.5):
     f = 0.5*fx/(fov_x)
-    mat_camera = numpy.array([[f, 0., fx/2], [0., f, fy/2], [0., 0., 1.]])
-    return mat_camera
+    mat_camera_3x3 = numpy.array([[f, 0., fx/2], [0., f, fy/2], [0., 0., 1.]])
+    return mat_camera_3x3
 # ----------------------------------------------------------------------------------------------------------------------
 def compose_projection_mat_4x4(fx, fy, fov_x=0.5, fov_y=0.5):
-    mat_camera = numpy.array([[fx, 0, fx * fov_x, 0], [0, fy, fy * fov_y, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
-    return mat_camera
+    mat_camera_4x4 = numpy.array([[fx, 0, fx * fov_x, 0], [0, fy, fy * fov_y, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+    return mat_camera_4x4
+# ----------------------------------------------------------------------------------------------------------------------
+def convert_projection_mat_3x3(camera_matrix_3x3):
+    fx=camera_matrix_3x3[0, 0]
+    fy=camera_matrix_3x3[1, 1]
+    fov_x = camera_matrix_3x3[0, 2] / camera_matrix_3x3[0, 0]
+    fov_y = camera_matrix_3x3[1, 2] / camera_matrix_3x3[1, 1]
+    #mat_camera_4x4 = compose_projection_mat_4x4(fx, fy,fov_x,fov_y)
+    mat_camera_4x4 = numpy.array([[fx, 0, fx * fov_x, 0], [0, fy, fy * fov_y, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+    return mat_camera_4x4
+# ----------------------------------------------------------------------------------------------------------------------
+def convert_projection_mat_4x4(camera_matrix_4x4):
+    # fx = camera_matrix_4x4[0, 0]
+    # fy = camera_matrix_4x4[1, 1]
+    # fov_x = camera_matrix_4x4[0,2]/fx
+    # f = 0.5 * fx / (fov_x)
+    # mat_camera_3x3 = numpy.array([[f, 0., fx / 2], [0., f, fy / 2], [0., 0., 1.]])
+    return camera_matrix_4x4[:3,:3]
 # ----------------------------------------------------------------------------------------------------------------------
 def compose_projection_mat_4x4_GL(W, H, fov_x, fov_y):
     near, far = 0.1, 10000.0
@@ -641,10 +659,13 @@ def project_points(points_3d, rvec, tvec, camera_matrix_3x3, dist=numpy.zeros(5)
     else:
         R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(numpy.array(rvec, dtype=float).flatten())[0])
 
-    #cv2.Rodrigues(numpy.array(rvec, dtype=float).flatten())
 
     T = pyrr.matrix44.create_from_translation(numpy.array(tvec,dtype=float).flatten()).T
     M = pyrr.matrix44.multiply(T, R)
+
+    #!!!
+    #M = compose_RT_mat(rvec, tvec, do_rodriges=False, do_flip=False, GL_style=False)
+
     PM = pyrr.matrix44.multiply(P, M)
 
     points_2d = apply_matrix_GL(PM, points_3d)
@@ -706,7 +727,12 @@ def project_points_M(points_3d, RT, camera_matrix_3x3, dist=numpy.zeros(5),do_fl
 
     PM = pyrr.matrix44.multiply(P, RT)
 
-    points_2d = apply_matrix_GL(PM, points_3d)
+    #points_2d = apply_matrix_GL(PM, points_3d)
+
+    points_3d_t = apply_matrix_GL(RT, points_3d)
+    points_2d = apply_matrix_GL(P, points_3d_t)
+
+
     points_2d[:, 0] = points_2d[:, 0] / points_2d[:, 2]
     points_2d[:, 1] = points_2d[:, 1] / points_2d[:, 2]
     points_2d = numpy.array(points_2d,dtype=numpy.float32)[:, :2].reshape((-1,2))

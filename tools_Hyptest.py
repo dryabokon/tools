@@ -3,9 +3,12 @@ import numpy
 from scipy.stats import chi2, chisquare, entropy
 import matplotlib.pyplot as plt
 from scipy.stats import fisher_exact,f_oneway
-from scipy.spatial import distance
-from scipy.special import rel_entr
-from sklearn.metrics import mutual_info_score
+import tools_DF
+from sklearn import metrics
+# from collections import Counter
+# from scipy.spatial import distance
+# from scipy.special import rel_entr
+# from sklearn.metrics import mutual_info_score
 # ----------------------------------------------------------------------------------------------------------------------
 # https://stats.oarc.ucla.edu/spss/whatstat/what-statistical-analysis-should-i-usestatistical-analyses-using-spss
 # Chi-square goodness of fit: whether the observed proportions for a categorical variable differ from hypothesized proportions
@@ -102,7 +105,7 @@ class HypTest(object):
 
         if verbose:
             self.verbose_p_value(p_value, a_significance_level)
-            #self.plot_chi2_stats(stat_value_chi2, deg_of_freedom, a_significance_level)
+            self.plot_chi2_stats(stat_value_chi2, deg_of_freedom, a_significance_level)
 
         return result, p_value
 # ----------------------------------------------------------------------------------------------------------------------
@@ -130,39 +133,87 @@ class HypTest(object):
 
         return result, p_value
 # ---------------------------------------------------------------------------------------------------------------------
-    def distribution_distance_aggs(self,df_agg1,df_agg2):
+    def classification_metrics_aggs_cat(self, df_agg1, df_agg2):
         S0 = pd.concat([df_agg1.iloc[:,0],df_agg2.iloc[:,0]]).rename(df_agg1.columns[0])
         S0.drop_duplicates(inplace=True)
 
-        df_ref = pd.merge(S0, df_agg1, how='left', on=[df_agg1.columns[0]])
-        df_ref.fillna(0, inplace=True)
-        df_insp = pd.merge(S0, df_agg2, how='left', on=[df_agg1.columns[0]])
-        df_insp.fillna(0, inplace=True)
+        df1 = pd.merge(S0, df_agg1, how='left', on=[df_agg1.columns[0]])
+        df1.fillna(0, inplace=True)
+        df2 = pd.merge(S0, df_agg2, how='left', on=[df_agg1.columns[0]])
+        df2.fillna(0, inplace=True)
 
-        if (df_insp.shape[0] == df_ref.shape[0] == 1):
-            res = 0
+        if (df1.shape[0] == df2.shape[0] == 1):
+            f1,P,R  = 0,0,0
         else:
-            X_obs, X_exp = numpy.array(df_insp.iloc[:, 1].values), numpy.array(df_ref.iloc[:, 1].values)
-            if X_exp.sum() * X_obs.sum() == 0:
-                res = 1
+            if df1.iloc[:, 1].sum()*df2.iloc[:, 1].sum() == 0:
+                f1, P, R = 1, 1, 1
             else:
-                X_exp = X_exp/(X_exp.sum())
-                X_obs = X_obs/(X_obs.sum())
-                res = distance.minkowski(X_obs, X_exp,2)
+                Major_X, Minor_X = numpy.array(df1.iloc[:, 1].values), numpy.array(df2.iloc[:, 1].values)
+                if Major_X.sum() < Minor_X.sum():
+                    Major_X, Minor_X = Minor_X, Major_X
 
-        return res
+                strategy0 = numpy.array([1 if x0/Major_X.sum()>x1/Minor_X.sum() else 0 for x0,x1 in zip(Major_X, Minor_X)])
+                strategy1 = 1 - strategy0
+
+                hits0 = [x*(y==1) for x,y in zip(Minor_X,strategy0)]
+                fp0   = [x*(y==1) for x,y in zip(Major_X,strategy0)]
+                pos_dec0 = [(x0 + x1) if y == 1 else 0 for x0, x1, y in zip(Major_X, Minor_X, strategy0)]
+
+                hits1 = [x*(y==1) for x,y in zip(Minor_X,strategy1)]
+                fp1   = [x*(y==1) for x,y in zip(Major_X,strategy1)]
+                pos_dec1 = [(x0 + x1) if y == 1 else 0 for x0, x1, y in zip(Major_X, Minor_X, strategy1)]
+
+                R0 = sum(hits0)/sum(Minor_X)
+                P0 = 1- sum(fp0)/(sum(pos_dec0)+1e-4)
+
+                R1 = sum(hits1) / sum(Minor_X)
+                P1 = 1 - sum(fp1) / (sum(pos_dec1)+1e-4)
+
+                if numpy.isnan(P0*R0*2/(P0+R0+1e-4)):
+                    f1 = P1*R1*2 /(P1+R1+1e-4)
+                elif numpy.isnan(P1*R1*2/(P1+R1+1e-4)):
+                    f1 = P0*R0*2/(P0+R0+1e-4)
+                else:
+                    if P1*R1*2 /(P1+R1+1e-4) > P0*R0*2/(P0+R0+1e-4):
+                        f1 = P1*R1*2 /(P1+R1+1e-4)
+                        P,R = P1,R1
+                    else:
+                        f1 = P0 * R0 * 2 / (P0 + R0 + 1e-4)
+                        P, R = P0, R0
+
+        return f1,P,R
 # ---------------------------------------------------------------------------------------------------------------------
-    def distribution_distance(self, S_raw1, S_raw2):
+    def f1_score(self, S_raw0, S_raw1, is_categorical,return_PR=False):
 
-        C1 = S_raw1.value_counts()
-        C2 = S_raw2.value_counts()
-        df_agg1 = pd.DataFrame({'K':C1.index.values,'V':C1.values})
-        df_agg2 = pd.DataFrame({'K':C2.index.values,'V':C2.values})
-        res = self.distribution_distance_aggs(df_agg1,df_agg2)
+        S_raw0 = S_raw0.values.flatten()
+        S_raw1 = S_raw1.values.flatten()
 
-        return res
+        if is_categorical:
+            C0 = pd.Series(S_raw0).value_counts()
+            C1 = pd.Series(S_raw1).value_counts()
+            df_agg0 = pd.DataFrame({'K': C0.index.values, 'V': C0.values})
+            df_agg1 = pd.DataFrame({'K': C1.index.values, 'V': C1.values})
+            f1,P,R = self.classification_metrics_aggs_cat(df_agg0, df_agg1)
+        else:
+            if S_raw0.shape[0]>S_raw1.shape[0]:
+                y = numpy.concatenate([numpy.full(S_raw0.shape[0], 0),numpy.full(S_raw1.shape[0], 1)],axis=0)
+                s = numpy.array([s for s in S_raw0]+[s for s in S_raw1]).astype(numpy.float32)
+            else:
+                y = numpy.concatenate([numpy.full(S_raw1.shape[0], 0), numpy.full(S_raw0.shape[0], 1)], axis=0)
+                s = numpy.array([s for s in S_raw1] + [s for s in S_raw0]).astype(numpy.float32)
+
+            precisions, recalls, thresholds = metrics.precision_recall_curve(y, s)
+            idx_th = numpy.argmax([p * r / (p + r + 1e-4) for p, r in zip(precisions, recalls)])
+            P = precisions[idx_th]
+            R = recalls[idx_th]
+            f1 = P*R*2/(P+R+1e-4)
+
+        if return_PR:
+            return f1,P,R
+
+        return f1
 # ---------------------------------------------------------------------------------------------------------------------
-    def distribution_distances(self,df, idx_target):
+    def f1_scores(self, df, idx_target):
 
         columns = df.columns
         target = columns[idx_target]
@@ -178,8 +229,8 @@ class HypTest(object):
                 df_temp = df[[target, c1, c2]].copy()
                 df_temp.dropna(inplace=True)
                 if len(unique_targets) == 2:
-                    Q[i,j] = Q[j,i]= self.distribution_distance(df_temp[df_temp[target] == unique_targets[0]].iloc[:, 1:],
-                                                                df_temp[df_temp[target] == unique_targets[1]].iloc[:, 1:])
+                    Q[i,j] = Q[j,i]= self.f1_score(df_temp[df_temp[target] == unique_targets[0]].iloc[:, 1:],
+                                                                df_temp[df_temp[target] == unique_targets[1]].iloc[:, 1:], False)
 
         Q = pd.DataFrame(Q,columns=columns[idx],index=columns[idx])
 

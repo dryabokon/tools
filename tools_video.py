@@ -1,7 +1,6 @@
+import os
 import cv2
 import time
-import tools_IO
-#from pytube import YouTube
 import progressbar
 #--------------------------------------------------------------------------------------------------------------------------
 import tools_image
@@ -79,6 +78,9 @@ def reconvert_video(filename_in,filename_out):
 # ----------------------------------------------------------------------------------------------------------------------
 def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_sec=None,stride=1,scale=1):
 
+    if not os.path.exists(folder_out):
+            os.mkdir(folder_out)
+
     #tools_IO.remove_files(folder_out,create=True)
     vidcap = cv2.VideoCapture(filename_in)
     total_frames = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -105,9 +107,15 @@ def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_se
 # ----------------------------------------------------------------------------------------------------------------------
 def extract_frames_v2(filename_in,folder_out,prefix='',start_frame=0, end_frame=None,step=1,scale=1,silent=True):
 
+    if not os.path.exists(folder_out):
+            os.mkdir(folder_out)
+
     vidcap = cv2.VideoCapture(filename_in)
     success, image = vidcap.read()
     total_frames = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
+    if total_frames==0:
+        print('No frames found in %s'%filename_in)
+        return
 
     cnt = start_frame
     if not silent:

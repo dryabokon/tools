@@ -5,11 +5,12 @@ import pandas as pd
 #----------------------------------------------------------------------------------------------------------------------
 class Time_Profiler():
     
-    def __init__(self):
+    def __init__(self,verbose=True):
         self.current_event = None
         self.dict_event_time = {}
         self.dict_event_cnt  = {}
         self.cnt=0
+        self.verbose=verbose
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def tic(self, event,reset=False):
@@ -65,6 +66,7 @@ class Time_Profiler():
                 format = '%H:%M:%S'
 
             value = pd.to_datetime(pd.Series([self.dict_event_time[event]]), unit='s').dt.strftime(format).iloc[0]
-            print(value,'-',event)
-        return
+            if self.verbose:
+                print(value,'-',event)
+        return value
 # ----------------------------------------------------------------------------------------------------------------------

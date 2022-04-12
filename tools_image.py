@@ -167,14 +167,41 @@ def fade_left_right(img,left,right):
 
     return newimage
 # ---------------------------------------------------------------------------------------------------------------------
-def rotate_image(image, angle):
+def get_image_affine_rotation_mat(image, angle_deg,reshape=False):
     image_center = tuple(numpy.array(image.shape[1::-1]) / 2)
-    rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
-    result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
+    rot_mat = cv2.getRotationMatrix2D(image_center, angle_deg, 1.0)
+    if reshape:
+        h, w = image.shape[:2]
+        sin = math.sin(math.radians(angle_deg))
+        cos = math.cos(math.radians(angle_deg))
+        b_w = int((h * abs(sin)) + (w * abs(cos)))
+        b_h = int((h * abs(cos)) + (w * abs(sin)))
+        rot_mat[0, 2] += ((b_w / 2) - image_center[0])
+        rot_mat[1, 2] += ((b_h / 2) - image_center[1])
+    return rot_mat
+# ---------------------------------------------------------------------------------------------------------------------
+def rotate_image(image, angle_deg,reshape=False,borderValue=None):
+    image_center = tuple(numpy.array(image.shape[1::-1]) / 2)
+    rot_mat = cv2.getRotationMatrix2D(image_center, angle_deg, 1.0)
+    if reshape:
+        h, w = image.shape[:2]
+        sin = math.sin(math.radians(angle_deg))
+        cos = math.cos(math.radians(angle_deg))
+        b_w = int((h * abs(sin)) + (w * abs(cos)))
+        b_h = int((h * abs(cos)) + (w * abs(sin)))
+        rot_mat[0, 2] += ((b_w / 2) - image_center[0])
+        rot_mat[1, 2] += ((b_h / 2) - image_center[1])
+        result = cv2.warpAffine(image, rot_mat, (b_w, b_h), flags=cv2.INTER_LINEAR,borderValue=borderValue)
+    else:
+        result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR,borderValue=borderValue)
     return result
 # ---------------------------------------------------------------------------------------------------------------------
 def transpone_image(image):
     return numpy.transpose(image,(1,0,2))
+# ---------------------------------------------------------------------------------------------------------------------
+def hstack_images(image1, image2,background_color=(32, 32, 32)):
+    image2 = do_resize(auto_crop(image2, background_color=background_color), numpy.array((-1, image1.shape[0])))
+    return numpy.concatenate([image1, image2], axis=1)
 # ---------------------------------------------------------------------------------------------------------------------
 def crop_image(img, top, left, bottom, right,extrapolate_border=False):
 
@@ -233,6 +260,22 @@ def get_mask(image_layer,background_color=(0,0,0)):
     mask_layer[mask_layer == 3] = 0
 
     return mask_layer
+# ---------------------------------------------------------------------------------------------------------------------
+def auto_crop(image,background_color=(0,0,0)):
+    mask = get_mask(image,background_color)
+    Sx = numpy.sum(mask,axis=0)
+    Sy = numpy.sum(mask,axis=1)
+
+    left,right = 0,Sx.shape[0] - 1
+    top, bottom = 0, Sy.shape[0] - 1
+    while left<Sx.shape[0] and Sx[left]==0:left+=1
+    while right>0 and Sx[right]==0:right-=1
+
+    while top<Sy.shape[0] and Sy[top]==0:top+=1
+    while bottom>0 and Sy[bottom]==0:bottom-=1
+
+    res = crop_image(image, top, left, bottom, right)
+    return res
 # ---------------------------------------------------------------------------------------------------------------------
 def put_layer_on_image(image_background,image_layer,background_color=(0,0,0)):
 
@@ -334,14 +377,12 @@ def gre2viridis(rgb):
     colormap = numpy.flip((numpy.array(cm.cmaps_listed['viridis'].colors) * 256).astype(int), axis=1)
     return colormap[int(rgb[0])]
 # ----------------------------------------------------------------------------------------------------------------------
-def gre2colormap(gray_rgb,cm_name):
+def gre2colormap(gray255,cm_name):
     cmap = plt.get_cmap(cm_name)
-    colors = 255 * numpy.array([cmap(i / 256) for i in range(256)])
-    colors[0] = colors[1]
-    colors[-1]=colors[-2]
-    colors = colors[:, [2, 1, 0]]
-
-    return colors[int(gray_rgb[0])]
+    if gray255==0:gray255+=1
+    if gray255==255:gray255-=1
+    res_color = 255*numpy.array(cmap(gray255))[[2, 1, 0]]
+    return res_color
 # ----------------------------------------------------------------------------------------------------------------------
 def hitmap2d_to_viridis(hitmap_2d):
     colormap = (numpy.array(cm.cmaps_listed['viridis'].colors)*256).astype(int)
@@ -805,12 +846,16 @@ def do_resize(image, dsize):
     M=1
     if image.max()<=1:M=255
 
+    if dsize[0] is None or dsize[0]==-1:
+        dsize[0] = int(dsize[1]*image.shape[1]/image.shape[0])
+    if dsize[1] is None or dsize[1]==-1:
+        dsize[1] = int(dsize[0]*image.shape[0]/image.shape[1])
+
     image_resized = M*resize(image, (dsize[1],dsize[0]),anti_aliasing=True)
     if image_resized.max() <= 1:
         image_resized*= 255
 
     image_resized = numpy.clip(0,255,image_resized).astype(numpy.uint8)
-
 
     return image_resized
 # --------------------------------------------------------------------------------------------------------------------

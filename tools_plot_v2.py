@@ -18,10 +18,14 @@ import squarify
 from sklearn.metrics import r2_score
 from sklearn import metrics
 from sklearn.feature_selection import mutual_info_classif
+import warnings
+warnings.filterwarnings( 'ignore', module = 'seaborn' )
 # ----------------------------------------------------------------------------------------------------------------------
+import tools_image
 import tools_DF
 import tools_draw_numpy
 import tools_Hyptest
+import tools_time_convertor
 # ----------------------------------------------------------------------------------------------------------------------
 class Plotter(object):
     def __init__(self,folder_out=None,dark_mode=False):
@@ -38,7 +42,7 @@ class Plotter(object):
         self.color_light_gray = numpy.array((180, 180, 180))
 
         self.color_bright_red = numpy.array((0, 32, 255))
-        self.color_red = numpy.array((0, 0, 255))
+        self.color_red = numpy.array((22, 74, 223))
         self.color_amber = numpy.array((0, 128, 255))
         self.color_coral = numpy.array((0, 90, 255))
 
@@ -52,6 +56,15 @@ class Plotter(object):
         self.color_grass_dark = numpy.array((63, 77, 73))
         self.color_grass_dark2 = numpy.array((97, 111, 107))
         self.color_blue = numpy.array((255, 128, 0))
+        self.color_sky = numpy.array((173, 149, 83))
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def set_font_size(self,font_size):
+        plt.rc_context({'font.size': font_size})
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def set_label_size(self,label_size):
+        plt.rc_context({'axes.labelsize':label_size})
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def turn_light_mode(self, fig, ax=None):
@@ -61,7 +74,6 @@ class Plotter(object):
         plt.rcParams.update({'figure.max_open_warning': 0})
         #plt.rcParams.update({'font.family': 'calibri'})
         plt.rcParams.update({'font.family': 'DejaVu Sans'})
-        plt.rc_context({'font.size': 10, 'axes.labelsize':18})
 
         if ax is None:
             ax = plt.gca()
@@ -140,7 +152,8 @@ class Plotter(object):
                 n = numpy.array([ord(l) for l in label]).sum() % self.colors.shape[0]
             self.dct_color[label] = self.colors[n]
 
-        return self.dct_color[label]*(1-alpha_blend) + numpy.array((1,1,1))*(alpha_blend)
+        res = self.dct_color[label] * (1 - alpha_blend) + numpy.array((255, 255, 255)) * (alpha_blend)
+        return res.astype(numpy.uint8)
 # ----------------------------------------------------------------------------------------------------------------------
     def set_color(self,label,value):
         self.dct_color[label] = value
@@ -269,7 +282,7 @@ class Plotter(object):
                 label_res.append('')
         return label_res
 # ----------------------------------------------------------------------------------------------------------------------
-    def plot_2D_features(self, df, x_range=None, y_range=None, add_noice=False, remove_legend=False, transparency=0.0, colors=None,marker_size=3,palette='tab10', figsize=(8, 6), filename_out=None):
+    def plot_2D_features(self, df, x_range=None, y_range=None, add_noice=False, remove_legend=False, invert_y=False,transparency=0.0, colors=None,marker_size=3,palette='tab10', figsize=(8, 6), filename_out=None):
 
         fig = plt.figure(figsize=figsize)
         fig = self.turn_light_mode(fig)
@@ -293,6 +306,7 @@ class Plotter(object):
 
         if x_range is not None:plt.xlim(x_range)
         if y_range is not None:plt.ylim(y_range)
+        if invert_y: plt.gca().invert_yaxis()
 
         plt.tight_layout()
 
@@ -303,6 +317,7 @@ class Plotter(object):
         if add_noice and (df.columns[2] in categoricals_hash_map):
             labels_new = self.patch_labels([str(item.get_text()) for item in plt.gca().get_yticklabels()],categoricals_hash_map[df.columns[2]])
             plt.gca().set_yticklabels(labels_new)
+
 
         if filename_out is not None:
             plt.savefig(self.folder_out + filename_out, facecolor=fig.get_facecolor())
@@ -526,7 +541,7 @@ class Plotter(object):
             plt.savefig(self.folder_out+filename_out,facecolor=fig.get_facecolor())
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def histoplots_df(self,df0,idx_target=0,transparency=0.25,remove_legend=False,figsize=(6,6)):
+    def histoplots_df(self,df0,idx_target=0,transparency=0.25,remove_legend=False,figsize=(6,6),filename_out=None):
 
         columns = df0.columns
         target = columns[idx_target]
@@ -535,30 +550,33 @@ class Plotter(object):
         unique_targets = df0.iloc[:,idx_target].unique().tolist()
         HT = tools_Hyptest.HypTest()
 
-        types = numpy.array([str(t) for t in df0.dtypes])
-        for column, typ in zip(columns[idx],types[idx]):
-            if column=='UserCountry':
-                ii=0
-
-            #print(column)
+        for column in columns[idx]:
+            if column=='who':
+                i=0
             fig = plt.figure(figsize=figsize)
             fig = self.turn_light_mode(fig)
             plt.grid(color=self.clr_grid)
 
             df = df0[[target, column]].copy()
             df.dropna(inplace=True)
-
-            is_categorical = (typ in ['object', 'category', 'bool'])
+            is_categorical = tools_DF.is_categorical(df,column)
             if is_categorical:
                 df[column] = df[column].astype(str)
+            I = 0
+            if len(unique_targets) == 2:
+                I = int(100 * HT.f1_score(df[df[target] == unique_targets[0]].iloc[:, 1:],
+                                                       df[df[target] == unique_targets[1]].iloc[:, 1:], is_categorical))
 
             df = tools_DF.remove_long_tail(df,order=True)
-            orientation = 'horizontal' if df[column].unique().shape[0] >= 20 and is_categorical else 'vertical'
+            orientation = 'horizontal' if df[column].unique().shape[0] >3 and is_categorical else 'vertical'
+            df.rename(columns={column: '%s_%02d' % (column, I)}, inplace=True)
+            column = '%s_%02d' % (column, I)
 
             df['#']=1
             df_agg = tools_DF.my_agg(df,[target,column],['#'],['count'],order_idx=-1 if is_categorical else None,ascending=False)
             for t in unique_targets:
                 df_t = tools_DF.apply_filter(df_agg,target,t).copy()
+
                 if len(unique_targets)==2 and t==unique_targets[1]:
                     df_t['#'] = -df_t['#']
                 if is_categorical:
@@ -567,34 +585,34 @@ class Plotter(object):
                     else:
                         plt.bar(x=df_t[column], height=df_t['#'], color=self.get_color(t)[[2,1,0]] / 255.0,alpha=1-transparency,label=t)
                 else:
-                    if df[column].unique().shape[0]>20:
-                        plt.plot(df_t[column], df_t['#'], color=self.get_color(t)[[2, 1, 0]] / 255.0, lw=3, label=t)
-                        plt.fill_between(df_t[column], df_t['#'],df_t['#']*0, color=tools_draw_numpy.blend(self.get_color(t)[[2, 1, 0]], 255*self.clr_bg, transparency)/255.0, zorder=0)
-                    else:
-                        df_t.sort_values(by=column,inplace=True)
-                        plt.bar(x=df_t[column], height=df_t['#'], color=self.get_color(t)[[2, 1, 0]] / 255.0,alpha=1 - transparency, label=t)
+                    df_t.sort_values(by=column, inplace=True)
+                    clr_fill = tools_draw_numpy.blend(self.get_color(t)[[2, 1, 0]], 255 * self.clr_bg, 1-transparency) / 255.0
+                    plt.plot(df_t[column], df_t['#'], marker='o',markersize=2,color=self.get_color(t)[[2, 1, 0]] / 255.0,lw=1, label=t)
+                    plt.fill_between(df_t[column], df_t['#'], df_t['#'] * 0, color=clr_fill,zorder=0)
 
             plt.xlabel(column)
             if remove_legend:
                 plt.legend([], [], frameon=False)
             else:
-                legend = plt.legend()
+                legend = plt.legend(loc='upper left', bbox_to_anchor=(0.0, 1.15),ncol = 1)
                 self.recolor_legend_plt(legend)
 
-            I = 0
-            if len(unique_targets)==2:
-                I = int(100*HT.distribution_distance(df[df[target]==unique_targets[0]].iloc[:,1:],df[df[target]==unique_targets[1]].iloc[:,1:]))
+            if filename_out is None:
+                filename_out = 'histo_%s.png' % (column)
+            try:
+                plt.savefig(self.folder_out + filename_out, facecolor=fig.get_facecolor())
+            except:
+                pass
 
-            file_out = 'histo_%s.png' % (column)
-            plt.savefig(self.folder_out + file_out, facecolor=fig.get_facecolor())
+            plt.clf()
             plt.close(fig)
 
             mode = 'a+' if os.path.exists(self.folder_out + 'descript.ion') else 'w'
             f_handle = open(self.folder_out + "descript.ion", mode=mode)
-            f_handle.write("%s %s\n" % (file_out, '%03d' % I))
+            f_handle.write("%s %s\n" % (filename_out, '%03d' % I))
             f_handle.close()
 
-        return
+        return filename_out
 # ----------------------------------------------------------------------------------------------------------------------
     def jointplots_df(self,df0,idx_target=0,transparency=0.25,palette='tab10',remove_legend=False,figsize=(6,6)):
 
@@ -674,8 +692,8 @@ class Plotter(object):
 
                 I=0
                 if len(unique_targets) == 2:
-                    I = int(100 * HT.distribution_distance(df[df[target] == unique_targets[0]].iloc[:,1:],
-                                                           df[df[target] == unique_targets[1]].iloc[:,1:]))
+                    I = int(100 * HT.f1_score(df[df[target] == unique_targets[0]].iloc[:, 1:],
+                                                           df[df[target] == unique_targets[1]].iloc[:,1:], (is_categorical1 and is_categorical2)))
 
                 file_out = 'pairplot_%02d_%02d_%s_%s_%02d.png' % (i, j, c1, c2, I)
                 if cumul_mode:
@@ -788,7 +806,7 @@ class Plotter(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def get_xtick_labels(self,df,idx_time,out_format_x,major_step):
+    def get_xtick_labels(self,df,idx_time,out_format_x,major_step,minor_step=None):
 
         if idx_time is None:
             xtick_labels = numpy.arange(df.shape[0],dtype='int')
@@ -812,8 +830,9 @@ class Plotter(object):
 
         return xtick_labels,idx_visible
 # ----------------------------------------------------------------------------------------------------------------------
-    def TS_seaborn(self, df, idxs_target, idx_time, idx_hue=None,mode='pointplot', idxs_fill=None,remove_legend=False,remove_grid=False,
-                   remove_xticks=False,remove_yticks=False, x_range=None,out_format_x=None, major_step=None,invert_y=False,lw=2,transparency=0, figsize=(15, 3), filename_out=None):
+    def TS_seaborn(self, df, idxs_target, idx_time, idx_hue=None,bg_image=None,
+                   mode='pointplot', idxs_fill=None,remove_legend=False,remove_grid=False,
+                   remove_xticks=False,remove_yticks=False, x_range=None,y_range=None,out_format_x=None, major_step=None,minor_step=None,invert_y=False,lw=2,transparency=0, figsize=(15, 3), filename_out=None):
 
         fig = plt.figure(figsize=figsize)
         fig = self.turn_light_mode(fig)
@@ -852,28 +871,33 @@ class Plotter(object):
             plt.gca().yaxis.grid(False)
 
         if major_step is not None:
-            xtick_labels,idx_visible = self.get_xtick_labels(df,idx_time,out_format_x,major_step)
+            xtick_labels,idx_visible = self.get_xtick_labels(df,idx_time,out_format_x,major_step,minor_step)
             ax = plt.gca()
             ax.minorticks_on()
             if idx_visible is not None:
                 ax.set_xticks(idx_visible)
                 ax.set_xticklabels(xtick_labels[idx_visible])
 
+        if bg_image is not None:
+            g.imshow(bg_image[:,:,[2,1,0]],zorder=-1,aspect = g.get_aspect(),extent = g.get_xlim() + g.get_ylim())
+
         if x_range is not None:
             plt.xlim(x_range)
-        elif remove_xticks:
+        if remove_xticks:
             g.set(xticks=[])
 
+        if y_range is not None:
+            plt.ylim(y_range)
         if remove_yticks:
             g.set(yticks=[])
-            plt.yticks([])
 
         if invert_y: plt.gca().invert_yaxis()
 
         if remove_legend:
             plt.legend([], [], frameon=False)
         else:
-            legend = plt.legend(handles=patches,loc="upper left")
+            #legend = plt.legend(handles=patches,loc="upper left")
+            legend = plt.legend(handles=patches,loc='upper left', bbox_to_anchor=(0.0, -0.10), ncol=len(patches))
             self.recolor_legend_plt(legend)
 
         plt.tight_layout()
@@ -1022,19 +1046,29 @@ class Plotter(object):
         plt.close(fig)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def plot_hor_bars(self,values,header,legend=None,figsize=(3.5,6),filename_out=None):
+    def plot_hor_bars(self, values, labels, legend=None,xticks=None, transparency=0,palette='tab10',figsize=(3.5, 6), filename_out=None):
 
         fig = plt.figure(figsize=figsize)
         fig = self.turn_light_mode(fig)
 
-        colors = seaborn.color_palette(palette='tab10', n_colors=1)
+        colors = seaborn.color_palette(palette=palette, n_colors=1)
+        y_pos = numpy.arange(len(labels))
 
-        y_pos = numpy.arange(len(header))
-        idx = numpy.argsort(values)
-        plt.barh(y_pos, values[idx],color=colors[0])
-        plt.yticks(y_pos,header[idx])
+        if len(values.shape)==1:
+            plt.barh(y_pos, values,color=colors[0],alpha=1-transparency)
+        else:
+            for i in range(values.shape[1]):
+                plt.barh(y_pos, values[:,i], color=colors[0], alpha=1 - transparency)
+
+        plt.yticks(y_pos, labels)
+        plt.gca().invert_yaxis()
         plt.tight_layout()
-        plt.xticks([])
+        if xticks is not None:
+            plt.xticks(xticks)
+
+        plt.grid(color=self.clr_grid)
+        plt.gca().tick_params(axis="y", direction="in")
+
 
         if legend is not None:
             legend = plt.legend([legend],loc="lower right")
@@ -1045,6 +1079,37 @@ class Plotter(object):
 
         return fig
 # ----------------------------------------------------------------------------------------------------------------------
+    def plot_bars(self, values, labels, legend=None, yticks=None, transparency=0, colormap='viridis',figsize=(4, 4), filename_out=None):
+
+        fig = plt.figure(figsize=figsize)
+        fig = self.turn_light_mode(fig)
+
+        colors = tools_draw_numpy.get_colors(255, colormap=colormap)[:,[2,1,0]]/255.0
+        x_pos = numpy.arange(len(labels))
+
+        if len(values.shape) == 1:
+            plt.bar(x_pos, values, color=colors[0], alpha=1 - transparency)
+        else:
+            for i in range(values.shape[1]):
+                plt.bar(x_pos, values[:, i], color=colors[0], alpha=1 - transparency)
+
+        plt.xticks(x_pos, labels)
+        if yticks is not None:
+            plt.yticks(yticks)
+
+        plt.grid(color=self.clr_grid)
+
+        if legend is not None:
+            legend = plt.legend([legend], loc="lower right")
+            self.recolor_legend_plt(legend)
+
+        plt.tight_layout()
+        if filename_out is not None:
+            plt.savefig(self.folder_out + filename_out, facecolor=fig.get_facecolor())
+
+        return fig
+# ----------------------------------------------------------------------------------------------------------------------
+
     def plot_pie(self,values,header,filename_out=None):
 
         fig = plt.figure()
@@ -1054,47 +1119,51 @@ class Plotter(object):
             plt.savefig(self.folder_out+filename_out,facecolor=fig.get_facecolor())
 
         return fig
-# ----------------------------------------------------------------------------------------------------------------------
-    def plot_squarify(self,df, idx_label, idx_count, stat='%',idx_color=None, col255=None,alpha=0.0,palette='tab20',figsize=(15, 5),filename_out=None):
+# ---------------------------------------------------------------------------------------------------------------------
+    def plot_squarify(self, df, idx_label, idx_size, colors=None,idx_color_255=None, palette='viridis',stat='%', alpha=0, figsize=(15, 5), filename_out=None):
 
         fig = plt.figure(figsize=figsize)
-        fig = self.turn_light_mode(fig)
+        self.turn_light_mode(fig)
 
-        weights = numpy.array(df.iloc[:, idx_count], dtype=numpy.int)
-        labels = numpy.array(df.iloc[:, idx_label], dtype=numpy.str)
-        labels = numpy.array([label.replace(' ', '\n') for label in labels])
-        if col255 is None:
-            col255 = tools_draw_numpy.get_colors(256, shuffle=True, colormap=palette)
+        padding = 3
+        font_size = 18
+        W, H = int(figsize[0]*100), int(figsize[1]*100)
 
+        image = numpy.full((H, W, 3), self.clr_bg*255, dtype=numpy.uint8)
+        sizes = df.iloc[:, idx_size].values
 
-        if idx_color is not None:
-            col_rank = numpy.array(df.iloc[:, idx_color], dtype=numpy.float32)
-            col_rank -= col_rank.min()
-            col_rank /= (col_rank.max() / 255)
-            col_rank = col_rank.astype(int)
-            colors = col255[col_rank]
-        else:
-            #colors = col255[numpy.linspace(0, 255, labels.shape[0]).astype(numpy.int)]
-            colors = numpy.array([self.get_color(label,alpha_blend=alpha) for label in labels])
+        labels = df.iloc[:, idx_label].apply(lambda x:str(x).replace(' ', '\n')).values
+        if   stat=='%':labels = numpy.array(['%s %.1f%%' % (l, float(100 * w / sizes.sum())) for w, l in zip(sizes, labels)])
+        elif stat=='#':labels = numpy.array(['%s %d' % (l, w) for l,w in zip(labels,sizes)])
 
-        colors = colors[:, [2, 1, 0]] / 255
+        if colors is None:
+            col255 = tools_draw_numpy.get_colors(256, shuffle=False, colormap=palette)
+            if idx_color_255 is not None:
+                colors = col255[[int(i) for i in df.iloc[:, idx_color_255]]]
+            else:
+                sss = sizes - numpy.min(sizes)
+                sss = 255*sss/sss.max()
+                colors = [col255[int(s)] for s in sss]
 
+        sss = squarify.normalize_sizes(sizes/sizes.sum(), W, H)
+        sq_res = numpy.array([(el['x'], el['y'], el['dx'], el['dy']) for el in squarify.squarify(sss, 0, 0, W, H)])
 
-        W = sum(weights)
-        if stat=='%':
-            labels2 = ['%s %.1f%%' % (l, float(100 * w / W)) for w, l in zip(weights, labels)]
-        elif stat=='#':
-            labels2 = ['%s %d' % (l, w) for w, l in zip(weights, labels)]
-        else:
-            labels2 = labels
+        if padding > 0:
+            sq_res[:, 0] += padding
+            sq_res[:, 2] -= 2 * padding
+            sq_res[:, 1] += padding
+            sq_res[:, 3] -= 2 * padding
 
-        squarify.plot(sizes=weights, label=labels2, color=colors, pad=False,clr_fg=self.clr_font)
+        for sq, label, color in zip(sq_res, labels, colors):
+            col_left, row_up, col_right, row_down = sq[0], sq[1], sq[0] + sq[2], sq[1] + sq[3]
 
-        plt.axis('off')
-        plt.tight_layout()
-        plt.savefig(self.folder_out + filename_out, facecolor=numpy.array(self.clr_bg))
-        plt.clf()
-        plt.close(fig)
+            image = tools_draw_numpy.draw_rect(image, col_left, row_up, col_right, row_down, color,w=2,alpha_transp=alpha)
+            pos0 = (int((col_left + col_right) / 2), int((row_up + row_down) / 2))
+            shift_x, shift_y, sx, sy = tools_draw_numpy.get_position_sign(label, W, H, font_size,pos0)
+            pos = int(pos0[0] + shift_x), int(pos0[1] + shift_y)
+            image = tools_draw_numpy.draw_text(image, label,pos,255-self.clr_bg*255, None, font_size,alpha_transp=alpha)
+
+        cv2.imwrite(self.folder_out + filename_out, image)
         return
 # ---------------------------------------------------------------------------------------------------------------------
     def plot_feature_correlation(self,df_Q,figsize=(8,8),filename_out=None):
@@ -1106,6 +1175,19 @@ class Plotter(object):
             plt.savefig(self.folder_out+filename_out,facecolor=fig.get_facecolor())
 
         return
+# ---------------------------------------------------------------------------------------------------------------------
+    def inplace_image(self, image, str_start, str_stop, major_step_days=7, minor_step_days=1,figsize=(10, 4),filename_out=None):
+
+        H, W = image.shape[:2]
+        time_range = tools_time_convertor.generate_date_range(str_start, str_stop, freq='D')
+        df = pd.DataFrame({'time': time_range, 'value_min': -1, 'value_max': H+1})
+        self.set_color('value_min', self.color_black)
+        self.set_color('value_max', self.color_black)
+        self.TS_seaborn(df, [1, 2], 0, bg_image=image,major_step=major_step_days, minor_step=minor_step_days, remove_legend=True, y_range=[0, H],
+                        lw=1,transparency=1,remove_yticks=True,figsize=figsize,filename_out=filename_out)
+
+        return
+
 # ---------------------------------------------------------------------------------------------------------------------
     def get_image(self, fig, clr_bg):
         ax = plt.gca()
@@ -1126,3 +1208,4 @@ class Plotter(object):
         io_buf.close()
         return image
 # ----------------------------------------------------------------------------------------------------------------------
+

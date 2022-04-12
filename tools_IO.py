@@ -13,6 +13,7 @@ import pickle
 import pandas as pd
 import operator
 from itertools import groupby
+import hashlib
 # ----------------------------------------------------------------------------------------------------------------------
 def find_nearest(array, value):
     return array[(numpy.abs(array - value)).argmin()]
@@ -20,6 +21,11 @@ def find_nearest(array, value):
 def smart_index(array, value):
     return numpy.array([i for i, v in enumerate(array) if (v == value)])
 
+# ----------------------------------------------------------------------------------------------------------------------
+def flatten_list(A):
+    res = [i for I in A
+             for i in I]
+    return res
 # ----------------------------------------------------------------------------------------------------------------------
 def rank(A):
     rank = numpy.arange(0, A.shape[0])
@@ -90,7 +96,10 @@ def append_CSV(csv_record, filename_out, csv_header=None, delim ='\t'):
 def get_filenames(path_input,list_of_masks):
     local_filenames = []
     for mask in list_of_masks.split(','):
-        local_filenames += fnmatch.filter(listdir(path_input), mask)
+        res = listdir(path_input)
+        if mask != '*.*':
+            res = fnmatch.filter(res, mask)
+        local_filenames += res
 
     return numpy.sort(numpy.array(local_filenames))
 # ----------------------------------------------------------------------------------------------------------------------
@@ -812,4 +821,8 @@ def get_longest_run_position_len(L):
     if numpy.all(L<=0):return -1,-1
     xx = max(((lambda y: (y[0][0], len(y)))(list(g)) for k, g in groupby(enumerate(L), lambda x: x[1]) if k),key=lambda z: z[1])
     return xx
+# ----------------------------------------------------------------------------------------------------------------------
+def gen_hash(text):
+    res = hashlib.sha224(text.encode("utf-8")).hexdigest()
+    return res
 # ----------------------------------------------------------------------------------------------------------------------
