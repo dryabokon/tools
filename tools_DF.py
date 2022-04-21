@@ -73,6 +73,8 @@ def impute_na(df,strategy='constant',strategy_bool='str'):
     if df.shape[0]==0:
         return df
 
+    str_na = 'N/A'
+
     imp = SimpleImputer(missing_values=numpy.nan, strategy=strategy)
     for column in df.columns:
         if any([isinstance(v, bool) for v in df[column]]):
@@ -81,7 +83,7 @@ def impute_na(df,strategy='constant',strategy_bool='str'):
             elif strategy_bool == 'str':
                 idx_true = df[column].isin([True,'True','TRUE','true']).values
                 idx_false =df[column].isin([False,'False','FALSE','false']).values
-                V1 = numpy.full(df.shape[0],'N/A',dtype=numpy.chararray)
+                V1 = numpy.full(df.shape[0],str_na,dtype=numpy.chararray)
                 V1[idx_true] = 'true'
                 V1[idx_false] = 'false'
                 df[column] = V1
@@ -233,7 +235,7 @@ def to_multi_column(df,idx_time,idx_label,idx_value,replace_nan=True,order_by_va
     col_label = columns[idx_label]
     col_value = columns[idx_value]
 
-    #df.to_csv(self.folder_out+'xxx.csv',index = False)
+    #df.to_csv('xxx.csv',index = False)
     df.drop_duplicates(inplace=True)
 
     df_res = df.pivot(index=col_time, columns=col_label)[col_value]
@@ -309,6 +311,8 @@ def preprocess(df,dct_methods,skip_first_col=False,do_binning=False):
     return df
 # ---------------------------------------------------------------------------------------------------------------------
 def apply_filter(df,col_name,filter,inverce=False):
+    if df.shape[0]==0:
+        return df
 
     if filter is None:
         return df
@@ -329,7 +333,13 @@ def apply_filter(df,col_name,filter,inverce=False):
         elif len(filter)>2:
             idx = df[col_name].isin(filter)
     else:
-        idx = (df[col_name] == filter)
+        #idx0 = (df[col_name] == filter)
+        if pd.DataFrame([filter]).isna()[0][0]:
+            idx = df[col_name].isna()
+        else:
+            idx = (df[col_name] == filter)
+
+
 
     if inverce:
         idx=~idx
@@ -487,4 +497,24 @@ def build_hierarchical_dataframe(df, cols_labels_level, col_size, concat_labels=
     res = res.sort_values(by=['parent_id', 'id'])
     res = res.append(pd.Series({'id':description_total, 'parent_id':'', 'size':df[col_size].sum(), 'metric':metric}),ignore_index=True)
     return res
+# ---------------------------------------------------------------------------------------------------------------------
+def remap_counts(df,list_values):
+
+    df_res = pd.DataFrame()
+
+    for feature_value,is_nan in zip(list_values,(pd.DataFrame(list_values).isna().values).flatten()):
+        if feature_value == '*':
+            df_segm = df.copy()
+        elif is_nan:
+            df_segm = df[df.iloc[:, 0].isna()].copy()
+        elif feature_value != '~':
+            df_segm = df[df.iloc[:,0]==feature_value].copy()
+        else:
+            df_segm = df[~df.iloc[:,0].isin(list_values)].copy()
+        df_segm.iloc[:, 0] = feature_value
+        df_res = df_res.append(df_segm)
+
+    df_res = my_agg(df_res,cols_groupby=df_res.columns[0],cols_value=[df_res.columns[1]],aggs=['sum'])
+
+    return df_res
 # ---------------------------------------------------------------------------------------------------------------------

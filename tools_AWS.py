@@ -17,7 +17,7 @@ class processor_S3(object):
         self.load_private_config(filename_config)
         self.folder_out = (folder_out if folder_out is not None else './')
         self.L = tools_Logger.Logger(self.folder_out + 'log.txt')
-        boto3.setup_default_session(aws_access_key_id=self.aws_access_key_id,aws_secret_access_key=self.aws_secret_access_key, region_name=None)
+        boto3.setup_default_session(aws_access_key_id=self.aws_access_key_id,aws_secret_access_key=self.aws_secret_access_key, region_name=self.region)
 
         self.client_athena = boto3.client('athena')
         self.client_s3 = boto3.client('s3')
@@ -198,11 +198,16 @@ class processor_S3(object):
         if not isinstance(filter,list):
             filter = [filter]
 
-        filter = ["'" + v + "'" for v in filter]
+        filter = ["'" + v + "'" if v is not None else None for v in filter]
 
+        str_condition = ""
         if filter_more_less and len(filter) == 2:
-            str_condition = '%s'%col_name + ' >= ' + filter[0] + ' AND' +sep
-            str_condition+= '%s'%col_name + ' < ' + filter[1]
+            if filter[0] is not None:
+                str_condition = '%s'%col_name + ' >= ' + filter[0]
+            if filter[1] is not None:
+                if len(str_condition)>0:
+                    str_condition+=' AND' + sep
+                str_condition+= '%s'%col_name + ' < ' + filter[1]
         else:
             list_in = ', '.join(filter)
             str_condition = '%s'%col_name + ' in (' + list_in + ')'

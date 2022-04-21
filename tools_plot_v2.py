@@ -33,6 +33,7 @@ class Plotter(object):
         self.dark_mode = dark_mode
         self.init_base_colors()
         self.init_colors()
+        self.turn_light_mode(None)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def init_base_colors(self):
@@ -818,12 +819,22 @@ class Plotter(object):
             xtick_labels = df[df.columns[idx_time]].dt.strftime(out_format_x).values
             idx_visible = []
             values = df.iloc[:, idx_time].values
-            last_visible = values[0]
-            for i, x in enumerate(values):
-                delta = ((x - last_visible) / numpy.timedelta64(1, 'D'))
-                if i == 0 or (delta >= major_step):
-                    idx_visible.append(i)
+
+            # last_visible = values[0]
+            # for i, x in enumerate(values):
+            #     delta = ((x - last_visible) / numpy.timedelta64(1, 'D'))
+            #     if i == 0 or (delta >= major_step):
+            #         idx_visible.append(i)
+            #         last_visible = x
+
+            last_visible = values[-1]
+            for i, x in enumerate(values[::-1]):
+                delta = ((last_visible - x) / numpy.timedelta64(1, 'D'))
+                if i==0 or (delta >= major_step):
+                    idx_visible.append(values.shape[0]-1-i)
                     last_visible = x
+            idx_visible = idx_visible[::-1]
+
         else:
             xtick_labels = None
             idx_visible = None
@@ -859,9 +870,7 @@ class Plotter(object):
                 clr = tools_draw_numpy.blend(255*colors[idx_fill],255*self.clr_bg,1-transparency)/255.0
                 plt.fill_between(x=xy[:,0], y1=xy[:,1], color=clr,zorder=-2)
 
-            patches = [mpatches.Patch(color=(colors[i][0],colors[i][1],colors[i][2],1-transparency), label=columns[idx_target]) for i, idx_target in enumerate(idxs_target)]
-        else:
-            patches = [mpatches.Patch(color=colors[i], label=columns[idx_target]) for i, idx_target in enumerate(idxs_target)]
+        patches = [mpatches.Patch(color=colors[i], label=columns[idx_target]) for i, idx_target in enumerate(idxs_target)]
 
         if not remove_grid:
             plt.grid(color=self.clr_grid,which='major',zorder=-1)
@@ -878,8 +887,6 @@ class Plotter(object):
                 ax.set_xticks(idx_visible)
                 ax.set_xticklabels(xtick_labels[idx_visible])
 
-        if bg_image is not None:
-            g.imshow(bg_image[:,:,[2,1,0]],zorder=-1,aspect = g.get_aspect(),extent = g.get_xlim() + g.get_ylim())
 
         if x_range is not None:
             plt.xlim(x_range)
@@ -888,19 +895,25 @@ class Plotter(object):
 
         if y_range is not None:
             plt.ylim(y_range)
+
         if remove_yticks:
             g.set(yticks=[])
+            #plt.gca().tick_params(axis='y', colors=(0.5, 0.5, 0.5, 0.00), which='both',direction="out")
 
-        if invert_y: plt.gca().invert_yaxis()
+        if invert_y:
+            plt.gca().invert_yaxis()
 
         if remove_legend:
             plt.legend([], [], frameon=False)
         else:
-            #legend = plt.legend(handles=patches,loc="upper left")
             legend = plt.legend(handles=patches,loc='upper left', bbox_to_anchor=(0.0, -0.10), ncol=len(patches))
             self.recolor_legend_plt(legend)
 
         plt.tight_layout()
+
+        if bg_image is not None:
+            g.imshow(bg_image[:,:,[2,1,0]],zorder=-1,aspect = g.get_aspect(),extent = g.get_xlim() + g.get_ylim())
+
         if filename_out is not None:
             plt.savefig(self.folder_out+filename_out,facecolor=fig.get_facecolor())
 
@@ -1176,15 +1189,20 @@ class Plotter(object):
 
         return
 # ---------------------------------------------------------------------------------------------------------------------
-    def inplace_image(self, image, str_start, str_stop, major_step_days=7, minor_step_days=1,figsize=(10, 4),filename_out=None):
+    def inplace_image(self, image, str_start, str_stop, major_step_days=7, out_format_x=None,figsize=(10, 4),filename_out=None):
 
         H, W = image.shape[:2]
         time_range = tools_time_convertor.generate_date_range(str_start, str_stop, freq='D')
         df = pd.DataFrame({'time': time_range, 'value_min': -1, 'value_max': H+1})
         self.set_color('value_min', self.color_black)
         self.set_color('value_max', self.color_black)
-        self.TS_seaborn(df, [1, 2], 0, bg_image=image,major_step=major_step_days, minor_step=minor_step_days, remove_legend=True, y_range=[0, H],
-                        lw=1,transparency=1,remove_yticks=True,figsize=figsize,filename_out=filename_out)
+        self.TS_seaborn(df, idxs_target=[1, 2], idx_time=0, bg_image=image,mode='pointplot',
+                        #idxs_fill=[0,1],
+                          major_step=major_step_days, out_format_x=out_format_x,
+                        remove_legend=True, remove_yticks=False,
+                        y_range=[0, H],
+                        lw=1,transparency=1,
+                        figsize=figsize,filename_out=filename_out)
 
         return
 

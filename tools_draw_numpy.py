@@ -528,7 +528,7 @@ def BGR_from_HTML(color_HTML='#000000'):
     return col
 # ---------------------------------------------------------------------------------------------------------------------
 def BGR_to_HTML(bgr):
-    return ('#%02x%02x%02x' % (bgr[0],bgr[1],bgr[2])).upper()
+    return ('#%02x%02x%02x' % (int(bgr[0]),int(bgr[1]),int(bgr[2]))).upper()
 # ---------------------------------------------------------------------------------------------------------------------
 def create_color_discrete_map(df, col_label, col_color=None, palette='RdBu'):
 

@@ -1,6 +1,7 @@
 import numpy
 import os
 from os import listdir
+import json
 import fnmatch
 from shutil import copyfile
 import shutil
@@ -113,59 +114,6 @@ def get_next_folder_out(base_folder_out):
         sub_folder_out = '0'
     return base_folder_out + sub_folder_out + '/'
 # ----------------------------------------------------------------------------------------------------------------------
-def save_flatarrays_as_images(path, cols, rows, array, labels=None, filenames=None, descriptions=None):
-
-    if not os.path.exists(path):
-        os.makedirs(path)
-
-    if descriptions is not None:
-        f_handle = open(path+"descript.ion", "a+")
-
-    if(array.ndim ==2):
-        N=array.shape[0]
-    else:
-        N=1
-
-    for i in range(0,N):
-
-        if(array.ndim == 2):
-            arr = array[i]
-            if descriptions is not None:
-                description = descriptions[i]
-
-
-            if filenames is not None:
-                short_name = filenames[i]
-            else:
-                short_name = "%s_%05d.bmp" % (labels[i], i)
-
-        else:
-            arr = array[i]
-            if descriptions is not None:
-                description = descriptions[i]
-
-            if filenames is not None:
-                short_name = filenames[i]
-            else:
-                short_name = "%s_%05d.bmp" % (labels, i)
-
-
-        #img= toimage(arr.reshape(rows, cols).astype(int)).convert('RGB')
-        #img.save(path + short_name)
-        arr = arr.reshape(rows, cols)
-        arr/=numpy.max(arr)/255.0
-        cv2.imwrite(path + short_name,arr)
-
-
-        if descriptions is not None:
-            f_handle.write("%s %s\n" % (short_name, description))
-
-    if descriptions is not None:
-        f_handle.close()
-
-    return
-
-# ----------------------------------------------------------------------------------------------------------------------
 def save_raw_vec(vec, filename,mode=(os.O_RDWR|os.O_APPEND),fmt='%d',delim=' '):
 
     if not os.path.isfile(filename):
@@ -187,6 +135,11 @@ def save_raw_vec(vec, filename,mode=(os.O_RDWR|os.O_APPEND),fmt='%d',delim=' '):
 # ----------------------------------------------------------------------------------------------------------------------
 def save_mat(mat, filename,fmt='%s',delim='\t'):
     numpy.savetxt(filename, mat,fmt=fmt,delimiter=delim)
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+def save_dict(dct,filename_out):
+    with open(filename_out, 'w') as f:
+        json.dump(dct, f, indent=' ')
     return
 # ----------------------------------------------------------------------------------------------------------------------
 def save_data_to_feature_file_float(filename,array,target):
@@ -710,34 +663,6 @@ def to_categorical(Y):
         Y_2d[i,index]=1
     return Y_2d
 
-# --------------------------------------------------------------------------------------------------------------------
-def save_MNIST_digits(out_path,limit=200):
-
-    digits = datasets.load_digits()
-    data = digits.images.reshape((len(digits.images), -1))
-
-    remove_files(out_path, create=True)
-    remove_folders(out_path)
-
-    for i in range(0, 10):
-        os.makedirs(out_path + '/' + ('%d' % i))
-
-    idx = []
-    filenames=[]
-    cntr = numpy.zeros(10)
-
-
-    for i in range(0,data.shape[0]):
-        key = digits.target[i].astype(int)
-        name = key.astype(numpy.str)
-        if cntr[key]<limit:
-            idx.append(i)
-            filenames.append(name + '/' + name + ('_%03d' % cntr[key]) + '.png')
-            cntr[key] += 1
-
-    save_flatarrays_as_images(out_path, 8,8, data[idx], labels=digits.target[idx], filenames=filenames)
-
-    return
 # ----------------------------------------------------------------------------------------------------------------------
 def numerical_devisor(n):
 
@@ -824,5 +749,16 @@ def get_longest_run_position_len(L):
 # ----------------------------------------------------------------------------------------------------------------------
 def gen_hash(text):
     res = hashlib.sha224(text.encode("utf-8")).hexdigest()
+    return res
+# ----------------------------------------------------------------------------------------------------------------------
+def validate_str(value):
+
+    if pd.DataFrame([value]).isna()[0][0]:
+        res = 'NA'
+    else:
+        res = str(value)
+        res = res.replace('/', '')
+        res = res.replace('*', '_total_')
+
     return res
 # ----------------------------------------------------------------------------------------------------------------------

@@ -110,6 +110,10 @@ def extract_frames_v2(filename_in,folder_out,prefix='',start_frame=0, end_frame=
     if not os.path.exists(folder_out):
             os.mkdir(folder_out)
 
+    if ('jpg' in filename_in) or ('png' in filename_in):
+        cv2.imwrite(folder_out + prefix + '_%06d.jpg' % 0, cv2.imread(filename_in))
+        return
+
     vidcap = cv2.VideoCapture(filename_in)
     success, image = vidcap.read()
     total_frames = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))

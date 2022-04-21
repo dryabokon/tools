@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import tensorflow as tf
 import tensorflow_hub as hub
@@ -85,17 +86,22 @@ class detector_TF_Zoo(object):
             text_bottom -= text_height - 2 * margin
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def process_folder(self, folder_in, list_of_masks='*.jpg',limit=1000000):
-        tools_IO.remove_files(self.folder_out)
+    def process_folder(self, folder_in, list_of_masks='*.jpg',limit=1000000,do_debug=False):
+
+        if not os.path.exists(self.folder_out):
+            os.mkdir(self.folder_out)
+
         self.counter = 0
         filenames  = tools_IO.get_filenames(folder_in, list_of_masks)[:limit]
         mode = 'w'
         for filename in filenames:
-            print(filename)
-            df_boxes = self.process_image(folder_in + filename,filename)
+            df_boxes = self.process_image(folder_in + filename,filename_out=filename if do_debug else None)
+            print(filename, df_boxes.shape[0])
             if df_boxes.shape[0]>0:
                 df_boxes.to_csv(self.folder_out+'df_boxes.csv',index=False,mode=mode,header=(mode=='w'))
                 mode = 'a'
-
-        return
+        df_boxes = pd.DataFrame([])
+        if os.path.isfile(self.folder_out + 'df_boxes.csv'):
+            df_boxes = pd.read_csv(self.folder_out + 'df_boxes.csv')
+        return df_boxes
 # ----------------------------------------------------------------------------------------------------------------------

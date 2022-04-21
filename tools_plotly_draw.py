@@ -67,26 +67,23 @@ class DashDraw(object):
         return "data:image/png;base64,{}".format(encoded)
 # ----------------------------------------------------------------------------------------------------------------------
     def draw_item(self,children=None,id=None,framed=False,style=None):
-        asset = html.H1(id=id,children=children)
 
+        layout = html.Div(children=children, id=id, style=None)
         if framed:
-            #layout = dbc.Container(asset,style=style)
-            layout = dbc.Card(dbc.CardBody(asset,style=style))
-        else:
-            layout = html.Div(asset,style=style)
+            layout = dbc.Card(dbc.CardBody(layout,style=style),color=style['background-color'] if (style is not None and 'background-color' in style) else None)
 
         return layout
 # ----------------------------------------------------------------------------------------------------------------------
-    def draw_card(self,children=None,id=None,style=None):
-        asset = html.H4(id=id,children=children)
-        layout = dbc.Card(dbc.CardBody(asset,style=style),color="#2b2b2b",inverse=True)
+    def draw_card(self,children=None,id=None,color="#404040",style=None):
+        asset = html.H5(id=id,children=children)
+        layout = dbc.Card(dbc.CardBody(asset,style=style),color=color,inverse=True)
         return layout
 # ----------------------------------------------------------------------------------------------------------------------
     def draw_graph(self, id, figure,framed=False,style=None,remove_bar=True):
         graph = dcc.Graph(id=id, figure=figure, config={"displayModeBar": False} if remove_bar else None)
 
         if framed:
-            layout = dbc.Card(dbc.CardBody(graph,style=style,className="no-scrollbars"))
+            layout = dbc.Card(dbc.CardBody(graph,style=style,className="no-scrollbars"),color=style['background-color'] if (style is not None and 'background-color' in style) else None)
         else:
             layout = html.Div(graph,style=style,className="no-scrollbars")
 

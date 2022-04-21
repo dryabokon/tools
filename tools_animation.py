@@ -110,9 +110,9 @@ def folder_to_video(folder_in, filename_out, mask='*.jpg', framerate=24, resize_
         image = cv2.imread(os.path.join(folder_in, fileslist[0]))
         resize_H, resize_W = image.shape[:2]
 
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    #fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     #fourcc = cv2.VideoWriter_fourcc(*'H264')
-    #fourcc = cv2.VideoWriter_fourcc(*'avc1')
+    fourcc = cv2.VideoWriter_fourcc(*'avc1')
     #fourcc = cv2.VideoWriter_fourcc(*'MSVC')
 
     out = cv2.VideoWriter(filename_out,fourcc, framerate, (resize_W,resize_H))

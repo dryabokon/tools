@@ -11,18 +11,45 @@ import tools_DF
 folder_out = './images/output/'
 # ----------------------------------------------------------------------------------------------------------------------
 class Plotly_builder:
-    def __init__(self):
+    def __init__(self,dark_mode=False):
+        self.dark_mode = dark_mode
+        self.turn_light_mode()
         self.id_text_box = 'ID00'
         self.id_plot_01 = 'ID01'
         self.id_plot_02 = 'ID02'
         self.app = dash.Dash(external_stylesheets=([dbc.themes.BOOTSTRAP]))
         return
 # ---------------------------------------------------------------------------------------------------------------------
+    def turn_light_mode(self,dark_mode=None):
+        if dark_mode is None:
+            dark_mode = self.dark_mode
+
+        if dark_mode:
+            self.clr_bg = '#2b2b2b'
+            self.clr_font = '#FFFFFF'
+        else:
+            self.clr_bg = "#FFFFFF"
+            self.clr_font = '#000000'
+        return
+# ---------------------------------------------------------------------------------------------------------------------
     def build_layout(self):
+
+        figure = self.create_figure_test_sales()
+
+        dropdown = dbc.DropdownMenu(id="dd",label="Menu",children=
+        [dbc.DropdownMenuItem("Item 1",id="dd1"),
+         dbc.DropdownMenuItem("Item 2",id="dd2"),
+         dbc.DropdownMenuItem("Item 3",id="dd3")
+         ])
 
         layout = html.Div([
             html.H4(id=self.id_text_box),
-            html.Div([dcc.Graph(id=self.id_plot_01, figure=self.create_figure_test_sales())])])
+            html.Div([dcc.Graph(id=self.id_plot_01, figure=figure)]),
+            dropdown
+            #html.Div(id="dd",children=dropdown),
+
+                    ])
+
 
         return layout
 # ---------------------------------------------------------------------------------------------------------------------
@@ -37,7 +64,6 @@ class Plotly_builder:
     def create_figure_test_cofee(self):
         df = pd.read_csv('https://raw.githubusercontent.com/plotly/datasets/96c0bd/sunburst-coffee-flavors-complete.csv')
         fig = go.Figure(go.Treemap(ids=df.ids,labels=df.labels,parents=df.parents,level='ids'))
-        #fig = go.Figure(go.Treemap(labels=df.labels,parents=df.parents))
         fig.update_layout(
             uniformtext=dict(minsize=10, mode='hide'),
             margin=dict(t=50, l=25, r=25, b=25))
@@ -82,19 +108,43 @@ class Plotly_builder:
         fig.layout.paper_bgcolor ='#FFFFFF'
         return fig
 # ----------------------------------------------------------------------------------------------------------------------
-    def create_figure_bar(self, labels, values=None, orientation='h'):
+    def create_figure_bar(self, labels, values=None,tickvals_x=None, font_size=12,orientation='h'):
 
-        df = pd.DataFrame({'x': 1 if values is None else values, 'label': labels})
-        fig = go.Figure(go.Bar(x=df['x'], y=df['label'], orientation=orientation,hoverinfo='none'),layout = go.Layout(bargap=0.03,font={'size':20}))
 
-        fig.update_layout({'yaxis': {'categoryorder': 'total ascending','showgrid':False}})
-        fig.update_layout(autosize=True,height=60 * df.shape[0], margin=dict(t=0, l=0, r=0, b=0))
-        fig.update_layout(xaxis={'visible': False, 'showticklabels': False,'showgrid':False})
-        fig.update_yaxes(ticklabelposition="inside", title=None,showgrid=False)
+        df = pd.DataFrame({'x': 1 if values is None else [v for v in values], 'label': [str(l) for l in labels]})
+        fig = go.Figure(go.Bar(x=df['x'], y=df['label'], orientation=orientation,hoverinfo='none'),layout = go.Layout(bargap=0.02,font={'size':font_size}))
+        fig.update_layout(autosize=True, height=font_size*1.5 * df.shape[0], margin=dict(t=0, l=0, r=0, b=0))
+        ticklabelposition = 'outside'
+        fig.update_layout(yaxis ={'categoryorder':'total ascending','showgrid':False,'title':None,
+                                  'showticklabels':True,'ticklabelposition':ticklabelposition,'color':self.clr_font,'zeroline':False})
+        fig.update_layout(xaxis ={'visible': True, 'showticklabels': False,'zeroline':False})
+        fig.update_xaxes(tickvals=tickvals_x,showgrid=True if tickvals_x is not None else False, gridwidth=1, gridcolor=self.clr_font)
+        fig.update_traces(marker={'line':dict(color=self.clr_bg,width=0)})
+        fig.layout.plot_bgcolor = self.clr_bg
+        fig.layout.paper_bgcolor = self.clr_bg
+
+        return fig
+# ----------------------------------------------------------------------------------------------------------------------
+    def create_figure_scatter(self,X,Y,labels=None,color=None,idx_marker=None,color_marker=None):
+        df = pd.DataFrame({'x': [x for x in X], 'y': [y for y in Y]})
+
+        if idx_marker is not None and color_marker is not None:
+            color = [color]*df.shape[0] + [color_marker]
+            df = df.append({'x':X[idx_marker],'y':Y[idx_marker]},ignore_index=True)
+
+        marker = dict(size=16,color=color,showscale=False)
+
+        fig = go.Figure(data=go.Scatter(x=df['x'],y=df['y'],mode='markers',text=[l for l in labels],marker=marker))
+        fig.update_layout(autosize=True, margin=dict(t=0, l=0, r=0, b=0))
+        fig.update_layout(xaxis ={'visible': False, 'showticklabels': False,'zeroline':False})
+        fig.update_layout(yaxis={'visible': False, 'showticklabels': False, 'zeroline': False})
         fig.update_xaxes(showgrid=False)
-        fig.update_traces(marker_color='#EEEEEE')
-        fig.layout.plot_bgcolor = '#FFFFFF'
-        fig.layout.paper_bgcolor = '#FFFFFF'
+
+        #fig.update_traces(marker={'line':dict(color=self.clr_bg,width=0)})
+        fig.layout.plot_bgcolor = self.clr_bg
+        fig.layout.paper_bgcolor = self.clr_bg
+
+
         return fig
 # ----------------------------------------------------------------------------------------------------------------------
     def create_figure_squarify(self, labels, sizes, colors=None, W=200, H=200):
@@ -143,8 +193,11 @@ class Plotly_builder:
 # ----------------------------------------------------------------------------------------------------------------------
         @self.app.callback(
             Output(self.id_text_box, "children"),
-            Input(self.id_plot_01, "clickData"))
-        def callbal_function(clickData):
+            Input(self.id_plot_01, "clickData"),
+            Input("dd1", "n_clicks")
+
+        )
+        def callbal_function(clickData,dd):
             path_to_label, label = '', ''
             if clickData:
                 clickData = clickData['points'][0]
