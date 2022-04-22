@@ -108,17 +108,24 @@ class Plotly_builder:
         fig.layout.paper_bgcolor ='#FFFFFF'
         return fig
 # ----------------------------------------------------------------------------------------------------------------------
-    def create_figure_bar(self, labels, values=None,tickvals_x=None, font_size=12,orientation='h'):
+    def create_figure_bar(self, labels, values=None,tickvals_x=None,categoryorder=True, font_size=12,orientation='h'):
 
 
         df = pd.DataFrame({'x': 1 if values is None else [v for v in values], 'label': [str(l) for l in labels]})
         fig = go.Figure(go.Bar(x=df['x'], y=df['label'], orientation=orientation,hoverinfo='none'),layout = go.Layout(bargap=0.02,font={'size':font_size}))
         fig.update_layout(autosize=True, height=font_size*1.5 * df.shape[0], margin=dict(t=0, l=0, r=0, b=0))
-        ticklabelposition = 'outside'
-        fig.update_layout(yaxis ={'categoryorder':'total ascending','showgrid':False,'title':None,
-                                  'showticklabels':True,'ticklabelposition':ticklabelposition,'color':self.clr_font,'zeroline':False})
-        fig.update_layout(xaxis ={'visible': True, 'showticklabels': False,'zeroline':False})
+
+        fig.update_layout(xaxis={'visible': True, 'showticklabels': False, 'zeroline': False})
+        fig.update_layout(yaxis ={'showgrid':False,'title':None,'showticklabels':True,
+                                  'ticklabelposition':'outside','color':self.clr_font,'zeroline':False})
+
+        if categoryorder:
+            fig.update_layout(yaxis={'categoryorder': 'total ascending'})
+        else:
+            fig.update_yaxes(autorange="reversed")
+
         fig.update_xaxes(tickvals=tickvals_x,showgrid=True if tickvals_x is not None else False, gridwidth=1, gridcolor=self.clr_font)
+
         fig.update_traces(marker={'line':dict(color=self.clr_bg,width=0)})
         fig.layout.plot_bgcolor = self.clr_bg
         fig.layout.paper_bgcolor = self.clr_bg
