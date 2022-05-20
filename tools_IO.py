@@ -109,9 +109,9 @@ def get_next_folder_out(base_folder_out):
     if len(sub_folders) > 0:
         sub_folders = numpy.array(sub_folders, dtype=numpy.int)
         sub_folders = numpy.sort(sub_folders)
-        sub_folder_out = str(sub_folders[-1] + 1)
+        sub_folder_out = '%03d'%(sub_folders[-1] + 1)
     else:
-        sub_folder_out = '0'
+        sub_folder_out = '%03d'%(0)
     return base_folder_out + sub_folder_out + '/'
 # ----------------------------------------------------------------------------------------------------------------------
 def save_raw_vec(vec, filename,mode=(os.O_RDWR|os.O_APPEND),fmt='%d',delim=' '):
@@ -141,6 +141,11 @@ def save_dict(dct,filename_out):
     with open(filename_out, 'w') as f:
         json.dump(dct, f, indent=' ')
     return
+# ----------------------------------------------------------------------------------------------------------------------
+def load_dict(filename_in):
+    with open(filename_in, 'r') as f:
+        dct = json.load(f)
+    return dct
 # ----------------------------------------------------------------------------------------------------------------------
 def save_data_to_feature_file_float(filename,array,target):
 

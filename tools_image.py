@@ -867,9 +867,9 @@ def do_rescale(image,scale,anti_aliasing=True,multichannel=False):
 # --------------------------------------------------------------------------------------------------------------------
 def put_color_by_mask(image, mask2d, color):
 
-    idx = numpy.where(mask2d > 0)
-    for r,c in zip(idx[0], idx[1]):
-        image[r,c,[0,1,2]]=image[r,c,[0,1,2]]*(1-mask2d[r,c]/255) +numpy.array(color)[[0,1,2]]*mask2d[r,c]/255
+
+    idx = (mask2d > 0)
+    image[~idx] = 0
 
     return image
 # --------------------------------------------------------------------------------------------------------------------

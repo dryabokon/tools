@@ -28,6 +28,9 @@ color_grass_dark = (63, 77, 73)
 color_grass_dark2 = (97, 111, 107)
 color_blue = (255, 128, 0)
 # ----------------------------------------------------------------------------------------------------------------------
+cuboid_lines_idx1 = [(1,0),(0,2),(2,3),(3,1), (7,6),(6,4),(4,5),(5,7), (1,0),(0,6),(6,7),(7,1), (3,2),(2,4),(4,5),(5,3)]
+cuboid_lines_idx2 = [(0,1),(1,2),(2,3),(3,0), (4,5),(5,6),(6,7),(7,4), (0,1),(1,5),(5,4),(4,0), (2,3),(3,7),(7,6),(6,2)]
+# ----------------------------------------------------------------------------------------------------------------------
 def gre2jet(rgb):
     return cv2.applyColorMap(numpy.array(rgb, dtype=numpy.uint8).reshape((1, 1, 3)), cv2.COLORMAP_JET).reshape(3)
 # ----------------------------------------------------------------------------------------------------------------------
@@ -86,23 +89,15 @@ def draw_lines(image, lines,color=(0,0,200),w=1,transperency=0,put_text=False):
     if (not isinstance(lines,list)) and len(lines.shape)==1:
         lines = [lines]
 
-    H, W = image.shape[:2]
     pImage = Image.fromarray(image)
     draw = ImageDraw.Draw(pImage, 'RGBA') if len((image.shape)) == 3 else ImageDraw.Draw(pImage)
 
     for id,line in enumerate(lines):
         if line is None:continue
-        (x1, y1, x2, y2) = line
+        x1, y1, x2, y2 = line
         if numpy.any(numpy.isnan((x1, y1, x2, y2))): continue
-
-        if (len(numpy.array(color).shape)==1) or type(color)==int:
-            clr = color
-        else:
-            clr = color[id].tolist()
-
+        clr = color
         clr = (clr[0], clr[1], clr[2], int(255 - transperency * 255))
-
-
         draw.line(((int(x1), int(y1)), (int(x2), int(y2))), fill=clr,width=w)
 
         # if put_text:
@@ -159,37 +154,26 @@ def draw_text(image,label,xy, color_fg,clr_bg=None,font_size=16,alpha_transp=0):
 
     return result
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_cuboid(image, points_2d, lines_idx = None, color=(255, 255, 255), w=1, put_text=False, label=None):
+def draw_mat(M, posx, posy, image,color=(128, 128, 0)):
+    for row in range(M.shape[0]):
+        if M.shape[1]==4:
+            string1 = '%+1.2f %+1.2f %+1.2f %+1.2f' % (M[row, 0], M[row, 1], M[row, 2], M[row, 3])
+        else:
+            string1 = '%+1.2f %+1.2f %+1.2f' % (M[row, 0], M[row, 1], M[row, 2])
+        #image = cv2.putText(image, '{0}'.format(string1), (posx, posy + 20 * row), cv2.FONT_HERSHEY_SIMPLEX, 0.4,color, 1, cv2.LINE_AA)
+        image = draw_text(image, '{0}'.format(string1), (posx, posy + 20 * row), color_fg=color, clr_bg=None, font_size=16, alpha_transp=0)
+    return image
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_cuboid(image, points_2d, idx_mode = 1, color=(255, 255, 255), w=1,idx_face = [0,1,2,3]):
 
-    if lines_idx is None:
-        lines_idx  = [(1,0),(0,2),(2,3),(3,1), (7,6),(6,4),(4,5),(5,7), (1,0),(0,6),(6,7),(7,1), (3,2),(2,4),(4,5),(5, 3)]
-        #lines_idx = [(0,1),(1,2),(2,3),(3,0), (4,5),(5,6),(6,7),(7,4), (0,1),(1,5),(5,4),(4,0), (2,3),(3,7),(7,6),(6,2)]
-
-    lines = []
-    for i in lines_idx :
-        lines.append(numpy.array((points_2d[i[0]], points_2d[i[1]])).flatten())
-
-    idx_face = [0,1,2,3]
+    lines_idx = cuboid_lines_idx1 if idx_mode==1 else cuboid_lines_idx2
+    lines = [numpy.array((points_2d[i[0]], points_2d[i[1]])).flatten() for i in lines_idx]
 
     result = image.copy()
-    result = draw_convex_hull(result, points_2d, color, transperency=0.80)
-    result = draw_convex_hull(result, points_2d[idx_face], color, transperency=0.60)
+    result = draw_convex_hull(result, points_2d, color, transperency=0.90)
+    result = draw_convex_hull(result, points_2d[idx_face], color, transperency=0.80)
     result = draw_lines(result, numpy.array(lines), color, w)
     result = draw_lines(result, numpy.array(lines)[idx_face], color, w+1)
-
-    if label is not None:
-        # font = ImageFont.load_default()
-        font = ImageFont.truetype("calibri.ttf", size=16, encoding="unic")
-        total_display_str_height = 1.1*(font.getsize(label)[1])
-        text_bottom = row_up if row_up > total_display_str_height else row_up + total_display_str_height
-
-        text_width, text_height = font.getsize(label)
-        margin = numpy.ceil(0.05 * text_height)
-        draw.rectangle([(col_left, text_bottom - text_height - 2 * margin), (col_left + text_width, text_bottom)],fill=(color[0],color[1],color[2]))
-        draw.text((col_left + margin, text_bottom - text_height - margin), label, fill="black", font=font)
-
-
-
 
     return result
 # ----------------------------------------------------------------------------------------------------------------------
@@ -478,10 +462,13 @@ def get_colors(N, shuffle = False,colormap = 'jet',interpolate=True,alpha_blend=
     elif colormap=='cool':
         colors = get_colors_cool(N, dark_mode=False)
     else:
+        #clrs_base = 255*numpy.array(plt.get_cmap(colormap).colors)[:,[2, 1, 0]]
+        clrs_base = 255*numpy.array([plt.get_cmap(colormap)(i) for i in range(plt.get_cmap(colormap).N)])[:,[2, 1, 0]]
+
         if interpolate:
-            colors = [tools_image.gre2colormap((int(255*i/(N-1))),colormap) for i in range(N)]
+            colors = [clrs_base[int(i*(clrs_base.shape[0]-1)/(N-1))] for i in range(N)]
         else:
-            colors = [255 * numpy.array(plt.get_cmap(colormap)(i))[[2, 1, 0]] for i in range(N)]
+            colors = [clrs_base[i%(clrs_base.shape[0])] for i in range(N)]
 
     if alpha_blend is not None:
         colors = [((alpha_blend) * numpy.array(clr_blend) + (1 - alpha_blend) * numpy.array(color)) for color in colors]

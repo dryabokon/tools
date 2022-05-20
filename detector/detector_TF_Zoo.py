@@ -35,15 +35,18 @@ class detector_TF_Zoo(object):
         img_converted = tf.image.convert_image_dtype(image, tf.float32)[tf.newaxis, ...]
         result = self.detector(img_converted)
         result = {key: value.numpy() for key, value in result.items()}
-        boxes, classes, scores = self.filter_results(result["detection_boxes"], result["detection_class_entities"],result["detection_scores"])
+        boxes_yxyx, classes, scores = self.filter_results(result["detection_boxes"], result["detection_class_entities"],result["detection_scores"])
         self.counter+=1
 
         H,W = image.shape[:2]
-        df_boxes = pd.DataFrame({'ID':ID,'score':scores,'class':classes,'x1':boxes[:,1]*W,'y1':boxes[:,0]*H,'x2':boxes[:,3]*W,'y2':boxes[:,2]*H})
+        boxes_yxyx[:,[0,2]]=boxes_yxyx[:,[0,2]]*H
+        boxes_yxyx[:,[1,3]]=boxes_yxyx[:,[1,3]]*W
+
+        df_boxes = pd.DataFrame({'ID':ID,'score':scores,'class':classes,'x1':boxes_yxyx[:,1],'y1':boxes_yxyx[:,0],'x2':boxes_yxyx[:,3],'y2':boxes_yxyx[:,2]})
         df_boxes[['x1','y1','x2','y2']] = df_boxes[['x1','y1','x2','y2']].astype(int)
 
         if filename_out is not None:
-            cv2.imwrite(self.folder_out+filename_out,self.draw_all_boxes(image,boxes, classes, scores))
+            cv2.imwrite(self.folder_out+filename_out,self.draw_all_boxes(image,boxes_yxyx, classes, scores))
 
         return df_boxes
 # ----------------------------------------------------------------------------------------------------------------------
@@ -59,11 +62,13 @@ class detector_TF_Zoo(object):
         else:
             return boxes, classes, scores
 # ----------------------------------------------------------------------------------------------------------------------
-    def draw_all_boxes(self, image, boxes, class_names, scores, max_boxes=10):
+    def draw_all_boxes(self, image, boxes_yxyx, class_names, scores, max_boxes=10):
+
         #font = ImageFont.load_default()
-        for i in range(min(boxes.shape[0], max_boxes)):
+        for i in range(min(boxes_yxyx.shape[0], max_boxes)):
             if scores[i] < self.min_confidence_score:continue
-            image = tools_draw_numpy.draw_rect(image, boxes[i][0], boxes[i][1], boxes[i][2], boxes[i][3],self.color_markup, w=1, alpha_transp=0.8,label='%d%%'%int(100 * scores[i]))
+            row_up,col_left,row_down,col_right,  = boxes_yxyx[i]
+            image = tools_draw_numpy.draw_rect(image,col_left, row_up, col_right, row_down,self.color_markup, w=1, alpha_transp=0.8,label='%d%%'%int(100 * scores[i]))
             #image_pil = Image.fromarray(numpy.uint8(image)).convert("RGB")
             #self.draw_box(image_pil, boxes[i][0], boxes[i][1], boxes[i][2], boxes[i][3], self.color_markup, font, display_str_list=['%d%%'%int(100 * scores[i])])
             #numpy.copyto(image, numpy.array(image_pil))

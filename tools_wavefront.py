@@ -1,6 +1,7 @@
 import os
 import numpy
 import pyvista
+import pyrr
 #----------------------------------------------------------------------------------------------------------------------
 class ObjLoader:
     def __init__(self):
@@ -132,16 +133,23 @@ class ObjLoader:
 
         return mat_color, filename_texture
 # ----------------------------------------------------------------------------------------------------------------------
-    def remove_triangele(self):
+    def scale_mesh(self,svec):
+        for i in range(self.coord_vert.shape[0]):
+            self.coord_vert[i]=numpy.multiply(self.coord_vert[i],svec)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def rotate_mesh(self, rvec):
+        R = pyrr.matrix44.create_from_eulers(rvec)
+
+        X = numpy.array(self.coord_vert)
+        X4D = numpy.hstack((X, numpy.full((X.shape[0], 1), 1)))
+        X = R.dot(X4D.T).T
+        self.coord_vert = X[:, :3]
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def scale_mesh(self,svec):
-        for i in range(self.coord_vert.shape[0]):self.coord_vert[i]=numpy.multiply(self.coord_vert[i],svec)
-        return
-# ----------------------------------------------------------------------------------------------------------------------
     def translate_mesh(self, tvec):
-        for i in range(self.coord_vert.shape[0]):self.coord_vert[i]+= tvec
+        self.coord_vert += tvec
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def get_trianges(self, X):

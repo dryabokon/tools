@@ -28,7 +28,7 @@ class Plotly_builder:
             self.clr_bg = '#2b2b2b'
             self.clr_font = '#FFFFFF'
         else:
-            self.clr_bg = "#FFFFFF"
+            self.clr_bg = "#EEEEEE"
             self.clr_font = '#000000'
         return
 # ---------------------------------------------------------------------------------------------------------------------
@@ -120,6 +120,7 @@ class Plotly_builder:
                                   'ticklabelposition':'outside','color':self.clr_font,'zeroline':False})
 
         if categoryorder:
+            #values shold bot be 0 !!
             fig.update_layout(yaxis={'categoryorder': 'total ascending'})
         else:
             fig.update_yaxes(autorange="reversed")

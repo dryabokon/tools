@@ -29,11 +29,16 @@ def generate_date_range(dt_start,dt_stop,freq):
         dt_start = str_to_datetime(dt_start)
         need_postprocess_to_str = True
 
+    if freq[0] in ['0','1','2','3','4','5','6','7','9']:
+        delta = freq
+    else:
+        delta = '1'+freq
+
     dates = []
     now = dt_stop if not isinstance(dt_stop,str) else str_to_datetime(dt_stop)
     while now>=(dt_start if not isinstance(dt_start,str) else str_to_datetime(dt_start)):
         dates.append(now)
-        now= now - pd.Timedelta('1'+freq)
+        now= now - pd.Timedelta(delta)
     dates = dates[::-1]
 
     if need_postprocess_to_str:

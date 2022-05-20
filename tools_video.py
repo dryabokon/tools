@@ -111,7 +111,7 @@ def extract_frames_v2(filename_in,folder_out,prefix='',start_frame=0, end_frame=
             os.mkdir(folder_out)
 
     if ('jpg' in filename_in) or ('png' in filename_in):
-        cv2.imwrite(folder_out + prefix + '_%06d.jpg' % 0, cv2.imread(filename_in))
+        cv2.imwrite(folder_out + prefix + '%05d.jpg' % 0, cv2.imread(filename_in))
         return
 
     vidcap = cv2.VideoCapture(filename_in)
@@ -132,7 +132,7 @@ def extract_frames_v2(filename_in,folder_out,prefix='',start_frame=0, end_frame=
         if success and scale != 1:
             image = tools_image.do_rescale(image, scale)
         if not success:continue
-        cv2.imwrite(folder_out + prefix + '_%06d.jpg'%cnt,image)
+        cv2.imwrite(folder_out + prefix + '%05d.jpg'%cnt, image)
         success, image = vidcap.read()
         cnt+=step
         if end_frame is not None and cnt >= end_frame:

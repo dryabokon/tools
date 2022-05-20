@@ -294,7 +294,10 @@ class Skelenonizer(object):
         img_copy = tools_image.desaturate_2d(img)
         lsd = cv2.createLineSegmentDetector(0)
         lines = lsd.detect(img_copy)[0]
-        lines = lines[:, 0]
+        if lines is not None:
+            lines = lines[:, 0]
+        else:
+            lines = []
         return lines
 # ----------------------------------------------------------------------------------------------------------------------
     def keep_double_segments(self, segments, line_upper_bound, base_name=None, do_debug=False):

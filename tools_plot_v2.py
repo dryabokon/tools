@@ -21,7 +21,6 @@ from sklearn.feature_selection import mutual_info_classif
 import warnings
 warnings.filterwarnings( 'ignore', module = 'seaborn' )
 # ----------------------------------------------------------------------------------------------------------------------
-import tools_image
 import tools_DF
 import tools_draw_numpy
 import tools_Hyptest
@@ -86,7 +85,7 @@ class Plotter(object):
             seaborn.set(style="darkgrid")
             self.clr_bg = numpy.array((43, 43, 43)) / 255
             self.clr_grid = numpy.array((64, 64, 64)) / 255
-            self.clr_font = 'white'
+            self.clr_font = numpy.array((1,1,1))#'white'
             self.clr_border = self.clr_bg
 
         else:
@@ -94,8 +93,8 @@ class Plotter(object):
             seaborn.set_style("whitegrid")
             self.clr_bg = numpy.array((1, 1, 1))
             self.clr_grid = numpy.array((192, 192, 192)) / 255  # 'lightgray'
-            self.clr_font = 'black'
-            self.clr_border = numpy.array((1,1,1,0))  # gray'
+            self.clr_font = numpy.array((0,0,0))#'black'
+            self.clr_border = numpy.array((1, 1, 1, 0))  # gray'
 
         seaborn.set_style('ticks', {'axes.edgecolor': self.clr_border, 'xtick.color': self.clr_font,
                                     'ytick.color': self.clr_font, 'ztick.color': self.clr_font})
@@ -127,7 +126,6 @@ class Plotter(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def init_colors(self,cmap='tab20',shuffle=True):
         numpy.random.seed(111)
-
         self.colors = tools_draw_numpy.get_colors(32, colormap=cmap).astype(numpy.int)
 
         new_c = []
@@ -140,8 +138,7 @@ class Plotter(object):
         self.colors = numpy.concatenate((self.colors, numpy.array(new_c).reshape((-1, 3))))
 
         if shuffle:
-            idx = numpy.random.choice(self.colors.shape[0],self.colors.shape[0])
-            self.colors=self.colors[idx]
+            self.colors=self.colors[numpy.random.choice(self.colors.shape[0],self.colors.shape[0])]
         self.dct_color ={}
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -153,7 +150,7 @@ class Plotter(object):
                 n = numpy.array([ord(l) for l in label]).sum() % self.colors.shape[0]
             self.dct_color[label] = self.colors[n]
 
-        res = self.dct_color[label] * (1 - alpha_blend) + numpy.array((255, 255, 255)) * (alpha_blend)
+        res = (self.dct_color[label] * (1 - alpha_blend)) + (numpy.array((255, 255, 255)) * (alpha_blend))
         return res.astype(numpy.uint8)
 # ----------------------------------------------------------------------------------------------------------------------
     def set_color(self,label,value):
@@ -175,14 +172,16 @@ class Plotter(object):
         frame.set_edgecolor(self.clr_border)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def empty(self,figsize=(3.5,3.5)):
+    def empty(self,figsize=(3.5,3.5),filename_out=None):
         fig = plt.figure(figsize=figsize)
         self.turn_light_mode(fig)
 
         plt.plot(0, 0)
         plt.grid(color=self.clr_grid)
         plt.tight_layout()
-        return
+        if filename_out is not None:
+            plt.savefig(self.folder_out+filename_out,facecolor=fig.get_facecolor())
+        return fig
 # ----------------------------------------------------------------------------------------------------------------------
     def plot_image(self, image,filename_out):
         fig = plt.figure(figsize=(image.shape[1]/10.0,image.shape[0]/10.0))
@@ -542,7 +541,7 @@ class Plotter(object):
             plt.savefig(self.folder_out+filename_out,facecolor=fig.get_facecolor())
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def histoplots_df(self,df0,idx_target=0,transparency=0.25,remove_legend=False,figsize=(6,6),filename_out=None):
+    def histoplots_df(self,df0,idx_target=0,transparency=0.25,remove_legend=False,legend_loc = 'upper left',figsize=(6,6),filename_out=None):
 
         columns = df0.columns
         target = columns[idx_target]
@@ -595,7 +594,7 @@ class Plotter(object):
             if remove_legend:
                 plt.legend([], [], frameon=False)
             else:
-                legend = plt.legend(loc='upper left', bbox_to_anchor=(0.0, 1.15),ncol = 1)
+                legend = plt.legend(loc=legend_loc, bbox_to_anchor=(0.0, 1.15),ncol = 1)
                 self.recolor_legend_plt(legend)
 
             if filename_out is None:
@@ -842,7 +841,7 @@ class Plotter(object):
         return xtick_labels,idx_visible
 # ----------------------------------------------------------------------------------------------------------------------
     def TS_seaborn(self, df, idxs_target, idx_time, idx_hue=None,bg_image=None,
-                   mode='pointplot', idxs_fill=None,remove_legend=False,remove_grid=False,
+                   mode='pointplot', idxs_fill=None,remove_legend=False,legent_loc='upper left',remove_grid=False,
                    remove_xticks=False,remove_yticks=False, x_range=None,y_range=None,out_format_x=None, major_step=None,minor_step=None,invert_y=False,lw=2,transparency=0, figsize=(15, 3), filename_out=None):
 
         fig = plt.figure(figsize=figsize)
@@ -906,10 +905,11 @@ class Plotter(object):
         if remove_legend:
             plt.legend([], [], frameon=False)
         else:
-            legend = plt.legend(handles=patches,loc='upper left', bbox_to_anchor=(0.0, -0.10), ncol=len(patches))
+            #legend = plt.legend(handles=patches,loc=legent_loc, bbox_to_anchor=(0.0, -0.10), ncol=len(patches))
+            legend = plt.legend(handles=patches)
             self.recolor_legend_plt(legend)
 
-        plt.tight_layout()
+        #plt.tight_layout()
 
         if bg_image is not None:
             g.imshow(bg_image[:,:,[2,1,0]],zorder=-1,aspect = g.get_aspect(),extent = g.get_xlim() + g.get_ylim())
@@ -1059,19 +1059,24 @@ class Plotter(object):
         plt.close(fig)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def plot_hor_bars(self, values, labels, legend=None,xticks=None, transparency=0,palette='tab10',figsize=(3.5, 6), filename_out=None):
+    def plot_hor_bars(self, values, labels, colors=None,legend=None,xticks=None, transparency=0,palette='tab10',figsize=(3.5, 6), filename_out=None):
 
         fig = plt.figure(figsize=figsize)
         fig = self.turn_light_mode(fig)
 
-        colors = seaborn.color_palette(palette=palette, n_colors=1)
+        if colors is None:
+            colors = seaborn.color_palette(palette=palette, n_colors=1)
+            single_color = colors[0]
+        else:
+            single_color = [numpy.array(c)/255.0 for c in colors]
+
         y_pos = numpy.arange(len(labels))
 
         if len(values.shape)==1:
-            plt.barh(y_pos, values,color=colors[0],alpha=1-transparency)
+            plt.barh(y_pos, values,color=single_color,alpha=1-transparency,zorder=-2)
         else:
             for i in range(values.shape[1]):
-                plt.barh(y_pos, values[:,i], color=colors[0], alpha=1 - transparency)
+                plt.barh(y_pos, values[:,i], color=single_color, alpha=1 - transparency)
 
         plt.yticks(y_pos, labels)
         plt.gca().invert_yaxis()
@@ -1080,7 +1085,8 @@ class Plotter(object):
             plt.xticks(xticks)
 
         plt.grid(color=self.clr_grid)
-        plt.gca().tick_params(axis="y", direction="in")
+        plt.gca().tick_params(axis="y",length=0, direction="in")
+        plt.gca().yaxis.grid(False)
 
 
         if legend is not None:
@@ -1208,16 +1214,18 @@ class Plotter(object):
 
 # ---------------------------------------------------------------------------------------------------------------------
     def get_image(self, fig, clr_bg):
-        ax = plt.gca()
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.spines['bottom'].set_visible(False)
-        ax.spines['left'].set_visible(False)
-        ax.set_facecolor(numpy.array(self.clr_bg)[[2, 1, 0]] / 255)
+
+        self.turn_light_mode(fig)
+        # ax = plt.gca()
+        # ax.spines['top'].set_visible(False)
+        # ax.spines['right'].set_visible(False)
+        # ax.spines['bottom'].set_visible(False)
+        # ax.spines['left'].set_visible(False)
+        # ax.set_facecolor(numpy.array(self.clr_bg)[[2, 1, 0]] / 255)
 
         plt.tight_layout()
 
-        ax.tick_params(which='major', length=0)
+        # ax.tick_params(which='major', length=0)
 
         io_buf = io.BytesIO()
         fig.savefig(io_buf, format='raw', facecolor=clr_bg)

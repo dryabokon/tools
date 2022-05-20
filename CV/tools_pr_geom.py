@@ -328,7 +328,7 @@ def decompose_to_rvec_tvec(mat,do_flip=False):
     if do_flip:
         rvec -= (math.pi, 0, 0)
         tvec *= -1
-    return rvec,tvec
+    return rvec.astype(numpy.float32),tvec.astype(numpy.float32)
 # ----------------------------------------------------------------------------------------------------------------------
 def decompose_model_view(M):
     S, Q, tvec_view = pyrr.matrix44.decompose(M)

@@ -518,3 +518,19 @@ def remap_counts(df,list_values):
 
     return df_res
 # ---------------------------------------------------------------------------------------------------------------------
+def get_delta(df_agg1,df_agg2,absolute=False):
+
+    S0 = pd.concat([df_agg1.iloc[:, 0], df_agg2.iloc[:, 0]]).rename(df_agg1.columns[0])
+    S0.drop_duplicates(inplace=True)
+
+    df = pd.merge(S0, df_agg1, how='left', on=[df_agg1.columns[0]])
+    df = pd.merge(df, df_agg2, how='left', on=[df_agg2.columns[0]])
+    df.fillna(0, inplace=True)
+    df['delta'] = df.iloc[:,-1]-df.iloc[:,-2]
+    if not absolute:
+        df['delta']/= (df.iloc[:, -2]+(1e-4))
+        cap = 2
+        df['delta'] = df['delta'].apply(lambda x: cap if x> cap else x)
+        df['delta'] = df['delta'].apply(lambda x:-cap if x<-cap else x)
+
+    return df.iloc[:,[0,-1]]

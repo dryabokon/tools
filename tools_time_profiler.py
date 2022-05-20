@@ -3,6 +3,9 @@ import numpy
 import time
 import pandas as pd
 #----------------------------------------------------------------------------------------------------------------------
+#start - get_vp
+#02:42 - get_vp
+#----------------------------------------------------------------------------------------------------------------------
 class Time_Profiler():
     
     def __init__(self,verbose=True):
@@ -33,22 +36,8 @@ class Time_Profiler():
         self.current_event = event
         self.current_start = time.time()
 
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def stage_stats(self,filename_out):
-
-        E = list(self.dict_event_time.keys())
-        V = [self.dict_event_time[e]/self.dict_event_cnt[e] for e in E if self.dict_event_cnt[e]>0]
-
-        idx = numpy.argsort(-numpy.array(V))
-
-        f_handle = os.open(filename_out, os.O_RDWR | os.O_CREAT)
-
-        for i in idx:
-            value = ('%2.2f\t%s\n'%(V[i],E[i])).encode()
-            os.write(f_handle, value)
-
-        os.close(f_handle)
+        if self.verbose:
+            print('start', '-', event)
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -69,4 +58,21 @@ class Time_Profiler():
             if self.verbose:
                 print(value,'-',event)
         return value
+# ----------------------------------------------------------------------------------------------------------------------
+    def stage_stats(self,filename_out):
+
+        E = list(self.dict_event_time.keys())
+        V = [self.dict_event_time[e]/self.dict_event_cnt[e] for e in E if self.dict_event_cnt[e]>0]
+
+        idx = numpy.argsort(-numpy.array(V))
+
+        f_handle = os.open(filename_out, os.O_RDWR | os.O_CREAT)
+
+        for i in idx:
+            value = ('%2.2f\t%s\n'%(V[i],E[i])).encode()
+            os.write(f_handle, value)
+
+        os.close(f_handle)
+
+        return
 # ----------------------------------------------------------------------------------------------------------------------
