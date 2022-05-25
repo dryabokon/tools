@@ -263,7 +263,7 @@ def draw_ellipse0(array_bgr, row, col, r_radius, c_radius, color_brg, alpha_tran
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_ellipse(image,p,color=(255, 0, 0),col_edge=(200, 0, 0),transperency=0.0):
 
-    if p is None or len(p)==0:
+    if p is None or len(p)==0 or numpy.any(numpy.isnan(p)):
         return image
 
     pImage = Image.fromarray(image)
