@@ -711,6 +711,21 @@ class detector_VP:
 
         return pix_per_meter_BEV
 # ----------------------------------------------------------------------------------------------------------------------
+    def flip_yaw_180(self, yaw_deg):
+        if yaw_deg>90 and yaw_deg<=180:
+            yaw_deg += 180
+        if yaw_deg >= 180 and yaw_deg < 270:
+            yaw_deg -= 180
+
+        return yaw_deg
+# ----------------------------------------------------------------------------------------------------------------------
+    def standartize_yaw(self, yaw_deg):
+        while yaw_deg<0:yaw_deg+=360
+        if yaw_deg>360:yaw_deg-=360
+        yaw_deg = self.flip_yaw_180(yaw_deg)
+        if yaw_deg > 270 and yaw_deg <360:yaw_deg = yaw_deg-360
+        return yaw_deg
+# ----------------------------------------------------------------------------------------------------------------------
     def box_to_footprint_look_upleft(self,box,vp_ver, vp_hor, cam_height, p_camera_BEV_xy,p_center_BEV_xy,h_ipersp):
         point_bottom_left = numpy.array((min(box[0], box[2]), max(box[1], box[3])))
         line_van_ver_left = numpy.array((min(box[0], box[2]), max(box[1], box[3]), vp_ver[0], vp_ver[1]))
@@ -734,11 +749,13 @@ class detector_VP:
                 yaw1 = self.get_angle_deg((points_BEV[0][0], points_BEV[0][1], points_BEV[3][0], points_BEV[3][1]))
                 yaw2 = self.get_angle_deg((points_BEV[1][0], points_BEV[1][1], points_BEV[2][0], points_BEV[2][1]))
                 yaw_ego = (yaw1 + yaw2) / 2
+                yaw_ego = self.flip_yaw_180(yaw_ego)
                 yaw_cam = numpy.arctan((0.5 * (points_BEV[0][0] + points_BEV[1][0]) - p_center_BEV_xy[0]) / (p_camera_BEV_xy[1] - 0.5 * (points_BEV[0][1] + points_BEV[1][1]))) * 180 / numpy.pi
                 yaw_res = -yaw_ego+yaw_cam # with ego-compensation
-                #yaw_res = yaw_ego
+                yaw_res = self.standartize_yaw(yaw_res)
+
                 pitch_cam = 90 - numpy.arctan((p_camera_BEV_xy[1] - 0.5 * (points_BEV[0][1] + points_BEV[1][1])) / cam_height) * 180 / numpy.pi
-                angles = numpy.array([abs(yaw_res), pitch_cam]).reshape((1, -1))
+                angles = numpy.array([(yaw_res), pitch_cam]).reshape((1, -1))
                 points_BEV_best = points_BEV.copy().reshape((1, -1))
 
                 # image_cand = tools_draw_numpy.draw_points(image, [point_bottom_left,point_bottom_right,point_top_right,point_top_left])
@@ -773,11 +790,13 @@ class detector_VP:
                 yaw1 = self.get_angle_deg((points_BEV[0][0], points_BEV[0][1], points_BEV[3][0], points_BEV[3][1]))
                 yaw2 = self.get_angle_deg((points_BEV[1][0], points_BEV[1][1], points_BEV[2][0], points_BEV[2][1]))
                 yaw_ego = (yaw1 + yaw2) / 2
+                yaw_ego = self.flip_yaw_180(yaw_ego)
                 yaw_cam = numpy.arctan((0.5 * (points_BEV[0][0] + points_BEV[1][0]) - p_center_BEV_xy[0]) / (p_camera_BEV_xy[1] - 0.5 * (points_BEV[0][1] + points_BEV[1][1]))) * 180 / numpy.pi
                 yaw_res = -yaw_ego + yaw_cam  # with ego-compensation
-                #yaw_res = yaw_ego
+                yaw_res = self.standartize_yaw(yaw_res)
+
                 pitch_cam = 90 - numpy.arctan((p_camera_BEV_xy[1] - 0.5 * (points_BEV[0][1] + points_BEV[1][1])) / cam_height) * 180 / numpy.pi
-                angles = numpy.array([abs(yaw_res), pitch_cam]).reshape((1, -1))
+                angles = numpy.array([yaw_res, pitch_cam]).reshape((1, -1))
                 points_BEV_best = points_BEV.copy().reshape((1, -1))
 
         cols = ['cuboid%02d' % i for i in range(16)] + ['yaw_cam_car', 'pitch_cam'] + ['p_bev%02d' % i for i in range(8)]
