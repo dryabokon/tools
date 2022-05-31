@@ -11,7 +11,7 @@ import tools_image
 import tools_IO
 import tools_filter
 # ---------------------------------------------------------------------------------------------------------------------
-class Face_Swaper(object):
+class Face_Swapper(object):
     def __init__(self,D,image_clbrt,image_actor,device='cpu',adjust_every_frame=False,do_narrow_face=False):
 
         self.device = device

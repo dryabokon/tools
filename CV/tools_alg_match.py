@@ -132,19 +132,16 @@ def get_best_matches(image1,image2,disp_v1, disp_v2, disp_h1, disp_h2, window_si
 
 # ---------------------------------------------------------------------------------------------------------------------
 def get_keypoints_desc(image1, detector='SIFT'):
+
     if len(image1.shape) == 2:
         im1_gray = image1.copy()
     else:
         im1_gray = cv2.cvtColor(image1, cv2.COLOR_BGR2GRAY)
 
     if detector == 'SIFT':
-        detector = cv2.xfeatures2d.SIFT_create()
-    elif detector == 'SURF':
-        detector = cv2.xfeatures2d.SURF_create()
-    else:  # detector == 'ORB'
+        detector = cv2.SIFT_create()
+    elif detector == 'ORB':
         detector = cv2.ORB_create()
-
-    desc = None
 
     kp, desc = detector.detectAndCompute(im1_gray, None)
 
@@ -442,7 +439,7 @@ def reproject_matches(image1, image2, crd1, crd2, window_size=20, fill_declines=
 def interpolate_image_by_matches(rows,cols,coord1, value):
 
     if coord1.shape[0]<=2:
-        return result
+        return None
 
     x = coord1[:,0]
     y = coord1[:,1]

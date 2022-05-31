@@ -10,7 +10,7 @@ class render_GL(object):
 
     def __init__(self,image_texture):
 
-        glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH)
+        #glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH)
         glfw.init()
         glfw.window_hint(glfw.VISIBLE, False)
         self.window = glfw.create_window(640, 480, "hidden window", None, None)

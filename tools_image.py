@@ -558,7 +558,7 @@ def blend_multi_band_large_small0(large, small, background_color=(255, 255, 255)
     if do_debug: cv2.imwrite('./images/output/mask0.png', 255 * mask)
 
     if n_clips>0:
-        mask = ndimage.uniform_filter(mask, size=(filter_size,filter_size), mode='reflect')
+        mask = ndimage.uniform_filter(mask, size=(filter_size,filter_size), mode='nearest')
         #mask = cv2.GaussianBlur(mask, (int(filter_size), int(filter_size)), 0)
 
     if do_debug: cv2.imwrite('./images/output/mask1.png', 255 * mask)
@@ -598,32 +598,33 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
     mask_bin = mask_original.copy()
     mask_bin = numpy.array(numpy.min(mask_bin,axis=2),dtype=numpy.int)
 
-    if do_debug: cv2.imwrite('./images/output/mask0.png', 255 * mask_bin)
+    if do_debug:
+        cv2.imwrite('./images/output/mask0.png', 255 * mask_bin)
 
-    mask = sliding_2d(mask_bin,-filter_size//2,filter_size//2,-filter_size//2,filter_size//2,'avg')
-    if do_debug: cv2.imwrite('./images/output/mask1.png', 255 * mask)
+    mask = sliding_2d(mask_bin,-filter_size//2,filter_size//2,-filter_size//2,filter_size//2,stat='avg',mode='reflect')
+    if do_debug:
+        cv2.imwrite('./images/output/mask1.png', 255 * mask)
 
     mask = numpy.clip(2 * mask, 0, 1.0)
-    if do_debug == 1: cv2.imwrite('./images/output/mask2.png', 255 * mask)
+    if do_debug:
+        cv2.imwrite('./images/output/mask2.png', 255 * mask)
 
-    if adjust_colors:
+    if adjust_colors is not None:
         large = large.astype(numpy.float)
         small = small.astype(numpy.float)
 
-        cnt_small = sliding_2d(1-mask_bin,-filter_size,filter_size,-filter_size,filter_size,'cnt')
-        for c in range(3):
-
-            avg_large = sliding_2d(large[:, :, c],-filter_size,filter_size,-filter_size,filter_size,'avg')
-
-            sum_small = sliding_2d(small[:, :, c],-filter_size,filter_size,-filter_size,filter_size,'cnt')
-            avg_small = sum_small/cnt_small
-            if do_debug: cv2.imwrite('./images/output/avg_large.png', avg_large)
-            if do_debug: cv2.imwrite('./images/output/avg_small.png', avg_small)
-            if do_debug: cv2.imwrite('./images/output/cnt_small.png', cnt_small)
-
-            scale = avg_large/avg_small
-            scale = numpy.nan_to_num(scale)
-            small[:,:,c]=small[:,:,c]*scale
+        idx = numpy.where(mask[:,:]<0.5)
+        if len(idx[0])>0:
+            for c in range(3):
+                scale = numpy.average(small[:,:,c][idx])/ numpy.average(large[:,:,c][idx])
+                if adjust_colors=='avg':
+                    scale = numpy.sqrt(scale)
+                    large[:,:,c] = large[:,:,c]*scale
+                    small[:,:,c]=small[:,:,c]/scale
+                if adjust_colors=='large':
+                    large[:,:,c] = large[:,:,c]*scale
+                if adjust_colors=='small':
+                    small[:,:,c]=small[:,:,c]/scale
 
     if do_debug: cv2.imwrite('./images/output/small_corrected.png', small)
 
@@ -638,7 +639,7 @@ def do_blend(large,small,mask):
     if len(mask.shape)==2:
         mask = numpy.array([mask,mask,mask]).transpose([1,2,0])
 
-    if mask.max()>1:
+    if numpy.max(mask)>1:
         mask = (mask.astype(numpy.float)/255.0)
 
     background = numpy.multiply(mask, large)
@@ -651,7 +652,7 @@ def do_blend(large,small,mask):
     result = cv2.add(background, foreground)
     result = numpy.clip(result, 0, 255)
 
-    result = numpy.array(result).astype(numpy.uint8)
+    result = result.astype(numpy.uint8)
     return result
 #----------------------------------------------------------------------------------------------------------------------
 def blend_avg(img1, img2,background_color=(255,255,255),weight=0.5):
