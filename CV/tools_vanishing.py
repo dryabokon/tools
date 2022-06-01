@@ -729,7 +729,7 @@ class detector_VP:
     def box_to_footprint_look_upleft(self,box,vp_ver, vp_hor, cam_height, p_camera_BEV_xy,p_center_BEV_xy,h_ipersp):
         point_bottom_left = numpy.array((min(box[0], box[2]), max(box[1], box[3])))
         line_van_ver_left = numpy.array((min(box[0], box[2]), max(box[1], box[3]), vp_ver[0], vp_ver[1]))
-        footprint, roofprint, angles,points_BEV_best = None,None,None,None
+        footprint, roofprint, metadata,points_BEV_best = None,None,None,None
         ratio_best = None
         for point_top_right_y in range(min(box[1], box[3]), max(box[1], box[3])):
             point_top_right = (max(box[0], box[2]), point_top_right_y)
@@ -741,6 +741,7 @@ class detector_VP:
 
             points_BEV = cv2.perspectiveTransform(numpy.array([point_bottom_left, point_bottom_right, point_top_right, point_top_left]).astype(numpy.float32).reshape((-1, 1, 2)), h_ipersp).reshape((-1, 2))
             cuboid_h = min(point_top_right[1], point_top_left[1]) - min(box[1], box[3])
+            cuboid_w = point_bottom_right[0] - point_bottom_left[0]
             ratio = abs(points_BEV[0][1] - points_BEV[-1][1]) / (abs(points_BEV[0][0] - points_BEV[1][0]) + 1e-4)
             if ratio_best is None or abs(ratio - self.taret_ratio_L_W) < abs(ratio_best - self.taret_ratio_L_W):
                 ratio_best = ratio
@@ -753,24 +754,27 @@ class detector_VP:
                 yaw_cam = numpy.arctan((0.5 * (points_BEV[0][0] + points_BEV[1][0]) - p_center_BEV_xy[0]) / (p_camera_BEV_xy[1] - 0.5 * (points_BEV[0][1] + points_BEV[1][1]))) * 180 / numpy.pi
                 yaw_res = -yaw_ego+yaw_cam # with ego-compensation
                 yaw_res = self.standartize_yaw(yaw_res)
-
                 pitch_cam = 90 - numpy.arctan((p_camera_BEV_xy[1] - 0.5 * (points_BEV[0][1] + points_BEV[1][1])) / cam_height) * 180 / numpy.pi
-                angles = numpy.array([(yaw_res), pitch_cam]).reshape((1, -1))
+
+                car_L_px = numpy.linalg.norm(points_BEV[0] - points_BEV[-1])
+                car_W_px = numpy.linalg.norm(points_BEV[0] - points_BEV[ 1])
+                car_H_px = car_W_px*cuboid_h/cuboid_w/numpy.cos(pitch_cam*numpy.pi/180)
+                metadata = numpy.array([yaw_res, pitch_cam, car_L_px, car_W_px, car_H_px]).reshape((1, -1))
                 points_BEV_best = points_BEV.copy().reshape((1, -1))
 
                 # image_cand = tools_draw_numpy.draw_points(image, [point_bottom_left,point_bottom_right,point_top_right,point_top_left])
                 # image_cand = tools_draw_numpy.draw_contours(image_cand,numpy.array([point_bottom_left,point_bottom_right,point_top_right,point_top_left]), color=(0,0,200),transperency=0.75)
                 # cv2.imwrite(self.folder_out+'F_%02d_%03d.png'%(0,point_top_right[1]),image_cand)
 
-        cols = ['cuboid%02d' % i for i in range(16)] + ['yaw_cam_car', 'pitch_cam'] + ['p_bev%02d' % i for i in range(8)]
-        df = pd.DataFrame(numpy.concatenate((footprint, roofprint, angles, points_BEV_best), axis=1).reshape((1, -1)),columns=cols)
+        cols = ['cuboid%02d' % i for i in range(16)] + ['yaw_cam_car', 'pitch_cam','L','W','H'] + ['p_bev%02d' % i for i in range(8)]
+        df = pd.DataFrame(numpy.concatenate((footprint, roofprint, metadata, points_BEV_best), axis=1).reshape((1, -1)),columns=cols)
         return df
 # ----------------------------------------------------------------------------------------------------------------------
     def box_to_footprint_look_upright(self,box,vp_ver, vp_hor, cam_height, p_camera_BEV_xy,p_center_BEV_xy,h_ipersp):
 
         point_bottom_right2 = numpy.array((max(box[0], box[2]), max(box[1], box[3])))
         line_van_ver_right2 = numpy.array((max(box[0], box[2]), max(box[1], box[3]), vp_ver[0], vp_ver[1]))
-        footprint, roofprint, angles,points_BEV_best,dims = None,None,None,None,None
+        footprint, roofprint, metadata, points_BEV_best,dims = None,None,None,None,None
         ratio_best = None
         for point_top_left_y2 in range(min(box[1], box[3]), max(box[1], box[3])):
             point_top_left2 = (min(box[0], box[2]), point_top_left_y2)
@@ -782,6 +786,7 @@ class detector_VP:
 
             points_BEV = cv2.perspectiveTransform(numpy.array([point_bottom_right2, point_bottom_left2, point_top_left2, point_top_right2]).astype(numpy.float32).reshape((-1, 1, 2)), h_ipersp).reshape((-1, 2))
             cuboid_h = min(point_top_left2[1], point_top_right2[1]) - min(box[1], box[3])
+            cuboid_w = point_bottom_right2[0] - point_bottom_left2[0]
             ratio = abs(points_BEV[0][1] - points_BEV[-1][1]) / (abs(points_BEV[0][0] - points_BEV[1][0]) + 1e-4)
             if ratio_best is None or abs(ratio - self.taret_ratio_L_W) < abs(ratio_best - self.taret_ratio_L_W):
                 ratio_best = ratio
@@ -794,13 +799,16 @@ class detector_VP:
                 yaw_cam = numpy.arctan((0.5 * (points_BEV[0][0] + points_BEV[1][0]) - p_center_BEV_xy[0]) / (p_camera_BEV_xy[1] - 0.5 * (points_BEV[0][1] + points_BEV[1][1]))) * 180 / numpy.pi
                 yaw_res = -yaw_ego + yaw_cam  # with ego-compensation
                 yaw_res = self.standartize_yaw(yaw_res)
-
                 pitch_cam = 90 - numpy.arctan((p_camera_BEV_xy[1] - 0.5 * (points_BEV[0][1] + points_BEV[1][1])) / cam_height) * 180 / numpy.pi
-                angles = numpy.array([yaw_res, pitch_cam]).reshape((1, -1))
+
+                car_L_px = numpy.linalg.norm(points_BEV[0] - points_BEV[-1])
+                car_W_px = numpy.linalg.norm(points_BEV[0] - points_BEV[ 1])
+                car_H_px = car_W_px*cuboid_h/cuboid_w/numpy.cos(pitch_cam*numpy.pi/180)
+                metadata = numpy.array([yaw_res, pitch_cam, car_L_px,car_W_px,car_H_px]).reshape((1, -1))
                 points_BEV_best = points_BEV.copy().reshape((1, -1))
 
-        cols = ['cuboid%02d' % i for i in range(16)] + ['yaw_cam_car', 'pitch_cam'] + ['p_bev%02d' % i for i in range(8)]
-        df = pd.DataFrame(numpy.concatenate((footprint, roofprint, angles, points_BEV_best), axis=1).reshape((1, -1)),columns=cols)
+        cols = ['cuboid%02d' % i for i in range(16)] + ['yaw_cam_car', 'pitch_cam','L','W','H'] + ['p_bev%02d' % i for i in range(8)]
+        df = pd.DataFrame(numpy.concatenate((footprint, roofprint, metadata, points_BEV_best), axis=1).reshape((1, -1)),columns=cols)
         return df
 # ----------------------------------------------------------------------------------------------------------------------
     def evaluate_objects(self, h_ipersp, df_boxes, vp_ver, vp_hor, cam_height, p_camera_BEV_xy, p_center_BEV_xy):
