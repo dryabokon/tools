@@ -20,6 +20,7 @@ from sklearn import metrics
 from sklearn.feature_selection import mutual_info_classif
 import warnings
 warnings.filterwarnings( 'ignore', module = 'seaborn' )
+warnings.filterwarnings( 'ignore', module = 'matplotlib' )
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_DF
 import tools_draw_numpy
@@ -124,8 +125,8 @@ class Plotter(object):
 
         return fig
 # ----------------------------------------------------------------------------------------------------------------------
-    def init_colors(self,cmap='tab20',shuffle=True):
-        numpy.random.seed(111)
+    def init_colors(self,cmap='tab20',shuffle=True):#tab20 nipy_ nipy_spectral
+        numpy.random.seed(110)#113
         self.colors = tools_draw_numpy.get_colors(32, colormap=cmap).astype(numpy.int)
 
         new_c = []

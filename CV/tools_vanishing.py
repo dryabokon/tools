@@ -726,86 +726,67 @@ class detector_VP:
         if yaw_deg > 270 and yaw_deg <360:yaw_deg = yaw_deg-360
         return yaw_deg
 # ----------------------------------------------------------------------------------------------------------------------
-    def box_to_footprint_look_upleft(self,box,vp_ver, vp_hor, cam_height, p_camera_BEV_xy,p_center_BEV_xy,h_ipersp):
-        point_bottom_left = numpy.array((min(box[0], box[2]), max(box[1], box[3])))
-        line_van_ver_left = numpy.array((min(box[0], box[2]), max(box[1], box[3]), vp_ver[0], vp_ver[1]))
-        footprint, roofprint, metadata,points_BEV_best = None,None,None,None
-        ratio_best = None
+    def calc_footprint(self, box, cam_height, p_camera_BEV_xy, p_center_BEV_xy, point_bottom_left, point_bottom_right, point_top_right, point_top_left, points_BEV):
+        cuboid_h = min(point_top_right[1], point_top_left[1]) - min(box[1], box[3])
+        cuboid_w = point_bottom_right[0] - point_bottom_left[0]
+
+        footprint = numpy.array([point_bottom_left, point_bottom_right, point_top_right, point_top_left]).reshape(1, -1)
+        roofprint = footprint - numpy.array([(0, cuboid_h), (0, cuboid_h), (0, cuboid_h), (0, cuboid_h)]).reshape(1, -1)
+        yaw1 = self.get_angle_deg((points_BEV[0][0], points_BEV[0][1], points_BEV[3][0], points_BEV[3][1]))
+        yaw2 = self.get_angle_deg((points_BEV[1][0], points_BEV[1][1], points_BEV[2][0], points_BEV[2][1]))
+        yaw_ego = (yaw1 + yaw2) / 2
+        yaw_ego = self.flip_yaw_180(yaw_ego)
+        yaw_cam = numpy.arctan((0.5 * (points_BEV[0][0] + points_BEV[1][0]) - p_center_BEV_xy[0]) / (p_camera_BEV_xy[1] - 0.5 * (points_BEV[0][1] + points_BEV[1][1]))) * 180 / numpy.pi
+        yaw_res = -yaw_ego + yaw_cam  # with ego-compensation
+        yaw_res = self.standartize_yaw(yaw_res)
+        pitch_cam = 90 - numpy.arctan((p_camera_BEV_xy[1] - 0.5 * (points_BEV[0][1] + points_BEV[1][1])) / cam_height) * 180 / numpy.pi
+
+        car_L_px = numpy.linalg.norm(points_BEV[0] - points_BEV[-1])
+        car_W_px = numpy.linalg.norm(points_BEV[0] - points_BEV[1])
+        car_H_px = car_W_px * cuboid_h / cuboid_w / numpy.cos(pitch_cam * numpy.pi / 180)
+        metadata = numpy.array([yaw_res, pitch_cam, car_L_px, car_W_px, car_H_px]).reshape((1, -1))
+        points_BEV_best = points_BEV.copy().reshape((1, -1))
+
+        # image = cv2.imread(self.folder_out+'frames/00018.jpg')
+        # image_cand = tools_draw_numpy.draw_points(image, [point_bottom_left,point_bottom_right,point_top_right,point_top_left])
+        # image_cand = tools_draw_numpy.draw_contours(image_cand,numpy.array([point_bottom_left,point_bottom_right,point_top_right,point_top_left]), color=(0,0,200),transperency=0.75)
+        # cv2.imwrite(self.folder_out+'F_%02d_%03d.png'%(0,point_top_right[1]),image_cand)
+        return  footprint, roofprint, metadata, points_BEV_best
+# ----------------------------------------------------------------------------------------------------------------------
+    def box_to_footprint_look_upright(self,box,vp_ver, vp_hor, cam_height, p_camera_BEV_xy,p_center_BEV_xy,h_ipersp):
+        footprint, roofprint, metadata, points_BEV_best, dims, ratio_best = None, None, None, None, None, None
         for point_top_right_y in range(min(box[1], box[3]), max(box[1], box[3])):
             point_top_right = (max(box[0], box[2]), point_top_right_y)
-            line_van_hor_top = (vp_hor[0], vp_hor[1], point_top_right[0], point_top_right[1])
-            line_van_hor_bottom = (vp_hor[0], vp_hor[1], point_bottom_left[0], point_bottom_left[1])
-            point_top_left = tools_render_CV.line_intersection(line_van_hor_top, line_van_ver_left)
-            line_van_ver_right = numpy.array((point_top_right[0], point_top_right[1], vp_ver[0], vp_ver[1]))
-            point_bottom_right = tools_render_CV.line_intersection(line_van_hor_bottom, line_van_ver_right)
-
+            point_bottom_right = tools_render_CV.line_intersection((min(box[0],box[2]),max(box[1],box[3]),max(box[0],box[2]),max(box[1],box[3])), (vp_ver[0], vp_ver[1], point_top_right[0], point_top_right[1]))
+            point_bottom_left  = tools_render_CV.line_intersection((min(box[0],box[2]),min(box[1],box[3]),min(box[0],box[2]),max(box[1],box[3])), (vp_hor[0], vp_hor[1], point_bottom_right[0], point_bottom_right[1]))
+            point_top_left     = tools_render_CV.line_intersection((vp_hor[0], vp_hor[1], point_top_right[0], point_top_right[1]),(vp_ver[0], vp_ver[1], point_bottom_left[0], point_bottom_left[1]))
             points_BEV = cv2.perspectiveTransform(numpy.array([point_bottom_left, point_bottom_right, point_top_right, point_top_left]).astype(numpy.float32).reshape((-1, 1, 2)), h_ipersp).reshape((-1, 2))
-            cuboid_h = min(point_top_right[1], point_top_left[1]) - min(box[1], box[3])
-            cuboid_w = point_bottom_right[0] - point_bottom_left[0]
+
             ratio = abs(points_BEV[0][1] - points_BEV[-1][1]) / (abs(points_BEV[0][0] - points_BEV[1][0]) + 1e-4)
             if ratio_best is None or abs(ratio - self.taret_ratio_L_W) < abs(ratio_best - self.taret_ratio_L_W):
                 ratio_best = ratio
-                footprint = numpy.array([point_bottom_left, point_bottom_right, point_top_right, point_top_left]).reshape(1, -1)
-                roofprint = footprint - numpy.array([(0, cuboid_h), (0, cuboid_h), (0, cuboid_h), (0, cuboid_h)]).reshape(1, -1)
-                yaw1 = self.get_angle_deg((points_BEV[0][0], points_BEV[0][1], points_BEV[3][0], points_BEV[3][1]))
-                yaw2 = self.get_angle_deg((points_BEV[1][0], points_BEV[1][1], points_BEV[2][0], points_BEV[2][1]))
-                yaw_ego = (yaw1 + yaw2) / 2
-                yaw_ego = self.flip_yaw_180(yaw_ego)
-                yaw_cam = numpy.arctan((0.5 * (points_BEV[0][0] + points_BEV[1][0]) - p_center_BEV_xy[0]) / (p_camera_BEV_xy[1] - 0.5 * (points_BEV[0][1] + points_BEV[1][1]))) * 180 / numpy.pi
-                yaw_res = -yaw_ego+yaw_cam # with ego-compensation
-                yaw_res = self.standartize_yaw(yaw_res)
-                pitch_cam = 90 - numpy.arctan((p_camera_BEV_xy[1] - 0.5 * (points_BEV[0][1] + points_BEV[1][1])) / cam_height) * 180 / numpy.pi
+                footprint, roofprint, metadata, points_BEV_best = self.calc_footprint(box, cam_height, p_camera_BEV_xy, p_center_BEV_xy, point_bottom_left, point_bottom_right, point_top_right, point_top_left, points_BEV)
 
-                car_L_px = numpy.linalg.norm(points_BEV[0] - points_BEV[-1])
-                car_W_px = numpy.linalg.norm(points_BEV[0] - points_BEV[ 1])
-                car_H_px = car_W_px*cuboid_h/cuboid_w/numpy.cos(pitch_cam*numpy.pi/180)
-                metadata = numpy.array([yaw_res, pitch_cam, car_L_px, car_W_px, car_H_px]).reshape((1, -1))
-                points_BEV_best = points_BEV.copy().reshape((1, -1))
-
-                # image_cand = tools_draw_numpy.draw_points(image, [point_bottom_left,point_bottom_right,point_top_right,point_top_left])
-                # image_cand = tools_draw_numpy.draw_contours(image_cand,numpy.array([point_bottom_left,point_bottom_right,point_top_right,point_top_left]), color=(0,0,200),transperency=0.75)
-                # cv2.imwrite(self.folder_out+'F_%02d_%03d.png'%(0,point_top_right[1]),image_cand)
 
         cols = ['cuboid%02d' % i for i in range(16)] + ['yaw_cam_car', 'pitch_cam','L','W','H'] + ['p_bev%02d' % i for i in range(8)]
         df = pd.DataFrame(numpy.concatenate((footprint, roofprint, metadata, points_BEV_best), axis=1).reshape((1, -1)),columns=cols)
         return df
 # ----------------------------------------------------------------------------------------------------------------------
-    def box_to_footprint_look_upright(self,box,vp_ver, vp_hor, cam_height, p_camera_BEV_xy,p_center_BEV_xy,h_ipersp):
+    def box_to_footprint_look_upleft(self,box,vp_ver, vp_hor, cam_height, p_camera_BEV_xy,p_center_BEV_xy,h_ipersp):
 
-        point_bottom_right2 = numpy.array((max(box[0], box[2]), max(box[1], box[3])))
-        line_van_ver_right2 = numpy.array((max(box[0], box[2]), max(box[1], box[3]), vp_ver[0], vp_ver[1]))
-        footprint, roofprint, metadata, points_BEV_best,dims = None,None,None,None,None
-        ratio_best = None
-        for point_top_left_y2 in range(min(box[1], box[3]), max(box[1], box[3])):
-            point_top_left2 = (min(box[0], box[2]), point_top_left_y2)
-            line_van_hor_top = (vp_hor[0], vp_hor[1], point_top_left2[0], point_top_left2[1])
-            line_van_hor_bottom = (vp_hor[0], vp_hor[1], point_bottom_right2[0], point_bottom_right2[1])
-            point_top_right2 = tools_render_CV.line_intersection(line_van_hor_top, line_van_ver_right2)
-            line_van_ver_left2 = numpy.array((point_top_left2[0], point_top_left2[1], vp_ver[0], vp_ver[1]))
-            point_bottom_left2 = tools_render_CV.line_intersection(line_van_hor_bottom, line_van_ver_left2)
+        footprint, roofprint, metadata, points_BEV_best,dims,ratio_best = None,None,None,None,None,None
+        for point_top_left_y in range(min(box[1], box[3]), max(box[1], box[3])):
+            point_top_left = (min(box[0], box[2]), point_top_left_y)
+            point_bottom_left  = tools_render_CV.line_intersection((min(box[0],box[2]),max(box[1],box[3]),max(box[0],box[2]),max(box[1],box[3])), (vp_ver[0], vp_ver[1], point_top_left[0], point_top_left[1]))
+            point_bottom_right = tools_render_CV.line_intersection((max(box[0],box[2]),min(box[1],box[3]),max(box[0],box[2]),max(box[1],box[3])), (vp_hor[0], vp_hor[1], point_bottom_left[0], point_bottom_left[1]))
+            point_top_right = tools_render_CV.line_intersection((vp_hor[0], vp_hor[1], point_top_left[0], point_top_left[1]),(vp_ver[0], vp_ver[1], point_bottom_right[0], point_bottom_right[1]))
 
-            points_BEV = cv2.perspectiveTransform(numpy.array([point_bottom_right2, point_bottom_left2, point_top_left2, point_top_right2]).astype(numpy.float32).reshape((-1, 1, 2)), h_ipersp).reshape((-1, 2))
-            cuboid_h = min(point_top_left2[1], point_top_right2[1]) - min(box[1], box[3])
-            cuboid_w = point_bottom_right2[0] - point_bottom_left2[0]
+            points_BEV = cv2.perspectiveTransform(numpy.array([point_bottom_right, point_bottom_left, point_top_left, point_top_right]).astype(numpy.float32).reshape((-1, 1, 2)), h_ipersp).reshape((-1, 2))
+
             ratio = abs(points_BEV[0][1] - points_BEV[-1][1]) / (abs(points_BEV[0][0] - points_BEV[1][0]) + 1e-4)
             if ratio_best is None or abs(ratio - self.taret_ratio_L_W) < abs(ratio_best - self.taret_ratio_L_W):
                 ratio_best = ratio
-                footprint = numpy.array([point_bottom_right2, point_bottom_left2, point_top_left2, point_top_right2]).reshape(1, -1)
-                roofprint = footprint - numpy.array([(0, cuboid_h), (0, cuboid_h), (0, cuboid_h), (0, cuboid_h)]).reshape(1, -1)
-                yaw1 = self.get_angle_deg((points_BEV[0][0], points_BEV[0][1], points_BEV[3][0], points_BEV[3][1]))
-                yaw2 = self.get_angle_deg((points_BEV[1][0], points_BEV[1][1], points_BEV[2][0], points_BEV[2][1]))
-                yaw_ego = (yaw1 + yaw2) / 2
-                yaw_ego = self.flip_yaw_180(yaw_ego)
-                yaw_cam = numpy.arctan((0.5 * (points_BEV[0][0] + points_BEV[1][0]) - p_center_BEV_xy[0]) / (p_camera_BEV_xy[1] - 0.5 * (points_BEV[0][1] + points_BEV[1][1]))) * 180 / numpy.pi
-                yaw_res = -yaw_ego + yaw_cam  # with ego-compensation
-                yaw_res = self.standartize_yaw(yaw_res)
-                pitch_cam = 90 - numpy.arctan((p_camera_BEV_xy[1] - 0.5 * (points_BEV[0][1] + points_BEV[1][1])) / cam_height) * 180 / numpy.pi
-
-                car_L_px = numpy.linalg.norm(points_BEV[0] - points_BEV[-1])
-                car_W_px = numpy.linalg.norm(points_BEV[0] - points_BEV[ 1])
-                car_H_px = car_W_px*cuboid_h/cuboid_w/numpy.cos(pitch_cam*numpy.pi/180)
-                metadata = numpy.array([yaw_res, pitch_cam, car_L_px,car_W_px,car_H_px]).reshape((1, -1))
-                points_BEV_best = points_BEV.copy().reshape((1, -1))
+                footprint, roofprint, metadata, points_BEV_best = self.calc_footprint(box, cam_height, p_camera_BEV_xy, p_center_BEV_xy, point_bottom_left, point_bottom_right, point_top_right, point_top_left, points_BEV)
 
         cols = ['cuboid%02d' % i for i in range(16)] + ['yaw_cam_car', 'pitch_cam','L','W','H'] + ['p_bev%02d' % i for i in range(8)]
         df = pd.DataFrame(numpy.concatenate((footprint, roofprint, metadata, points_BEV_best), axis=1).reshape((1, -1)),columns=cols)
@@ -817,9 +798,9 @@ class detector_VP:
         df_cuboids_all = pd.DataFrame([])
         for box in df_boxes.iloc[:, -4:].values:
             if vp_ver[0]>min(box[0], box[2]):
-                df_cuboids = self.box_to_footprint_look_upleft(box, vp_ver, vp_hor, cam_height, p_camera_BEV_xy,p_center_BEV_xy,h_ipersp)
+                df_cuboids = self.box_to_footprint_look_upright(box, vp_ver, vp_hor, cam_height, p_camera_BEV_xy,p_center_BEV_xy,h_ipersp)
             else:
-                df_cuboids = self.box_to_footprint_look_upright(box, vp_ver, vp_hor, cam_height,p_camera_BEV_xy, p_center_BEV_xy,h_ipersp)
+                df_cuboids = self.box_to_footprint_look_upleft(box, vp_ver, vp_hor, cam_height,p_camera_BEV_xy, p_center_BEV_xy,h_ipersp)
             df_cuboids_all = df_cuboids_all.append(df_cuboids,ignore_index=True)
 
         df_boxes.reset_index(drop=True, inplace=True)

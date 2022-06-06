@@ -321,7 +321,7 @@ def apply_filter(df,col_name,filter,inverce=False):
         if len(filter)==0:
             idx= ~idx
         elif len(filter)==1:
-            idx = (df[col_name] == filter)
+            idx = (df[col_name] == filter[0])
         elif len(filter)==2:
             if isinstance(filter,(list,tuple,numpy.ndarray)):
                 if filter[0] is not None:

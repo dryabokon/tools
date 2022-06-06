@@ -215,10 +215,10 @@ class Plotter_dancing:
                 image = self.plot_values_pos(df_i[df_i['frameID']==frame],col_value, col_label, col_rank, max_rank=n_tops,max_value=max_value,alpha=0.3,legend=legend)[0]
                 cv2.imwrite(self.folder_out + 'Dynamics_{time}_{frame}.png'.format(time=legend,frame='%04d'%(1+frame)),image)
 
-                if (pos_now == times.shape[0] - 2) and (frame==n_extra-1):
-                    legend = tools_time_convertor.datetime_to_str(times[pos_now+1], out_format_x)
-                    cv2.imwrite(self.folder_out + 'Dynamics_{time}_{frame}.png'.format(time=legend,frame='%04d' % (1)),image)
-
+                if (pos_now==(times.shape[0] - 2) and (frame==(n_extra-1))):
+                    legend = tools_time_convertor.datetime_to_str(times.iloc[-1], out_format_x)
+                    image = self.plot_values_pos(df_i[df_i['frameID'] == frame], col_value, col_label, col_rank,max_rank=n_tops, max_value=max_value, alpha=0.3, legend=legend)[0]
+                    cv2.imwrite(self.folder_out + 'Dynamics_{time}_{frame}.png'.format(time=legend, frame='%04d' % (1)), image)
             print(legend)
 
         tools_animation.folder_to_animated_gif_imageio(self.folder_out, self.folder_out+'animation.gif', mask='*.png', framerate=8,stop_ms=3000)
@@ -454,7 +454,7 @@ class Plotter_dancing:
     def plot_stacked_data(self, df, idx_time=0, idx_label=1, idx_value=2,top_objects=3,in_format_x=None, out_format_x=None,major_step=28,legend=None,filename_out=None):
 
         self.init_layout(name='960_670')
-        df_MC = tools_DF.to_multi_column(df, idx_time=idx_time, idx_label=idx_label, idx_value=idx_value,replace_nan=False)
+        df_MC = tools_DF.to_multi_column(df, idx_time=idx_time, idx_label=idx_label, idx_value=idx_value,replace_nan=True) #replace_nan=False
 
         X, labels, tops, bottoms = self.get_TS_one_frame(df_MC, top_objects=top_objects, start_index=1, cumul=True)
         X = tools_time_convertor.str_to_datetime(X,format=in_format_x).values
