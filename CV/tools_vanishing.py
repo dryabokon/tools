@@ -466,24 +466,27 @@ class detector_VP:
 
         h_ipersp,target_BEV_W, target_BEV_H,rot_deg = self.get_inverce_perspective_mat_v3(image, cam_fov_x_deg,point_van_xy_ver,point_van_xy_hor)
         edges = numpy.array(([0, 0], [0, self.H], [self.W, 0], [self.W, self.H])).astype(numpy.float32)
-        mat_R = tools_image.get_image_affine_rotation_mat(image, rot_deg, reshape=True)
 
         if do_rotation:
+            mat_R = tools_image.get_image_affine_rotation_mat(image, rot_deg, reshape=True)
             h_ipersp = numpy.matmul(numpy.concatenate([mat_R,numpy.array([0,0,1.0]).reshape((1,-1))],axis=0),h_ipersp)
             edges_BEV = cv2.perspectiveTransform(edges.reshape((-1, 1, 2)), h_ipersp)
             target_BEV_W, target_BEV_H = numpy.max(edges_BEV.reshape((-1,2)), axis=0)
 
         image_BEV = cv2.warpPerspective(image, h_ipersp, (int(target_BEV_W), int(target_BEV_H)), borderValue=(32, 32, 32))
         edges_BEV = cv2.perspectiveTransform(edges.reshape((-1, 1, 2)), h_ipersp)
-        center_BEV = cv2.perspectiveTransform(numpy.array((self.W / 2, self.H / 2)).reshape((-1, 1, 2)),h_ipersp).reshape((-1, 2))
+        #central_points =  numpy.array(((self.W / 2, self.H / 2),(self.W / 2, 0),(self.W/2, self.H-1)))
+        central_points = numpy.array(((self.W / 2, self.H / 2)))
+        central_points_BEV = cv2.perspectiveTransform(central_points.reshape((-1, 1, 2)),h_ipersp).reshape((-1, 2))
+        center_BEV = central_points_BEV[0]
 
         lines_edges = edges_BEV.reshape((-1, 4))
         p_camera_BEV_xy = tools_render_CV.line_intersection(numpy.array(lines_edges[0]),numpy.array(lines_edges[1]))
         cam_abs_offset = p_camera_BEV_xy[1] - image_BEV.shape[0]
-        center_offset = image_BEV.shape[0] - center_BEV[0][1]
+        center_offset = image_BEV.shape[0] - center_BEV[1]
         cam_height = self.evaluate_cam_height(cam_abs_offset, center_offset, cam_fov_y_deg)
 
-        image_BEV = tools_draw_numpy.draw_points(image_BEV, center_BEV, color=self.color_markup_grid)
+        image_BEV = tools_draw_numpy.draw_points(image_BEV, central_points_BEV, color=self.color_markup_grid)
 
         return image_BEV, h_ipersp, cam_height, p_camera_BEV_xy, center_BEV.flatten(),lines_edges
 # ----------------------------------------------------------------------------------------------------------------------
@@ -1049,18 +1052,19 @@ class detector_VP:
             bottom_line = (W/2, H, point_van_xy_hor[0], point_van_xy_hor[1])
 
 
-        line1 = (0, H, point_van_xy_ver[0], point_van_xy_ver[1])
-        line2 = (W, H, point_van_xy_ver[0], point_van_xy_ver[1])
+        line_van_left = (0, H, point_van_xy_ver[0], point_van_xy_ver[1])
+        line_van_right = (W, H, point_van_xy_ver[0], point_van_xy_ver[1])
 
-        p1 = tools_render_CV.line_intersection(upper_line, line1)
-        p2 = tools_render_CV.line_intersection(upper_line, line2)
-        p3 = tools_render_CV.line_intersection(bottom_line, line1)
-        p4 = tools_render_CV.line_intersection(bottom_line, line2)
-        p5 = tools_render_CV.line_intersection(upper_line, (0, 0, 0, H))
-        p6 = tools_render_CV.line_intersection(upper_line, (W, 0, W, H))
-        p7 = numpy.array((W/2, upper_line[1]))
+        p1 = tools_render_CV.line_intersection(upper_line, line_van_left)
+        p2 = tools_render_CV.line_intersection(upper_line, line_van_right)
+        p3 = tools_render_CV.line_intersection(bottom_line, line_van_left)
+        p4 = tools_render_CV.line_intersection(bottom_line, line_van_right)
+        p5 = numpy.array((0, 0)).astype(numpy.float32)
+        p6 = numpy.array((W, 0)).astype(numpy.float32)
+        p7 = numpy.array((0, H)).astype(numpy.float32)
+        p8 = numpy.array((W, H)).astype(numpy.float32)
 
-        src = numpy.array([(p1[0], p1[1]), (p2[0], p2[1]), (p3[0], p3[1]), (p4[0], p4[1])], dtype=numpy.float32)
+        src = numpy.array((p1,p2,p3,p4), dtype=numpy.float32).reshape((-1,2))
 
         min_delta = numpy.inf
         h_ipersp_best = None
@@ -1070,16 +1074,19 @@ class detector_VP:
 
         for target_W in range(int(target_H*0.01),int(target_H*2.5)):
 
-            dst = numpy.array([(0, 0), (target_W, 0), (0, target_H), (target_W, target_H)], dtype=numpy.float32)
+            dst = numpy.array([(0, 0), (target_W,0),(0, target_H),(target_W,target_H)], dtype=numpy.float32).reshape((-1,2))
+
             h_ipersp = cv2.getPerspectiveTransform(src, dst)
 
             p5_new = cv2.perspectiveTransform(p5.reshape((-1,1,2)),h_ipersp).flatten()
             p6_new = cv2.perspectiveTransform(p6.reshape((-1,1,2)),h_ipersp).flatten()
-            p7_new = (p5_new+p6_new)/2
-            line1 = (p5_new[0], p5_new[1], 0, target_H)
-            line2 = (p6_new[0], p6_new[1], target_W, target_H)
+            p7_new = cv2.perspectiveTransform(p7.reshape((-1,1,2)),h_ipersp).flatten()
+            p8_new = cv2.perspectiveTransform(p8.reshape((-1,1,2)),h_ipersp).flatten()
 
-            a = tools_render_CV.angle_between_lines(line1,line2)
+            line_van_left  = (p5_new[0], p5_new[1], p7_new[0], p7_new[1])
+            line_van_right = (p6_new[0], p6_new[1], p8_new[0], p8_new[1])
+
+            a = tools_render_CV.angle_between_lines(line_van_left,line_van_right)
             target_W=target_W+1 if a>cam_fov_deg else target_W-1
 
             #print(target_W,a,abs(a-cam_fov_deg))
@@ -1090,13 +1097,23 @@ class detector_VP:
                 new_dst = dst.copy()
                 new_dst[:,0]+=abs(p5_new[0])
                 h_ipersp_best = cv2.getPerspectiveTransform(src, new_dst)
+                central_line = numpy.array(([self.W/2, 0], [self.W/2, self.H])).astype(numpy.float32)
+                central_line = cv2.perspectiveTransform(central_line.reshape((-1, 1, 2)), h_ipersp).reshape((-1, 2))
+                p_up, p_dn = central_line[0], central_line[1]
+                rotation_deg = -math.degrees(numpy.arctan((p_up[0] - p_dn[0]) / (p_up[1] - p_dn[1])))
 
-                p_up = (p7_new[0]+abs(p5_new[0]),0)
-                p_dn = (target_W/2 + abs(p5_new[0]),best_target_H)
-                rotation_deg = -math.degrees(numpy.arctan((p_up[0]-p_dn[0])/(p_up[1]-p_dn[1])))
+                # edges = numpy.array(([0, 0], [0, self.H], [self.W, 0], [self.W, self.H])).astype(numpy.float32)
+                # edges_BEV = cv2.perspectiveTransform(edges.reshape((-1, 1, 2)), h_ipersp).reshape((-1,2))
+                #
+                # p_up,p_dn = edges_BEV[0],edges_BEV[1]
+                # rotation_deg1 = -math.degrees(numpy.arctan((p_up[0] - p_dn[0]) / (p_up[1] - p_dn[1])))
+                # p_up,p_dn = edges_BEV[2],edges_BEV[3]
+                # rotation_deg2 = -math.degrees(numpy.arctan((p_up[0] - p_dn[0]) / (p_up[1] - p_dn[1])))
+                # rotation_deg = (rotation_deg1+rotation_deg2)/2
+
                 if do_debug:
                     image_BEV = cv2.warpPerspective(image, h_ipersp_best, (best_target_W, best_target_H), borderValue=(32, 32, 32))
-                    image_BEV = tools_draw_numpy.draw_lines(image_BEV,[(p_dn[0],p_dn[1],p_up[0],p_up[1])],w=1,color=(128,0,255))
+                    #image_BEV = tools_draw_numpy.draw_lines(image_BEV,[(p_dn[0],p_dn[1],p_up[0],p_up[1])],w=1,color=(128,0,255))
                     cv2.imwrite('./images/output/xx_%03d.png'%target_W, image_BEV)
             else:
                 break
