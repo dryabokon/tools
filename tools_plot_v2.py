@@ -22,6 +22,7 @@ import warnings
 warnings.filterwarnings( 'ignore', module = 'seaborn' )
 warnings.filterwarnings( 'ignore', module = 'matplotlib' )
 # ----------------------------------------------------------------------------------------------------------------------
+import tools_image
 import tools_DF
 import tools_draw_numpy
 import tools_Hyptest
@@ -407,7 +408,7 @@ class Plotter(object):
 
         return fig
 #-----------------------------------------------------------------------------------------------------------------------
-    def plot_tp_fp(self,tpr,fpr,roc_auc,caption='',figsize=(3.5,3.5),filename_out=None):
+    def plot_tp_fp(self,tpr,fpr,roc_auc,caption='',figsize=(6,6),filename_out=None):
 
         fig = plt.figure(figsize=figsize)
         fig = self.turn_light_mode(fig)

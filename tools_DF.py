@@ -350,15 +350,6 @@ def prettify(df,showindex=True,tablefmt='psql'):
     res = tabulate(df, headers=df.columns, tablefmt=tablefmt, showindex=showindex)
     return res
 # ---------------------------------------------------------------------------------------------------------------------
-def save_XL(filename_out,dataframes,sheet_names):
-
-    writer = pd.ExcelWriter(filename_out, engine='openpyxl')
-    for df,sheet_name in zip(dataframes,sheet_names):
-        df.to_excel(writer, sheet_name=sheet_name,index=False)
-
-    writer.save()
-    return
-# ---------------------------------------------------------------------------------------------------------------------
 def fetch(df1,col_name1,df2,col_name2,col_value,col_new_name=None):
     df_res = df1.copy()
 

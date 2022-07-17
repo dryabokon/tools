@@ -108,7 +108,7 @@ def draw_lines(image, lines,color=(0,0,200),w=1,transperency=0,put_text=False):
 
     return result
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_rect(image, col_left, row_up, col_right, row_down ,color, w=1, alpha_transp=0.8,label=None):
+def draw_rect(image, col_left, row_up, col_right, row_down ,color, w=1, alpha_transp=0.8,font_size=16,label=None):
 
     lines = numpy.array(((col_left, row_up, col_left, row_down),(col_left, row_down, col_right, row_down),(col_right, row_down, col_right, row_up),(col_right, row_up,col_left,row_up)))
     points_2d = numpy.array(((col_left, row_up),(col_left, row_down),(col_right, row_down),(col_right, row_up)))
@@ -116,7 +116,7 @@ def draw_rect(image, col_left, row_up, col_right, row_down ,color, w=1, alpha_tr
     result = draw_lines(result, lines, color=color, w=w)
 
     if label is not None:
-        result = draw_text(result,label,(col_left,row_up), color_fg=(0,0,0),clr_bg=color)
+        result = draw_text(result,label,(col_left,row_up), color_fg=(0,0,0),clr_bg=color,font_size=font_size)
 
     return result
 # ----------------------------------------------------------------------------------------------------------------------

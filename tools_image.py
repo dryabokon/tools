@@ -856,7 +856,7 @@ def do_resize(image, dsize):
     if image_resized.max() <= 1:
         image_resized*= 255
 
-    image_resized = numpy.clip(0,255,image_resized).astype(numpy.uint8)
+    image_resized = numpy.clip(image_resized,0,255).astype(numpy.uint8)
 
     return image_resized
 # --------------------------------------------------------------------------------------------------------------------

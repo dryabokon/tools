@@ -41,6 +41,8 @@ class detector_VP:
         self.mean_vehicle_length = 4.685  # meters
         self.fov_x_deg_default = 18.55  #deg
 
+        self.mean_lp_length = 0.520 # meters
+
         self.config_algo_ver_lines = 'LSD'
         self.tol_deg_hor_line = 10
         self.color_markup_grid = (0,0,0)
@@ -681,15 +683,23 @@ class detector_VP:
 
         return image
 # ----------------------------------------------------------------------------------------------------------------------
-    def prepare_cuboids_data(self, vp_ver, vp_hor, fov_x_deg, fov_y_deg, df_boxes):
+    def prepare_cuboids_data(self, vp_ver, vp_hor, fov_x_deg, fov_y_deg, df_boxes_cars):
         self.TP.tic(inspect.currentframe().f_code.co_name, reset=True)
         image_bg = numpy.full((self.H, self.W, 3),0,dtype=numpy.uint8)
         image_BEV, h_ipersp, cam_height_px, p_camera_BEV_xy, p_center_BEV_xy, lines_edges = self.build_BEV_by_fov_van_point(image_bg, fov_x_deg, fov_y_deg,vp_ver,vp_hor,do_rotation=True)
-        df_objects = self.evaluate_objects(h_ipersp, df_boxes, vp_ver, vp_hor, cam_height_px, p_camera_BEV_xy,p_center_BEV_xy)
+        df_objects = self.evaluate_objects(h_ipersp, df_boxes_cars, vp_ver, vp_hor, cam_height_px, p_camera_BEV_xy, p_center_BEV_xy)
         self.TP.print_duration(inspect.currentframe().f_code.co_name)
         return df_objects
 # ----------------------------------------------------------------------------------------------------------------------
-    def evaluate_pix_per_meter_BEV(self,df_objects,fov_x_deg,fov_y_deg,vp_ver,vp_hor):
+    def prepare_angles_data(self, vp_ver, vp_hor, fov_x_deg, fov_y_deg, df_boxes_lps):
+        self.TP.tic(inspect.currentframe().f_code.co_name, reset=True)
+        image_bg = numpy.full((self.H, self.W, 3),0,dtype=numpy.uint8)
+        image_BEV, h_ipersp, cam_height_px, p_camera_BEV_xy, p_center_BEV_xy, lines_edges = self.build_BEV_by_fov_van_point(image_bg, fov_x_deg, fov_y_deg,vp_ver,vp_hor,do_rotation=True)
+        df_objects = self.evaluate_angles(h_ipersp, df_boxes_lps, vp_ver, vp_hor, cam_height_px, p_camera_BEV_xy, p_center_BEV_xy)
+        self.TP.print_duration(inspect.currentframe().f_code.co_name)
+        return df_objects
+# ----------------------------------------------------------------------------------------------------------------------
+    def evaluate_pix_per_meter_BEV_cars(self, df_objects, fov_x_deg, fov_y_deg, vp_ver, vp_hor):
 
         image_bg = numpy.full((self.H,self.W,3),0,dtype=numpy.uint8)
         image_BEV, h_ipersp, cam_height_px, p_camera_BEV_xy, p_center_BEV_xy, lines_edges = self.build_BEV_by_fov_van_point(image_bg, fov_x_deg, fov_y_deg,vp_ver,vp_hor, do_rotation=True)
@@ -713,6 +723,24 @@ class detector_VP:
         pix_per_meter_BEV = (sum(hs)/len(hs))/(self.mean_vehicle_length)
 
         return pix_per_meter_BEV
+# ----------------------------------------------------------------------------------------------------------------------
+    def evaluate_pix_per_meter_BEV_lps(self, df_objects, fov_x_deg, fov_y_deg, vp_ver, vp_hor):
+
+        image_bg = numpy.full((self.H, self.W, 3), 0, dtype=numpy.uint8)
+        image_BEV, h_ipersp, cam_height_px, p_camera_BEV_xy, p_center_BEV_xy, lines_edges = self.build_BEV_by_fov_van_point(image_bg, fov_x_deg, fov_y_deg, vp_ver, vp_hor, do_rotation=True)
+        points = df_objects.iloc[:, 3:7]
+        points_BEV = cv2.perspectiveTransform(numpy.array(points).astype(numpy.float32).reshape((-1, 1, 2)),h_ipersp).reshape((-1, 4))
+        ls = []
+        for r in range(points_BEV.shape[0]):
+            p1 = points_BEV[r, [0, 1]]
+            p2 = points_BEV[r, [2, 3]]
+            d1 = abs(p1[0]-p2[0])
+            ls.append(d1)
+
+        pix_per_meter_BEV = (sum(ls) / len(ls)) / (self.mean_lp_length)
+
+        return pix_per_meter_BEV
+
 # ----------------------------------------------------------------------------------------------------------------------
     def flip_yaw_180(self, yaw_deg):
         if yaw_deg>90 and yaw_deg<=180:
@@ -756,6 +784,15 @@ class detector_VP:
         # cv2.imwrite(self.folder_out+'F_%02d_%03d.png'%(0,point_top_right[1]),image_cand)
         return  footprint, roofprint, metadata, points_BEV_best
 # ----------------------------------------------------------------------------------------------------------------------
+    def calc_angles(self, point, cam_height, p_camera_BEV_xy, p_center_BEV_xy, point_BEV):
+
+        yaw_ego = 0
+        yaw_cam = numpy.arctan((point_BEV[0] - p_center_BEV_xy[0]) / (p_camera_BEV_xy[1] - point_BEV[1])) * 180 / numpy.pi
+        yaw_res = -yaw_ego + yaw_cam  # with ego-compensation
+        yaw_res = self.standartize_yaw(yaw_res)
+        pitch_cam = 90 - numpy.arctan((p_camera_BEV_xy[1]-point_BEV[1]) / cam_height) * 180 / numpy.pi
+        return yaw_res,pitch_cam
+# ----------------------------------------------------------------------------------------------------------------------
     def box_to_footprint_look_upright(self,box,vp_ver, vp_hor, cam_height, p_camera_BEV_xy,p_center_BEV_xy,h_ipersp):
         footprint, roofprint, metadata, points_BEV_best, dims, ratio_best = None, None, None, None, None, None
         for point_top_right_y in range(min(box[1], box[3]), max(box[1], box[3])):
@@ -795,22 +832,43 @@ class detector_VP:
         df = pd.DataFrame(numpy.concatenate((footprint, roofprint, metadata, points_BEV_best), axis=1).reshape((1, -1)),columns=cols)
         return df
 # ----------------------------------------------------------------------------------------------------------------------
-    def evaluate_objects(self, h_ipersp, df_boxes, vp_ver, vp_hor, cam_height, p_camera_BEV_xy, p_center_BEV_xy):
+    def point_to_footprint(self, point, vp_ver, vp_hor, cam_height, p_camera_BEV_xy, p_center_BEV_xy, h_ipersp):
 
-        if df_boxes.shape[0]==0:return pd.DataFrame([])
+        point_BEV = cv2.perspectiveTransform(numpy.array(point).astype(numpy.float32).reshape((-1, 1, 2)), h_ipersp).reshape(2)
+        yaw_res,pitch_cam = self.calc_angles(point, cam_height, p_camera_BEV_xy, p_center_BEV_xy, point_BEV)
+        df = pd.DataFrame({'yaw_cam_car': [yaw_res], 'pitch_cam': [pitch_cam],'p_bev0':point_BEV[0],'p_bev1':point_BEV[1]})
+        return df
+    # ----------------------------------------------------------------------------------------------------------------------
+    def evaluate_objects(self, h_ipersp, df_boxes_cars, vp_ver, vp_hor, cam_height, p_camera_BEV_xy, p_center_BEV_xy):
+
+        if df_boxes_cars.shape[0]==0:return pd.DataFrame([])
         df_cuboids_all = pd.DataFrame([])
-        for box in df_boxes.iloc[:, -4:].values:
+        for box in df_boxes_cars.iloc[:, -4:].values:
             if vp_ver[0]>min(box[0], box[2]):
                 df_cuboids = self.box_to_footprint_look_upright(box, vp_ver, vp_hor, cam_height, p_camera_BEV_xy,p_center_BEV_xy,h_ipersp)
             else:
                 df_cuboids = self.box_to_footprint_look_upleft(box, vp_ver, vp_hor, cam_height,p_camera_BEV_xy, p_center_BEV_xy,h_ipersp)
             df_cuboids_all = df_cuboids_all.append(df_cuboids,ignore_index=True)
 
-        df_boxes.reset_index(drop=True, inplace=True)
+        df_boxes_cars.reset_index(drop=True, inplace=True)
         df_cuboids_all.reset_index(drop=True, inplace=True)
-        df_objects = pd.concat([df_boxes, df_cuboids_all], axis=1)
+        df_res = pd.concat([df_boxes_cars, df_cuboids_all], axis=1)
 
-        return df_objects
+        return df_res
+# ----------------------------------------------------------------------------------------------------------------------
+    def evaluate_angles(self,h_ipersp, df_boxes_lps, vp_ver, vp_hor, cam_height, p_camera_BEV_xy, p_center_BEV_xy):
+        if df_boxes_lps.shape[0]==0:return pd.DataFrame([])
+        df_angles_all = pd.DataFrame([])
+        for box in df_boxes_lps.iloc[:, -4:].values:
+            point = [(box[0]+box[2])/2,(box[1]+box[3])/2]
+            df_angles = self.point_to_footprint(point, vp_ver, vp_hor, cam_height, p_camera_BEV_xy, p_center_BEV_xy, h_ipersp)
+            df_angles_all = df_angles_all.append(df_angles,ignore_index=True)
+
+        df_boxes_lps.reset_index(drop=True, inplace=True)
+        df_angles_all.reset_index(drop=True, inplace=True)
+        df_res = pd.concat([df_boxes_lps, df_angles_all], axis=1)
+
+        return df_res
 # ----------------------------------------------------------------------------------------------------------------------
     def remove_bg(self,df_boxes,folder_in,list_of_masks='*.jpg',limit=50):
 

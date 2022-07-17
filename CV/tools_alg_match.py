@@ -186,6 +186,8 @@ def get_corners_Shi_Tomasi(image1):
 
 # ---------------------------------------------------------------------------------------------------------------------
 def get_corners_Harris(image1):
+
+
     if len(image1.shape) == 2:
         im1_gray = image1.copy()
     else:

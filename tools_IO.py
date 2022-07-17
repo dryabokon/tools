@@ -15,6 +15,7 @@ import pandas as pd
 import operator
 from itertools import groupby
 import hashlib
+import difflib
 # ----------------------------------------------------------------------------------------------------------------------
 def find_nearest(array, value):
     return array[(numpy.abs(array - value)).argmin()]
@@ -67,6 +68,40 @@ def remove_folders(path):
         if os.path.isdir(path + f):
             shutil.rmtree(path + f)
     return
+# ----------------------------------------------------------------------------------------------------------------------
+def compare_files(filename1,filename2):
+
+    with open(filename1) as f:lines1 = f.readlines()
+    with open(filename2) as f:lines2 = f.readlines()
+    lines1 = [l.split('\n')[0] for l in lines1]
+    lines2 = [l.split('\n')[0] for l in lines2]
+
+    d = difflib.Differ()
+    diff = list(d.compare(lines1, lines2))
+    diff = [d for d in diff if ('+ ' in d[:2] or '- 'in d[:2])]
+
+    return diff
+# ----------------------------------------------------------------------------------------------------------------------
+def compare_folders(folder1, folder2):
+    filenames1 = get_filenames(folder1,'*.*')
+    filenames2 = get_filenames(folder2,'*.*')
+
+    d = difflib.Differ()
+    diff = list(d.compare(filenames1, filenames2))
+    same = [d[2:] for d in diff if d[:2]=='  ']
+    diff = [d for d in diff if ('+ ' in d or '- ' in d)]
+
+    for filename in same:
+        if filename == 'Tax Area.csv':
+            ii=0
+        x = compare_files(folder1+filename, folder2+filename)
+        if len(x)>0:
+            diff.append('* '+filename)
+
+    idx = numpy.argsort([d[2:] for d in diff])
+    diff = numpy.array(diff)[idx]
+
+    return diff
 # ----------------------------------------------------------------------------------------------------------------------
 def append_CSV(csv_record, filename_out, csv_header=None, delim ='\t'):
 
