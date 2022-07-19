@@ -57,7 +57,8 @@ def draw_points(image, points,color=(0,0,200),w=4,transperency=0,put_text=False,
         if numpy.any(numpy.isnan(p)): continue
         clr = color if (len(numpy.array(color).shape) == 1) or type(color) == int else color[i].tolist()
         if put_text:
-            cv2.putText(result, '{0}'.format(id), (min(W - 10, max(10, p[0])), min(H - 5, max(10, p[1]))),cv2.FONT_HERSHEY_SIMPLEX, 1*w/12, clr, 1, cv2.LINE_AA)
+            cv2.putText(result, '%d %d'%(p[0],p[1]), (min(W - 10, max(10, p[0])), min(H - 5, max(10, p[1]))),cv2.FONT_HERSHEY_SIMPLEX, 1*w/12, clr, 1, cv2.LINE_AA)
+
         if labels is not None:
             cv2.putText(result, '{0}'.format(labels[id]), (min(W - 10, max(10, p[0])), min(H - 5, max(10, p[1]))),cv2.FONT_HERSHEY_SIMPLEX, 0.6, clr, 1, cv2.LINE_AA)
 

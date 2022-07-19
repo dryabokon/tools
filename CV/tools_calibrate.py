@@ -265,8 +265,8 @@ def get_transform_by_keypoints_desc(points_source,des_source, points_destin,des_
 
         if M is None:
             return M
-        if not is_transform_good(src, dst, M):
-            M = None
+        # if not is_transform_good(src, dst, M):
+        #     M = None
 
     return M
 # --------------------------------------------------------------------------------------------------------------------------
