@@ -151,6 +151,7 @@ def get_stitched_images_using_homography(img1, img2, M,background_color=(255, 25
 
     result_img_2 = numpy.full(result_img_1.shape,background_color,dtype=numpy.uint8)
     result_img_2[transform_dist[1]:w2 + transform_dist[1], transform_dist[0]:h2 + transform_dist[0]] = img2
+
     if borderMode == cv2.BORDER_REPLICATE:
         result_img_2 = tools_image.fill_border(result_img_2,transform_dist[1],transform_dist[0],w2+transform_dist[1],h2 + transform_dist[0])
 

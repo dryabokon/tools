@@ -549,7 +549,7 @@ def align_color(small,large,mask):
 
     return res
 #----------------------------------------------------------------------------------------------------------------------
-def blend_multi_band_large_small0(large, small, background_color=(255, 255, 255), adjust_colors='avg', filter_size=50, n_clips=1, do_debug=False):
+def blend_multi_band_large_small0(large, small, background_color=(0, 0, 0), adjust_colors='avg', filter_size=50, n_clips=1, do_debug=False):
 
     mask_original = 1*(small[:, :] == background_color)
     mask = mask_original.copy()
