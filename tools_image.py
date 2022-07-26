@@ -170,14 +170,21 @@ def fade_left_right(img,left,right):
 def get_image_affine_rotation_mat(image, angle_deg,reshape=False):
     image_center = tuple(numpy.array(image.shape[1::-1]) / 2)
     rot_mat = cv2.getRotationMatrix2D(image_center, angle_deg, 1.0)
+    h, w = image.shape[:2]
     if reshape:
-        h, w = image.shape[:2]
         sin = math.sin(math.radians(angle_deg))
         cos = math.cos(math.radians(angle_deg))
         b_w = int((h * abs(sin)) + (w * abs(cos)))
         b_h = int((h * abs(cos)) + (w * abs(sin)))
         rot_mat[0, 2] += ((b_w / 2) - image_center[0])
         rot_mat[1, 2] += ((b_h / 2) - image_center[1])
+
+    #check
+    x1, y1 = numpy.matmul(rot_mat, numpy.array((0, 0, 1)))
+    x2, y2 = numpy.matmul(rot_mat, numpy.array((w, 0, 1)))
+    x3, y3 = numpy.matmul(rot_mat, numpy.array((0, h, 1)))
+    x4, y4 = numpy.matmul(rot_mat, numpy.array((w, h, 1)))
+
     return rot_mat
 # ---------------------------------------------------------------------------------------------------------------------
 def rotate_image(image, angle_deg,reshape=False,borderValue=None):
@@ -194,6 +201,21 @@ def rotate_image(image, angle_deg,reshape=False,borderValue=None):
         result = cv2.warpAffine(image, rot_mat, (b_w, b_h), flags=cv2.INTER_LINEAR,borderValue=borderValue)
     else:
         result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR,borderValue=borderValue)
+    return result
+# ---------------------------------------------------------------------------------------------------------------------
+def rotate_point(xy,xy_center,angle_deg,reshape=False):
+    rot_mat = cv2.getRotationMatrix2D(xy_center, angle_deg, 1.0)
+    h, w = xy_center[0]*2,xy_center[1]*2
+    if reshape:
+        sin = math.sin(math.radians(angle_deg))
+        cos = math.cos(math.radians(angle_deg))
+        b_w = int((h * abs(sin)) + (w * abs(cos)))
+        b_h = int((h * abs(cos)) + (w * abs(sin)))
+        rot_mat[0, 2] += ((b_w / 2) - xy_center[0])
+        rot_mat[1, 2] += ((b_h / 2) - xy_center[1])
+
+
+    result = numpy.matmul(rot_mat,(xy[0],xy[1],1))
     return result
 # ---------------------------------------------------------------------------------------------------------------------
 def transpone_image(image):
@@ -505,21 +527,26 @@ def get_borders(image, bg=(255, 255, 255)):
     r = numpy.argmin(flg == False)
     return l, r, 0, 0
 # --------------------------------------------------------------------------------------------------------------------------
-def blend_multi_band(left, rght, background_color=(255, 255, 255)):
+def blend_multi_band(left, rght, background_color=(255, 255, 255),do_debug=False):
 
     left_l, left_r, left_t, left_b = get_borders(left, background_color)
     rght_l, rght_r, rght_t, rght_b = get_borders(rght, background_color)
     border = int((left_r+rght_l)/2)
-
     mask = numpy.zeros(left.shape)
     mask[:, :border] = 1
 
-    leveln = int(numpy.floor(numpy.log2(min(left.shape[0], left.shape[1]))))
+    #leveln = int(numpy.floor(numpy.log2(min(left.shape[0], left.shape[1]))))
+    leveln = 5
+
 
     MP = GaussianPyramid(mask, leveln)
     LPA = LaplacianPyramid(numpy.array(left).astype('float'), leveln)
     LPB = LaplacianPyramid(numpy.array(rght).astype('float'), leveln)
     blended = blend_pyramid(LPA, LPB, MP)
+
+    if do_debug:
+        for i,image in enumerate(LPA):
+            cv2.imwrite('./images/output/%02d.jpg'%i,255*image)
 
     result = reconstruct_from_pyramid(blended)
     result[result > 255] = 255
@@ -549,7 +576,7 @@ def align_color(small,large,mask):
 
     return res
 #----------------------------------------------------------------------------------------------------------------------
-def blend_multi_band_large_small0(large, small, background_color=(0, 0, 0), adjust_colors='avg', filter_size=50, n_clips=1, do_debug=False):
+def blend_multi_band_large_small0(large, small, background_color=(0, 0, 0), adjust_colors='avg', filter_size=50, n_clips=1, do_debug=True):
 
     mask_original = 1*(small[:, :] == background_color)
     mask = mask_original.copy()
