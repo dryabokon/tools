@@ -138,7 +138,7 @@ def draw_cube_rvec_tvec_GL(points_3d, img, rvec, tvec, camera_matrix_3x3, mat_tr
         points_3d = construct_cube_one(scale)
 
     points_2d = project_points_rvec_tvec_GL(points_3d, rvec,tvec, camera_matrix_3x3,mat_trns)
-    lines_2d = numpy.array([(points_2d[i, 0], points_2d[i, 1], points_2d[j, 0], points_2d[j, 1]) for (i,j) in tools_draw_numpy.cuboid_lines_idx1])
+    lines_2d = numpy.array([(points_2d[i, 0], points_2d[i, 1], points_2d[j, 0], points_2d[j, 1]) for (i,j) in tools_draw_numpy.cuboid_lines_idx2])
     img = tools_draw_numpy.draw_lines(img, lines_2d, color=color, w=1)
     img = tools_draw_numpy.draw_points(img, points_2d,color=color,w=w)
     return img

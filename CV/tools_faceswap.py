@@ -321,10 +321,12 @@ class Face_Swapper(object):
 
         # face
         face = self.R_c.morph_2D_mesh(self.image_actor.shape[0], self.image_actor.shape[1], LA_aligned[self.D.idx_removed_eyes], self.L_clbrt[self.D.idx_removed_eyes], self.del_triangles_C)
-        if do_debug: cv2.imwrite(folder_out + 's03-face.jpg', face)
+        if do_debug:
+            cv2.imwrite(folder_out + 's03-face.jpg', face)
         if self.do_narrow_face:
             face = self.narrow_face(face,LA_aligned)
-            if do_debug: cv2.imwrite(folder_out + 's04-face-narrow.jpg', face)
+            if do_debug:
+                cv2.imwrite(folder_out + 's04-face-narrow.jpg', face)
 
 
         filter_face_size = int(0.2*(LA_aligned[:,0].max()-LA_aligned[:,0].min()))
@@ -332,12 +334,12 @@ class Face_Swapper(object):
         if do_debug: cv2.imwrite(folder_out + 's05-blend.jpg', result)
 
         # mouth
-        LA_aligned_mouth = LA_aligned[numpy.arange(48, 61, 1).tolist()]
-        del_mouth = Delaunay(LA_aligned_mouth).vertices
-        temp_mouth = self.R_a.morph_2D_mesh(self.image_actor.shape[0], self.image_actor.shape[1], LA_aligned_mouth, LA_aligned_mouth, del_mouth)
-        if do_debug: cv2.imwrite(folder_out + 's06-temp_mouth.jpg', temp_mouth)
-        filter_mouth_size = filter_face_size//2
-        result = tools_image.blend_multi_band_large_small(result, temp_mouth, (0, 0, 0),adjust_colors=False,filter_size=filter_mouth_size)
+        # LA_aligned_mouth = LA_aligned[numpy.arange(48, 61, 1).tolist()]
+        # del_mouth = Delaunay(LA_aligned_mouth).vertices
+        # temp_mouth = self.R_a.morph_2D_mesh(self.image_actor.shape[0], self.image_actor.shape[1], LA_aligned_mouth, LA_aligned_mouth, del_mouth)
+        # if do_debug: cv2.imwrite(folder_out + 's06-temp_mouth.jpg', temp_mouth)
+        # filter_mouth_size = filter_face_size//2
+        # result = tools_image.blend_multi_band_large_small(result, temp_mouth, (0, 0, 0),adjust_colors=False,filter_size=filter_mouth_size)
 
         if do_debug:
             cv2.imwrite(folder_out + 's07-original.jpg', self.image_actor)
