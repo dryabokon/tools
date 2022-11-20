@@ -69,6 +69,19 @@ def remove_folders(path):
             shutil.rmtree(path + f)
     return
 # ----------------------------------------------------------------------------------------------------------------------
+def copy_folder(folder_in,folder_out):
+
+    if not os.path.exists(folder_out):
+        os.mkdir(folder_out)
+
+    filenames = get_filenames(folder_in, '*.*')
+    for filename in filenames:
+        if os.path.isfile(folder_in + filename):
+            copyfile(folder_in + filename, folder_out + filename)
+
+
+    return
+# ----------------------------------------------------------------------------------------------------------------------
 def compare_files(filename1,filename2):
 
     with open(filename1) as f:lines1 = f.readlines()
@@ -413,51 +426,6 @@ def load_aligned_images_from_folder(path, label, mask="*.bmp", exclusion_folder=
     labels = numpy.full(images.shape[0], label)
 
     return images, labels, filenames
-# ----------------------------------------------------------------------------------------------------------------------
-def preditions_to_mat(labels_fact, labels_pred,patterns):
-    mat = confusion_matrix(numpy.array(labels_fact).astype(numpy.int), numpy.array(labels_pred).astype(numpy.int))
-    accuracy = [100-100*mat[i,i]/numpy.sum(mat[i,:]) for i in range (0,mat.shape[0])]
-
-    idx = numpy.argsort(accuracy).astype(int)
-
-    descriptions = numpy.array([('%s %3d%%' % (patterns[i], 100-accuracy[i])) for i in range (0,mat.shape[0])])
-
-    a_test = numpy.zeros(labels_fact.shape[0])
-    a_pred = numpy.zeros(labels_fact.shape[0])
-
-    for i in range(0,a_test.shape[0]):
-        a_test[i] = smart_index(idx ,int(labels_fact[i]))[0]
-        a_pred[i] = smart_index(idx, int(labels_pred[i]))[0]
-
-    mat2 = confusion_matrix(numpy.array(a_test).astype(numpy.int), numpy.array(a_pred).astype(numpy.int))
-    ind = numpy.array([('%3d' % i) for i in range(0, idx.shape[0])])
-
-    l = numpy.array([len(each) for each in descriptions]).max()
-    descriptions = numpy.array([" " * (l - len(each)) + each for each in descriptions]).astype(numpy.chararray)
-    descriptions = [ind[i] + ' | ' + descriptions[idx[i]] for i in range(0, idx.shape[0])]
-
-    return mat2,descriptions, patterns[idx]
-# ----------------------------------------------------------------------------------------------------------------------
-def print_accuracy(labels_fact, labels_pred,patterns,filename = None):
-
-    if (filename!=None):
-        file = open(filename, 'w')
-    else:
-        file = None
-
-    mat,descriptions,sorted_labels = preditions_to_mat(labels_fact, labels_pred,patterns)
-    ind = numpy.array([('%3d' % i) for i in range(0, mat.shape[0])])
-    TP = float(numpy.trace(mat))
-
-    my_print_int(numpy.array(mat).astype(int),rows=descriptions,cols=ind.astype(int),file = file)
-
-    print("Accuracy = %d/%d = %1.4f" % (TP, float(numpy.sum(mat)), float(TP/numpy.sum(mat))),file=file)
-    print("Fails    = %d" % float(numpy.sum(mat) - TP),file=file)
-    print(file=file)
-
-    if (filename != None):
-        file.close()
-    return
 # ----------------------------------------------------------------------------------------------------------------------
 def print_reject_rate(labels_fact, labels_pred, labels_prob,filename=None):
 

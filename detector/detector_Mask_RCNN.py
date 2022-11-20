@@ -1,7 +1,6 @@
 # ----------------------------------------------------------------------------------------------------------------------
 import time
 import numpy
-import tensorflow as tf
 import cv2
 import os
 from os import listdir
@@ -10,7 +9,7 @@ import fnmatch
 import tools_image
 import tools_YOLO
 import tools_IO
-from detector import detector_Mask_RCNN_core
+#from detector import detector_Mask_RCNN_core
 # ----------------------------------------------------------------------------------------------------------------------
 class InferenceConfig(detector_Mask_RCNN_core.CocoConfig):
     GPU_COUNT = 1

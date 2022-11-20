@@ -5,9 +5,9 @@ import tools_image
 import tools_draw_numpy
 import tools_filter
 # ----------------------------------------------------------------------------------------------------------------
-from numba.errors import NumbaWarning
-import warnings
-warnings.simplefilter('ignore', category=NumbaWarning)
+#from numba.errors import NumbaWarning
+#import warnings
+#warnings.simplefilter('ignore', category=NumbaWarning)
 # ----------------------------------------------------------------------------------------------------------------
 class Mask(object):
     def __init__(self,image,folder_out=None):

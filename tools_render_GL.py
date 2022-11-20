@@ -36,17 +36,19 @@ def project_points_MVP_ortho(points_3d, W,H, mat_projection, mat_view, mat_model
 # ----------------------------------------------------------------------------------------------------------------------
 def project_points_MVP_GL(points_3d,W,H,mat_projection,mat_view,mat_model,mat_trns):
 
+
+    M = numpy.dot(mat_view.T, numpy.dot(mat_model.T, mat_trns.T))
+
+    X4D = numpy.concatenate((points_3d,numpy.ones((points_3d.shape[0],1))),axis=1)
+    X3D = numpy.dot(M, X4D.T).T[:, :3]
+
     camera_matrix_3x3 = tools_pr_geom.compose_projection_mat_3x3(W, H, 1 / mat_projection[0][0],1 / mat_projection[1][1])
 
-    M = pyrr.matrix44.multiply(mat_view.T, pyrr.matrix44.multiply(mat_model.T, mat_trns.T))
-    X4D = numpy.hstack((points_3d, numpy.full((len(points_3d), 1), 1)))
-    L3D = pyrr.matrix44.multiply(M, X4D.T).T[:, :3]
-
-    method = 1
+    method = 0
     if method == 0:  # opencv equivalent
-        points_2d, jac = cv2.projectPoints(L3D, numpy.array((0.0, 0.0, 0.0)), numpy.array((0.0, 0.0, 0.0)),camera_matrix_3x3, numpy.zeros(4, dtype=float))
+        points_2d, jac = cv2.projectPoints(X3D, numpy.zeros(3), numpy.zeros(3),camera_matrix_3x3, numpy.zeros(5))
     else:
-        points_2d, jac = tools_pr_geom.project_points(L3D, numpy.array((0.0, 0.0, 0.0)), numpy.array((0.0, 0.0, 0.0)),camera_matrix_3x3)
+        points_2d, jac = tools_pr_geom.project_points(X3D, numpy.zeros(3), numpy.zeros(3),camera_matrix_3x3)
 
     points_2d = points_2d.reshape((-1, 2))
     points_2d[:, 0] = W - points_2d[:, 0]
@@ -95,11 +97,11 @@ def draw_points_MVP_GL(points_3d, img, mat_projection, mat_view, mat_model, mat_
 
     if do_debug:
         posx,posy = img.shape[1]-250,0
-        tools_draw_numpy.draw_mat(mat_trns,  posx, posy+20, img,(0,128,255))
-        tools_draw_numpy.draw_mat(mat_model, posx, posy+120, img,(0,128,255))
-        tools_draw_numpy.draw_mat(mat_view,  posx, posy+220, img,(0,128,255))
-        tools_draw_numpy.draw_mat(mat_projection, posx, posy+320, img,(0,128,255))
-        tools_draw_numpy.draw_mat(mat_projection, posx, posy+320, img,(0,128,255))
+        img = tools_draw_numpy.draw_mat(mat_trns,  posx, posy+20, img,(0,128,255))
+        img = tools_draw_numpy.draw_mat(mat_model, posx, posy+120, img,(0,128,255))
+        img = tools_draw_numpy.draw_mat(mat_view,  posx, posy+220, img,(0,128,255))
+        img = tools_draw_numpy.draw_mat(mat_projection, posx, posy+320, img,(0,128,255))
+        img = tools_draw_numpy.draw_mat(mat_projection, posx, posy+320, img,(0,128,255))
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
@@ -191,8 +193,8 @@ def rotate_view(M,delta_angle):
     # M_new = pyrr.matrix44.multiply(M, RR)
     return M_new
 # ----------------------------------------------------------------------------------------------------------------------
-def define_cam_position(W,H,cam_fov_deg = 11,cam_offset_dist = 64,cam_height = 6.5,a_pitch=0):
-
+def define_cam_position(W,H,cam_fov_deg = 11,cam_offset_dist = 64,cam_height = 6.5):
+    a_pitch = -numpy.arctan(cam_height / cam_offset_dist)
     rvec, tvec  = [0,0.0,0], [0, cam_height, cam_offset_dist]
     tg_half_fovx = numpy.tan(cam_fov_deg * numpy.pi / 360)
     camera_matrix_3x3 = tools_pr_geom.compose_projection_mat_3x3(W, H, tg_half_fovx, tg_half_fovx)

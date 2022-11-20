@@ -1,8 +1,9 @@
-import math
 import cv2
 import numpy
 from keras.models import Model
 from keras.layers.convolutional import  Conv2D,UpSampling2D, Conv2DTranspose,Cropping2D
+# ----------------------------------------------------------------------------------------------------------------------
+import tools_image
 # ----------------------------------------------------------------------------------------------------------------------
 def inverce_weight(W,b_size):
 
@@ -311,10 +312,10 @@ def construct_weights(N,height,width):
 # ---------------------------------------------------------------------------------------------------------------------
 def construct_weights_2x2(n=16):
 
-    F = numpy.zeros((2, 2, 3,n))
+    F = numpy.full((2, 2, 3,n),-1/4.0)
 
     for c in range (0,3):
-        F[:, :, c,  0] = numpy.array([[-1, -1], [-1, -1]]).astype(numpy.float32)/4.0
+        F[:, :, c,  1] = numpy.array([[-1, -1], [-1, -1]]).astype(numpy.float32)/4.0
         F[:, :, c,  1] = numpy.array([[-1, -1], [-1, +1]]).astype(numpy.float32)/4.0
         F[:, :, c,  2] = numpy.array([[-1, -1], [+1, -1]]).astype(numpy.float32)/4.0
         F[:, :, c,  3] = numpy.array([[-1, -1], [+1, +1]]).astype(numpy.float32)/4.0

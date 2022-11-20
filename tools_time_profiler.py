@@ -1,10 +1,7 @@
 import os
-import numpy
 import time
+import numpy
 import pandas as pd
-#----------------------------------------------------------------------------------------------------------------------
-#start - get_vp
-#02:42 - get_vp
 #----------------------------------------------------------------------------------------------------------------------
 class Time_Profiler():
     
@@ -65,6 +62,7 @@ class Time_Profiler():
         V = [self.dict_event_time[e]/self.dict_event_cnt[e] for e in E if self.dict_event_cnt[e]>0]
 
         idx = numpy.argsort(-numpy.array(V))
+
 
         f_handle = os.open(filename_out, os.O_RDWR | os.O_CREAT)
 

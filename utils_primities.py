@@ -398,20 +398,29 @@ class Boxes(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def save_to_file(self, filename_out, filenames):
 
-        df_res = pd.DataFrame([])
-        for c,col_name in enumerate(self.orig_columns):
-            if c==self.idx_ID:
-                df = pd.DataFrame(filenames[self.filename_IDs], columns=[self.orig_columns[c]])
-            elif c==self.idx_pos:
-                df = pd.DataFrame(self.xyxy, columns=self.orig_columns[c:c + 4]).astype(int)
-            elif c in [self.idx_pos+1,self.idx_pos+2,self.idx_pos+3]:
-                continue
-            else:
-                df = pd.DataFrame(['']*self.xyxy.shape[0], columns=[self.orig_columns[c]])
-            df_res = pd.concat([df_res,df],axis=1,ignore_index=True)
+        # df_res = pd.DataFrame([])
+        # for c,col_name in enumerate(self.orig_columns):
+        #     if c==self.idx_ID:
+        #         df = pd.DataFrame(filenames[self.filename_IDs], columns=[self.orig_columns[c]])
+        #     elif c==self.idx_pos:
+        #         df = pd.DataFrame(self.xyxy, columns=self.orig_columns[c:c + 4]).astype(int)
+        #     elif c in [self.idx_pos+1,self.idx_pos+2,self.idx_pos+3]:
+        #         continue
+        #     else:
+        #         df = pd.DataFrame(['']*self.xyxy.shape[0], columns=[self.orig_columns[c]])
+        #     df_res = pd.concat([df_res,df],axis=1,ignore_index=True)
+        #
+        # df_res = df_res.rename(columns=dict(zip(df_res.columns,self.orig_columns)))
+        # df_res.to_csv(filename_out,sep=self.sep,index=False)
 
-        df_res = df_res.rename(columns=dict(zip(df_res.columns,self.orig_columns)))
-        df_res.to_csv(filename_out,sep=self.sep,index=False)
+        f = open(filename_out, 'w')
+        f.write('filename x1 y1 x2 y2 class_ID\n')
+        f.close()
+
+        for filename_ID,line,id in zip(self.filename_IDs,self.xyxy,self.ids):
+            if numpy.any(numpy.isnan(line)): continue
+            tools_IO.save_raw_vec([filenames[int(filename_ID)], int(line[0]), int(line[1]), int(line[2]), int(line[3]), int(id)], filename_out, mode=(os.O_RDWR | os.O_APPEND), fmt='%s', delim=' ')
+
 
         return
 # ----------------------------------------------------------------------------------------------------------------------

@@ -881,13 +881,15 @@ def circle_line_intersection(center, R, pt1, pt2, full_line=True, tangent_tol=1e
     if discriminant < 0:  # No intersection between circle and line
         result = []
     else:  # There may be 0, 1, or 2 intersections with the segment
-        intersections = [
-            (cx + (big_d * dy + sign * (-1 if dy < 0 else 1) * dx * discriminant**.5) / dr ** 2,
-             cy + (-big_d * dx + sign * abs(dy) * discriminant**.5) / dr ** 2)
-            for sign in ((1, -1) if dy < 0 else (-1, 1))]  # This makes sure the order along the segment is correct
+        intersections = []
+        for sign in ((1, -1) if dy < 0 else (-1, 1)):
+            intersections.append((cx + (big_d * dy + sign * (-1 if dy < 0 else 1) * dx * discriminant**.5) / dr ** 2, cy + (-big_d * dx + sign * abs(dy) * discriminant**.5) / dr ** 2))
+
+        # intersections = [(cx + (big_d * dy + sign * (-1 if dy < 0 else 1) * dx * discriminant**.5) / dr ** 2, cy + (-big_d * dx + sign * abs(dy) * discriminant**.5) / dr ** 2)
+        #     for sign in ((1, -1) if dy < 0 else (-1, 1))]  # This makes sure the order along the segment is correct
         if not full_line:  # If only considering the segment, filter out intersections that do not fall within the segment
             fraction_along_segment = [(xi - p1x) / dx if abs(dx) > abs(dy) else (yi - p1y) / dy for xi, yi in intersections]
-            intersections = [pt for pt, frac in zip(intersections, fraction_along_segment) if 0 <= frac <= 1]
+            intersections = [pt for pt, frac in zip(intersections, fraction_along_segment) if 0 <= abs(frac) <= 1]
         if len(intersections) == 2 and abs(discriminant) <= tangent_tol:  # If line is tangent to circle, return just one point (as both intersections have same location)
             result = [intersections[0]]
         else:

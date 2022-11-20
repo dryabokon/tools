@@ -23,22 +23,6 @@ def numerical_devisor(n):
 
 
     return n
-#--------------------------------------------------------------------------------------------------------------------------
-def canvas_extrapolate_gray(gray, new_height, new_width):
-
-    newimage = numpy.zeros((new_height,new_width),numpy.uint8)
-    shift_x = int((newimage.shape[0] - gray.shape[0]) / 2)
-    shift_y = int((newimage.shape[1] - gray.shape[1]) / 2)
-    newimage[shift_x:shift_x + gray.shape[0], shift_y:shift_y + gray.shape[1]] = gray[:, :]
-
-    newimage[:shift_x, shift_y:shift_y + gray.shape[1]] = gray[0, :]
-    newimage[shift_x + gray.shape[0]:, shift_y:shift_y + gray.shape[1]] = gray[-1, :]
-
-    for row in range(0, newimage.shape[0]):
-        newimage[row, :shift_y] = newimage[row, shift_y]
-        newimage[row, shift_y + gray.shape[1]:] = newimage[row, shift_y + gray.shape[1] - 1]
-
-    return newimage
 # ---------------------------------------------------------------------------------------------------------------------
 def smart_resize(img, target_image_height, target_image_width,bg_color=(128, 128, 128)):
     '''resize image with unchanged aspect ratio using padding'''
@@ -47,6 +31,13 @@ def smart_resize(img, target_image_height, target_image_width,bg_color=(128, 128
     pillow_image = Image.fromarray(img)
 
     original_image_width, original_image_height = pillow_image.size
+
+    if target_image_width is None:
+        target_image_width = int(img.shape[1]*target_image_height/img.shape[0])
+
+    if target_image_height is None:
+        target_image_height = int(img.shape[0]*target_image_width/img.shape[1])
+
 
     scale = min(target_image_width / original_image_width, target_image_height / original_image_height)
     nw = int(original_image_width * scale)

@@ -4,6 +4,7 @@ from sklearn.impute import SimpleImputer
 from sklearn import preprocessing
 from collections import Counter
 from tabulate import tabulate
+import struct
 # ----------------------------------------------------------------------------------------------------------------------
 def df_to_XY(df,idx_target,numpy_style=True):
 
@@ -16,6 +17,10 @@ def df_to_XY(df,idx_target,numpy_style=True):
     else:
         X = df.iloc[:, idx]
     return X,Y
+# ---------------------------------------------------------------------------------------------------------------------
+def XY_to_df(X,Y):
+    df = pd.concat([pd.DataFrame(Y),pd.DataFrame(X)],axis=1)
+    return df
 # ---------------------------------------------------------------------------------------------------------------------
 def get_categoricals_hash_map(df):
 
@@ -77,6 +82,9 @@ def impute_na(df,strategy='constant',strategy_bool='str'):
 
     imp = SimpleImputer(missing_values=numpy.nan, strategy=strategy)
     for column in df.columns:
+        if column=='pressure':
+            pp=0
+
         if any([isinstance(v, bool) for v in df[column]]):
             if strategy_bool == 'int':
                 df[column] = df[column].fillna(numpy.nan).map(dict(zip([False,numpy.nan,True], [-1,0,1]))).astype('int32')
@@ -225,7 +233,7 @@ def from_multi_column(df,idx_time):
     for col in columns[idx]:
         value = df.loc[:, col]
         df_frame = pd.DataFrame({col_time:df.iloc[:, 0],'label':col,'value':value})
-        df_res = df_res.append(df_frame, ignore_index=True)
+        df_res = pd.concat([df_res,df_frame],ignore_index=True)
 
     return df_res
 # ---------------------------------------------------------------------------------------------------------------------
@@ -346,19 +354,33 @@ def apply_filter(df,col_name,filter,inverce=False):
 
     return df[idx]
 # ---------------------------------------------------------------------------------------------------------------------
-def prettify(df,showindex=True,tablefmt='psql'):
-    res = tabulate(df, headers=df.columns, tablefmt=tablefmt, showindex=showindex)
+def prettify(df,showheader=True,showindex=True,tablefmt='psql',filename_out=None):
+    res = tabulate(df, headers=df.columns if showheader else [], tablefmt=tablefmt, showindex=showindex)
+
+    if filename_out is not None:
+        with open(filename_out, 'w', encoding='utf-8') as f:
+            f.write(res)
+
     return res
 # ---------------------------------------------------------------------------------------------------------------------
+
 def fetch(df1,col_name1,df2,col_name2,col_value,col_new_name=None):
     df_res = df1.copy()
 
     if isinstance(col_value,list):
         for c,col in enumerate(col_value):
-            V = pd.merge(df1[col_name1], df2[[col_name2, col]].drop_duplicates(subset=[col_name2]), how='left',left_on=col_name1, right_on=col_name2)[col]
+            if isinstance(col_name2, list):
+                lst = col_name2 + [col]
+                ddd = df2[lst].drop_duplicates(subset=col_name2)
+            else:
+                ddd = df2[[col_name2, col]].drop_duplicates(subset=[col_name2])
+            V = pd.merge(df1[col_name1], ddd, how='left',left_on=col_name1, right_on=col_name2)[col]
             df_res[col if col_new_name is None else col_new_name[c]] = [v for v in V.values]
     else:
-        ddd = df2[[col_name2, col_value]].drop_duplicates(subset=[col_name2])
+        if isinstance(col_name2,list):
+            ddd = df2[col_name2+[col_value]].drop_duplicates(subset=col_name2)
+        else:
+            ddd = df2[[col_name2, col_value]].drop_duplicates(subset=[col_name2])
         V = pd.merge(df1[col_name1],ddd,how='left',left_on=col_name1,right_on=col_name2)[col_value]
         df_res[(col_value if col_new_name is None else col_new_name)] = [v for v in V.values]
 
@@ -525,3 +547,18 @@ def get_delta(df_agg1,df_agg2,absolute=False):
         df['delta'] = df['delta'].apply(lambda x:-cap if x<-cap else x)
 
     return df.iloc[:,[0,-1]]
+# ---------------------------------------------------------------------------------------------------------------------
+def to_hex(df):
+    df2 = df.copy()
+    for c in df.columns:
+        df2[c]=df[c].apply(lambda x:''.join(format(b, '02x') for b in bytearray(struct.pack('f', x))))
+
+    return df2
+# ---------------------------------------------------------------------------------------------------------------------
+def from_hex(df):
+    df2 = df.copy()
+    for c in df.columns:
+        df2[c] = df[c].apply(lambda str_hex:struct.unpack('f', b''.join([bytes.fromhex(str_hex[i:i + 2]) for i in range(0, len(str_hex), 2)]))[0])
+
+    return df2.astype(float)
+# ---------------------------------------------------------------------------------------------------------------------

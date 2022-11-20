@@ -68,7 +68,7 @@ class Plotter_dancing:
 
             df_i_local[col_label] = label
             df_i_local['frameID'] = numpy.arange(0, df_i_local.shape[0])
-            df_i_res_all = df_i_res_all.append(df_i_local, ignore_index=True)
+            df_i_res_all = pd.concat([df_i_res_all,df_i_local], ignore_index=True)
 
         df_i_res_all[col_time] = df_i_res_all[col_time].apply(lambda x: dct_id_to_time[int(x)])
         df_i_res_all.rename(columns={col_time: col_time0}, inplace=True)
@@ -97,11 +97,11 @@ class Plotter_dancing:
         times = numpy.sort(numpy.unique(df[col_time].to_numpy()))
         df_res_all = pd.DataFrame()
 
-        for pos_now in numpy.arange(-1, -(times.shape[0] - n_last - 1), -1):
+        for pos_now in range(0,times.shape[0]):
             df_res = self.__get_dynamics_df(df, col_time, col_label, col_value, pos_now=pos_now, n_last=n_last, keep_n_largest=keep_n_largest)
             df_res['time'] = times[pos_now]
             df_res['rank'] = tools_IO.rank(df_res['now'].values)
-            df_res_all = df_res_all.append(df_res, ignore_index=True)
+            df_res_all = pd.concat([df_res_all,df_res], ignore_index=True)
 
         df_res_all.rename(columns={'now': 'value'}, inplace=True)
         df_res_all.sort_values(by=['time','rank'], inplace=True)
@@ -135,6 +135,7 @@ class Plotter_dancing:
 
 
 
+
         if max_value is None or numpy.isnan(max_value):
             xlim = None
         else:
@@ -160,11 +161,14 @@ class Plotter_dancing:
             order = v.argsort()
             ranks = 1+order.argsort()
             df_time[col_rank] = ranks
-            df_res = df_res.append(df_time, ignore_index=True)
+            #df_res = df_res.append(df_time, ignore_index=True)
+            df_res = pd.concat([df_res,df_time], ignore_index=True)
 
         return df_res
 # ---------------------------------------------------------------------------------------------------------------------
     def fetch_start_stop(self,df_start,df_stop,col_time,col_label,col_value,col_rank,max_rank):
+
+        dct = dict(zip([c for c in df_start.columns], [t for t in df_start.dtypes]))
 
         for index, row in df_start.iterrows():
             label = row[col_label]
@@ -172,7 +176,10 @@ class Plotter_dancing:
                 row[col_rank]=max_rank+1
                 row[col_value] = 0
                 row[col_time] = df_stop[col_time].iloc[0]
-                df_stop = df_stop.append(row, ignore_index=True)
+                #df_stop0 = df_stop.append(row, ignore_index=True)
+                df_row = pd.DataFrame(row).T.astype(dct)
+                df_stop = pd.concat([df_stop,df_row], ignore_index=True,axis=0)
+
 
         for index, row in df_stop.iterrows():
             label = row[col_label]
@@ -180,9 +187,14 @@ class Plotter_dancing:
                 row[col_rank]=max_rank+1
                 row[col_value] = 0
                 row[col_time] = df_start[col_time].iloc[0]
-                df_start = df_start.append(row, ignore_index=True)
+                #df_start = df_start.append(row, ignore_index=True)
+                df_row = pd.DataFrame(row).T.astype(dct)
+                df_start = pd.concat([df_start,df_row], ignore_index=True,axis=0)
 
         df_res = pd.concat([df_start, df_stop], ignore_index=True, axis=0)
+        #df_res[col_time]=df_res[col_time].astype(numpy.datetime)
+        #df_res[col_time] = pd.to_datetime(df_res[col_time])
+
         return df_res
 # ---------------------------------------------------------------------------------------------------------------------
     def plot_dynamics_histo(self, df0, col_time,col_label,col_value,in_format_x=None,out_format_x=None,n_tops=5, n_extra=12):

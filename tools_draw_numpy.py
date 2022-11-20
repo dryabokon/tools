@@ -2,10 +2,13 @@ import os
 import cv2
 import numpy
 import matplotlib.cm as cm
+import pandas as pd
+from matplotlib import colors
 from scipy.spatial import ConvexHull
 from skimage.draw import disk, line_aa,ellipse,circle_perimeter_aa
 from PIL import Image, ImageDraw,ImageFont,ImageColor
 import matplotlib.pyplot as plt
+from tabulate import tabulate
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_image
 import tools_DF
@@ -136,14 +139,15 @@ def draw_text(image,label,xy, color_fg,clr_bg=None,font_size=16,alpha_transp=0):
     draw = ImageDraw.Draw(pImage, 'RGBA')
 
     if os.name in ['nt']:
-        font = ImageFont.truetype("calibri.ttf", size=font_size, encoding="utf-8")
+        #font = ImageFont.truetype("calibri.ttf", size=font_size, encoding="utf-8")
+        font = ImageFont.truetype("UbuntuMono-R.ttf", size=font_size, encoding="utf-8")
     else:
         font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", size=font_size, encoding="utf-8")
 
     total_display_str_height = 1.1 * (font.getsize(label)[1])
     text_bottom = y if y > total_display_str_height else y + total_display_str_height
 
-    clr = (numpy.array(color_fg)*(1-alpha_transp)+numpy.array(clr_bg)*(alpha_transp)).astype(numpy.int) if clr_bg is not None else color_fg
+    clr = (numpy.array(color_fg)*(1-alpha_transp)+numpy.array(clr_bg)*(alpha_transp)).astype(numpy.int) if clr_bg is not None else numpy.array(color_fg).astype(numpy.int)
 
     text_width, text_height = font.getsize(label)
     margin = numpy.ceil(0.05 * text_height)
@@ -155,15 +159,25 @@ def draw_text(image,label,xy, color_fg,clr_bg=None,font_size=16,alpha_transp=0):
 
     return result
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_mat(M, posx, posy, image,color=(128, 128, 0)):
-    for row in range(M.shape[0]):
-        if M.shape[1]==4:
-            string1 = '%+1.2f %+1.2f %+1.2f %+1.2f' % (M[row, 0], M[row, 1], M[row, 2], M[row, 3])
-        else:
-            string1 = '%+1.2f %+1.2f %+1.2f' % (M[row, 0], M[row, 1], M[row, 2])
-        #image = cv2.putText(image, '{0}'.format(string1), (posx, posy + 20 * row), cv2.FONT_HERSHEY_SIMPLEX, 0.4,color, 1, cv2.LINE_AA)
-        image = draw_text(image, '{0}'.format(string1), (posx, posy + 20 * row), color_fg=color, clr_bg=None, font_size=16, alpha_transp=0)
-    return image
+def draw_mat(M, posx, posy, image,color=(128, 128, 0),text=None):
+
+    df = pd.DataFrame(M)
+    if df.shape[1]==1:
+        df=df.T
+    for c in df.columns:
+        V = numpy.array(['%+1.2f' % v for v in df[c]]).astype(numpy.str)
+        df[c] = pd.Series(V).astype(numpy.str)
+
+    string1 = tabulate(df,headers=[],showindex=False,tablefmt='plsql',disable_numparse=True)
+    string1 = string1.split('\n')[1: -1]
+    if text is not None:
+        string1[0]=  string1[0] + ' ' + text
+
+    string1 = '\n'.join(string1)
+
+
+    image_res = draw_text(image,string1, (posx, posy), color_fg=color, font_size=16)
+    return image_res
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_cuboid(image, points_2d, idx_mode = 1, color=(255, 255, 255), w=1,idx_face = [0,1,2,3]):
 
@@ -510,6 +524,24 @@ def get_colors_cool(N,dark_mode=False):
 
     res_colors = numpy.array([colors_cool[int(i)] for i in numpy.linspace(64, 192, N)])
     return res_colors
+# ---------------------------------------------------------------------------------------------------------------------
+def get_colors_custom():
+    # map_RdBu = [cm.RdBu(i) for i in numpy.linspace(0, 1, 15)]
+    # map_PuOr = [cm.PuOr(i) for i in numpy.linspace(0, 1, 15)]
+    # my_cmap = map_RdBu[7:][::-1] + map_PuOr[:7][::-1]
+    # my_cmap = colors.ListedColormap(my_cmap)
+
+    #
+    map_c = [plt.cm.cividis(i) for i in numpy.linspace(0, 1, 15)]
+    my_cmap = colors.ListedColormap(map_c)
+
+
+
+    # my_cmap2 = ['#0057b8','#2E598A','#5C5C5C','#808080','#C0AC40','#ffd700']
+    # my_cmap2 = ['#0057b8','#0B57AD','#1558A3','#29598F','#3D5A7B','#515B67','#5B5C5D','#82817E','#908B70','#AC9F54','#C8B238','#E4C51C','#F2CF0E','#FFD700']
+    # my_cmap2 = [BGR_from_HTML(c)/255.0 for c in my_cmap2]
+    # my_cmap = colors.ListedColormap(my_cmap2)
+    return my_cmap
 # ---------------------------------------------------------------------------------------------------------------------
 def BGR_from_HTML(color_HTML='#000000'):
     col = numpy.array(ImageColor.getcolor(color_HTML, "RGB"))

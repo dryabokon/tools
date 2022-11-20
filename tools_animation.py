@@ -70,34 +70,46 @@ def folders_to_animated_gif_ffmpeg(path_input,path_out, mask='.png', framerate=1
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
-def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png', framerate=10,stop_ms=None,resize_H=None, resize_W=None,stride=1,do_reverce=False):
+def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png', framerate=10,stop_ms=0,duration_ms=None,resize_H=None, resize_W=None,stride=1,do_reverce=False):
     tools_IO.remove_file(filename_out)
 
     images = []
     filenames = tools_IO.get_filenames(path_input,mask)
-
-    for b in numpy.arange(0,len(filenames),stride):
-        filename_in = filenames[b]
-        image = cv2.imread(path_input+filename_in)
-        if resize_H is not None and resize_W is not None:
-            image = tools_image.do_resize(image,(resize_W,resize_H))
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        images.append(image)
-
-    if stop_ms is not None:
-        images+=[image]*int(stop_ms*framerate/1000)
-
-    images = numpy.array(images,dtype=numpy.uint8)
-
-    if not do_reverce:
-        imageio.mimsave(filename_out, images, 'GIF', duration=1/framerate)
+    if duration_ms is None:
+        for b in numpy.arange(0,len(filenames),stride):
+            image = cv2.imread(path_input+filenames[b])
+            if resize_H is not None and resize_W is not None:
+                image = tools_image.do_resize(image,(resize_W,resize_H))
+            image = tools_image.desaturate(image,0.2)
+            images.append(image)
     else:
-        images_all = []
-        for image in images:images_all.append(image)
-        for image in reversed(images): images_all.append(image)
-        images_all = numpy.array(images_all,dtype=images.dtype)
-        imageio.mimsave(filename_out, images_all, 'GIF', duration=1 / framerate)
+        II = numpy.linspace(0,len(filenames),int((duration_ms - stop_ms) * framerate/1000/(2 if do_reverce else 1)),endpoint=True).astype(numpy.int)
+        II[II==len(filenames)]=len(filenames)-1
 
+        images_orig = []
+        for b in numpy.arange(0,len(filenames),stride):
+            image = cv2.imread(path_input+filenames[b])
+            if resize_H is not None and resize_W is not None:
+                image = tools_image.do_resize(image,(resize_W,resize_H))
+            images_orig+=[image]
+
+        for i in II:
+            images+=[images_orig[i]]
+
+    if do_reverce:
+        images = images + images[::-1]
+
+    if stop_ms>0:
+        images+=[images[-1]]*int(stop_ms*framerate/1000)
+
+    if '.gif' in filename_out:
+        images = numpy.array(images, dtype=numpy.uint8)[:, :, :, [2, 1, 0]]
+        imageio.mimsave(filename_out, images, 'GIF', duration=(1/framerate if duration_ms is None else duration_ms/len(images)/1000))
+
+    else:
+        tools_IO.remove_files(filename_out,create=True)
+        for i,image in enumerate(images):
+            cv2.imwrite(filename_out + '%04d.png' % i, image)
 
 
     return
@@ -110,9 +122,10 @@ def folder_to_video(folder_in, filename_out, mask='*.jpg', framerate=24, resize_
         image = cv2.imread(os.path.join(folder_in, fileslist[0]))
         resize_H, resize_W = image.shape[:2]
 
-    #fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    #fourcc = cv2.VideoWriter_fourcc(*'XVID')
     #fourcc = cv2.VideoWriter_fourcc(*'H264')
-    fourcc = cv2.VideoWriter_fourcc(*'avc1')
+    #fourcc = cv2.VideoWriter_fourcc(*'avc1')
     #fourcc = cv2.VideoWriter_fourcc(*'MSVC')
 
     out = cv2.VideoWriter(filename_out,fourcc, framerate, (resize_W,resize_H))
@@ -134,6 +147,16 @@ def folder_to_video(folder_in, filename_out, mask='*.jpg', framerate=24, resize_
     #cv2.destroyAllWindows()
     return
 # ---------------------------------------------------------------------------------------------------------------------
+def folders_to_video(folder_in,filename_out):
+    subfolders = tools_IO.get_sub_folder_from_folder(folder_in)
+    for subfolder in subfolders:
+        folder_to_video(folder_in+subfolder+'/', folder_in+subfolder+'.mp4', mask='*.jpg,*.png', framerate=24)#,resize_W=1920, resize_H=1080
+    merge_videos_ffmpeg(folder_in, '*.mp4',filename_out=filename_out)
+
+    for subfolder in subfolders:
+        tools_IO.remove_file(folder_in+subfolder+'.mp4')
+    return
+# ---------------------------------------------------------------------------------------------------------------------
 def crop_images_in_folder(path_input,path_output,top, left, bottom, right,mask='*.jpg'):
     tools_IO.remove_files(path_output,create=True)
 
@@ -145,6 +168,58 @@ def crop_images_in_folder(path_input,path_output,top, left, bottom, right,mask='
 
         image = tools_image.crop_image(image,top, left, bottom, right)
         cv2.imwrite(path_output+filename,image)
+
+    return
+# ---------------------------------------------------------------------------------------------------------------------
+def compose_scene(folder_in,folder_out,target_W,target_H,pad_left=0,pad_top=0,pad_right=0,pad_bottom=0,img_header=None):
+
+    col_bg = (255,255,255)
+    #col_bg = (43,43,43)
+    #col_bg = (192, 192, 192)
+    tools_IO.remove_files(folder_out,create=True)
+
+    target_frame_height,target_frame_width = None,None
+    if pad_right is not None:
+        target_frame_width = int(target_W - pad_right - pad_left)
+    if pad_bottom is not None:
+        target_frame_height = int(target_H - pad_top - pad_bottom)
+
+    for filename in tools_IO.get_filenames(folder_in,'*.png,*.jpg'):
+        im_frame = cv2.imread(folder_in+filename)
+        #im_frame = tools_image.do_rescale(im_frame,1.5)
+
+        image = numpy.full((target_H, target_W, 3), col_bg, dtype=numpy.uint8)
+
+        if target_frame_height is not None or target_frame_width is not None:
+            im_frame = tools_image.smart_resize(im_frame, target_frame_height, target_frame_width, bg_color=col_bg)
+
+
+        image = tools_image.put_image(image,im_frame,pad_top,pad_left)
+        if img_header is not None:
+            image = tools_image.put_image(image, img_header, 0, 0)
+
+        cv2.imwrite(folder_out+filename,image)
+
+
+    return
+# ---------------------------------------------------------------------------------------------------------------------
+def fly_effetct(folder_in,folder_out,left,top,right,bottom,n_frames,effect='in'):
+    col_bg = (255, 255, 255)
+    tools_IO.remove_files(folder_out, create=True)
+    filenames = tools_IO.get_filenames(folder_in, '*.png,*.jpg')
+
+    image0 = cv2.imread(folder_in + filenames[0 if effect == 'in' else -1])
+    im_fg = image0[top:bottom, left:right].copy()
+    image0[top:bottom, left:right]=col_bg
+
+    for frame in range(n_frames):
+        delta = (right - left) * frame / (n_frames - 1)
+        if effect=='in':
+            col = int(right-delta)
+        else:
+            col = int(left - delta)
+        cv2.imwrite(folder_out + '%03d.png'%frame, tools_image.put_image(image0,im_fg,top,col))
+
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
@@ -227,14 +302,14 @@ def merge_all_folders(list_of_folders,folder_out,target_W,target_H,filename_wate
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
-def merge_videos_ffmpeg(folder_in,mask):
+def merge_videos_ffmpeg(folder_in,mask,filename_out='video.mp4'):
     fileslist = numpy.array(tools_IO.get_filenames(folder_in,mask)).reshape((-1,1))
 
     A = numpy.hstack((numpy.full((fileslist.shape[0],1),'file'),fileslist))
 
     filename_temp = 'tmplist.txt'
     tools_IO.save_mat(A, folder_in+filename_temp,fmt='%s',delim=' ')
-    command_make_video = 'ffmpeg -f concat -safe 0 -i %s -map 0:v:0 -pix_fmt yuv420p res.mp4'%filename_temp
+    command_make_video = 'ffmpeg -f concat -safe 0 -i %s -map 0:v:0 -pix_fmt yuv420p %s -y'%(filename_temp,filename_out)
 
     cur_dir = os.getcwd()
     os.chdir(folder_in)

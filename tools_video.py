@@ -1,30 +1,17 @@
 import os
 import cv2
 import time
-import progressbar
-#--------------------------------------------------------------------------------------------------------------------------
-import tools_image
-#--------------------------------------------------------------------------------------------------------------------------
-def capture_image_to_disk(out_filename):
-
-    cap = cv2.VideoCapture(0)
-
-    while (True):
-
-        ret, frame = cap.read()
-        #gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        cv2.imshow('frame', frame)
-        if cv2.waitKey(1) & 0xFF == ord('s'):
-            cv2.imwrite(out_filename,frame)
-        if cv2.waitKey(1) & 0xFF == 27:
-            break
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
-    cap.release()
-    cv2.destroyAllWindows()
-    return
+from pytube import YouTube
+import uuid
+from PIL import Image
 # ----------------------------------------------------------------------------------------------------------------------
+def do_rescale(image,scale,anti_aliasing=True,multichannel=False):
+    pImage = Image.fromarray(image)
+    resized = pImage.resize((int(image.shape[1]*scale),int(image.shape[0]*scale)),resample=Image.BICUBIC)
+    result = numpy.array(resized)
+    return result
+# --------------------------------------------------------------------------------------------------------------------
+
 def capture_video(source, filename_out,fps=20):
     cap = cv2.VideoCapture(source)
     success, frame = cap.read()
@@ -89,15 +76,15 @@ def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_se
     vidcap.set(cv2.CAP_PROP_POS_MSEC, start_time_sec*1000)
 
     success, image = vidcap.read()
-    if success and scale!=1:image = tools_image.do_rescale(image,scale)
+    if success and scale!=1:image = do_rescale(image,scale)
 
     count = 1
-    bar = progressbar.ProgressBar(max_value=total_frames)
+
     while success:
-        bar.update(count)
+
         cv2.imwrite(folder_out+prefix+'%05d.jpg' % count, image)
         success, image = vidcap.read()
-        if success and scale != 1: image = tools_image.do_rescale(image, scale)
+        if success and scale != 1: image = do_rescale(image, scale)
         if end_time_sec is not None and end_time_sec<1000000:
             current_time = vidcap.get(cv2.CAP_PROP_POS_MSEC)
             if current_time > 1000*end_time_sec: success = False
@@ -105,7 +92,7 @@ def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_se
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def extract_frames_v2(filename_in,folder_out,prefix='',start_frame=0, end_frame=None,step=1,scale=1,silent=True):
+def extract_frames_v2(filename_in,folder_out,prefix='',start_frame=0, end_frame=None,step=1,scale=1):
 
     if not os.path.exists(folder_out):
             os.mkdir(folder_out)
@@ -122,15 +109,13 @@ def extract_frames_v2(filename_in,folder_out,prefix='',start_frame=0, end_frame=
         return
 
     cnt = start_frame
-    if not silent:
-        bar = progressbar.ProgressBar(max_value=total_frames)
+
     while success:
-        if not silent:
-            bar.update(cnt)
+
         vidcap.set(cv2.CAP_PROP_POS_FRAMES, cnt)
         success, image = vidcap.read()
         if success and scale != 1:
-            image = tools_image.do_rescale(image, scale)
+            image = do_rescale(image, scale)
         if not success:continue
         cv2.imwrite(folder_out + prefix + '%05d.jpg'%cnt, image)
         success, image = vidcap.read()
@@ -140,34 +125,45 @@ def extract_frames_v2(filename_in,folder_out,prefix='',start_frame=0, end_frame=
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
+def extract_frames_v3(filename_in,folder_out,frame_IDs,prefix='',scale=1):
+    if not os.path.exists(folder_out):
+            os.mkdir(folder_out)
+
+    vidcap = cv2.VideoCapture(filename_in)
+    total_frames = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
+    if total_frames==0:
+        print('No frames found in %s'%filename_in)
+        return
+
+    for cnt in frame_IDs:
+        vidcap.set(cv2.CAP_PROP_POS_FRAMES, cnt)
+        success, image = vidcap.read()
+        if not success: continue
+        if scale != 1:
+            image = do_rescale(image, scale)
+
+        cv2.imwrite(folder_out +prefix+'%06d.jpg' % cnt, image)
+
+    return
+# ----------------------------------------------------------------------------------------------------------------------
 def grab_youtube_video(URL,out_path, out_filename):
 
 
     yt = YouTube(URL)
     streams = yt.streams
-    stream = streams[1]
+    #stream = streams[1]
+    stream_filtered = yt.streams.filter(file_extension="mp4").get_by_resolution("360p")
+    stream_filtered.download(out_path,out_filename)
 
-    stream.download(out_path,out_filename)
     return
 # ----------------------------------------------------------------------------------------------------------------------
+def video_to_scenes(filename_in, folder_out):
+    from scenedetect import detect, ContentDetector
+    scene_list = detect(filename_in, ContentDetector())
+    frame_IDs = [(scene[0].get_frames()+scene[1].get_frames())//2 for scene in scene_list]
+    prefix = uuid.uuid4().hex + '_'
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    extract_frames_v3(filename_in, folder_out, frame_IDs=frame_IDs,prefix=prefix)
+    return
+# ----------------------------------------------------------------------------------------------------------------------
 

@@ -14,7 +14,7 @@ import tools_IO
 import tools_render_GL
 from CV import tools_pr_geom
 import tools_wavefront
-
+import tools_draw_numpy
 # ----------------------------------------------------------------------------------------------------------------------
 numpy.set_printoptions(suppress=True)
 numpy.set_printoptions(precision=2)
@@ -50,6 +50,7 @@ class VBO(object):
             idx_col = object.dct_obj_id[idxv[0]]
 
             c = (0.25, 0.75, 0.95)
+            #c = (0.25, 0.25, 0.25)
             if len(object.mat_color) > 0 and (object.mat_color[idx_col] is not None):
                 c = object.mat_color[idx_col]
 
@@ -102,7 +103,9 @@ class render_GL3D(object):
         self.marker_scale = 0.015
         self.scale = scale
         self.do_normalize_model_file = do_normalize_model_file
-        self.bg_color = numpy.array([76, 76, 76, 1]) / 255
+        #self.bg_color = numpy.array([76, 76, 76, 1]) / 255
+        self.bg_color = numpy.array([250, 250, 250, 1]) / 255
+        self.fg_color = numpy.array([0, 0, 0, 1]) / 255
         self.wired_mode = False
         self.skinless_mode = False
 
@@ -194,7 +197,7 @@ class render_GL3D(object):
                                         //outColor = texel;//soccer
                                         //outColor = texel* materialColor;//
                                         //outColor = vec4(texel.rgb * lightIntensity, 1);
-                                        outColor.a = 0.95;                                        
+                                        outColor.a = 0.95;  //transparency                                        
                                     }"""
 
         if textured:
@@ -437,19 +440,18 @@ class render_GL3D(object):
     def draw_debug_info(self, image):
 
         if self.projection_type == 'P':
-
-            image_result = tools_render_GL.draw_points_MVP_GL(self.object.coord_vert, image, self.mat_projection, self.mat_view, self.mat_model, self.mat_trns, w=1,do_debug=False)
+            image_result = tools_render_GL.draw_points_MVP_GL(self.object.coord_vert, image, self.mat_projection, self.mat_view, self.mat_model, self.mat_trns, w=6,do_debug=False)
         else:
             scale_factor = 1 / self.mat_projection[0, 0]
-            # print('[ %1.2f, %1.2f, %1.2f], [%1.2f,  %1.2f,  %1.2f], %1.2f' % (rvec_i[0], rvec_i[1], rvec_i[2], tvec_i[0], tvec_i[1], tvec_i[2], scale_factor))
-            image_result = self.draw_vec(numpy.array((scale_factor, 0, 0, 0)), 20, 660, image)
-            image_result = tools_render_GL.draw_points_MVP_ortho(self.object.coord_vert, image_result, self.mat_projection,
-                                                           self.mat_view, self.mat_model, self.mat_trns)
+            image_result = tools_draw_numpy.draw_mat(numpy.array((scale_factor, 0, 0, 0)), 20, 660, image)
 
-        self.draw_mat(self.mat_trns, 20, 20, image_result)
-        self.draw_mat(self.mat_model, 20, 120, image_result)
-        self.draw_mat(self.mat_view, 20, 220, image_result)
-        self.draw_mat(self.mat_projection, 20, 320, image_result)
+        camera_matrix_3x3 = tools_pr_geom.compose_projection_mat_3x3(self.W, self.H, 1 / self.mat_projection[0][0], 1 / self.mat_projection[1][1])
+        image_result = tools_draw_numpy.draw_mat(self.mat_trns      , 20, 20, image_result, color=255*self.fg_color,text='World')
+        image_result = tools_draw_numpy.draw_mat(self.mat_model     , 20, 120, image_result,color=255*self.fg_color,text='Model')
+        image_result = tools_draw_numpy.draw_mat(self.mat_view      , 20, 220, image_result,color=255*self.fg_color,text='View')
+        image_result = tools_draw_numpy.draw_mat(self.mat_projection, 20, 320, image_result,color=255*self.fg_color,text='Projection')
+        image_result = tools_draw_numpy.draw_mat(camera_matrix_3x3  , 20, 420, image_result,color=255*self.fg_color, text='Mat camera')
+
 
         E, T, U = tools_pr_geom.mat_view_to_ETU(self.mat_view)
         Y, P, R = tools_pr_geom.mat_view_to_YPR(self.mat_model)
@@ -458,38 +460,33 @@ class render_GL3D(object):
 
         fovx_deg = 2 * numpy.arctan(tg_half_fovx)*180/numpy.pi
 
-        self.draw_vec(numpy.array((Y, P, R)) * 180 / numpy.pi, 20, 420, image_result, 'Model rot deg')
-        self.draw_vec(E                , 20, 440, image_result,'Eye')
-        self.draw_vec(rvec*180/numpy.pi, 20, 460, image_result, 'rotation')
-        self.draw_vec([fovx_deg], 20, 480, image_result, 'fov x deg')
-
-
+        image_result = tools_draw_numpy.draw_mat(numpy.array((Y, P, R)) * 180 / numpy.pi, 20, 520, image_result,color=255*self.fg_color, text='Model rotation')
+        image_result = tools_draw_numpy.draw_mat(E                , 20, 560, image_result,color=255*self.fg_color,text='Camera Eye')
+        image_result = tools_draw_numpy.draw_mat([fovx_deg], 20, 580, image_result,color=255*self.fg_color, text='Camera fov x deg')
 
 
         return image_result
 
     # ----------------------------------------------------------------------------------------------------------------------
-    def draw_vec(self, V, posx, posy, image, text=None):
-        # if V.shape[0] == 4:
-        #     string1 = '%+1.2f %+1.2f %+1.2f %+1.2f' % (V[0], V[1], V[2], V[3])
-        # else:
-        #     #string1 = '%+1.2f %+1.2f %+1.2f' % (V[0], V[1], V[2])
-        string1 = ''.join(['%+1.2f '%v for v in V])
-
-        if text is not None: string1 = text + ' ' + string1
-        image = cv2.putText(image, '{0}'.format(string1), (posx, posy), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (128, 128, 0), 1,cv2.LINE_AA)
-        return image
+    # def draw_vec(self, V, posx, posy, image, text=None):
+    #
+    #     string1 = ''.join(['%+1.2f '%v for v in V])
+    #     if text is not None:
+    #         string1+= ' ' + text
+    #
+    #     #image = cv2.putText(image, '{0}'.format(string1), (posx, posy), cv2.FONT_HERSHEY_SIMPLEX, 0.4, self.fg_color, 1,cv2.LINE_AA)
+    #     image = tools_draw_numpy.draw_text(image, '\n'.join(string1), (posx, posy), color_fg=255 * self.fg_color, font_size=16)
+    #     return image
 
     # ----------------------------------------------------------------------------------------------------------------------
-    def draw_mat(self, M, posx, posy, image):
-        for row in range(M.shape[0]):
-            if M.shape[1] == 4:
-                string1 = '%+1.2f %+1.2f %+1.2f %+1.2f' % (M[row, 0], M[row, 1], M[row, 2], M[row, 3])
-            else:
-                string1 = '%+1.2f %+1.2f %+1.2f' % (M[row, 0], M[row, 1], M[row, 2])
-            image = cv2.putText(image, '{0}'.format(string1), (posx, posy + 20 * row), cv2.FONT_HERSHEY_SIMPLEX, 0.4,
-                                (128, 128, 0), 1, cv2.LINE_AA)
-        return image
+    # def draw_mat(self, M, posx, posy, image, text=None):
+    #     string1 = [(' '.join(['%+1.2f' % M[r, c] for c in range(M.shape[1])])) for r in range(M.shape[0])]
+    #     if text is not None:
+    #         string1[0]+= ' ' + text
+    #
+    #     image = tools_draw_numpy.draw_text(image, '\n'.join(string1), (posx, posy), color_fg=255*self.fg_color, font_size=16)
+    #
+    #     return image
 
     # ----------------------------------------------------------------------------------------------------------------------
     def stage_data(self, folder_out):

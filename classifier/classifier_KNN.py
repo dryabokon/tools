@@ -1,8 +1,6 @@
 import numpy
 from sklearn.neighbors import KNeighborsClassifier
 # --------------------------------------------------------------------------------------------------------------------
-import tools_IO as IO
-# --------------------------------------------------------------------------------------------------------------------
 class classifier_KNN(object):
     def __init__(self):
         self.name = "KNN"

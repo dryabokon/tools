@@ -14,15 +14,13 @@ import matplotlib.patches as mpatches
 import matplotlib.cm as cm
 from sklearn.manifold import TSNE, LocallyLinearEmbedding, Isomap
 from sklearn.decomposition import PCA, TruncatedSVD
-import squarify
 from sklearn.metrics import r2_score
 from sklearn import metrics
 from sklearn.feature_selection import mutual_info_classif
 import warnings
 warnings.filterwarnings( 'ignore', module = 'seaborn' )
-warnings.filterwarnings( 'ignore', module = 'matplotlib' )
+warnings.filterwarnings( 'ignore', module = 'matplotlib')
 # ----------------------------------------------------------------------------------------------------------------------
-import tools_image
 import tools_DF
 import tools_draw_numpy
 import tools_Hyptest
@@ -127,17 +125,17 @@ class Plotter(object):
         return fig
 # ----------------------------------------------------------------------------------------------------------------------
     def init_colors(self,cmap='tab20',shuffle=True):#tab20 nipy_ nipy_spectral
-        numpy.random.seed(110)#113
+        numpy.random.seed(112)#113
         self.colors = tools_draw_numpy.get_colors(32, colormap=cmap).astype(numpy.int)
 
         new_c = []
-        for n in range(self.colors.shape[0]):
-            color = self.colors[n]
-            for alpha in numpy.linspace(0.3, 0.8, 7, endpoint=False):
-                c = (1 - alpha) * numpy.array(color) + (alpha) * numpy.array((128, 128, 128))
-                new_c.append(numpy.array(c).astype('int').reshape((1, 3)))
+        # for n in range(self.colors.shape[0]):
+        #     color = self.colors[n]
+        #     for alpha in numpy.linspace(0.3, 0.8, 7, endpoint=False):
+        #         c = (1 - alpha) * numpy.array(color) + (alpha) * numpy.array((128, 128, 128))
+        #         new_c.append(numpy.array(c).astype('int').reshape((1, 3)))
 
-        self.colors = numpy.concatenate((self.colors, numpy.array(new_c).reshape((-1, 3))))
+        # array(new_c).reshape((-1, 3))))
 
         if shuffle:
             self.colors=self.colors[numpy.random.choice(self.colors.shape[0],self.colors.shape[0])]
@@ -146,7 +144,7 @@ class Plotter(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def get_color(self, label,alpha_blend=0.0):
         if label not in self.dct_color:
-            if isinstance(label, numpy.int32) or isinstance(label, numpy.int):
+            if isinstance(label, numpy.int32) or isinstance(label, numpy.int) or isinstance(label, numpy.int64):
                 n = label
             else:
                 n = numpy.array([ord(l) for l in label]).sum() % self.colors.shape[0]
@@ -251,9 +249,10 @@ class Plotter(object):
         if colors is None:
             colors = seaborn.color_palette(palette)
 
-        for i,y in enumerate(numpy.unique(Y)):
-            col = colors[0] if int(y)<=0 else colors[1]
-            plt.hist(X[Y==y], bins=bins,color=col,alpha=1-transparency,width=1.0,align='mid',density=False)
+        for i,y in enumerate(numpy.sort(numpy.unique(Y))):
+            col = colors[i]
+            x = X[Y == y] if len(X.shape)==1 else X[:,i]
+            plt.hist(x, bins=bins,color=col,alpha=1-transparency,width=1.0,align='mid',density=False)
 
             if labels:
                 patches.append(mpatches.Patch(color=col,label=y))
@@ -284,7 +283,7 @@ class Plotter(object):
                 label_res.append('')
         return label_res
 # ----------------------------------------------------------------------------------------------------------------------
-    def plot_2D_features(self, df, x_range=None, y_range=None, add_noice=False, remove_legend=False, invert_y=False,transparency=0.0, colors=None,marker_size=3,palette='tab10', figsize=(8, 6), filename_out=None):
+    def plot_2D_features(self, df, x_range=None, y_range=None, add_noice=False, remove_legend=False, invert_y=False,transparency=0.0, colors=None,marker_size=3,palette='tab10', figsize=(8, 6), filename_out=None,cut=0):
 
         fig = plt.figure(figsize=figsize)
         fig = self.turn_light_mode(fig)
@@ -292,8 +291,9 @@ class Plotter(object):
         categoricals_hash_map = {}
         if add_noice:
             categoricals_hash_map = tools_DF.get_categoricals_hash_map(df)
-            df=tools_DF.hash_categoricals(df)
+            df = tools_DF.hash_categoricals(df)
             df = tools_DF.add_noise_smart(df)
+
 
         my_pal = colors if colors is not None else palette
         plt.rcParams.update({'lines.markersize': marker_size})
@@ -311,14 +311,17 @@ class Plotter(object):
         if invert_y: plt.gca().invert_yaxis()
 
         plt.tight_layout()
+        ax = plt.gca()
 
         if add_noice and (df.columns[1] in categoricals_hash_map):
             labels_new = self.patch_labels([str(item.get_text()) for item in plt.gca().get_xticklabels()],categoricals_hash_map[df.columns[1]])
-            plt.gca().set_xticklabels(labels_new)
+            #ax.set_xticks(range(len(labels_new)))
+            ax.set_xticklabels(labels_new)
 
         if add_noice and (df.columns[2] in categoricals_hash_map):
             labels_new = self.patch_labels([str(item.get_text()) for item in plt.gca().get_yticklabels()],categoricals_hash_map[df.columns[2]])
-            plt.gca().set_yticklabels(labels_new)
+            #ax.set_yticks(range(len(labels_new)))
+            ax.set_yticklabels(labels_new)
 
 
         if filename_out is not None:
@@ -333,18 +336,19 @@ class Plotter(object):
         fig = self.turn_light_mode(fig)
 
         X,Y = tools_DF.df_to_XY(df,idx_target=0)
+        y0,y1 = sorted(set(Y))[0],sorted(set(Y))[1]
 
         dict_pos,dict_neg ={},{}
-        for x in X[Y>0]:
+        for x in X[Y!=y0]:
             if tuple(x) not in dict_pos:dict_pos[tuple(x)]=1
             else:dict_pos[tuple(x)]+=1
 
-        for x in X[Y<=0]:
+        for x in X[Y==y0]:
             if tuple(x) not in dict_neg:dict_neg[tuple(x)]=1
             else:dict_neg[tuple(x)]+=1
 
-        col_neg  = (0, 0.5, 1, 1)
-        col_pos  = (1, 0.5, 0, 1)
+        col_neg  = self.get_color(y0)[[2,1,0]]/255.0#(0, 0.5, 1, 1)
+        col_pos  = self.get_color(y1)[[2,1,0]]/255.0#(1, 0.5, 0, 1)
         col_gray = (0.5, 0.5, 0.5, 1)
 
         min_size = 4
@@ -353,22 +357,27 @@ class Plotter(object):
 
         for x in dict_pos.keys():
             if tuple(x) not in dict_neg.keys():
-                plt.plot(x[0], x[1], 'ro', color=col_pos, markeredgewidth=0, markersize=max(min_size, dict_pos[tuple(x)] / norm))
+                plt.plot(x[0], x[1], 'o', color=col_pos, markeredgewidth=0, markersize=max(min_size, dict_pos[tuple(x)] / norm))
             else:
-                plt.plot(x[0], x[1], 'ro', color=col_gray, markeredgewidth=0, markersize=max(min_size, (dict_pos[tuple(x)] + dict_neg[tuple(x)]) / norm))
+                plt.plot(x[0], x[1], 'o', color=col_gray, markeredgewidth=0, markersize=max(min_size, (dict_pos[tuple(x)] + dict_neg[tuple(x)]) / norm))
 
                 if dict_pos[tuple(x)] < dict_neg[tuple(x)]:
-                    plt.plot(x[0], x[1], 'ro', color=col_neg, markeredgewidth=0, markersize=max(min_size, (dict_neg[tuple(x)] - dict_pos[tuple(x)]) / norm))
+                    plt.plot(x[0], x[1], 'o', color=col_neg, markeredgewidth=0, markersize=max(min_size, (dict_neg[tuple(x)] - dict_pos[tuple(x)]) / norm))
                 else:
-                    plt.plot(x[0], x[1], 'ro', color=col_pos, markeredgewidth=0, markersize=max(min_size, (-dict_neg[tuple(x)] + dict_pos[tuple(x)]) / norm))
+                    plt.plot(x[0], x[1], 'o', color=col_pos, markeredgewidth=0, markersize=max(min_size, (-dict_neg[tuple(x)] + dict_pos[tuple(x)]) / norm))
 
         for x in dict_neg:
             if tuple(x) not in dict_pos:
-                plt.plot(x[0], x[1], 'ro', color=col_neg, markeredgewidth=0, markersize=max(min_size, dict_neg[tuple(x)] / norm))
+                plt.plot(x[0], x[1], 'o', color=col_neg, markeredgewidth=0, markersize=max(min_size, dict_neg[tuple(x)] / norm))
 
         plt.grid(color=self.clr_grid)
+
         if remove_legend:
             plt.legend([], [], frameon=False)
+        else:
+            patches = [mpatches.Patch(color=col_neg, label=y0),mpatches.Patch(color=col_pos, label=y1)]
+            legend = plt.legend(handles=patches)
+            self.recolor_legend_plt(legend)
 
         plt.xlabel(df.columns[1])
         plt.ylabel(df.columns[2])
@@ -409,6 +418,8 @@ class Plotter(object):
         return fig
 #-----------------------------------------------------------------------------------------------------------------------
     def plot_tp_fp(self,tpr,fpr,roc_auc,caption='',figsize=(6,6),filename_out=None):
+
+
 
         fig = plt.figure(figsize=figsize)
         fig = self.turn_light_mode(fig)
@@ -543,7 +554,7 @@ class Plotter(object):
             plt.savefig(self.folder_out+filename_out,facecolor=fig.get_facecolor())
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def histoplots_df(self,df0,idx_target=0,transparency=0.25,remove_legend=False,legend_loc = 'upper left',figsize=(6,6),filename_out=None):
+    def histoplots_df(self,df0,idx_target=0,transparency=0.25,remove_legend=False,legend_loc = 'upper left',figsize=(6,6)):
 
         columns = df0.columns
         target = columns[idx_target]
@@ -599,8 +610,7 @@ class Plotter(object):
                 legend = plt.legend(loc=legend_loc, bbox_to_anchor=(0.0, 1.15),ncol = 1)
                 self.recolor_legend_plt(legend)
 
-            if filename_out is None:
-                filename_out = 'histo_%s.png' % (column)
+            filename_out = 'histo_%s.png' % (column)
             try:
                 plt.savefig(self.folder_out + filename_out, facecolor=fig.get_facecolor())
             except:
@@ -614,7 +624,7 @@ class Plotter(object):
             f_handle.write("%s %s\n" % (filename_out, '%03d' % I))
             f_handle.close()
 
-        return filename_out
+        return
 # ----------------------------------------------------------------------------------------------------------------------
     def jointplots_df(self,df0,idx_target=0,transparency=0.25,palette='tab10',remove_legend=False,figsize=(6,6)):
 
@@ -663,7 +673,7 @@ class Plotter(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def pairplots_df(self,df0, idx_target=0,df_Q=None,palette = 'tab10',marker_size=6,transparency=0.75,cumul_mode=False,add_noise=False,mode2d=True,remove_legend=False,figsize=(6,6)):
+    def pairplots_df(self,df0, idx_target=0,df_Q=None,marker_size=6,transparency=0.75,cumul_mode=False,add_noise=False,mode2d=True,remove_legend=False,figsize=(6,6)):
 
         columns = df0.columns.to_numpy()
         target = columns[idx_target]
@@ -671,6 +681,8 @@ class Plotter(object):
 
         unique_targets = df0.iloc[:, idx_target].unique().tolist()
         HT = tools_Hyptest.HypTest()
+
+        colors =[self.get_color(t)[[2, 1, 0]] / 255.0 for t in unique_targets]
 
         for i in range(len(idx)-1):
             for j in range(i+1,len(idx)):
@@ -694,17 +706,18 @@ class Plotter(object):
 
                 I=0
                 if len(unique_targets) == 2:
-                    I = int(100 * HT.f1_score(df[df[target] == unique_targets[0]].iloc[:, 1:],
-                                                           df[df[target] == unique_targets[1]].iloc[:,1:], (is_categorical1 and is_categorical2)))
+                    I = int(100 * HT.f1_score_2d(df[df[target] == unique_targets[0]].iloc[:, 1:], df[df[target] == unique_targets[1]].iloc[:,1:]))
 
                 file_out = 'pairplot_%02d_%02d_%s_%s_%02d.png' % (i, j, c1, c2, I)
-                if cumul_mode:
+
+
+                if cumul_mode==True or (cumul_mode=='auto' and len(set(df.iloc[:,0]))==2 and df.iloc[:,1:].value_counts().shape[0]<122):
                     self.plot_2D_features_cumul(df, remove_legend=remove_legend,figsize=figsize,filename_out=file_out)
                 else:
                     if mode2d:
-                        self.plot_2D_features(df, add_noice=add_noise, transparency=transparency,marker_size=marker_size,remove_legend=remove_legend, figsize=figsize, filename_out=file_out)
+                        self.plot_2D_features(df,add_noice=add_noise, transparency=transparency,marker_size=marker_size,colors=colors,remove_legend=remove_legend, figsize=figsize, filename_out=file_out)
                     else:
-                        self.plot_2D_features_in_3D(df, add_noice=add_noise, transparency=transparency, remove_legend=remove_legend,palette=palette,figsize=figsize, filename_out=file_out)
+                        self.plot_2D_features_in_3D(df, add_noice=add_noise, transparency=transparency, remove_legend=remove_legend,figsize=figsize, filename_out=file_out)
 
                 if remove_legend:
                     plt.legend([], [], frameon=False)
@@ -978,55 +991,34 @@ class Plotter(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def plot_tSNE(self,df, idx_target,palette='tab10',filename_out=None):
+    def plot_PCA(self,df, idx_target,method='PCA',filename_out=None):
         X, Y = tools_DF.df_to_XY(df, idx_target)
-        X_TSNE = TSNE(n_components=2).fit_transform(X)
-        df = pd.DataFrame(numpy.concatenate((Y.reshape(-1, 1), X_TSNE), axis=1), columns=['tSNE', 'x0', 'x1'])
-        #df = df.astype({'tSNE': 'int32'})
-        df.sort_values(by=df.columns[0], inplace=True)
-        self.plot_2D_features(df, remove_legend=False, palette=palette, transparency=0.3, filename_out=filename_out)
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def plot_PCA(self,df, idx_target,palette='tab10',filename_out=None):
-        X, Y = tools_DF.df_to_XY(df, idx_target)
-        X_PCA = PCA(n_components=2).fit_transform(X)
-        df = pd.DataFrame(numpy.concatenate((Y.reshape(-1, 1), X_PCA), axis=1), columns=['PCA', 'x0', 'x1'])
-        #df = df.astype({'PCA': 'int32'})
+        if method=='PCA':
+            X = PCA(n_components=2).fit_transform(X)
+        elif method == 'tSNE':
+            N = 10000
+            if Y.shape[0]>N:
+                idx = numpy.random.choice(Y.shape[0],N,replace=False)
+                X,Y = X[idx],Y[idx]
+
+            X = TSNE(n_components=2).fit_transform(X)
+        elif method == 'UMAP':
+            import umap
+            X = umap.UMAP(n_components=2).fit_transform(X)
+        elif method == 'SVD':
+            X = TruncatedSVD(n_components=2).fit_transform(X)
+        elif method == 'LLE':
+            X = LocallyLinearEmbedding(n_components=2).fit_transform(X)
+        elif method == 'ISOMAP':
+            X = Isomap(n_components=2).fit_transform(X)
+        else:
+            return
+
+        df = pd.DataFrame(numpy.concatenate((Y.reshape(-1, 1), X), axis=1), columns=['Y', 'x0', 'x1'])
         df.sort_values(by=df.columns[0],inplace=True)
-        self.plot_2D_features(df, remove_legend=False, palette=palette, filename_out=filename_out)
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def plot_UMAP(self,df, idx_target,palette='tab10',filename_out=None):
-        import umap
-        X, Y = tools_DF.df_to_XY(df, idx_target)
-        X_UMAP = umap.UMAP(n_components=2).fit_transform(X)
-        df = pd.DataFrame(numpy.concatenate((Y.reshape(-1, 1), X_UMAP), axis=1), columns=['UMAP', 'x0', 'x1'])
-        df = df.astype({'UMAP': 'int32'})
-        self.plot_2D_features(df, remove_legend=True, palette=palette, filename_out=filename_out)
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def plot_SVD(self,df, idx_target,palette='tab10',filename_out=None):
-        X, Y = tools_DF.df_to_XY(df, idx_target)
-        X_SVD = TruncatedSVD(n_components=2).fit_transform(X)
-        df = pd.DataFrame(numpy.concatenate((Y.reshape(-1, 1), X_SVD),axis=1),columns=['SVD','x0','x1'])
-        df = df.astype({'SVD': 'int32'})
-        self.plot_2D_features(df, remove_legend=True, palette=palette, filename_out=filename_out)
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def plot_LLE(self,df, idx_target,palette='tab10',filename_out=None):
-        X, Y = tools_DF.df_to_XY(df, idx_target)
-        X_LLE = LocallyLinearEmbedding(n_components=2).fit_transform(X)
-        df = pd.DataFrame(numpy.concatenate((Y.reshape(-1, 1), X_LLE),axis=1),columns=['LLE','x0','x1'])
-        df = df.astype({'LLE': 'int32'})
-        self.plot_2D_features(df, remove_legend=True, palette=palette, filename_out=filename_out)
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def plot_ISOMAP(self,df, idx_target,palette='tab10',filename_out=None):
-        X, Y = tools_DF.df_to_XY(df, idx_target)
-        X_ = Isomap(n_components=2).fit_transform(X)
-        df = pd.DataFrame(numpy.concatenate((Y.reshape(-1, 1), X_), axis=1), columns=['ISOMAP', 'x0', 'x1'])
-        df = df.astype({'ISOMAP': 'int32'})
-        self.plot_2D_features(df, remove_legend=True, palette=palette, filename_out=filename_out)
+        #colors = [self.get_color(t)[[2, 1, 0]] / 255.0 for t in numpy.sort(numpy.unique(Y))]
+        colors = [self.colors[n][[2, 1, 0]] / 255.0 for n in range(len(numpy.unique(Y)))]
+        self.plot_2D_features(df, remove_legend=False, colors=colors,marker_size=6,transparency=0.15,filename_out=filename_out)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def plot_contourf(self,X0,X1,xx, yy, grid_confidence,xlim=None,ylim=None,xlabel=None,ylabel=None,transparency=0,marker_size=10,figsize=(3.5,3.5),filename_out=None):
@@ -1142,7 +1134,7 @@ class Plotter(object):
         return fig
 # ---------------------------------------------------------------------------------------------------------------------
     def plot_squarify(self, df, idx_label, idx_size, colors=None,idx_color_255=None, palette='viridis',stat='%', alpha=0, figsize=(15, 5), filename_out=None):
-
+        import squarify
         fig = plt.figure(figsize=figsize)
         self.turn_light_mode(fig)
 
@@ -1190,8 +1182,8 @@ class Plotter(object):
     def plot_feature_correlation(self,df_Q,figsize=(8,8),filename_out=None):
 
         fig = plt.figure(figsize=figsize)
-        fig = self.turn_light_mode(fig)
-        seaborn.heatmap(df_Q, vmax=1, square=True, annot=True, fmt='.2f', cmap='GnBu', cbar_kws={"shrink": .5}, robust=True)
+        seaborn.heatmap(df_Q, vmax=1,        annot=True, fmt='.2f', cmap='GnBu' , cbar_kws={"shrink": .5}, robust=True, square=True)
+
         if filename_out is not None:
             plt.savefig(self.folder_out+filename_out,facecolor=fig.get_facecolor())
 

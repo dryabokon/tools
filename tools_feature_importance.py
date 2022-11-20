@@ -35,7 +35,7 @@ def preprocess(df, idx_target):
     idx = numpy.delete(numpy.arange(0, len(columns)), idx_target)
 
     X = df.iloc[:, idx].to_numpy()
-    Y = df.iloc[:, idx_target].to_numpy()
+    Y = df.iloc[:, idx_target].to_numpy().astype(numpy.int)
     return X,Y
 # ----------------------------------------------------------------------------------------------------------------------
 def feature_imporance_F_score(df, idx_target=0):
@@ -130,44 +130,49 @@ def feature_importance_cross_H(df, idx_target):
 
     return numpy.array(cross_H)
 # ----------------------------------------------------------------------------------------------------------------------
-def evaluate_feature_importance(df, idx_target):
+def evaluate_feature_importance(df, idx_target,do_debug=False):
     columns = df.columns.to_numpy()[numpy.delete(numpy.arange(0, df.shape[1]), idx_target)]
 
     start_time = time.time()
-    S1 = feature_imporance_F_score(df, idx_target)
-    #print('F_score %s sec\n\n' % (time.time() - start_time))
+    S_XGB = feature_importance_XGB(df, idx_target)
+    if do_debug:
+        print('F_score %s sec\n\n' % (time.time() - start_time))
 
     start_time = time.time()
-    S2 = feature_importance_R2(df, idx_target)
-    #print('R2 %s sec\n\n' % (time.time() - start_time))
+    S_R2 = feature_importance_R2(df, idx_target)
+    if do_debug:
+        print('R2 %s sec\n\n' % (time.time() - start_time))
 
     start_time = time.time()
-    S3 = feature_importance_C(df, idx_target)
-    #print('C %s sec\n\n' % (time.time() - start_time))
+    S_C = feature_importance_C(df, idx_target)
+    if do_debug:
+        print('C %s sec\n\n' % (time.time() - start_time))
 
     start_time = time.time()
-    S4 = feature_importance_XGB(df, idx_target)
-    #print('XGB %s sec\n\n' % (time.time() - start_time))
+    S_F_score = feature_imporance_F_score(df, idx_target)
+    if do_debug:
+        print('XGB %s sec\n\n' % (time.time() - start_time))
 
     start_time = time.time()
-    S5 = feature_importance_SHAP(df, idx_target)
-    # print('XGB %s sec\n\n' % (time.time() - start_time))
+    S_SHAP = feature_importance_SHAP(df, idx_target)
+    if do_debug:
+        print('XGB %s sec\n\n' % (time.time() - start_time))
 
-    start_time = time.time()
-    S6 = feature_imporance_info(df, idx_target)
-    # print('info %s sec\n\n' % (time.time() - start_time))
+    #start_time = time.time()
+    #S6 = feature_imporance_info(df, idx_target)
+    #if do_debug:
+    #    print('info %s sec\n\n' % (time.time() - start_time))
 
     df = pd.DataFrame({
-        'F_score': S1,
-        'R2': S2,
-        'C': S3,
-        'XGB': S4,
-        'SHAP': S5,
-        'I': S6,
-        'features': columns
+        'features': columns,
+        'XGB': S_XGB,
+        'F_score': S_F_score,
+        'R2': S_R2,
+        'C': S_C,
+        'SHAP': S_SHAP,
     })
 
-    df.sort_values(by=df.columns[-1],inplace=True)
+    df.sort_values(by=df.columns[1],inplace=True,ascending=False)
 
     return df
 # ----------------------------------------------------------------------------------------------------------------------

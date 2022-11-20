@@ -3,8 +3,10 @@ import numpy
 from scipy.stats import chi2, chisquare, entropy
 import matplotlib.pyplot as plt
 from scipy.stats import fisher_exact,f_oneway
-import tools_DF
 from sklearn import metrics
+from sklearn.linear_model import LogisticRegression
+# ----------------------------------------------------------------------------------------------------------------------
+import tools_DF
 # from collections import Counter
 # from scipy.spatial import distance
 # from scipy.special import rel_entr
@@ -210,6 +212,30 @@ class HypTest(object):
 
         if return_PR:
             return f1,P,R
+
+        return f1
+# ---------------------------------------------------------------------------------------------------------------------
+    def f1_score_2d(self, df0, df1):
+
+        C0 = df0.value_counts()
+        C1 = df1.value_counts()
+
+        df_agg0 = pd.DataFrame({'K': C0.index.values, 'V': C0.values})
+        df_agg1 = pd.DataFrame({'K': C1.index.values, 'V': C1.values})
+
+        N = 50
+
+        if df_agg0.shape[0]<N and df_agg1.shape[0]<N:
+            f1,P,R = self.classification_metrics_aggs_cat(df_agg0, df_agg1)
+        else:
+            df = pd.concat([df0, df1])
+            df = tools_DF.hash_categoricals(df)
+            X, Y = df.values, numpy.array([0] * df0.shape[0] + [1] * df1.shape[0])
+            model = LogisticRegression().fit(X,Y)
+            precisions, recalls, thresholds = metrics.precision_recall_curve(Y, model.predict_proba(X)[:,1])
+            idx_th = numpy.argmax([p * r / (p + r + 1e-4) for p, r in zip(precisions, recalls)])
+            P,R = precisions[idx_th],recalls[idx_th]
+            f1 = P * R * 2 / (P + R + 1e-4)
 
         return f1
 # ---------------------------------------------------------------------------------------------------------------------

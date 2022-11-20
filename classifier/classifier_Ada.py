@@ -2,8 +2,6 @@ import numpy
 from sklearn import preprocessing
 from sklearn.ensemble import AdaBoostClassifier
 # --------------------------------------------------------------------------------------------------------------------
-import tools_IO as IO
-# --------------------------------------------------------------------------------------------------------------------
 class classifier_Ada(object):
     def __init__(self):
         self.name = "Ada"
