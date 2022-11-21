@@ -1,9 +1,13 @@
 import os
 import cv2
 import time
+import numpy
+import pandas as pd
 from pytube import YouTube
-import uuid
 from PIL import Image
+from scenedetect import detect, ContentDetector
+from os import listdir
+import fnmatch
 # ----------------------------------------------------------------------------------------------------------------------
 def do_rescale(image,scale,anti_aliasing=True,multichannel=False):
     pImage = Image.fromarray(image)
@@ -11,7 +15,18 @@ def do_rescale(image,scale,anti_aliasing=True,multichannel=False):
     result = numpy.array(resized)
     return result
 # --------------------------------------------------------------------------------------------------------------------
+def rescale_overwrite_images(folder_in_out,mask='*.jpg',target_width=320):
 
+    local_filenames= fnmatch.filter(listdir(folder_in_out), mask)
+
+    for local_filename in local_filenames:
+        image = cv2.imread(folder_in_out+local_filename)
+        scale = target_width/image.shape[1]
+        image = do_rescale(image, scale)
+        cv2.imwrite(folder_in_out+local_filename,image)
+
+    return
+# --------------------------------------------------------------------------------------------------------------------
 def capture_video(source, filename_out,fps=20):
     cap = cv2.VideoCapture(source)
     success, frame = cap.read()
@@ -146,24 +161,15 @@ def extract_frames_v3(filename_in,folder_out,frame_IDs,prefix='',scale=1):
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def grab_youtube_video(URL,out_path, out_filename):
+def grab_youtube_video(URL,out_path, out_filename,resolution='720p'):
 
+    try:
+        yt = YouTube(URL)
+        stream_filtered = yt.streams.filter(file_extension="mp4").get_by_resolution(resolution)
+        stream_filtered.download(out_path, out_filename)
+        df_log = pd.DataFrame({'URL': [URL], 'title': [yt.title], 'description': [yt.description], 'author': [yt.author]})
+    except:
+        df_log = pd.DataFrame({'URL':[],'title':[],'description':[],'author':[]})
 
-    yt = YouTube(URL)
-    streams = yt.streams
-    #stream = streams[1]
-    stream_filtered = yt.streams.filter(file_extension="mp4").get_by_resolution("360p")
-    stream_filtered.download(out_path,out_filename)
-
-    return
+    return df_log
 # ----------------------------------------------------------------------------------------------------------------------
-def video_to_scenes(filename_in, folder_out):
-    from scenedetect import detect, ContentDetector
-    scene_list = detect(filename_in, ContentDetector())
-    frame_IDs = [(scene[0].get_frames()+scene[1].get_frames())//2 for scene in scene_list]
-    prefix = uuid.uuid4().hex + '_'
-
-    extract_frames_v3(filename_in, folder_out, frame_IDs=frame_IDs,prefix=prefix)
-    return
-# ----------------------------------------------------------------------------------------------------------------------
-
