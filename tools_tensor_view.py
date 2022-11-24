@@ -127,10 +127,10 @@ def tensor_color_4D_to_image(tensor,rows=None,cols=None):
     elif rows is not None and cols is None:
         h, w, R, C = tensor.shape[0], tensor.shape[1], rows, int(tensor.shape[3] / rows)
     else:
-        rows = numerical_devisor(tensor.shape[3])
-        h, w, R, C = tensor.shape[0], tensor.shape[1], rows, int(tensor.shape[3] / rows)
-        # cols = numerical_devisor(tensor.shape[3])
-        # h, w, C, R = tensor.shape[0], tensor.shape[1], cols, int(tensor.shape[3] / cols)
+        #rows = numerical_devisor(tensor.shape[3])
+        #h, w, R, C = tensor.shape[0], tensor.shape[1], rows, int(tensor.shape[3] / rows)
+        cols = numerical_devisor(tensor.shape[3])
+        h, w, C, R = tensor.shape[0], tensor.shape[1], cols, int(tensor.shape[3] / cols)
 
     image = numpy.zeros((h * R,w * C, tensor.shape[2]),dtype=numpy.uint8)
     for i in range(0, tensor.shape[3]):
