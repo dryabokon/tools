@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 from tabulate import tabulate
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_image
-import tools_DF
 # ----------------------------------------------------------------------------------------------------------------------
 color_black = (0, 0, 0)
 color_white = (255, 255, 255)
@@ -68,23 +67,30 @@ def draw_points(image, points,color=(0,0,200),w=4,transperency=0,put_text=False,
     del draw
     return result
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_line(array_bgr, row1, col1, row2, col2, color_bgr, alpha_transp=0.0):
+def draw_line(array_bgr, row1, col1, row2, col2, color_bgr, alpha_transp=0.0,antialiasing=True):
     res_rgb = array_bgr.copy()
 
-    rr, cc, vv = line_aa(int(row1), int(col1), int(row2), int(col2))
-    for i in range(0, rr.shape[0]):
-        if (rr[i] >= 0 and rr[i] < array_bgr.shape[0] and cc[i] >= 0 and cc[i] < array_bgr.shape[1]):
-            clr = numpy.array(color_bgr) * vv[i] + array_bgr[rr[i], cc[i]] * (1 - vv[i])
-            if alpha_transp > 0:
-                xxx = clr * (1 - alpha_transp)
-                base = array_bgr[rr[i], cc[i]]
-                xxx+= base * alpha_transp
-                res_rgb[rr[i], cc[i]] = xxx
-            else:
-                res_rgb[rr[i], cc[i]] = clr
+    if antialiasing:
+        rr, cc, vv = line_aa(int(row1), int(col1), int(row2), int(col2))
+        for i in range(0, rr.shape[0]):
+            if (rr[i] >= 0 and rr[i] < array_bgr.shape[0] and cc[i] >= 0 and cc[i] < array_bgr.shape[1]):
+                clr = numpy.array(color_bgr) * vv[i] + array_bgr[rr[i], cc[i]] * (1 - vv[i])
+                if alpha_transp > 0:
+                    xxx = clr * (1 - alpha_transp)
+                    base = array_bgr[rr[i], cc[i]]
+                    xxx+= base * alpha_transp
+                    res_rgb[rr[i], cc[i]] = xxx
+                else:
+                    res_rgb[rr[i], cc[i]] = clr
+    else:
+        pImage = Image.fromarray(array_bgr)
+        draw = ImageDraw.Draw(pImage, 'RGBA') if len((array_bgr.shape)) == 3 else ImageDraw.Draw(pImage)
+        draw.line(((int(col1), int(row1)), (int(col2), int(row2))), fill=color_bgr)
+        res_rgb = numpy.array(pImage)
+
     return res_rgb
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_lines(image, lines,color=(0,0,200),w=1,transperency=0,put_text=False):
+def draw_lines(image, lines,color=(0,0,200),w=1,transperency=0,antialiasing=True):
 
     result = image.copy()
     if lines is None or len(lines)==0:
@@ -93,22 +99,26 @@ def draw_lines(image, lines,color=(0,0,200),w=1,transperency=0,put_text=False):
     if (not isinstance(lines,list)) and len(lines.shape)==1:
         lines = [lines]
 
-    pImage = Image.fromarray(image)
-    draw = ImageDraw.Draw(pImage, 'RGBA') if len((image.shape)) == 3 else ImageDraw.Draw(pImage)
+    if antialiasing:
+        result = image.copy()
+        for line in lines:
+            x1, y1, x2, y2 = line
+            result = draw_line(result, int(y1), int(x1), int(y2), int(x2), color, alpha_transp=0.0, antialiasing=True)
 
-    for id,line in enumerate(lines):
-        if line is None:continue
-        x1, y1, x2, y2 = line
-        if numpy.any(numpy.isnan((x1, y1, x2, y2))): continue
-        clr = color
-        clr = (clr[0], clr[1], clr[2], int(255 - transperency * 255))
-        draw.line(((int(x1), int(y1)), (int(x2), int(y2))), fill=clr,width=w)
+    else:
 
-        # if put_text:
-        #     x,y = int(x1+x2)//2, int(y1+y2)//2
-        #     cv2.putText(result, '{0}'.format(id),(min(W - 10, max(10, x)), min(H - 5, max(10, y))),cv2.FONT_HERSHEY_SIMPLEX, 0.6, clr, 1, cv2.LINE_AA)
+        pImage = Image.fromarray(image)
+        draw = ImageDraw.Draw(pImage, 'RGBA') if len((image.shape)) == 3 else ImageDraw.Draw(pImage)
 
-    result = numpy.array(pImage)
+        for id,line in enumerate(lines):
+            if line is None:continue
+            x1, y1, x2, y2 = line
+            if numpy.any(numpy.isnan((x1, y1, x2, y2))): continue
+            clr = color
+            clr = (clr[0], clr[1], clr[2], int(255 - transperency * 255))
+            draw.line(((int(x1), int(y1)), (int(x2), int(y2))), fill=clr,width=w)
+
+        result = numpy.array(pImage)
 
     return result
 # ----------------------------------------------------------------------------------------------------------------------
@@ -196,16 +206,16 @@ def draw_contours(image, points, color=(255,255,255),w=1,transperency=0.0):
 
     idx = numpy.arange(0,points.shape[0])
     lines = numpy.array([[p1[0],p1[1],p2[0],p2[1]] for p1,p2 in zip(points,points[numpy.roll(idx,1)])])
-    image_res = draw_convex_hull(image,points,color=color,transperency=transperency)
+    image_res = draw_contours_cv(image, points, color, w=-1, transperency=transperency)
     image_res = draw_lines(image_res, lines, color, w)
 
     return image_res
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_contours_cv(image, points, color=(255,255,255),transperency=0.0):
+def draw_contours_cv(image, points, color=(255,255,255),w=-1,transperency=0.0):
 
     pnts = points.reshape(1, -1, 1, 2).astype(numpy.int)
     res = image.copy()
-    res = cv2.drawContours(res, pnts, -1,color,thickness=-1)
+    res = cv2.drawContours(res, pnts, -1,color,thickness=w)
 
     if transperency>0:
         res = res*(1-transperency)+image*(transperency)
@@ -560,7 +570,8 @@ def create_color_discrete_map(df, col_label, col_color=None, palette='RdBu'):
     else:
         colors255 = get_colors(255, colormap=palette, shuffle=False)
         colors_HTML = [BGR_to_HTML(c[[2, 1, 0]]) for c in colors255]
-        df_agg = tools_DF.my_agg(df, cols_groupby=[col_label], cols_value=[col_color], aggs=['top'])
+        #df_agg = tools_DF.my_agg(df, cols_groupby=[col_label], cols_value=[col_color], aggs=['top'])
+        df_agg = df.groupby(col_label, dropna=False).agg({col_color:'top'})
 
         ccc = [(label, colors_HTML[int(col_id)]) for label, col_id in zip(df_agg.iloc[:, 0], df_agg.iloc[:, 1])]
         color_discrete_map = dict(ccc)
