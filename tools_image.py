@@ -6,7 +6,9 @@ import os
 import math
 from scipy import ndimage
 from skimage.transform import rescale, resize
-from PIL import Image
+from PIL import Image as PillowImage
+from io import BytesIO
+import base64
 #--------------------------------------------------------------------------------------------------------------------------
 def numerical_devisor(n):
 
@@ -26,9 +28,8 @@ def numerical_devisor(n):
 # ---------------------------------------------------------------------------------------------------------------------
 def smart_resize(img, target_image_height, target_image_width,bg_color=(128, 128, 128)):
     '''resize image with unchanged aspect ratio using padding'''
-    from PIL import Image
 
-    pillow_image = Image.fromarray(img)
+    pillow_image = PillowImage.fromarray(img)
 
     original_image_width, original_image_height = pillow_image.size
 
@@ -43,8 +44,8 @@ def smart_resize(img, target_image_height, target_image_width,bg_color=(128, 128
     nw = int(original_image_width * scale)
     nh = int(original_image_height * scale)
 
-    pillow_image = pillow_image.resize((nw, nh), Image.BICUBIC)
-    new_image = Image.new('RGB', (target_image_width, target_image_height), bg_color)
+    pillow_image = pillow_image.resize((nw, nh), PillowImage.BICUBIC)
+    new_image = PillowImage.new('RGB', (target_image_width, target_image_height), bg_color)
     new_image.paste(pillow_image, ((target_image_width - nw) // 2, (target_image_height - nh) // 2))
     return numpy.array(new_image)
 # ---------------------------------------------------------------------------------------------------------------------
@@ -890,5 +891,18 @@ def put_color_by_mask(image, mask2d, color):
     idx = (mask2d > 0)
     image[~idx] = 0
 
+    return image
+# --------------------------------------------------------------------------------------------------------------------
+def encode_base64(image):
+    out_img = BytesIO()
+    PillowImage.fromarray(image[:, :, [2, 1, 0]]).save(out_img, 'PNG')
+    out_img.seek(0)
+    encoded_bytes = base64.b64encode(out_img.read())#.decode("ascii")#.replace("\n", "")
+    return encoded_bytes
+# --------------------------------------------------------------------------------------------------------------------
+def decode_base64(encoded_bytes):
+    decoded_bytes = base64.b64decode(encoded_bytes)
+    pil_image = PillowImage.open(BytesIO(decoded_bytes))
+    image = numpy.array(pil_image)[:, :, [2, 1, 0]]
     return image
 # --------------------------------------------------------------------------------------------------------------------
