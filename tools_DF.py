@@ -395,12 +395,12 @@ def is_categorical(df,col_name):
     return is_categorical
 # ---------------------------------------------------------------------------------------------------------------------
 def pretty_size(value):
-
-    if   value > 1e+15: res = '%dP'% int(value/1e+15)
-    elif value > 1e+12: res = '%dT'% int(value/1e+12)
-    elif value > 1e+9 : res = '%dG'% int(value/1e+9)
-    elif value > 1e+6 : res = '%dM'% int(value/1e+6)
-    elif value > 1e+3 : res = '%dk'% int(value/1e+3)
+    base_fmt = '%3d'
+    if   value > 1e+15: res = (base_fmt+'P')% int(value/1e+15)
+    elif value > 1e+12: res = (base_fmt+'T')% int(value/1e+12)
+    elif value > 1e+9 : res = (base_fmt+'G')% int(value/1e+9)
+    elif value > 1e+6 : res = (base_fmt+'M')% int(value/1e+6)
+    elif value > 1e+3 : res = (base_fmt+'k')% int(value/1e+3)
     else:           res = '%d' % value
 
     return res

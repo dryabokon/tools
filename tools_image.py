@@ -8,6 +8,7 @@ from scipy import ndimage
 from skimage.transform import rescale, resize
 from PIL import Image as PillowImage
 from io import BytesIO
+import requests
 import base64
 #--------------------------------------------------------------------------------------------------------------------------
 def numerical_devisor(n):
@@ -880,8 +881,8 @@ def do_resize(image, dsize):
     return image_resized
 # --------------------------------------------------------------------------------------------------------------------
 def do_rescale(image,scale,anti_aliasing=True,multichannel=False):
-    pImage = Image.fromarray(image)
-    resized = pImage.resize((int(image.shape[1]*scale),int(image.shape[0]*scale)),resample=Image.BICUBIC)
+    pImage = PillowImage.fromarray(image)
+    resized = pImage.resize((int(image.shape[1]*scale),int(image.shape[0]*scale)),resample=PillowImage.BICUBIC)
     result = numpy.array(resized)
     return result
 # --------------------------------------------------------------------------------------------------------------------
@@ -891,6 +892,18 @@ def put_color_by_mask(image, mask2d, color):
     idx = (mask2d > 0)
     image[~idx] = 0
 
+    return image
+# --------------------------------------------------------------------------------------------------------------------
+def from_URL(url,img_size=';s=640x480'):
+    split = url.split(';s=')
+
+    if len(split)>1:
+        split[-1]=img_size
+        url = ''.join(split)
+
+    response = requests.get(url)
+    pil_image = PillowImage.open(BytesIO(response.content))
+    image = numpy.array(pil_image)[:, :, [2, 1, 0]]
     return image
 # --------------------------------------------------------------------------------------------------------------------
 def encode_base64(image):

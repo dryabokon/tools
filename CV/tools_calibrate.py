@@ -44,7 +44,9 @@ def get_proj_dist_mat_for_image(filename,chess_rows,chess_cols):
 def get_proj_dist_mat_for_images(folder_in,chess_rows,chess_cols,cell_size=1,folder_out=None):
 
     x, y = numpy.meshgrid(range(chess_rows), range(chess_cols))
-    world_points = numpy.hstack((x.reshape(chess_rows*chess_cols, 1), y.reshape(chess_rows*chess_cols, 1), numpy.zeros((chess_rows*chess_cols, 1)))).astype(numpy.float32)
+    world_points = numpy.hstack((x.reshape(chess_rows*chess_cols, 1),
+                                 y.reshape(chess_rows*chess_cols, 1),
+                                 numpy.zeros((chess_rows*chess_cols, 1)))).astype(numpy.float32)
 
     _3d_points = []
     _2d_points = []
@@ -61,7 +63,8 @@ def get_proj_dist_mat_for_images(folder_in,chess_rows,chess_cols,cell_size=1,fol
             _2d_points.append(corners)
             _3d_points.append(world_points)
             corners = corners.reshape(-1, 2)
-            for i in range(0,corners.shape[0]):gray = tools_draw_numpy.draw_circle(gray, corners[i, 1], corners[i, 0], 3, [0, 0, 255], alpha_transp=0)
+            for i in range(0,corners.shape[0]):
+                gray = tools_draw_numpy.draw_circle(gray, corners[i, 1], corners[i, 0], 7, [0, 0, 255], alpha_transp=0.2)
 
         print(local_filename,len(corners))
         if folder_out!=None:

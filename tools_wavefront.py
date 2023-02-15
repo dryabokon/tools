@@ -138,18 +138,35 @@ class ObjLoader:
             self.coord_vert[i]=numpy.multiply(self.coord_vert[i],svec)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def rotate_mesh(self, rvec):
-        R = pyrr.matrix44.create_from_eulers(rvec)
-
-        X = numpy.array(self.coord_vert)
-        X4D = numpy.hstack((X, numpy.full((X.shape[0], 1), 1)))
-        X = R.dot(X4D.T).T
-        self.coord_vert = X[:, :3]
-
-        return
+#     def rotate_mesh_rvec(self, rvec):
+#
+#         R = pyrr.matrix44.create_from_eulers(rvec)
+#
+#         X = numpy.array(self.coord_vert)
+#         X4D = numpy.hstack((X, numpy.full((X.shape[0], 1), 1)))
+#         X = R.dot(X4D.T).T
+#         self.coord_vert = X[:, :3]
+#
+#         return
+# # ----------------------------------------------------------------------------------------------------------------------
+#     def rotate_mesh(self, R):
+#
+#         X = numpy.array(self.coord_vert)
+#         X4D = numpy.hstack((X, numpy.full((X.shape[0], 1), 1)))
+#         X = R.dot(X4D.T).T
+#         self.coord_vert = X[:, :3]
+#
+#         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def translate_mesh(self, tvec):
-        self.coord_vert += tvec
+#     def translate_mesh(self, tvec):
+#         self.coord_vert += tvec
+#         return
+# ----------------------------------------------------------------------------------------------------------------------
+    def transform_mesh(self,M):
+
+        X4D = numpy.hstack((numpy.array(self.coord_vert), numpy.full((len(self.coord_vert), 1), 1)))
+        X = ((M.T).dot(X4D.T)).T
+        self.coord_vert = X[:, :3]
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def get_trianges(self, X):
@@ -211,7 +228,7 @@ class ObjLoader:
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def export_mesh(self, filename_out, X, coord_texture=None, idx_vertex=None, do_transform=False, cutoff=None, filename_material=None):
+    def export_mesh(self, filename_out, X, coord_texture=None, idx_vertex=None, do_transform=False, cutoff=None, replace_zero_normals=False,filename_material=None):
 
         if do_transform:
             X[:,1]=0 - X[:,1]
@@ -244,6 +261,8 @@ class ObjLoader:
                 if numpy.sqrt((n ** 2).sum())>0:
                     n = n / numpy.sqrt((n ** 2).sum())
 
+            if replace_zero_normals and (n ** 2).sum()==0:
+                n=(1,1,1)
             f_handle.write("vn %1.2f %1.2f %1.2f\n" % (n[0], n[1], n[2]))
 
         for n, t in enumerate(del_triangles):
@@ -265,10 +284,23 @@ class ObjLoader:
 # ----------------------------------------------------------------------------------------------------------------------
     def export_material(self,filename_out,color255,filename_texture=None):
 
+        # with open(filename_out, "w+") as f:
+        #     f.write('Ka %1.4f %1.4f %1.4f\n' % (color255[0]/255.0, color255[1]/255.0, color255[2]/255.0))
+        #     if filename_texture is not None:
+        #         f.write('map_Kd %s\n'%filename_texture)
+
         with open(filename_out, "w+") as f:
-            f.write('Ka %1.4f %1.4f %1.4f\n' % (color255[0]/255.0, color255[1]/255.0, color255[2]/255.0))
-            if filename_texture is not None:
-                f.write('map_Kd %s\n'%filename_texture)
+            f.write('# Material\n')
+            f.write('newmtl Material\n')
+            f.write('Ns 96.078431\n')
+            f.write('Ka %1.4f %1.4f %1.4f\n' % (color255[0] / 255.0, color255[1] / 255.0, color255[2] / 255.0))
+            f.write('Kd 0.640000 0.640000 0.640000\n')
+            f.write('Ks 0.500000 0.500000 0.500000\n')
+            f.write('Ke 0.600000 0.000000 0.000000\n')
+            f.write('Ni 1.00000\n')
+            f.write('d 1.00000\n')
+            f.write('illum 20\n')
+
 
         return
 # ----------------------------------------------------------------------------------------------------------------------

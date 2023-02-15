@@ -1,8 +1,8 @@
 import numpy
 import os
 from os import listdir
-import json
 import fnmatch
+import json
 from shutil import copyfile
 import shutil
 import random

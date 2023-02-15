@@ -145,9 +145,9 @@ def fit_pnp(landmarks_3d,landmarks_2d,mat_camera_3x3,dist=numpy.zeros(5)):
 
     return r_vec, t_vec, landmarks_2d_check
 # ----------------------------------------------------------------------------------------------------------------------
-'''
+#
 def fit_p3l(lines_3d,lines_2d,mat_camera_3x3):
-    from zhou_accv_2018 import p3l, p3p
+    from zhou_accv_2018 import p3l
     points3d_start = lines_3d[:, :3]
     points3d_end   = lines_3d[:, 3:]
 
@@ -160,7 +160,7 @@ def fit_p3l(lines_3d,lines_2d,mat_camera_3x3):
 
     poses = p3l(numpy.array(lines_2d).reshape((3,2,2)), (points3d, directions3d), mat_camera_3x3)
     return poses
-'''
+
 # ----------------------------------------------------------------------------------------------------------------------
 def fit_manual(X3D,target_2d,fx, fy,xref=None,lref=None,do_debug=True):
 
@@ -238,9 +238,11 @@ def fit_R(points_3d,points_2d,camera_matrix,rvec):
 
     return g_rvec,g_tvec,points_2d_cand
 # ----------------------------------------------------------------------------------------------------------------------
-def compose_projection_mat_3x3(fx, fy, fov_x=0.5, fov_y=0.5):
-    f = 0.5*fx/(fov_x)
-    mat_camera_3x3 = numpy.array([[f, 0., fx/2], [0., f, fy/2], [0., 0., 1.]])
+def compose_projection_mat_3x3(W, H, tg_half_fovx=0.5, tg_half_fovy=None):
+    fx = 0.5*W/(tg_half_fovx)
+    fy = 0.5*H/(tg_half_fovx)
+    mat_camera_3x3 = numpy.array([[fx, 0., W/2], [0., fx, H/2], [0., 0., 1.]])
+
     return mat_camera_3x3
 # ----------------------------------------------------------------------------------------------------------------------
 def compose_projection_mat_4x4(fx, fy, fov_x=0.5, fov_y=0.5):
@@ -255,14 +257,6 @@ def convert_projection_mat_3x3(camera_matrix_3x3):
     #mat_camera_4x4 = compose_projection_mat_4x4(fx, fy,fov_x,fov_y)
     mat_camera_4x4 = numpy.array([[fx, 0, fx * fov_x, 0], [0, fy, fy * fov_y, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
     return mat_camera_4x4
-# ----------------------------------------------------------------------------------------------------------------------
-def convert_projection_mat_4x4(camera_matrix_4x4):
-    # fx = camera_matrix_4x4[0, 0]
-    # fy = camera_matrix_4x4[1, 1]
-    # fov_x = camera_matrix_4x4[0,2]/fx
-    # f = 0.5 * fx / (fov_x)
-    # mat_camera_3x3 = numpy.array([[f, 0., fx / 2], [0., f, fy / 2], [0., 0., 1.]])
-    return camera_matrix_4x4[:3,:3]
 # ----------------------------------------------------------------------------------------------------------------------
 def compose_projection_mat_4x4_GL(W, H, fov_x, fov_y):
     near, far = 0.1, 10000.0
@@ -403,13 +397,16 @@ def mat_view_to_YPR(mat):
 #----------------------------------------------------------------------------------------------------------------------
 def ETU_to_mat_view(eye2, target2, up2):
 
-    forward2 = eye2 - target2
+    forward2 = numpy.array(eye2) - numpy.array(target2)
+    forward2 = normalize(forward2)
     side2 = -normalize(numpy.cross(forward2, up2))
     dot2 = -numpy.array((numpy.dot(side2, eye2), numpy.dot(up2, eye2), numpy.dot(forward2, eye2)))
 
+
+
     mat2 = numpy.eye(4)
     mat2[0, :3] = normalize(side2)
-    mat2[1, :3] = normalize(up2)
+    mat2[1, :3] = normalize(numpy.array(up2))
     mat2[2, :3] = normalize(forward2)
     mat2[3, :3] = dot2
 
@@ -479,7 +476,8 @@ def apply_matrix_GL(M, X):
     else:
         X4D = X
 
-    Y1 = M.dot(X4D.T).T
+    #Y1 = M.dot(X4D.T).T
+    Y1 = X4D.dot(M.T)
 
     if X.shape[1] == 3:
         Y1 = Y1[:, :3]
@@ -827,4 +825,19 @@ def fit_3D_3D(cuboid,idx_h = 1,idx_wh = [0,2],do_debug=False):
 
 
     return cuboid2
+# ----------------------------------------------------------------------------------------------------------------------
+def multiply(list_of_M):
+
+    res = list_of_M[-1].copy()
+    for M in reversed(list_of_M[:-1]):
+        res = numpy.dot(M,res.copy())
+    return res
+# ----------------------------------------------------------------------------------------------------------------------
+def perpendicular_vector3d(v):
+    if v[1] == 0 and v[2] == 0:
+        if v[0] == 0:
+            return numpy.array((0,0,0))
+        else:
+            return numpy.cross(v, [0, 1, 0])
+    return numpy.cross(v, [1, 0, 0])
 # ----------------------------------------------------------------------------------------------------------------------

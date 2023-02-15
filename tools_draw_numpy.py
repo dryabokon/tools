@@ -62,7 +62,8 @@ def draw_points(image, points,color=(0,0,200),w=4,transperency=0,put_text=False,
             cv2.putText(result, '%d %d'%(p[0],p[1]), (min(W - 10, max(10, p[0])), min(H - 5, max(10, p[1]))),cv2.FONT_HERSHEY_SIMPLEX, 1*w/12, clr, 1, cv2.LINE_AA)
 
         if labels is not None:
-            cv2.putText(result, '{0}'.format(labels[id]), (min(W - 10, max(10, p[0])), min(H - 5, max(10, p[1]))),cv2.FONT_HERSHEY_SIMPLEX, 0.6, clr, 1, cv2.LINE_AA)
+            draw_text(result, labels[i], (min(W - 10, max(10, p[0])), min(H - 5, max(10, p[1]))), clr, clr_bg=None, font_size=16, alpha_transp=0)
+            #cv2.putText(result, '{0}'.format(labels[i]), (min(W - 10, max(10, p[0])), min(H - 5, max(10, p[1]))),cv2.FONT_HERSHEY_SIMPLEX, 0.6, clr, 1, cv2.LINE_AA)
 
     del draw
     return result
@@ -215,6 +216,7 @@ def draw_contours_cv(image, points, color=(255,255,255),w=-1,transperency=0.0):
 
     pnts = points.reshape(1, -1, 1, 2).astype(numpy.int)
     res = image.copy()
+    color = (int(color[0]), int(color[1]), int(color[2]))
     res = cv2.drawContours(res, pnts, -1,color,thickness=w)
 
     if transperency>0:

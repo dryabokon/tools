@@ -883,7 +883,7 @@ class detector_VP:
                 df_cuboids = self.box_to_footprint_look_upright(box, vp_ver, vp_hor, cam_height, p_camera_BEV_xy,p_center_BEV_xy,h_ipersp)
             else:
                 df_cuboids = self.box_to_footprint_look_upleft(box, vp_ver, vp_hor, cam_height,p_camera_BEV_xy, p_center_BEV_xy,h_ipersp)
-            df_cuboids_all = df_cuboids_all.append(df_cuboids,ignore_index=True)
+            df_cuboids_all = pd.concat([df_cuboids_all,df_cuboids],axis=0)
 
         df_boxes_cars.reset_index(drop=True, inplace=True)
         df_cuboids_all.reset_index(drop=True, inplace=True)
@@ -938,7 +938,7 @@ class detector_VP:
         import tools_wavefront
         object = tools_wavefront.ObjLoader()
         object.load_mesh(self.filename_vehicle_3d_obj, do_autoscale=False)
-        object.rotate_mesh(rvec)
+        object.rotate_mesh_rvec(rvec)
         object.translate_mesh(tvec)
 
         return object.coord_vert

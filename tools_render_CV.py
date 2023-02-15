@@ -307,60 +307,53 @@ def check_projection_ortho_modelview(L3D, points_2d, modelview, fx,fy,scale_fact
         cv2.imwrite('./images/output/fit_check_modelview.png', image)
     return loss
 # ----------------------------------------------------------------------------------------------------------------------
-def get_ray(point_2d, camera_matrix_3x3, mat_view, mat_model, mat_trns):
+def inverce_project(point_2d,image,mat_projection, mat_view, mat_model, mat_trns,distance=None):
 
-    #fx, fy = float(img.shape[1]), float(img.shape[0])
-    #camera_matrix_3x3 = numpy.array([[fx, 0, fx / 2], [0, fy, fy / 2], [0, 0, 1]])
-    fx, fy = camera_matrix_3x3[0,0], camera_matrix_3x3[1,1]
+    H, W = image.shape[:2]
+    tg_half_fovx = 1.0 / mat_projection[0][0]
 
-    Z1 = -1
-    X1 = (point_2d[0]*Z1 - Z1*fx/2)/fx
-    Y1 = (point_2d[1]*Z1 - Z1*fy/2)/fy
-    ray_begin = numpy.array((X1, Y1, Z1))
+    far_plane_distance = 0.5 * W / tg_half_fovx if distance is None else distance
+    far_plane_W = 2 * far_plane_distance * tg_half_fovx
+    far_plane_H = far_plane_W * H / W
+    x = (-point_2d[0] + W / 2) * far_plane_distance / (0.5 * W / tg_half_fovx)
+    y = (+point_2d[1] - H / 2) * far_plane_distance / (0.5 * W / tg_half_fovx)
+    far_plane = numpy.array(((-far_plane_W / 2, 0, +far_plane_H / 2, 1), (-far_plane_W / 2, 0, -far_plane_H / 2, 1),(+far_plane_W / 2, 0, +far_plane_H / 2, 1), (+far_plane_W / 2, 0, -far_plane_H / 2, 1),(x, 0, y, 1)))
+    t0 = (0, far_plane_distance, 0)
 
-    Z0 = 0
-    X0 = (point_2d[0]*Z0 - Z0*fx/2)/fx
-    Y0 = (point_2d[1]*Z0 - Z0*fy/2)/fy
-    ray_mid = numpy.array((X0, Y0, Z0))
+    mat_view0 = tools_pr_geom.ETU_to_mat_view((0, 0, 0), (0, 1, 0), (0, 0, -1))
+    mat_model0 = tools_pr_geom.compose_RT_mat((0, 0, 0), (0, 0, 0), do_rodriges=False, do_flip=False,GL_style=True)
+    M_obj0 = tools_pr_geom.compose_RT_mat((0, 0, 0), t0, do_rodriges=False, do_flip=False, GL_style=True)
 
+    M = tools_pr_geom.multiply([M_obj0,
+                                tools_pr_geom.multiply([mat_trns, mat_model0]),
+                                tools_pr_geom.multiply([mat_view0, numpy.linalg.pinv(mat_view)]),
+                                tools_pr_geom.multiply([numpy.linalg.pinv(mat_model), numpy.linalg.pinv(mat_trns)]),
+                                ])
 
-    Z2 = +1
-    X2 = (point_2d[0]*Z2 - Z2*fx/2)/fx
-    Y2 = (point_2d[1]*Z2 - Z2*fy/2)/fy
-    ray_end = numpy.array((X2, Y2, Z2))
-
+    far_plane_t = tools_pr_geom.apply_matrix_GL(M.T, far_plane)[:,:3]
+    point_3d = far_plane_t[-1]
     #check
-    points_2d_check, jac = tools_pr_geom.project_points(numpy.array([(X1, Y1, Z1),(X2,Y2,Z2)]), numpy.array((0, 0, 0)), numpy.array((0, 0, 0)), camera_matrix_3x3, numpy.zeros(5))
+    # point_2d_check = tools_pr_geom.project_points_MVP_GL(far_plane_t, image, mat_projection, mat_view,mat_model, mat_trns)
+    # far_plane_t1 = tools_pr_geom.apply_matrix_GL(M.T, far_plane)
+    # far_plane_t2 = far_plane.dot(M)[:, :3]
+    # empty = numpy.full((H, W, 3), 32, dtype=numpy.uint8)
+    # ray_end = far_plane_t2[-1]
+    # points_2d = tools_pr_geom.project_points_MVP_GL(far_plane_t2, empty, mat_projection, mat_view,mat_model, mat_trns)
+    # X0 = tools_pr_geom.multiply([far_plane, M_obj0, mat_view0, mat_model0, mat_trns])
+    # X0p = tools_pr_geom.project_points_MVP_GL(far_plane.dot(M_obj0)[:, :3], empty, mat_projection, mat_view0,mat_model0, mat_trns)
+    # X1 = tools_pr_geom.multiply([far_plane_t1, mat_view, mat_model, mat_trns])
+    # X1p = tools_pr_geom.project_points_MVP_GL(far_plane_t1[:, :3], empty, mat_projection, mat_view,mat_model, mat_trns)
 
-    i_mat_view  = pyrr.matrix44.inverse(mat_view)
-    i_mat_model = pyrr.matrix44.inverse(mat_model)
-    i_mat_trans = pyrr.matrix44.inverse(mat_trns)
+    return point_3d
+# ----------------------------------------------------------------------------------------------------------------------
+def get_ray(point_2d,image,mat_projection, mat_view, mat_model, mat_trns,d = None):
+    H, W = image.shape[:2]
+    tg_half_fovx = 1.0 / mat_projection[0][0]
+    far_plane_distance = 0.5 * W / tg_half_fovx if d is None else d
+    ray_start = inverce_project(point_2d, image, mat_projection, mat_view, mat_model, mat_trns,far_plane_distance+1)
+    ray_end   = inverce_project(point_2d, image, mat_projection, mat_view, mat_model, mat_trns,far_plane_distance)
 
-    #i_mat_view  = mat_view.T
-    #i_mat_model = mat_model.T
-    #i_mat_trans = mat_trns.T
-
-    ray_begin_v = pyrr.matrix44.apply_to_vector(i_mat_view , ray_begin)
-    ray_begin_check_v = pyrr.matrix44.apply_to_vector(mat_view, ray_begin_v)
-
-    ray_begin_m = pyrr.matrix44.apply_to_vector(i_mat_model, ray_begin_v)
-    ray_begin_check_m = pyrr.matrix44.apply_to_vector(mat_model, ray_begin_m)
-
-    ray_begin_t = pyrr.matrix44.apply_to_vector(i_mat_trans , ray_begin_m)
-    ray_begin_check_t = pyrr.matrix44.apply_to_vector(mat_trns, ray_begin_t)
-
-    #check
-    vv = pyrr.matrix44.apply_to_vector(mat_trns, ray_begin_t)
-    vv = pyrr.matrix44.apply_to_vector(mat_model, vv)
-    vv = pyrr.matrix44.apply_to_vector(mat_view, vv)
-    x = (vv == ray_begin)
-
-
-    ray_end = pyrr.matrix44.apply_to_vector(i_mat_view , ray_end)
-    ray_end = pyrr.matrix44.apply_to_vector(i_mat_model, ray_end)
-    ray_end = pyrr.matrix44.apply_to_vector(i_mat_trans, ray_end)
-
-    return ray_begin_t,ray_end
+    return ray_start,ray_end
 # ----------------------------------------------------------------------------------------------------------------------
 def line_plane_intersection(planeNormal, planePoint, rayDirection, rayPoint, epsilon=1e-6):
     ndotu = numpy.array(planeNormal[:3]).dot(numpy.array(rayDirection[:3]))
@@ -499,26 +492,12 @@ def get_interception_ray_triangle(pos, direction, triangle):
 
     return None
 # ----------------------------------------------------------------------------------------------------------------------
-def get_interception_ray_triangles(pos, direction, coord_vert, coord_norm, idxv, idxn):
-    collisions = []
+def get_interceptions_ray_triangles(pos, direction,coord_vert, idxv):
 
-    for iv,inr in zip(idxv,idxn):
-        triangle = coord_vert[iv]
-        n = coord_norm[inr[0]]#n0 = get_normal(triangle)
+    collisions = [get_interception_ray_triangle(pos, direction, coord_vert[iv])for iv in idxv]
+    collisions = [c for c in collisions if c is not None]
 
-        collision = line_plane_intersection(n, triangle[0,:3], direction[:3], pos[:3], epsilon=1e-6)
-
-        if collision is not None:
-            if is_point_inside_triangle(collision,triangle):
-                collisions.append(collision)
-
-    if len(collisions)==0:return None
-    if len(collisions)==1:return collisions[0]
-
-    X = numpy.array([collision-pos for collision in collisions])
-    X = numpy.mean(X**2,axis=1)
-    i = numpy.argmin(X)
-    return collisions[i]
+    return collisions
 # ----------------------------------------------------------------------------------------------------------------------
 def is_point_inside_triangle(contact_point, P):
 

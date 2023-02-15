@@ -50,3 +50,16 @@ def generate_date_range(dt_start,dt_stop,freq):
 
     return dates
 # ----------------------------------------------------------------------------------------------------------------------
+def pretify_timedelta(td):
+
+    res = []
+    for s in td:
+        hours, remainder = divmod(s, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        msec = s%1
+        res.append('%02d:%02d:%02d:%03d' % (hours, minutes, seconds,1000*msec))
+
+    #res = ['%02d:%02d:%02d:%03d' % (0, (x - x % 1) / 60, (x - x % 1) % 60, 100 * (x % 1)) for x in ts]
+
+    return res
+# ----------------------------------------------------------------------------------------------------------------------

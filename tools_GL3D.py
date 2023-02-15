@@ -1,6 +1,8 @@
 # http://blog.db-in.com/cameras-on-opengl-es-2-x/
 # https://3dviewer.net/
 import math
+import os.path
+
 import cv2
 from OpenGL.GL import *
 import OpenGL.GL.shaders
@@ -23,34 +25,32 @@ numpy.set_printoptions(precision=2)
 # ----------------------------------------------------------------------------------------------------------------------
 class VBO(object):
     def __init__(self):
-        self.n_faces = 16000
+        self.n_faces = 35000
+
         self.id = numpy.full(9 * self.n_faces, -1)
         self.cnt = 0
-        self.marker_positions = []
         self.iterator = 0
         self.color_offset = 3 * 3 * self.n_faces
         self.normal_offset = self.color_offset + 3 * 3 * self.n_faces
         self.texture_offset = self.normal_offset + 3 * 3 * self.n_faces
+
         self.data = numpy.full(self.texture_offset + 3 * 2 * self.n_faces, 0.0, dtype='float32')
+
+
 
         return
 
     # ----------------------------------------------------------------------------------------------------------------------
-    def append_object(self, filename_obj, do_normalize_model_file, svec=(1, 1, 1), rvec=(0, 0, 0), tvec=(0, 0, 0)):
-
-        self.marker_positions.append(numpy.array(tvec))
+    def append_object(self, filename_obj, do_normalize_model_file=False, svec=(1, 1, 1), M=numpy.eye(1)):
 
         object = tools_wavefront.ObjLoader()
         object.load_mesh(filename_obj, do_normalize_model_file)
         object.scale_mesh(svec)
-        object.rotate_mesh(rvec)
-        object.translate_mesh(tvec)
 
+        object.transform_mesh(M)
         for idxv, idxn, idxt in zip(object.idx_vertex, object.idx_normal, object.idx_texture):
             idx_col = object.dct_obj_id[idxv[0]]
-
             c = (0.25, 0.75, 0.95)
-            #c = (0.25, 0.25, 0.25)
             if len(object.mat_color) > 0 and (object.mat_color[idx_col] is not None):
                 c = object.mat_color[idx_col]
 
@@ -58,24 +58,30 @@ class VBO(object):
 
             self.data[self.iterator:                    self.iterator + 9] = (object.coord_vert[idxv]).flatten()
             self.data[self.iterator + self.color_offset:self.iterator + self.color_offset + 9] = clr
-            self.data[self.iterator + self.normal_offset:self.iterator + self.normal_offset + 9] = (
-            object.coord_norm[idxn]).flatten()
-            self.data[2 * self.iterator // 3 + self.texture_offset:2 * self.iterator // 3 + self.texture_offset + 6] = (
-            object.coord_texture[idxt]).flatten()
+            self.data[self.iterator + self.normal_offset:self.iterator + self.normal_offset + 9] = (object.coord_norm[idxn]).flatten()
+            self.data[2*self.iterator // 3 + self.texture_offset:2 * self.iterator // 3 + self.texture_offset + 6] = (object.coord_texture[idxt]).flatten()
 
-            self.iterator += 9
             self.id[self.iterator:                  self.iterator + 9] = self.cnt
+            self.iterator += 9
 
         self.cnt += 1
 
         return object
 
-    # ----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+    def remove_total(self):
+
+        self.cnt = 0
+        self.iterator = 0
+        self.data[:] = 0
+
+
+        return
+# ----------------------------------------------------------------------------------------------------------------------
     def remove_last_object(self):
         if self.cnt > 1:
             self.remove_object(self.cnt - 1)
             self.cnt -= 1
-            self.marker_positions.pop()
             return 0
         return 1
 
@@ -87,40 +93,49 @@ class VBO(object):
             self.data[idx] = 0
             self.data[[i + self.color_offset for i in idx]] = 0
             self.data[[i + self.normal_offset for i in idx]] = 0
+            self.iterator-=len(idx[0])
 
         return
-
-
 # ----------------------------------------------------------------------------------------------------------------------
 class render_GL3D(object):
 
-    def __init__(self, filename_obj, W=640, H=480, is_visible=True, do_normalize_model_file=True, projection_type='P',
-                 textured=True, scale=(1, 1, 1), rvec=(0, 0, 0), tvec=(0, 0, 0)):
+    def __init__(self, filename_obj, W=640, H=480, is_visible=True,
+                 do_normalize_model_file=True, projection_type='P',cam_fov_deg=90,
+                 textured=True, scale=(1, 1, 1),
+                 eye=None,target=(0,0,0),up=(0,0,1),
+                 M_obj=numpy.eye(4)):
 
         glfw.init()
         self.projection_type = projection_type
         self.is_enabled_standardize_rvec = True
-        self.marker_scale = 0.015
+        self.marker_scale = 0.10
         self.scale = scale
         self.do_normalize_model_file = do_normalize_model_file
-        #self.bg_color = numpy.array([76, 76, 76, 1]) / 255
-        self.bg_color = numpy.array([250, 250, 250, 1]) / 255
+        self.bg_color = numpy.array([76, 76, 76, 1]) / 255
+        #self.bg_color = numpy.array([26, 26, 26, 1]) / 255
         self.fg_color = numpy.array([0, 0, 0, 1]) / 255
-        self.wired_mode = False
-        self.skinless_mode = False
+        self.wired_mode = 0
 
         self.W, self.H = W, H
+        self.cam_fov_deg = cam_fov_deg
+        self.M_obj = M_obj
+
         glfw.window_hint(glfw.VISIBLE, is_visible)
         self.window = glfw.create_window(self.W, self.H, "GL viewer", None, None)
         glfw.make_context_current(self.window)
 
-        self.__init_shader(textured)
         self.my_VBO = VBO()
 
-        self.object = self.my_VBO.append_object(filename_obj, self.do_normalize_model_file, rvec=rvec, tvec=tvec)
+        self.object = self.init_object(filename_obj,M_obj)
 
+        if (eye is None):
+            self.eye_default, self.target_default, self.up_default = self.get_default_ETU()
+        else:
+            self.eye_default,self.target_default,self.up_default   = eye,target,up
+
+        self.textured = textured
         self.update_texture()
-
+        self.__init_shader()
         self.bind_VBO()
         self.reset_view()
         self.ctrl_pressed = False
@@ -129,7 +144,18 @@ class render_GL3D(object):
         return
 
     # ----------------------------------------------------------------------------------------------------------------------
-    def __init_shader(self, textured=True):
+    def init_object(self,filename_obj,M_obj=numpy.eye(4)):
+        self.object = None
+        if filename_obj is not None:
+            if os.path.isdir(filename_obj):
+                for f in tools_IO.get_filenames(filename_obj,'*.obj'):
+                    self.object = self.my_VBO.append_object(filename_obj+f, self.do_normalize_model_file, M=M_obj)
+            else:
+                if os.path.isfile(filename_obj):
+                    self.object = self.my_VBO.append_object(filename_obj, self.do_normalize_model_file, M=M_obj)
+        return self.object
+    # ----------------------------------------------------------------------------------------------------------------------
+    def __init_shader(self):
         # projection * view * model * transform
         # model maps from an object's local coordinate space into world space,
         # view from world space to camera space,
@@ -162,7 +188,7 @@ class render_GL3D(object):
                                     uniform sampler2D samplerTexture;
                                     void main()
                                     {
-                                        vec3 ambientLightIntensity  = vec3(0.01f, 0.01f, 0.01f);
+                                        vec3 ambientLightIntensity  = vec3(0.1f, 0.1f, 0.1f);
                                         vec3 sunLightIntensity      = vec3(1.0f, 1.0f, 1.0f);
                                         vec3 sunLightDirection      = normalize(vec3(+0.0f, -1.0f, +0.0f));
                                         vec4 texel = texture(samplerTexture, textureCoords);
@@ -192,32 +218,60 @@ class render_GL3D(object):
 
                                         vec3 lightIntensity = ambientLightIntensity + sunLightIntensity * dot(fragNormal, sunLightDirection);
                                         vec4 materialColor = vec4(inColor*lightIntensity, 1);
+                                        
 
                                         outColor = materialColor; // color material with lighting and shaddow effect 
                                         //outColor = texel;//soccer
                                         //outColor = texel* materialColor;//
                                         //outColor = vec4(texel.rgb * lightIntensity, 1);
-                                        outColor.a = 0.95;  //transparency                                        
+                                        outColor.a = 0.05;  //transparency                                        
                                     }"""
 
-        if textured:
-            frag_shader = frag_shader_texture
-        else:
-            frag_shader = frag_shader_color
 
-        self.shader = OpenGL.GL.shaders.compileProgram(OpenGL.GL.shaders.compileShader(vert_shader, GL_VERTEX_SHADER),
-                                                       OpenGL.GL.shaders.compileShader(frag_shader, GL_FRAGMENT_SHADER))
+
+
+
+        if self.textured:
+            self.shader = OpenGL.GL.shaders.compileProgram(OpenGL.GL.shaders.compileShader(vert_shader, GL_VERTEX_SHADER),OpenGL.GL.shaders.compileShader(frag_shader_texture, GL_FRAGMENT_SHADER))
+        else:
+            self.shader = OpenGL.GL.shaders.compileProgram(OpenGL.GL.shaders.compileShader(vert_shader, GL_VERTEX_SHADER),OpenGL.GL.shaders.compileShader(frag_shader_color, GL_FRAGMENT_SHADER))
+
         glUseProgram(self.shader)
         return
+# ----------------------------------------------------------------------------------------------------------------------
+    def update_background(self,filename_obj):
 
+        tg_half_fovx =1.0/ self.mat_projection[0][0]
+
+        t0 = (0, 0.5 * self.W / tg_half_fovx, 0)
+        M_obj0 = tools_pr_geom.compose_RT_mat((0, 0, 0), t0, do_rodriges=False, do_flip=False, GL_style=True)
+        mat_view0 = tools_pr_geom.ETU_to_mat_view((0, 0, 0), (0, 1, 0), (0, 0, -1))
+        mat_model0 = tools_render_GL.compose_RT_mat_GL((0,0,0), (0,0,0), do_rodriges=False, do_flip=False)
+
+        M = tools_pr_geom.multiply([M_obj0,
+                                    tools_pr_geom.multiply([self.mat_trns,mat_model0]),
+                                    tools_pr_geom.multiply([mat_view0,numpy.linalg.pinv(self.mat_view)]),
+                                    tools_pr_geom.multiply([numpy.linalg.pinv(self.mat_model),numpy.linalg.pinv(self.mat_trns)]),
+                                    ])
+
+        self.my_VBO.remove_last_object()
+        if filename_obj is not None:
+            self.my_VBO.append_object(filename_obj, do_normalize_model_file=False,M=M)
+        self.bind_VBO(self.wired_mode)
+
+        return
     # ----------------------------------------------------------------------------------------------------------------------
     def update_texture(self):
 
-        if (self.object.filename_texture[-1] is None) or (not os.path.exists(self.object.filename_texture[-1])):
+        if self.object is None:
             texture_image = numpy.full((10, 10, 3), 255)
+            self.textured = False
         else:
-            texture_image = cv2.imread(self.object.filename_texture[-1])
-            texture_image = cv2.cvtColor(texture_image, cv2.COLOR_BGR2RGB)
+            if (self.object.filename_texture[-1] is None) or (not os.path.exists(self.object.filename_texture[-1])):
+                texture_image = numpy.full((10, 10, 3), 255)
+                self.textured = False
+            else:
+                texture_image = cv2.cvtColor(cv2.imread(self.object.filename_texture[-1]), cv2.COLOR_BGR2RGB)
 
         glBindTexture(GL_TEXTURE_2D, 0)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
@@ -225,13 +279,12 @@ class render_GL3D(object):
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
 
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texture_image.shape[1], texture_image.shape[0], 0, GL_RGB,
-                     GL_UNSIGNED_BYTE, texture_image.flatten())
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texture_image.shape[1], texture_image.shape[0], 0, GL_RGB, GL_UNSIGNED_BYTE, texture_image.flatten())
         glEnable(GL_TEXTURE_2D)
         return
 
     # ----------------------------------------------------------------------------------------------------------------------
-    def bind_VBO(self, wired_mode=False):
+    def bind_VBO(self, wired_mode=0):
 
         glBindBuffer(GL_ARRAY_BUFFER, glGenBuffers(1))
 
@@ -244,18 +297,15 @@ class render_GL3D(object):
         glEnableVertexAttribArray(0)
 
         # colors
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, item_size * 3,
-                              ctypes.c_void_p(item_size * self.my_VBO.color_offset))
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, item_size * 3,ctypes.c_void_p(item_size * self.my_VBO.color_offset))
         glEnableVertexAttribArray(1)
 
         # normals
-        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, item_size * 3,
-                              ctypes.c_void_p(item_size * self.my_VBO.normal_offset))
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, item_size * 3,ctypes.c_void_p(item_size * self.my_VBO.normal_offset))
         glEnableVertexAttribArray(2)
 
         # textures
-        glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, item_size * 2,
-                              ctypes.c_void_p(item_size * self.my_VBO.texture_offset))
+        glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, item_size * 2,ctypes.c_void_p(item_size * self.my_VBO.texture_offset))
         glEnableVertexAttribArray(3)
 
         glClearColor(self.bg_color[0], self.bg_color[1], self.bg_color[2], self.bg_color[3])
@@ -264,10 +314,13 @@ class render_GL3D(object):
         glEnable(GL_BLEND)
         glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA)
 
-        if wired_mode:
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
-        else:
+        if wired_mode==0:
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+        elif wired_mode==1:
+            glPolygonMode(GL_FRONT_AND_BACK, GL_POINT)
+        else:
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+
 
         return
 
@@ -331,7 +384,8 @@ class render_GL3D(object):
     def __init_mat_transform(self, scale_vec):
         self.mat_trns = pyrr.Matrix44.from_scale(scale_vec)
         # !!!
-        self.mat_trns[1,1]*=-1
+        # self.mat_trns[1,1]*=-1
+        # self.mat_trns[2,2]*=-1
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "transform"), 1, GL_FALSE, self.mat_trns)
         return
 
@@ -393,8 +447,7 @@ class render_GL3D(object):
         return
 
     # ----------------------------------------------------------------------------------------------------------------------
-    def get_image_perspective(self, rvec, tvec, a_fov_x=0.5, a_fov_y=0.5, scale=(1, 1, 1), lookback=False,
-                              mat_view_to_1=True, do_debug=False):
+    def get_image_perspective(self, rvec, tvec, a_fov_x=0.5, a_fov_y=0.5, scale=(1, 1, 1), lookback=False, mat_view_to_1=True, do_debug=False):
         if mat_view_to_1:
             self.init_perspective_view_1_mat_view(rvec, tvec, a_fov_x, a_fov_y, scale)
             if lookback:
@@ -408,21 +461,23 @@ class render_GL3D(object):
         return self.get_image(do_debug=do_debug)
 
     # ----------------------------------------------------------------------------------------------------------------------
-    def get_image_perspective_M(self, mat_M, a_fov_x=0.5, a_fov_y=0.5, scale=(1, 1, 1), lookback=False, do_debug=False):
+    def get_image_perspective_M(self, mat_M, a_fov_x=0.5, a_fov_y=0.5, scale=(1, 1, 1), lookback=False, mat_view_to_1=True,do_debug=False):
 
-        self.mat_view = mat_M
-        if lookback:
-            self.mat_view *= -1
-            self.mat_view[-1, -1] *= -1
+        if mat_view_to_1:
+            self.mat_model = mat_M
+            self.init_mat_view_direct(numpy.eye(4))
+            glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
+            glUniformMatrix4fv(glGetUniformLocation(self.shader, "model"), 1, GL_FALSE, self.mat_model)
 
-        glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
+        else:
+            self.mat_view = mat_M
+            self.init_mat_model_direct(numpy.eye(4))
+            glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
 
-        self.init_mat_model((0, 0, 0), (0, 0, 0))
         self.__init_mat_transform(scale)
         self.__init_mat_projection_perspective(a_fov_x, a_fov_y)
 
         return self.get_image(do_debug=do_debug)
-
     # ----------------------------------------------------------------------------------------------------------------------
     def init_ortho_view(self, rvec, tvec, scale_factor):
         rvec = numpy.array(rvec)
@@ -437,13 +492,11 @@ class render_GL3D(object):
         return self.get_image(do_debug=do_debug)
 
     # ----------------------------------------------------------------------------------------------------------------------
-    def draw_debug_info(self, image):
+    def draw_debug_info(self, image,draw_points=False):
 
-        if self.projection_type == 'P':
-            image_result = tools_render_GL.draw_points_MVP_GL(self.object.coord_vert, image, self.mat_projection, self.mat_view, self.mat_model, self.mat_trns, w=6,do_debug=False)
-        else:
-            scale_factor = 1 / self.mat_projection[0, 0]
-            image_result = tools_draw_numpy.draw_mat(numpy.array((scale_factor, 0, 0, 0)), 20, 660, image)
+        image_result = image.copy()
+        if draw_points:
+            image_result = tools_render_GL.draw_points_MVP_GL(self.object.coord_vert, image_result, self.mat_projection, self.mat_view, self.mat_model, self.mat_trns, w=6,do_debug=False)
 
         camera_matrix_3x3 = tools_pr_geom.compose_projection_mat_3x3(self.W, self.H, 1 / self.mat_projection[0][0], 1 / self.mat_projection[1][1])
         image_result = tools_draw_numpy.draw_mat(self.mat_trns      , 20, 20, image_result, color=255*self.fg_color,text='World')
@@ -452,41 +505,21 @@ class render_GL3D(object):
         image_result = tools_draw_numpy.draw_mat(self.mat_projection, 20, 320, image_result,color=255*self.fg_color,text='Projection')
         image_result = tools_draw_numpy.draw_mat(camera_matrix_3x3  , 20, 420, image_result,color=255*self.fg_color, text='Mat camera')
 
-
+        Ym, Pm, Rm = tools_pr_geom.mat_view_to_YPR(self.mat_model)
         E, T, U = tools_pr_geom.mat_view_to_ETU(self.mat_view)
-        Y, P, R = tools_pr_geom.mat_view_to_YPR(self.mat_model)
-        rvec = tools_pr_geom.rotationMatrixToEulerAngles(self.mat_view[:3, :3])
+        Yc, Pc, Rc = tools_pr_geom.mat_view_to_YPR(self.mat_view)
         tg_half_fovx = 1.0 / (self.mat_projection[0][0])
-
         fovx_deg = 2 * numpy.arctan(tg_half_fovx)*180/numpy.pi
 
-        image_result = tools_draw_numpy.draw_mat(numpy.array((Y, P, R)) * 180 / numpy.pi, 20, 520, image_result,color=255*self.fg_color, text='Model rotation')
-        image_result = tools_draw_numpy.draw_mat(E                , 20, 560, image_result,color=255*self.fg_color,text='Camera Eye')
-        image_result = tools_draw_numpy.draw_mat([fovx_deg], 20, 580, image_result,color=255*self.fg_color, text='Camera fov x deg')
+        image_result = tools_draw_numpy.draw_mat(numpy.array((Ym, Pm, Rm)) * 180 / numpy.pi, 20, 520, image_result,color=255*self.fg_color, text='Model Yaw Pitch Roll [deg]')
+        image_result = tools_draw_numpy.draw_mat(E, 20, 560, image_result,color=255*self.fg_color,text='Camera Eye')
+        image_result = tools_draw_numpy.draw_mat(T, 20, 580, image_result, color=255 * self.fg_color, text='Camera Target')
+        image_result = tools_draw_numpy.draw_mat(U, 20, 600, image_result, color=255 * self.fg_color, text='Camera Up')
 
+        image_result = tools_draw_numpy.draw_mat(numpy.array((Yc, Pc, Rc)) * 180 / numpy.pi, 20, 620, image_result, color=255 * self.fg_color, text='Camera Yaw Pitch Roll [deg]')
+        image_result = tools_draw_numpy.draw_mat([fovx_deg], 20, 640, image_result,color=255*self.fg_color, text='Camera fov x deg')
 
         return image_result
-
-    # ----------------------------------------------------------------------------------------------------------------------
-    # def draw_vec(self, V, posx, posy, image, text=None):
-    #
-    #     string1 = ''.join(['%+1.2f '%v for v in V])
-    #     if text is not None:
-    #         string1+= ' ' + text
-    #
-    #     #image = cv2.putText(image, '{0}'.format(string1), (posx, posy), cv2.FONT_HERSHEY_SIMPLEX, 0.4, self.fg_color, 1,cv2.LINE_AA)
-    #     image = tools_draw_numpy.draw_text(image, '\n'.join(string1), (posx, posy), color_fg=255 * self.fg_color, font_size=16)
-    #     return image
-
-    # ----------------------------------------------------------------------------------------------------------------------
-    # def draw_mat(self, M, posx, posy, image, text=None):
-    #     string1 = [(' '.join(['%+1.2f' % M[r, c] for c in range(M.shape[1])])) for r in range(M.shape[0])]
-    #     if text is not None:
-    #         string1[0]+= ' ' + text
-    #
-    #     image = tools_draw_numpy.draw_text(image, '\n'.join(string1), (posx, posy), color_fg=255*self.fg_color, font_size=16)
-    #
-    #     return image
 
     # ----------------------------------------------------------------------------------------------------------------------
     def stage_data(self, folder_out):
@@ -504,31 +537,20 @@ class render_GL3D(object):
         return
 
     # ----------------------------------------------------------------------------------------------------------------------
-    def save_markers(self, filename_out, do_transform=False):
-        if do_transform:
-            X = self.my_VBO.marker_positions[1:].copy()
-            X = numpy.array(X)
-            X[:, 1] = 0 - X[:, 1]
-            tools_IO.save_mat(X, filename_out, delim=',')
-        else:
-            tools_IO.save_mat(self.my_VBO.marker_positions[1:], filename_out, delim=',')
-        return
-
-    # ----------------------------------------------------------------------------------------------------------------------
     def load_markers(self, filename_in, filename_marker_obj, marker_scale=None):
 
         if marker_scale is not None:
             self.marker_scale = marker_scale
 
-        markers = tools_IO.load_mat(filename_in, dtype=numpy.float, delim=',')
+        markers = tools_IO.load_mat(filename_in, dtype=numpy.float, delim=' ')
         flag = self.my_VBO.remove_last_object()
         while flag == 0:
             flag = self.my_VBO.remove_last_object()
 
-        for marker in markers:
-            self.my_VBO.append_object(filename_marker_obj, do_normalize_model_file=True,
-                                      svec=(self.marker_scale, self.marker_scale, self.marker_scale), tvec=marker)
-        self.bind_VBO()
+        for marker_t in markers:
+            M = tools_pr_geom.compose_RT_mat((0,0,0),marker_t,do_rodriges=False,do_flip=False, GL_style=True)#?
+            self.my_VBO.append_object(filename_marker_obj, do_normalize_model_file=True,svec=(self.marker_scale, self.marker_scale, self.marker_scale), M=M)
+        self.bind_VBO(self.wired_mode)
         return
 
     # ----------------------------------------------------------------------------------------------------------------------
@@ -560,26 +582,6 @@ class render_GL3D(object):
         return
 
     # ----------------------------------------------------------------------------------------------------------------------
-    def start_append(self):
-        self.on_append = True
-        return
-
-    # ----------------------------------------------------------------------------------------------------------------------
-    def stop_append(self):
-        self.on_append = False
-        return
-
-    # ----------------------------------------------------------------------------------------------------------------------
-    def start_remove(self):
-        self.on_remove = True
-        return
-
-    # ----------------------------------------------------------------------------------------------------------------------
-    def stop_remove(self):
-        self.on_remove = False
-        return
-
-    # ----------------------------------------------------------------------------------------------------------------------
     def scale_projection(self, factor):
         scale_current = self.mat_projection[0][0] / 2
         a_fov_current = (0.5 / scale_current)
@@ -607,22 +609,12 @@ class render_GL3D(object):
             self.mat_view = self.mat_view_translation_checkpoint
 
         T = pyrr.matrix44.create_from_translation(numpy.array(delta_translate))
-        TT = pyrr.matrix44.multiply(pyrr.matrix44.inverse(self.mat_view), pyrr.matrix44.multiply(T, self.mat_view))
-        self.mat_view = pyrr.matrix44.multiply(self.mat_view, TT)
+        self.mat_view = pyrr.matrix44.multiply(self.mat_view, T)
+
+        Yc, Pc, Rc = tools_pr_geom.mat_view_to_YPR(self.mat_view)
+        self.mat_view  = tools_pr_geom.compose_RT_mat((Yc, Pc, 0), self.mat_view[3, :3], do_rodriges=False,do_flip=False,GL_style=True)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
 
-        return
-
-    # ----------------------------------------------------------------------------------------------------------------------
-    def translate_view_v2(self, delta_translate):
-
-        if self.on_translate and self.mat_view_translation_checkpoint is not None:
-            self.mat_view = self.mat_view_translation_checkpoint
-
-        E, T, U = tools_pr_geom.mat_view_to_ETU(self.mat_view)
-        T -= delta_translate
-        E -= delta_translate
-        self.init_mat_view_ETU(E, T, U)
 
         return
 
@@ -634,8 +626,10 @@ class render_GL3D(object):
         R = pyrr.matrix44.create_from_eulers(numpy.array((delta_angle[0], delta_angle[1], delta_angle[2])))
         RR = pyrr.matrix44.multiply(pyrr.matrix44.multiply(self.mat_view, R), pyrr.matrix44.inverse(self.mat_view))
         self.mat_view = pyrr.matrix44.multiply(RR, self.mat_view)
-
+        Yc, Pc, Rc = tools_pr_geom.mat_view_to_YPR(self.mat_view)
+        self.mat_view = tools_pr_geom.compose_RT_mat((Yc, Pc, 0), self.mat_view[3, :3], do_rodriges=False,do_flip=False, GL_style=True)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "view"), 1, GL_FALSE, self.mat_view)
+
         return
 
     # ----------------------------------------------------------------------------------------------------------------------
@@ -764,38 +758,68 @@ class render_GL3D(object):
         self.W = W
         self.H = H
         glViewport(0, 0, W, H)
-        self.transform_model('xz')
         return
 
     # ----------------------------------------------------------------------------------------------------------------------
+    def get_default_ETU(self):
+        obj_min = self.object.coord_vert.min()
+        obj_max = self.object.coord_vert.max()
+        # eye = numpy.array((0, 0, +5 * (obj_max - obj_min)))
+        # target = eye - numpy.array((0, 0, 1.0))
+        # up = numpy.array((0, -1, 0.0))
+
+        eye = numpy.array((0, 0, -5 * (obj_max - obj_min)))
+        target = eye + numpy.array((0, 0, 1.0))
+        up = numpy.array((0, -1, 0.0))
+
+        return eye, target, up
+    # ----------------------------------------------------------------------------------------------------------------------
+    def get_best_collision(self, collisons):
+        if collisons is None:
+            return None
+
+
+        collisons = numpy.array(collisons).reshape((-1, 3))
+        X4D = numpy.hstack((collisons, numpy.full((collisons.shape[0], 1), 1)))
+
+        X = tools_pr_geom.multiply([X4D,self.M_obj,self.mat_model,self.mat_trns])[:,:3]
+        E, T, U = tools_pr_geom.mat_view_to_ETU(self.mat_view)
+        n = (T-E)/numpy.linalg.norm(T-E)
+        min_d = numpy.inf
+        best_collision = None
+        for collision,x in zip(collisons, X):
+            if (numpy.dot((x-E),n)>0) and (numpy.linalg.norm(E-x)<min_d):
+                min_d = numpy.linalg.norm(E-x)
+                best_collision = collision
+
+
+        return best_collision
+# ----------------------------------------------------------------------------------------------------------------------
     def reset_view(self, skip_transform=False):
 
         self.stop_rotation()
-        self.stop_append()
-        self.stop_remove()
         self.stop_translation()
         self.acc_pos = numpy.zeros(3)
 
         self.__init_mat_light(numpy.array((-math.pi / 2, -math.pi / 2, 0)))
-        self.init_mat_projection(0.5, 0.5)
+
+        tg_half_fovx = numpy.tan(self.cam_fov_deg * numpy.pi / 360)
+        self.init_mat_projection(tg_half_fovx, tg_half_fovx)
         self.init_mat_model((0, 0, 0), (0, 0, 0))
         if not skip_transform:
             self.__init_mat_transform(self.scale)
 
-        obj_min = self.object.coord_vert.min()
-        obj_max = self.object.coord_vert.max()
 
-        # cube
-        eye = numpy.array((0, 0, +10))
-        eye = numpy.array((0, 0, +5 * (obj_max - obj_min)))
-        target = eye - numpy.array((0, 0, 1.0))
-        up = numpy.array((0, -1, 0.0))
-        self.init_mat_view_ETU(eye, target, up)
+        self.init_mat_view_ETU(self.eye_default, self.target_default, self.up_default)
 
-        # soccer
-        # self.init_mat_view_ETU(eye=numpy.array((0,-2,5500)) , target = numpy.array((0,0,5500-1)), up=numpy.array((0,-1,0)))
-        # self.center_view()
+        #E, T, U = tools_pr_geom.mat_view_to_ETU(self.mat_view)
 
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def BEV_view(self):
+        self.reset_view()
+        eye, target, up = self.get_default_ETU()
+        self.init_mat_view_ETU(eye/5.0, target/5.0, up)
         return
 # ----------------------------------------------------------------------------------------------------------------------
 # self.__init_mat_view_RT((0,0,0),(0,0,+5 * (obj_max - obj_min)))
