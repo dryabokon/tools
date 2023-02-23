@@ -251,13 +251,16 @@ def draw_lines_numpy_RT(lines_3d,img,RT,camera_matrix_3x3,color=(66, 0, 166),w=6
     return img
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_lines_numpy_MVP(lines_3d, img, mat_projection, mat_view, mat_model, mat_trns,color=(66, 0, 166),w=6):
+    if lines_3d.shape[0]==0:
+        return img
     points_2d_start = tools_pr_geom.project_points_MVP(lines_3d[:, :3],img, mat_projection, mat_view, mat_model, mat_trns)
     points_2d_end = tools_pr_geom.project_points_MVP(lines_3d[:, 3:], img, mat_projection, mat_view, mat_model, mat_trns)
 
     for point_start, point_end in zip(points_2d_start, points_2d_end):
         if numpy.any(numpy.isnan(point_start)) or numpy.any(numpy.isnan(point_end)):continue
         if numpy.any(numpy.isinf(point_start)) or numpy.any(numpy.isinf(point_end)): continue
-        cv2.line(img, (int(point_start[0]), int(point_start[1])), (int(point_end[0]), int(point_end[1])), color,thickness=w)
+        line = (int(point_start[0]), int(point_start[1]),int(point_end[0]), int(point_end[1]))
+        img = tools_draw_numpy.draw_lines(img, [line],color=color,w=w)
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
@@ -1192,4 +1195,21 @@ def regularize_rect(point_2d, inlined = True, do_debug=False):
     result = numpy.mean(point_2d, axis=0) + numpy.array(results)[numpy.argmin(numpy.array(losses))]
 
     return result
+# ----------------------------------------------------------------------------------------------------------------------
+def plane_plane_intersection(a,b):
+    a_vec, b_vec = numpy.array(a[:3]), numpy.array(b[:3])
+    aXb_vec = numpy.cross(a_vec, b_vec)
+    A = numpy.array([a_vec, b_vec, aXb_vec])
+    d = numpy.array([-a[3], -b[3], 0.]).reshape(3, 1)
+    p_inter = numpy.linalg.solve(A, d).T
+
+    return p_inter[0], (p_inter + aXb_vec)[0]
+# ----------------------------------------------------------------------------------------------------------------------
+def distance_point_to_line_3d(line, point):
+    p_start, p_end = line[:3],line[3:]
+    d = (p_end - p_start) / (numpy.linalg.norm(p_end-p_start))
+    v = point - p_start
+    t = v.dot(d)
+    P = p_start + t * d
+    return numpy.linalg.norm(P - point)
 # ----------------------------------------------------------------------------------------------------------------------
