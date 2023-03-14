@@ -86,9 +86,9 @@ def prepare_images(path_input, mask='*.png', framerate=10,stop_ms=0,duration_ms=
             image = tools_image.desaturate(image, 0.2)
             images.append(image)
     else:
-        II = numpy.linspace(0, len(filenames),
-                            int((duration_ms - stop_ms) * framerate / 1000 / (2 if do_reverce else 1)),
-                            endpoint=True).astype(numpy.int)
+        II = numpy.linspace(0, len(filenames),int((duration_ms - stop_ms) * framerate / 1000 / (2 if do_reverce else 1)),endpoint=True).astype(numpy.int)
+
+
         II[II == len(filenames)] = len(filenames) - 1
 
         images_orig = []
@@ -250,32 +250,18 @@ def fly_effetct(folder_in,folder_out,left,top,right,bottom,n_frames,effect='in')
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
-def merge_images_in_folders(path_input1,path_input2,path_output,mask='*.png,*.jpg',rotate_first=False):
+def merge_images_in_folders(path_input1,path_input2,path_output,mask='*.png,*.jpg'):
     tools_IO.remove_files(path_output,create=True)
 
     fileslist1 = tools_IO.get_filenames(path_input1,mask)
     fileslist2 = tools_IO.get_filenames(path_input2,mask)
 
-    fileslist1.sort()
-    fileslist2.sort()
 
-    for filename1,filename2 in zip(fileslist1,fileslist2):
+    for i,filename1 in enumerate(fileslist1):
         image1 = cv2.imread(path_input1 + filename1)
-        image2 = cv2.imread(path_input2 + filename2)
-        if image1 is None or image2 is None: continue
-
-        if rotate_first:
-            image1 = numpy.transpose(image1,[1,0,2])
-
-        shape1 = image1.shape
-        shape2 = image2.shape
-
-        image2_resized = cv2.resize(image2, (int(shape1[0] * shape2[1] / shape2[0]),shape1[0]))
-        image = numpy.zeros((shape1[0], shape1[1] + image2_resized.shape[1], shape1[2]), dtype=numpy.uint8)
-
-        image[:,:shape1[1]] = image1
-        image[:,shape1[1]:] = image2_resized
-        cv2.imwrite(path_output+filename1,image)
+        image2 = cv2.imread(path_input2 + fileslist2[i%len(fileslist2)])
+        image1[:,585:] = image2[:,585:]
+        cv2.imwrite(path_output+filename1,image1)
 
     return
 # ---------------------------------------------------------------------------------------------------------------------

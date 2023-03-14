@@ -97,7 +97,7 @@ def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_se
 
     while success:
 
-        cv2.imwrite(folder_out+prefix+'%05d.jpg' % count, image)
+        cv2.imwrite(folder_out+prefix+'%05d.png' % count, image)
         success, image = vidcap.read()
         if success and scale != 1: image = do_rescale(image, scale)
         if end_time_sec is not None and end_time_sec<1000000:

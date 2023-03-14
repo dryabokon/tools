@@ -690,7 +690,7 @@ def project_points_p3x4(points_3d, p4x4,check_reverce=False):
 
     return points_2d
 # ----------------------------------------------------------------------------------------------------------------------
-def reverce_project_points_Z0(points_2d, rvec, tvec, camera_matrix_3x3, dist):
+def reverce_project_points_Z0(points_2d, rvec, tvec, camera_matrix_3x3, dist=None):
     P = compose_projection_mat_4x4(camera_matrix_3x3[0,0],camera_matrix_3x3[1,1],
                                    camera_matrix_3x3[0,2]/camera_matrix_3x3[0,0],camera_matrix_3x3[1, 2] / camera_matrix_3x3[1,1])
 
