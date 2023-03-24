@@ -232,12 +232,10 @@ def draw_points_numpy_MVP_GL(points_3d, img, mat_projection, mat_view, mat_model
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_points_numpy_RT(points_3d,img,RT,camera_matrix_3x3,color=(66, 0, 166),w=6):
-    points_2d = tools_pr_geom.project_points_M(points_3d, RT, camera_matrix_3x3, numpy.zeros(5)).reshape((-1, 2))
+def draw_points_numpy_RT(points_3d,img,RT,camera_matrix_3x3,color=(66, 0, 166),w=6,transperency=0):
 
-    for point in points_2d:
-        if numpy.any(numpy.isnan(point)): continue
-        img = tools_draw_numpy.draw_circle(img, int(point[1]), int(point[0]), w, color)
+    points_2d = tools_pr_geom.project_points_M(points_3d, RT, camera_matrix_3x3, numpy.zeros(5)).reshape((-1, 2))
+    img = tools_draw_numpy.draw_points(img, points_2d, color=color, w=w,transperency=transperency)
 
     return img
 # ----------------------------------------------------------------------------------------------------------------------
@@ -485,12 +483,12 @@ def get_normal(triangles_3d):
     n = normalize(n)
     return n
 # ----------------------------------------------------------------------------------------------------------------------
-def get_interception_ray_triangle(pos, direction, triangle):
+def get_interception_ray_triangle(pos, direction, triangle,allow_outside=False):
     n = get_normal(triangle)
     collision = line_plane_intersection(n, triangle[0,:3], direction[:3], pos[:3], epsilon=1e-6)
 
     if collision is not None:
-        if is_point_inside_triangle(collision,triangle):
+        if (allow_outside==True) or is_point_inside_triangle(collision,triangle):
             return collision
 
     return None

@@ -89,11 +89,11 @@ def project_points_rvec_tvec_GL(points_3d, rvec,tvec, camera_matrix_3x3,mat_trns
 
     return points_2d.reshape((-1,2)).astype(numpy.int)
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_points_MVP_GL(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166), w = 6, do_debug=False):
+def draw_points_MVP_GL(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166), w = 6,transperency=0.0,do_debug=False):
 
     H,W = img.shape[:2]
     points_2d = project_points_MVP_GL(points_3d,W,H,mat_projection,mat_view,mat_model,mat_trns)
-    img = tools_draw_numpy.draw_points(img, points_2d,color=color,w=w)
+    img = tools_draw_numpy.draw_points(img, points_2d,color=color,w=w,transperency=transperency)
 
     if do_debug:
         posx,posy = img.shape[1]-250,0
@@ -110,10 +110,10 @@ def draw_points_rvec_tvec_GL(points_3d, img, rvec,tvec, camera_matrix_3x3,mat_tr
     img = tools_draw_numpy.draw_points(img, points_2d, color=color, w=w)
     return img
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_points_RT_GL(points_3d, img, M, camera_matrix_3x3,mat_trns,color=(66, 0, 166), w=6):
+def draw_points_RT_GL(points_3d, img, M, camera_matrix_3x3,mat_trns=numpy.eye(4),color=(66, 0, 166), w=6,transperency=0.0):
     tg_half_fovx = camera_matrix_3x3[0, 2] / camera_matrix_3x3[0, 0]
     mat_projection = tools_pr_geom.compose_projection_mat_4x4_GL(2*camera_matrix_3x3[0, 2], 2*camera_matrix_3x3[1, 2], tg_half_fovx, tg_half_fovx)
-    image = draw_points_MVP_GL(points_3d, img, mat_projection, M, numpy.eye(4), mat_trns, color=color, w=w)
+    image = draw_points_MVP_GL(points_3d, img, mat_projection, M, numpy.eye(4), mat_trns, color=color, w=w,transperency=transperency)
     return image
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_lines_MVP_GL(lines_3d, img, mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166), w=6):
@@ -123,12 +123,12 @@ def draw_lines_MVP_GL(lines_3d, img, mat_projection, mat_view, mat_model, mat_tr
     img = tools_draw_numpy.draw_lines(img, lines_2d, color=color, w=w)
     return img
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_cube_MVP_GL(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color=(255, 128, 0), w=2):
+def draw_cube_MVP_GL(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color=(255, 128, 0), w=2,idx_mode=1):
 
     if points_3d is None:
         points_3d = construct_cube_one()
-
-    lines_3d = numpy.array([(points_3d[i, 0], points_3d[i, 1],points_3d[i, 2], points_3d[j, 0], points_3d[j, 1],points_3d[j, 2]) for (i,j) in tools_draw_numpy.cuboid_lines_idx1])
+    lines_idx = tools_draw_numpy.cuboid_lines_idx1 if idx_mode == 1 else tools_draw_numpy.cuboid_lines_idx2
+    lines_3d = numpy.array([(points_3d[i, 0], points_3d[i, 1],points_3d[i, 2], points_3d[j, 0], points_3d[j, 1],points_3d[j, 2]) for (i,j) in lines_idx])
     img = draw_points_MVP_GL    (points_3d, img, mat_projection, mat_view, mat_model, mat_trns,color)
     img = draw_lines_MVP_GL(lines_3d, img, mat_projection, mat_view, mat_model, mat_trns, color, w)
 
@@ -195,7 +195,7 @@ def rotate_view(M,delta_angle):
 # ----------------------------------------------------------------------------------------------------------------------
 def define_cam_position(W,H,cam_fov_deg = 11,cam_offset_dist = 64,cam_height = 6.5):
     a_pitch = -numpy.arctan(cam_height / cam_offset_dist)
-    rvec, tvec  = [0,0.0,0], [0, cam_height, cam_offset_dist]
+    rvec, tvec  = [0,0.0,0], [10, cam_height, cam_offset_dist]
     tg_half_fovx = numpy.tan(cam_fov_deg * numpy.pi / 360)
     camera_matrix_3x3 = tools_pr_geom.compose_projection_mat_3x3(W, H, tg_half_fovx, tg_half_fovx)
 

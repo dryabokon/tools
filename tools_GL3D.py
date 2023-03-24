@@ -211,7 +211,7 @@ class render_GL3D(object):
                                     uniform sampler2D samplerTexture;
                                     void main()
                                     {
-                                        vec3 ambientLightIntensity  = vec3(0.01f, 0.01f, 0.01f);
+                                        vec3 ambientLightIntensity  = vec3(0.8f, 0.8f, 0.8f);
                                         vec3 sunLightIntensity      = vec3(1.0f, 1.0f, 1.0f);
                                         vec3 sunLightDirection      = normalize(vec3(+0.0f, -1.0f, +0.0f));
                                         vec4 texel = texture(samplerTexture, textureCoords);
@@ -224,7 +224,7 @@ class render_GL3D(object):
                                         //outColor = texel;//soccer
                                         //outColor = texel* materialColor;//
                                         //outColor = vec4(texel.rgb * lightIntensity, 1);
-                                        outColor.a = 0.05;  //transparency                                        
+                                        outColor.a = 0.95;  //transparency                                        
                                     }"""
 
 

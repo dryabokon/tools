@@ -5,7 +5,6 @@ import numpy
 from sklearn.linear_model import LinearRegression
 from scipy.linalg import polar
 # ---------------------------------------------------------------------------------------------------------------------
-import tools_IO
 import tools_draw_numpy
 import tools_render_CV
 # ---------------------------------------------------------------------------------------------------------------------
@@ -495,6 +494,22 @@ def apply_translation(tvec,X):
     Y = apply_matrix_GL(T, X)
     return Y
 # ----------------------------------------------------------------------------------------------------------------------
+def from_RT_GL(RT_GL):
+    flip = numpy.eye(4)
+    flip[1,1]=-1
+    flip[2,2] = -1
+
+    RT = numpy.matmul(flip,RT_GL.T)
+    return RT
+# ----------------------------------------------------------------------------------------------------------------------
+def to_RT_GL(RT):
+    flip = numpy.eye(4)
+    flip[1,1]=-1
+    flip[2,2]=-1
+
+    RT_GL = numpy.matmul(numpy.linalg.pinv(flip),RT).T
+    return RT_GL
+# ----------------------------------------------------------------------------------------------------------------------
 def apply_RT(rvec,tvec,X):
     #R = pyrr.matrix44.create_from_eulers(rvec) - this does not work correctily
     R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(numpy.array(rvec,dtype=numpy.float))[0])
@@ -648,15 +663,12 @@ def project_points_MVP_GL(points_3d, img, mat_projection, mat_view, mat_model, m
 
 def project_points(points_3d, rvec, tvec, camera_matrix_3x3, dist=numpy.zeros(5)):
     #https: // docs.opencv.org / 2.4 / modules / calib3d / doc / camera_calibration_and_3d_reconstruction.html
-
-    P = compose_projection_mat_4x4(camera_matrix_3x3[0,0],camera_matrix_3x3[1,1],
-                                   camera_matrix_3x3[0,2]/camera_matrix_3x3[0,0],camera_matrix_3x3[1, 2] / camera_matrix_3x3[1,1])
+    P = compose_projection_mat_4x4(camera_matrix_3x3[0,0],camera_matrix_3x3[1,1],camera_matrix_3x3[0,2]/camera_matrix_3x3[0,0],camera_matrix_3x3[1, 2] / camera_matrix_3x3[1,1])
 
     if len(rvec.shape)==2 and rvec.shape[0]==3 and rvec.shape[1]==3:
         R = pyrr.matrix44.create_from_matrix33(rvec)
     else:
         R = pyrr.matrix44.create_from_matrix33(cv2.Rodrigues(numpy.array(rvec, dtype=float).flatten())[0])
-
 
     T = pyrr.matrix44.create_from_translation(numpy.array(tvec,dtype=float).flatten()).T
     M = pyrr.matrix44.multiply(T, R)
@@ -665,12 +677,7 @@ def project_points(points_3d, rvec, tvec, camera_matrix_3x3, dist=numpy.zeros(5)
     #M = compose_RT_mat(rvec, tvec, do_rodriges=False, do_flip=False, GL_style=False)
 
     PM = pyrr.matrix44.multiply(P, M)
-
-    points_2d = apply_matrix_GL(PM, points_3d)
-
-    points_2d[:, 0] = points_2d[:, 0] / points_2d[:, 2]
-    points_2d[:, 1] = points_2d[:, 1] / points_2d[:, 2]
-    points_2d = numpy.array(points_2d)[:, :2].reshape((-1, 2))
+    points_2d = project_points_p3x4(points_3d, PM, check_reverce=False)
 
     return points_2d,0
 # ----------------------------------------------------------------------------------------------------------------------
@@ -703,6 +710,7 @@ def reverce_project_points_Z0(points_2d, rvec, tvec, camera_matrix_3x3, dist=Non
 # ----------------------------------------------------------------------------------------------------------------------
 def reverce_project_points_Z0_M(points_2d, PM):
 
+
     points_3d = []
     for (i, j) in points_2d:
         A = numpy.array((((PM[0, 0] - i * PM[2, 0]), (PM[0, 1] - i * PM[2, 1])),((PM[1, 0] - j * PM[2, 0]), (PM[1, 1] - j * PM[2, 1]))))
@@ -715,28 +723,43 @@ def reverce_project_points_Z0_M(points_2d, PM):
 
     return points_3d
 # ----------------------------------------------------------------------------------------------------------------------
+def reverce_project_points(points_2d, rvec, tvec, camera_matrix_3x3,planeNormal, planePoint):
+    p0 = reverce_project_points_Z0(points_2d, rvec, tvec, camera_matrix_3x3, dist=None)
+    points_3d = [tools_render_CV.line_plane_intersection(planeNormal, planePoint, rvec, p) for p in p0]
+
+    return points_3d
+# ----------------------------------------------------------------------------------------------------------------------
 def project_points_M(points_3d, RT, camera_matrix_3x3, dist=numpy.zeros(5),do_flip=False):
-    # RT shoule be Transformed !!!
+    # RT should be Transformed !!!
     if camera_matrix_3x3.shape[0]==3 and camera_matrix_3x3.shape[1]==3:
         P = compose_projection_mat_4x4(camera_matrix_3x3[0,0],camera_matrix_3x3[1,1],camera_matrix_3x3[0,2]/camera_matrix_3x3[0,0],camera_matrix_3x3[1, 2] / camera_matrix_3x3[1,1])
     else:
         P = camera_matrix_3x3.copy()
+    #
+    #
+    # PM = pyrr.matrix44.multiply(P, RT)
+    #
+    # #points_2d = apply_matrix_GL(PM, points_3d)
+    #
+    # points_3d_t = apply_matrix_GL(RT, points_3d)
+    # points_2d = apply_matrix_GL(P, points_3d_t)
+    #
+    #
+    # points_2d[:, 0] = points_2d[:, 0] / points_2d[:, 2]
+    # points_2d[:, 1] = points_2d[:, 1] / points_2d[:, 2]
+    # points_2d = numpy.array(points_2d,dtype=numpy.float32)[:, :2].reshape((-1,2))
+    #
+    # if do_flip:
+    #     points_2d[:, 0] = camera_matrix_3x3[0,0] - points_2d[:, 0]
 
 
     PM = pyrr.matrix44.multiply(P, RT)
 
-    #points_2d = apply_matrix_GL(PM, points_3d)
-
-    points_3d_t = apply_matrix_GL(RT, points_3d)
-    points_2d = apply_matrix_GL(P, points_3d_t)
-
-
-    points_2d[:, 0] = points_2d[:, 0] / points_2d[:, 2]
-    points_2d[:, 1] = points_2d[:, 1] / points_2d[:, 2]
-    points_2d = numpy.array(points_2d,dtype=numpy.float32)[:, :2].reshape((-1,2))
-
-    if do_flip:
-        points_2d[:, 0] = camera_matrix_3x3[0,0] - points_2d[:, 0]
+    # points_2d = apply_matrix_GL(PM, points_3d)
+    # points_2d[:, 0] = points_2d[:, 0] / points_2d[:, 2]
+    # points_2d[:, 1] = points_2d[:, 1] / points_2d[:, 2]
+    # points_2d = numpy.array(points_2d)[:, :2].reshape((-1, 2))
+    points_2d = project_points_p3x4(points_3d, PM, check_reverce=False)
 
     return points_2d
 # ----------------------------------------------------------------------------------------------------------------------
