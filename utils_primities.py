@@ -378,18 +378,18 @@ class Boxes(object):
         data = pd.read_csv(filename_in, sep=sep)
         self.orig_columns = data.columns
 
-        mode_filenames = isinstance(data.iloc[0,0],numpy.str)
+        mode_filenames = isinstance(data.iloc[0,0],str)
 
         for r,each in data.iterrows():
             key = each.iloc[idx_ID]
             if not mode_filenames:
                 self.filename_IDs.append(key)
-                self.xyxy.append(numpy.array(each[idx_pos:idx_pos+4], dtype=numpy.float))
+                self.xyxy.append(numpy.array(each[idx_pos:idx_pos+4], dtype=float))
                 self.ids.append(each[-1])
             else:
                 if key in dict_filenames:
                     self.filename_IDs.append(dict_filenames[key])
-                    self.xyxy.append(numpy.array(each[idx_pos:idx_pos+4], dtype=numpy.float))
+                    self.xyxy.append(numpy.array(each[idx_pos:idx_pos+4], dtype=float))
                     classid = int(each[idx_class]) if idx_class is not None else 0
                     self.ids.append(classid)
 

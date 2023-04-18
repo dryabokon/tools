@@ -161,7 +161,7 @@ class render_GL3D(object):
         # view from world space to camera space,
         # projection from camera to screen.
 
-        vert_shader = """#version 330
+        vert_shader = """#version 400
                                     in layout(location = 0) vec3 position;
                                     in layout(location = 1) vec3 color;
                                     in layout(location = 2) vec3 vertNormal;
@@ -180,7 +180,7 @@ class render_GL3D(object):
                                         textureCoords = inTextureCoords;
                                     }"""
 
-        frag_shader_texture = """#version 330
+        frag_shader_texture = """#version 400
                                     in vec3 inColor;
                                     in vec3 fragNormal;
                                     in vec2 textureCoords;
@@ -203,7 +203,7 @@ class render_GL3D(object):
                                         outColor.a = 1.00;                                        
                                     }"""
 
-        frag_shader_color = """#version 330
+        frag_shader_color = """#version 400
                                     in vec3 inColor;
                                     in vec3 fragNormal;
                                     in vec2 textureCoords;
@@ -211,7 +211,7 @@ class render_GL3D(object):
                                     uniform sampler2D samplerTexture;
                                     void main()
                                     {
-                                        vec3 ambientLightIntensity  = vec3(0.8f, 0.8f, 0.8f);
+                                        vec3 ambientLightIntensity  = vec3(0.1f, 0.1f, 0.1f);
                                         vec3 sunLightIntensity      = vec3(1.0f, 1.0f, 1.0f);
                                         vec3 sunLightDirection      = normalize(vec3(+0.0f, -1.0f, +0.0f));
                                         vec4 texel = texture(samplerTexture, textureCoords);
@@ -224,7 +224,7 @@ class render_GL3D(object):
                                         //outColor = texel;//soccer
                                         //outColor = texel* materialColor;//
                                         //outColor = vec4(texel.rgb * lightIntensity, 1);
-                                        outColor.a = 0.95;  //transparency                                        
+                                        outColor.a = 0.99;  //transparency                                        
                                     }"""
 
 

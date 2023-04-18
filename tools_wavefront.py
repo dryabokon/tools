@@ -183,9 +183,10 @@ class ObjLoader:
             del_triangles, normals = [], []
         return del_triangles, normals
 # ----------------------------------------------------------------------------------------------------------------------
-    def convert(self, filename_in, filename_out,do_normalize=True,cutoff=None):
+    def convert_v0(self, filename_in, filename_out,do_normalize=True,cutoff=None):
         coord_vert = []
         idx_vertex = []
+        coord_texture = []
         lines = open(filename_in).readlines()
 
         for line in lines:
@@ -193,8 +194,10 @@ class ObjLoader:
             if not values: continue
             values = numpy.array(values)
             if values[0] == 'v': coord_vert.append([float(v) for v in values[1:4]])
+            if values[0] == 'vt': coord_texture.append([float(v) for v in values[1:4]])
 
         coord_vert = numpy.array(coord_vert)
+        coord_texture = numpy.array(coord_texture)
 
         for line in lines:
             values = line.split()
@@ -211,6 +214,7 @@ class ObjLoader:
                 I = numpy.array(I)
                 if len(I) == 3:
                     idx_vertex.append(I)
+
                 else:
                     triangles, normals = self.get_trianges(X)
                     for triangle in triangles:
@@ -224,7 +228,30 @@ class ObjLoader:
             coord_vert[:, 1]/= coord_vert[:, 1].max()
             coord_vert[:, 2]/= coord_vert[:, 2].max()
 
-        self.export_mesh(filename_out, coord_vert, idx_vertex,do_transform=False,cutoff=cutoff)
+        self.export_mesh(filename_out, coord_vert, coord_texture=coord_texture,idx_vertex=idx_vertex,do_transform=False,cutoff=cutoff)
+
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def convert(self, filename_in, filename_out):
+
+        lines = open(filename_in).readlines()
+        with open(filename_out, "w+") as f_handle:
+            for line in lines:
+                values = line.split()
+                if not values: continue
+
+                if values[0] == 'f':
+                    nodes = values[1:]
+                    if len(nodes)==3:
+                        f_handle.write(line)
+                    elif len(nodes)==4:
+                        f_handle.write('f %s %s %s\n' % (nodes[0], nodes[1], nodes[2]))
+                        f_handle.write('f %s %s %s\n' % (nodes[0], nodes[2], nodes[3]))
+                    else:
+                        pass
+
+                else:
+                    f_handle.write(line)
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -257,7 +284,7 @@ class ObjLoader:
                 Nx = A[1] * B[2] - A[2] * B[1]
                 Ny = A[2] * B[0] - A[0] * B[2]
                 Nz = A[0] * B[1] - A[1] * B[0]
-                n = -numpy.array((Nx, Ny, Nz), dtype=numpy.float)
+                n = -numpy.array((Nx, Ny, Nz), dtype=numpy.float32)
                 if numpy.sqrt((n ** 2).sum())>0:
                     n = n / numpy.sqrt((n ** 2).sum())
 

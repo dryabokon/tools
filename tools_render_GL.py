@@ -87,7 +87,7 @@ def project_points_rvec_tvec_GL(points_3d, rvec,tvec, camera_matrix_3x3,mat_trns
         M = compose_RT_mat_GL(rvec, tvec, do_rodriges=True, do_flip=True)
         points_2d = project_points_RT_GL(points_3d, M, camera_matrix_3x3, mat_trns)
 
-    return points_2d.reshape((-1,2)).astype(numpy.int)
+    return points_2d.reshape((-1,2)).astype(int)
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_points_MVP_GL(points_3d, img, mat_projection, mat_view, mat_model, mat_trns, color=(66, 0, 166), w = 6,transperency=0.0,do_debug=False):
 

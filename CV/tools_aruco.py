@@ -33,6 +33,12 @@ def draw_native_axis(length):
     return
 # ----------------------------------------------------------------------------------------------------------------------
 def detect_marker_and_draw_axes(frame,marker_length,camera_matrix, dist):
+
+
+
+    # detector = aruco.ArucoDetector(aruco.getPredefinedDictionary(aruco.DICT_6X6_50), aruco.DetectorParameters())
+    # corners, ids, rejectedImgPoints = detector.detectMarkers(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
+
     corners, ids, rejectedImgPoints = aruco.detectMarkers(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), aruco.Dictionary_get(aruco.DICT_6X6_50))
     rvec, tvec = numpy.array([[[0,0,0]]]),numpy.array([[[0,0,0]]])
     res = None

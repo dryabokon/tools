@@ -37,8 +37,14 @@ def gre2jet(rgb):
     return cv2.applyColorMap(numpy.array(rgb, dtype=numpy.uint8).reshape((1, 1, 3)), cv2.COLORMAP_JET).reshape(3)
 # ----------------------------------------------------------------------------------------------------------------------
 def gre2viridis(rgb):
-    colormap = numpy.flip((numpy.array(cm.cmaps_listed['viridis'].colors) * 256).astype(int), axis=1)
+    colormap = numpy.flip((numpy.array(cm.cmaps_listed['viridis'].colors255) * 256).astype(int), axis=1)
     return colormap[rgb[0]]
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_points_fast(image, points,color=(0,0,200),w=4,transperency=0,put_text=False,labels=None):
+    for i,p in enumerate(points):
+        clr = color if (len(numpy.array(color).shape) == 1) or type(color) == int else color[i].tolist()
+        image = cv2.circle(image, (int(p[0]), int(p[1])), w, clr, -1)
+    return image
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_points(image, points,color=(0,0,200),w=4,transperency=0,put_text=False,labels=None):
 
@@ -91,7 +97,7 @@ def draw_line(array_bgr, row1, col1, row2, col2, color_bgr, alpha_transp=0.0,ant
 
     return res_rgb
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_lines(image, lines,color=(0,0,200),w=1,transperency=0,antialiasing=True):
+def draw_lines(image, lines,color=(0,0,200),w=1,transperency=0,antialiasing=False):
 
     result = image.copy()
     if lines is None or len(lines)==0:
@@ -158,7 +164,7 @@ def draw_text(image,label,xy, color_fg,clr_bg=None,font_size=16,alpha_transp=0):
     total_display_str_height = 1.1 * (font.getsize(label)[1])
     text_bottom = y if y > total_display_str_height else y + total_display_str_height
 
-    clr = (numpy.array(color_fg)*(1-alpha_transp)+numpy.array(clr_bg)*(alpha_transp)).astype(numpy.int) if clr_bg is not None else numpy.array(color_fg).astype(numpy.int)
+    clr = (numpy.array(color_fg)*(1-alpha_transp)+numpy.array(clr_bg)*(alpha_transp)).astype(int) if clr_bg is not None else numpy.array(color_fg).astype(int)
 
     text_width, text_height = font.getsize(label)
     margin = numpy.ceil(0.05 * text_height)
@@ -176,8 +182,8 @@ def draw_mat(M, posx, posy, image,color=(128, 128, 0),text=None):
     if df.shape[1]==1:
         df=df.T
     for c in df.columns:
-        V = numpy.array(['%+1.2f' % v for v in df[c]]).astype(numpy.str)
-        df[c] = pd.Series(V).astype(numpy.str)
+        V = numpy.array(['%+1.2f' % v for v in df[c]]).astype(str)
+        df[c] = pd.Series(V).astype(str)
 
     string1 = tabulate(df,headers=[],showindex=False,tablefmt='plsql',disable_numparse=True)
     string1 = string1.split('\n')[1: -1]
@@ -214,9 +220,9 @@ def draw_contours(image, points, color=(255,255,255),w=1,transperency=0.0):
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_contours_cv(image, points, color=(255,255,255),w=-1,transperency=0.0):
 
-    pnts = points.reshape(1, -1, 1, 2).astype(numpy.int)
+    pnts = points.reshape(1, -1, 1, 2).astype(int)
     res = image.copy()
-    color = (int(color[0]), int(color[1]), int(color[2]))
+    #color = (int(color[0]), int(color[1]), int(color[2]))
     res = cv2.drawContours(res, pnts, -1,color,thickness=w)
 
     if transperency>0:
@@ -226,8 +232,8 @@ def draw_contours_cv(image, points, color=(255,255,255),w=-1,transperency=0.0):
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_convex_hull_cv(image, points, color=(255,255,255),transperency=0.0):
 
-    hull = ConvexHull(numpy.array(points,dtype=numpy.int))
-    cntrs = numpy.array(points,dtype=numpy.int)[hull.vertices].reshape(1,-1, 1, 2).astype(numpy.int)
+    hull = ConvexHull(numpy.array(points,dtype=int))
+    cntrs = numpy.array(points,dtype=int)[hull.vertices].reshape(1,-1, 1, 2).astype(int)
     res = cv2.drawContours(image.copy(), cntrs,-1,color,thickness=-1)
 
     if transperency>0:

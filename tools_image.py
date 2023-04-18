@@ -361,15 +361,18 @@ def saturate(image):
         return image
 #--------------------------------------------------------------------------------------------------------------------------
 def desaturate(image,level=1.0):
-    if len(image.shape) == 3:
+
+    if level==1:
+        gray = cv2.cvtColor(image.astype(numpy.uint8), cv2.COLOR_BGR2GRAY)
+        gray = numpy.expand_dims(gray, 2)
+        result = numpy.concatenate([gray, gray, gray], axis=2)
+    else:
         hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
-        hsv = hsv.astype(numpy.float)
+        hsv = hsv.astype(float)
         hsv[:,:,1]*=(1-level)
         hsv = hsv.astype(numpy.uint8)
-
         result = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
-    else:
-        result = cv2.cvtColor(image.astype(numpy.uint8), cv2.COLOR_GRAY2BGR)
+
 
     return result
 #--------------------------------------------------------------------------------------------------------------------------
@@ -389,7 +392,7 @@ def gre2jet(rgb):
     return cv2.applyColorMap(numpy.array(rgb, dtype=numpy.uint8).reshape((1, 1, 3)), cv2.COLORMAP_JET).reshape(3)
 # ----------------------------------------------------------------------------------------------------------------------
 def gre2viridis(rgb):
-    colormap = numpy.flip((numpy.array(cm.cmaps_listed['viridis'].colors) * 256).astype(int), axis=1)
+    colormap = numpy.flip((numpy.array(cm.cmaps_listed['viridis'].colors255) * 256).astype(int), axis=1)
     return colormap[int(rgb[0])]
 # ----------------------------------------------------------------------------------------------------------------------
 def gre2colormap(gray255,cm_name):
@@ -400,7 +403,7 @@ def gre2colormap(gray255,cm_name):
     return res_color
 # ----------------------------------------------------------------------------------------------------------------------
 def hitmap2d_to_viridis(hitmap_2d):
-    colormap = (numpy.array(cm.cmaps_listed['viridis'].colors)*256).astype(int)
+    colormap = (numpy.array(cm.cmaps_listed['viridis'].colors255) * 256).astype(int)
     colormap = numpy.flip(colormap,axis=1)
     hitmap_RGB = colormap[hitmap_2d[:, :].astype(int)]
 
@@ -414,7 +417,7 @@ def hitmap2d_to_colormap(hitmap_2d,cmap=plt.cm.Set3,interpolate_colors=False):
         colors = 255*numpy.array([cmap(i/256) for i in range(256)])
         colors = colors[:,[2,1,0]]
     else:
-        M = len(cmap.colors)
+        M = len(cmap.colors255)
         colors = []
         N = 256
         for i in range(N):

@@ -273,10 +273,10 @@ def load_mat(filename, dtype=numpy.chararray, delim='\t'):
         mat = numpy.genfromtxt(filename, dtype=dtype, delimiter=delim)
     return mat
 # ----------------------------------------------------------------------------------------------------------------------
-def load_mat_pd(filename, dtype=numpy.str, delim='\t', lines=None):
+def load_mat_pd(filename,delim='\t'):
     return pd.read_csv(filename, sep=delim).values
 # ----------------------------------------------------------------------------------------------------------------------
-def load_mat_var_size(filename,dtype=numpy.int,delim='\t'):
+def load_mat_var_size(filename,delim='\t'):
     l=[]
     with open(filename, 'r') as f:
         for line in f:

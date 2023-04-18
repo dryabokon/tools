@@ -82,7 +82,8 @@ def prepare_images(path_input, mask='*.png', framerate=10,stop_ms=0,duration_ms=
         for b in numpy.arange(0, len(filenames), stride):
             image = cv2.imread(path_input + filenames[b])
             if resize_H is not None and resize_W is not None:
-                image = tools_image.do_resize(image, (resize_W, resize_H))
+                #image = tools_image.do_resize(image, (resize_W, resize_H))
+                image = cv2.resize(image, (resize_W, resize_H))
             image = tools_image.desaturate(image, 0.2)
             images.append(image)
     else:
@@ -108,7 +109,7 @@ def prepare_images(path_input, mask='*.png', framerate=10,stop_ms=0,duration_ms=
         images += [images[-1]] * int(stop_ms * framerate / 1000)
     return images
 # ---------------------------------------------------------------------------------------------------------------------
-def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png', framerate=10,stop_ms=0,duration_ms=None,resize_H=None, resize_W=None,stride=1,do_reverce=False):
+def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png,*.jpg', framerate=10,stop_ms=0,duration_ms=None,resize_H=None, resize_W=None,stride=1,do_reverce=False):
     tools_IO.remove_file(filename_out)
 
     images = prepare_images(path_input, mask, framerate, stop_ms, duration_ms, resize_H, resize_W, stride, do_reverce)
@@ -127,7 +128,7 @@ def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png', frame
 # ---------------------------------------------------------------------------------------------------------------------
 def folder_to_video(folder_in, filename_out, mask='*.jpg', framerate=24,stop_ms=0,duration_ms=None, resize_W=None, resize_H=None, stride=1,do_reverce=False):
 
-    images = prepare_images(folder_in, mask, framerate, stop_ms, duration_ms, resize_H, resize_W, stride, do_reverce)
+    images = prepare_images(folder_in, mask, framerate, stop_ms, duration_ms, resize_H, resize_W, stride, do_reverce)[::-1]
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     resize_H, resize_W = images[0].shape[:2]
     out = cv2.VideoWriter(filename_out,fourcc, framerate, (resize_W,resize_H))

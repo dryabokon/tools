@@ -633,7 +633,7 @@ def project_points_MVP(points_3d, img, mat_projection, mat_view, mat_model, mat_
     camera_matrix_3x3 = compose_projection_mat_3x3(img.shape[1], img.shape[0], 1 / mat_projection[0][0],1 / mat_projection[1][1])
 
     M = pyrr.matrix44.multiply(mat_view.T,pyrr.matrix44.multiply(mat_model.T,mat_trns.T))
-    X4D = numpy.full((points_3d.shape[0], 4), 1,dtype=numpy.float)
+    X4D = numpy.full((points_3d.shape[0], 4), 1,dtype=float)
     X4D[:, :3] = points_3d[:,:]
     L3D = pyrr.matrix44.multiply(M, X4D.T).T[:,:3]
 
