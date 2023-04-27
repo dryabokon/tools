@@ -30,6 +30,6 @@ class classifier_LM(object):
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def predict(self, array):
-        res = self.model.predict_proba(self.maybe_reshape(array).astype(numpy.float))
+        res = self.model.predict_proba(self.maybe_reshape(array).astype(float))
         return res
 # ----------------------------------------------------------------------------------------------------------------------

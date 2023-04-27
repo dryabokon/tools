@@ -103,7 +103,7 @@ class detector_landmarks(object):
         return gray
 # ----------------------------------------------------------------------------------------------------------------------
     def get_landmarks(self, image):
-        res = numpy.zeros( (68,2), dtype=numpy.float)
+        res = numpy.zeros( (68,2), dtype=float)
         if image is None:
             return res
         gray = tools_image.desaturate(image)
@@ -116,7 +116,7 @@ class detector_landmarks(object):
                 res.append([landmarks.part(n).x, landmarks.part(n).y])
             res = numpy.array(res)
 
-        return res.astype(numpy.float)
+        return res.astype(float)
 # ----------------------------------------------------------------------------------------------------------------------
     def are_landmarks_valid(self,landmarks):
         if (landmarks.min() == landmarks.max() == 0):

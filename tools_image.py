@@ -576,7 +576,7 @@ def blend_multi_band_large_small0(large, small, background_color=(0, 0, 0), adju
 
     mask_original = 1*(small[:, :] == background_color)
     mask = mask_original.copy()
-    mask = numpy.array(numpy.min(mask,axis=2),dtype=numpy.float)
+    mask = numpy.array(numpy.min(mask,axis=2),dtype=numpy.float32)
 
     if do_debug: cv2.imwrite('./images/output/mask0.png', 255 * mask)
 
@@ -591,8 +591,8 @@ def blend_multi_band_large_small0(large, small, background_color=(0, 0, 0), adju
         if do_debug == 1: cv2.imwrite('./images/output/mask2.png', 255 * mask)
 
     if adjust_colors is not None:
-        large = large.astype(numpy.float)
-        small = small.astype(numpy.float)
+        large = large.astype(numpy.float32)
+        small = small.astype(numpy.float32)
 
         idx = numpy.where(mask[:,:]<0.5)
         if len(idx[0])>0:
@@ -619,7 +619,7 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
 
     mask_original = 1*(small[:, :] == background_color)
     mask_bin = mask_original.copy()
-    mask_bin = numpy.array(numpy.min(mask_bin,axis=2),dtype=numpy.int)
+    mask_bin = numpy.array(numpy.min(mask_bin,axis=2),dtype=int)
 
     if do_debug:
         cv2.imwrite('./images/output/mask0.png', 255 * mask_bin)
@@ -633,8 +633,8 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
         cv2.imwrite('./images/output/mask2.png', 255 * mask)
 
     if adjust_colors is not None:
-        large = large.astype(numpy.float)
-        small = small.astype(numpy.float)
+        large = large.astype(float)
+        small = small.astype(float)
 
         idx = numpy.where(mask[:,:]<0.5)
         if len(idx[0])>0:

@@ -126,7 +126,7 @@ class Plotter(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def init_colors(self,cmap='tab20',shuffle=True):#tab20 nipy_ nipy_spectral
         numpy.random.seed(112)#113
-        self.colors = tools_draw_numpy.get_colors(32, colormap=cmap).astype(numpy.int)
+        self.colors = tools_draw_numpy.get_colors(32, colormap=cmap).astype(int)
 
         new_c = []
         # for n in range(self.colors.shape[0]):
@@ -144,8 +144,8 @@ class Plotter(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def get_color(self, label,alpha_blend=0.0):
         if label not in self.dct_color:
-            if isinstance(label, numpy.int32) or isinstance(label, numpy.int) or isinstance(label, numpy.int64):
-                n = label
+            if isinstance(label, numpy.int32) or isinstance(label, int) or isinstance(label, float) or isinstance(label, numpy.int64):
+                n = int(label)
             else:
                 n = numpy.array([ord(l) for l in label]).sum() % self.colors.shape[0]
             self.dct_color[label] = self.colors[n]
@@ -439,7 +439,7 @@ class Plotter(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def plot_PR(self, precisions,recalls, mAP, caption='', figsize=(3.5, 3.5), filename_out=None):
+    def plot_PR(self, precisions,recalls, mAP=0, caption='', figsize=(3.5, 3.5), filename_out=None):
 
         fig = plt.figure(figsize=figsize)
         fig = self.turn_light_mode(fig)
@@ -451,8 +451,8 @@ class Plotter(object):
         plt.plot(recalls, precisions, color=colors[0], lw=3, label='%s %.2f' % (caption, mAP))
         plt.scatter(recalls[idx], precisions[idx], color=colors[0])
 
-        precision_random = precisions[recalls==1].max()
-        plt.plot([0, 1], [precision_random, precision_random], color='lightgray', lw=1, linestyle='--')
+        #precision_random = precisions[recalls==1].max()
+        #plt.plot([0, 1], [precision_random, precision_random], color='lightgray', lw=1, linestyle='--')
         plt.xlim([-0.05, 1.05])
         plt.ylim([-0.05, 1.05])
 

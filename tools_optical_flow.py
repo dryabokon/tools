@@ -23,9 +23,6 @@ class OpticalFlow_LucasKanade():
 # --------------------------------------------------------------------------------------------------------------------------
     def update_ROI(self,points_2d=None):
         if points_2d is not None:
-
-
-
             self.mask_ROI = numpy.full((self.gray_prev.shape[0], self.gray_prev.shape[1]), 0, dtype=numpy.uint8)
             self.mask_ROI = tools_draw_numpy.draw_convex_hull_cv(self.mask_ROI, numpy.array(points_2d).reshape((-1, 2)), color=255)
             self.mask_ROI = cv2.dilate(self.mask_ROI, numpy.ones((5, 5), numpy.uint8), iterations=10)

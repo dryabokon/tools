@@ -247,11 +247,11 @@ class Face_Swapper(object):
         self.filter_face_size = int(0.2*(LA_aligned[:,0].max()-LA_aligned[:,0].min()))
 
         mask_bin = 1 * (face[:, :] == (0,0,0))
-        mask_bin = numpy.array(numpy.min(mask_bin, axis=2), dtype=numpy.int)
+        mask_bin = numpy.array(numpy.min(mask_bin, axis=2), dtype=int)
         cnt_face = tools_filter.sliding_2d(1 - mask_bin, -avg_size, avg_size,-avg_size, avg_size, 'cnt')
         scale = numpy.zeros(face.shape)
 
-        face = face.astype(numpy.long)
+        face = face.astype('long')
         for c in range(3):
 
             avg_actor = tools_filter.sliding_2d(self.image_actor[:, :, c], -avg_size, avg_size,-avg_size, avg_size, 'avg')
@@ -334,12 +334,12 @@ class Face_Swapper(object):
         if do_debug: cv2.imwrite(folder_out + 's05-blend.jpg', result)
 
         # mouth
-        # LA_aligned_mouth = LA_aligned[numpy.arange(48, 61, 1).tolist()]
-        # del_mouth = Delaunay(LA_aligned_mouth).vertices
-        # temp_mouth = self.R_a.morph_2D_mesh(self.image_actor.shape[0], self.image_actor.shape[1], LA_aligned_mouth, LA_aligned_mouth, del_mouth)
-        # if do_debug: cv2.imwrite(folder_out + 's06-temp_mouth.jpg', temp_mouth)
-        # filter_mouth_size = filter_face_size//2
-        # result = tools_image.blend_multi_band_large_small(result, temp_mouth, (0, 0, 0),adjust_colors=False,filter_size=filter_mouth_size)
+        LA_aligned_mouth = LA_aligned[numpy.arange(48, 61, 1).tolist()]
+        del_mouth = Delaunay(LA_aligned_mouth).vertices
+        temp_mouth = self.R_a.morph_2D_mesh(self.image_actor.shape[0], self.image_actor.shape[1], LA_aligned_mouth, LA_aligned_mouth, del_mouth)
+        if do_debug: cv2.imwrite(folder_out + 's06-temp_mouth.jpg', temp_mouth)
+        filter_mouth_size = filter_face_size//2
+        result = tools_image.blend_multi_band_large_small(result, temp_mouth, (0, 0, 0),adjust_colors=False,filter_size=filter_mouth_size)
 
         if do_debug:
             cv2.imwrite(folder_out + 's07-original.jpg', self.image_actor)
