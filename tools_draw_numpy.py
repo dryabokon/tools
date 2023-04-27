@@ -133,7 +133,8 @@ def draw_rect(image, col_left, row_up, col_right, row_down ,color, w=1, alpha_tr
 
     lines = numpy.array(((col_left, row_up, col_left, row_down),(col_left, row_down, col_right, row_down),(col_right, row_down, col_right, row_up),(col_right, row_up,col_left,row_up)))
     points_2d = numpy.array(((col_left, row_up),(col_left, row_down),(col_right, row_down),(col_right, row_up)))
-    result = draw_convex_hull(image, points_2d, color, transperency=alpha_transp)
+    result = image.copy()
+    result = draw_convex_hull(result, points_2d, color, transperency=alpha_transp)
     result = draw_lines(result, lines, color=color, w=w)
 
     if label is not None:
@@ -250,8 +251,8 @@ def draw_convex_hull(image,points,color=(255, 0, 0),transperency=0.0):
     draw = ImageDraw.Draw(pImage, 'RGBA')
 
     try:
-        hull = ConvexHull(numpy.array(points, dtype=numpy.int))
-        cntrs = numpy.array(points, dtype=numpy.int)[hull.vertices]
+        hull = ConvexHull(numpy.array(points, dtype=int))
+        cntrs = numpy.array(points, dtype=int)[hull.vertices]
         polypoints = [(point[0],point[1]) for point in cntrs]
         draw.polygon(polypoints, (color[0], color[1], color[2], int(255-transperency * 255)))
         result = numpy.array(pImage)

@@ -196,12 +196,12 @@ def draw_boxes(class_ID, folder_annotation, file_markup_true, file_markup_pred, 
             for coord, hit, conf in zip(coord_true[idx],hit_true[idx],conf_true[idx]):
                 if conf<confidence:
                     hit = 0
-                image = tools_draw_numpy.draw_rect(image, coord[0], coord[1],coord[2], coord[3] ,color=hit_colors_true[hit], w=4, alpha_transp=0.2)
+                image = tools_draw_numpy.draw_rect(image, coord[0], coord[1],coord[2], coord[3] ,color=hit_colors_true[hit], w=2, alpha_transp=0.0)
                 is_hit = max(is_hit,hit)
 
             cv2.imwrite(path_out+('hit' if is_hit else 'miss')+'/'+filename.split('/')[-1],image)
     else:
-        for b, filename in enumerate(set(file_pred)):
+        for b, filename in enumerate(set(file_true)):
             image = cv2.imread(folder_annotation + filename)
             if image is None: continue
 
@@ -214,7 +214,7 @@ def draw_boxes(class_ID, folder_annotation, file_markup_true, file_markup_pred, 
             for coord, hit, conf in zip(coord_pred[idx],hit_pred[idx],conf_pred[idx]):
                 if conf<confidence:
                     continue
-                image = tools_draw_numpy.draw_rect(image, coord[0], coord[1], coord[2], coord[3],color=hit_colors_pred[hit], w=4, alpha_transp=0.2)
+                image = tools_draw_numpy.draw_rect(image, coord[0], coord[1], coord[2], coord[3],color=hit_colors_pred[hit], w=2, alpha_transp=0.0)
                 is_FP = min(is_FP, 1-hit)
 
             cv2.imwrite(path_out + ('FP' if is_FP else 'TP') + '/' + filename.split('/')[-1], image)

@@ -259,10 +259,10 @@ def merge_images_in_folders(path_input1,path_input2,path_output,mask='*.png,*.jp
 
 
     for i,filename1 in enumerate(fileslist1):
-        image1 = cv2.imread(path_input1 + filename1)
-        image2 = cv2.imread(path_input2 + fileslist2[i%len(fileslist2)])
-        image1[:,585:] = image2[:,585:]
-        cv2.imwrite(path_output+filename1,image1)
+        image1 = cv2.imread(path_input1 + filename1)[:,315:1605]
+        image2 = cv2.imread(path_input2 + fileslist2[i%len(fileslist2)])[:,315:1605]
+        #image1[:,585:] = image2[:,585:]
+        cv2.imwrite(path_output+filename1,numpy.concatenate([image1,image2],axis=0))
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
