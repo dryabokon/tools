@@ -128,7 +128,7 @@ def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png,*.jpg',
 # ---------------------------------------------------------------------------------------------------------------------
 def folder_to_video(folder_in, filename_out, mask='*.jpg', framerate=24,stop_ms=0,duration_ms=None, resize_W=None, resize_H=None, stride=1,do_reverce=False):
 
-    images = prepare_images(folder_in, mask, framerate, stop_ms, duration_ms, resize_H, resize_W, stride, do_reverce)[::-1]
+    images = prepare_images(folder_in, mask, framerate, stop_ms, duration_ms, resize_H, resize_W, stride, do_reverce)
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     resize_H, resize_W = images[0].shape[:2]
     out = cv2.VideoWriter(filename_out,fourcc, framerate, (resize_W,resize_H))
@@ -251,18 +251,17 @@ def fly_effetct(folder_in,folder_out,left,top,right,bottom,n_frames,effect='in')
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
-def merge_images_in_folders(path_input1,path_input2,path_output,mask='*.png,*.jpg'):
-    tools_IO.remove_files(path_output,create=True)
+def merge_images_in_folders(path_input1,path_input2,path_output,mask='*.png,*.jpg',mode='V'):
+    tools_IO.remove_files(path_output,list_of_masks=mask,create=True)
 
     fileslist1 = tools_IO.get_filenames(path_input1,mask)
     fileslist2 = tools_IO.get_filenames(path_input2,mask)
 
-
     for i,filename1 in enumerate(fileslist1):
-        image1 = cv2.imread(path_input1 + filename1)[:,315:1605]
-        image2 = cv2.imread(path_input2 + fileslist2[i%len(fileslist2)])[:,315:1605]
-        #image1[:,585:] = image2[:,585:]
-        cv2.imwrite(path_output+filename1,numpy.concatenate([image1,image2],axis=0))
+        image1 = cv2.imread(path_input1 + filename1)
+        image2 = cv2.imread(path_input2 + fileslist2[i%len(fileslist2)])
+
+        cv2.imwrite(path_output+filename1,numpy.concatenate([image1,image2],axis=0 if mode=='V' else 1))
 
     return
 # ---------------------------------------------------------------------------------------------------------------------

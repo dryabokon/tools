@@ -134,7 +134,8 @@ def draw_rect(image, col_left, row_up, col_right, row_down ,color, w=1, alpha_tr
     lines = numpy.array(((col_left, row_up, col_left, row_down),(col_left, row_down, col_right, row_down),(col_right, row_down, col_right, row_up),(col_right, row_up,col_left,row_up)))
     points_2d = numpy.array(((col_left, row_up),(col_left, row_down),(col_right, row_down),(col_right, row_up)))
     result = image.copy()
-    result = draw_convex_hull(result, points_2d, color, transperency=alpha_transp)
+    if alpha_transp!=1:
+        result = draw_convex_hull(result, points_2d, color, transperency=alpha_transp)
     result = draw_lines(result, lines, color=color, w=w)
 
     if label is not None:
@@ -374,6 +375,22 @@ def draw_segments(image, segments,color=(0,0,200),w=1,put_text=False):
             x, y = int(segment[:,0].mean()+ -30+60 * numpy.random.rand()) , int(segment[:,1].mean()-30+60 * numpy.random.rand())
             cv2.putText(result, '{0}'.format(id), (min(W - 10, max(10, x)), min(H - 5, max(10, y))),cv2.FONT_HERSHEY_SIMPLEX, 0.6, clr, 1, cv2.LINE_AA)
     return result
+# ----------------------------------------------------------------------------------------------------------------------
+def draw_bboxes(image, boxes_bound, scores, classes, colors, class_names):
+
+    if boxes_bound is None:
+        return image
+
+    for box, score, cl in zip(boxes_bound, scores, classes):
+        #if class_names[cl]!='person':continue
+        top, left, bottom,right = box
+        top     = max(0, numpy.floor(top + 0.5).astype('int32'))
+        left    = max(0, numpy.floor(left + 0.5).astype('int32'))
+        bottom  = min(image.shape[0], numpy.floor(bottom + 0.5).astype('int32'))
+        right   = min(image.shape[1], numpy.floor(right + 0.5).astype('int32'))
+        image = draw_rect(image, left, top, right, bottom ,colors[cl], w=1, alpha_transp=0.8,font_size=16,label=None)
+
+    return image
 # ----------------------------------------------------------------------------------------------------------------------
 def extend_view(XY,H,W,factor = 4):
 

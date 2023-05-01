@@ -2,13 +2,11 @@
 import numpy
 import cv2
 import os
-import time
 import progressbar
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_draw_numpy
 import tools_image
 import tools_IO
-#from detector import detector_YOLO3_core
 import xml.etree.cElementTree as ET
 import matplotlib.pyplot as plt
 from PIL import Image
@@ -51,28 +49,6 @@ def draw_classes_on_image(image, boxes_yxyx, scores, color,draw_score=False):
             position = top - 6 if top - 6 > 10 else top + 26
             cv2.putText(image, '{0:.2f}'.format(score), (left + 4, position), cv2.FONT_HERSHEY_SIMPLEX,0.4, color, 1, cv2.LINE_AA)
 
-    return image
-# ----------------------------------------------------------------------------------------------------------------------
-def draw_objects_on_image(image, boxes_bound, scores, classes, colors, class_names):
-
-    if boxes_bound is None:
-        return image
-
-    for box, score, cl in zip(boxes_bound, scores, classes):
-        if class_names[cl]!='person':continue
-        top, left, bottom,right = box
-
-        top     = max(0, numpy.floor(top + 0.5).astype('int32'))
-        left    = max(0, numpy.floor(left + 0.5).astype('int32'))
-        bottom  = min(image.shape[0], numpy.floor(bottom + 0.5).astype('int32'))
-        right   = min(image.shape[1], numpy.floor(right + 0.5).astype('int32'))
-
-        color = colors[cl]
-
-        cv2.rectangle(image, (left,top), (right,bottom), color, 2)
-        position = top - 6 if top - 6 > 10 else top + 26
-        cv2.putText(image, '{0} {1:.2f}'.format(class_names[cl], score), (left+4, position), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 1, cv2.LINE_AA)
-        #cv2.putText(image, '{0}'.format(class_names[cl]), (left+4, position), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 1, cv2.LINE_AA)
     return image
 # ----------------------------------------------------------------------------------------------------------------------
 def get_true_boxes(foldername, filename, smart_resized_target=None, delim=' ',limit=1000000):
@@ -243,7 +219,7 @@ def nms_boxes(boxes, scores,nms_threshold):
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_and_save(filename_out,image,boxes_yxyx, scores,classes,colors, class_names):
     if filename_out is not None:
-        res_image = draw_objects_on_image(tools_image.desaturate(image, 1.0), boxes_yxyx, scores,classes, colors, class_names)
+        res_image = tools_draw_numpy.draw_bboxes(tools_image.desaturate(image, 1.0), boxes_yxyx, scores,classes, colors, class_names)
         cv2.imwrite(filename_out, res_image)
     return
 # ----------------------------------------------------------------------------------------------------------------------
