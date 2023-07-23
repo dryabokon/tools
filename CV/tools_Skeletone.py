@@ -18,8 +18,8 @@ class MyLR:
     def fit(self, x, y):
         X = numpy.append(numpy.ones((len(x), 1)), x, axis=1)
         Y = numpy.array(y)
-
         self.b = numpy.linalg.inv(X.T.dot(X)).dot(X.T.dot(Y))
+        return
 
     def predict(self, x):
         X = numpy.append(numpy.ones((len(x), 1)), x, axis=1)
@@ -46,21 +46,21 @@ class Skelenonizer(object):
         result2 = exposure.adjust_gamma(result2, 6)
         return result2
 # ----------------------------------------------------------------------------------------------------------------
-    def binarize(self,image):
+    def binarize(self,image,blockSize=27,maxValue=255):
         if len(image.shape)==3:
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         else:
             gray = image
-        binarized = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 27, 0)
-        #binarized[gray>230]=255
-        binarized[gray<25 ]=0
+        binarized = cv2.adaptiveThreshold(gray, maxValue, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, blockSize, 0)
+        # binarized[gray>230]=255
+        # binarized[gray<25 ]=0
 
         return binarized
 # ----------------------------------------------------------------------------------------------------------------
     def morph(self,image,kernel_h=3,kernel_w=3,n_dilate=1,n_erode=1):
         kernel = numpy.ones((kernel_h, kernel_w), numpy.uint8)
-        result = cv2.dilate(image, kernel, iterations=n_dilate)
-        result = cv2.erode(result, kernel, iterations=n_erode)
+        result = cv2.erode(cv2.dilate(image, kernel, iterations=n_dilate), kernel, iterations=n_erode)
+        #result = cv2.dilate(cv2.erode(image, kernel, iterations=n_erode), kernel, iterations=n_dilate)
         return result
 # ----------------------------------------------------------------------------------------------------------------
     def binarized_to_skeleton(self, binarized):
@@ -75,7 +75,8 @@ class Skelenonizer(object):
 # ----------------------------------------------------------------------------------------------------------------
     def skeleton_to_segments(self,skeleton,min_len=10):
 
-        image_cleaned = self.remove_joints(skeleton)
+        #image_cleaned = self.remove_joints(skeleton)
+        image_cleaned = skeleton
         ret, labels, stats, centroids = cv2.connectedComponentsWithStats(image_cleaned)
 
         i=0
@@ -270,8 +271,8 @@ class Skelenonizer(object):
         return line
 # ----------------------------------------------------------------------------------------------------------------------
     def interpolate_segment_by_line(self, XY):
-        X = numpy.array([XY[:, 0]]).astype(numpy.float).T
-        Y = numpy.array([XY[:, 1]]).astype(numpy.float).T
+        X = numpy.array([XY[:, 0]]).astype(float).T
+        Y = numpy.array([XY[:, 1]]).astype(float).T
 
         if (X.max() - X.min()) > (Y.max() - Y.min()):
             self.reg.fit(X, Y)

@@ -33,6 +33,7 @@ class Plotter(object):
         self.init_base_colors()
         self.init_colors()
         self.turn_light_mode(None)
+        self.io_buf = io.BytesIO()
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def init_base_colors(self):
@@ -91,7 +92,9 @@ class Plotter(object):
         else:
             seaborn.set(style="whitegrid")
             seaborn.set_style("whitegrid")
-            self.clr_bg = numpy.array((1, 1, 1))
+            #self.clr_bg = numpy.array((1, 1, 1))
+            self.clr_bg = numpy.array((0.95, 0.95, 0.95))
+
             self.clr_grid = numpy.array((192, 192, 192)) / 255  # 'lightgray'
             self.clr_font = numpy.array((0,0,0))#'black'
             self.clr_border = numpy.array((1, 1, 1, 0))  # gray'
@@ -419,8 +422,6 @@ class Plotter(object):
 #-----------------------------------------------------------------------------------------------------------------------
     def plot_tp_fp(self,tpr,fpr,roc_auc,caption='',figsize=(6,6),filename_out=None):
 
-
-
         fig = plt.figure(figsize=figsize)
         fig = self.turn_light_mode(fig)
         color = seaborn.color_palette(palette='tab10', n_colors=1)
@@ -564,8 +565,7 @@ class Plotter(object):
         HT = tools_Hyptest.HypTest()
 
         for column in columns[idx]:
-            if column=='who':
-                i=0
+
             fig = plt.figure(figsize=figsize)
             fig = self.turn_light_mode(fig)
             plt.grid(color=self.clr_grid)
@@ -819,7 +819,7 @@ class Plotter(object):
 
         plt.close(fig)
 
-        return
+        return fig
 # ----------------------------------------------------------------------------------------------------------------------
     def get_xtick_labels(self,df,idx_time,out_format_x,major_step,minor_step=None):
 
@@ -1017,7 +1017,8 @@ class Plotter(object):
         df = pd.DataFrame(numpy.concatenate((Y.reshape(-1, 1), X), axis=1), columns=['Y', 'x0', 'x1'])
         df.sort_values(by=df.columns[0],inplace=True)
         #colors = [self.get_color(t)[[2, 1, 0]] / 255.0 for t in numpy.sort(numpy.unique(Y))]
-        colors = [self.colors[n][[2, 1, 0]] / 255.0 for n in range(len(numpy.unique(Y)))]
+        #colors = [self.colors[n]   [[2, 1, 0]] / 255.0 for n in range(len(numpy.unique(Y)))]
+        colors = None
         self.plot_2D_features(df, remove_legend=False, colors=colors,marker_size=6,transparency=0.15,filename_out=filename_out)
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -1092,37 +1093,37 @@ class Plotter(object):
 
         return fig
 # ----------------------------------------------------------------------------------------------------------------------
-    def plot_bars(self, values, labels, legend=None, yticks=None, transparency=0, colormap='viridis',figsize=(4, 4), filename_out=None):
+    def plot_bars(self, values, labels, legend=None, yticks=None, transparency=0, colors=None,colormap='viridis',figsize=(4, 4), filename_out=None):
 
         fig = plt.figure(figsize=figsize)
         fig = self.turn_light_mode(fig)
 
-        colors = tools_draw_numpy.get_colors(255, colormap=colormap)[:,[2,1,0]]/255.0
-        x_pos = numpy.arange(len(labels))
+        if colors is None:
+            colors = tools_draw_numpy.get_colors(numpy.unique(labels).shape[0], colormap=colormap)[:,[2,1,0]]/255.0
 
-        if len(values.shape) == 1:
-            plt.bar(x_pos, values, color=colors[0], alpha=1 - transparency)
-        else:
-            for i in range(values.shape[1]):
-                plt.bar(x_pos, values[:, i], color=colors[0], alpha=1 - transparency)
+        x_pos = numpy.arange(labels.shape[0])
+
+        plt.bar(x_pos, values, color=colors)
 
         plt.xticks(x_pos, labels)
         if yticks is not None:
             plt.yticks(yticks)
+        else:
+            plt.yticks([])
 
-        plt.grid(color=self.clr_grid)
+        #plt.grid(color=self.clr_grid)
 
         if legend is not None:
             legend = plt.legend([legend], loc="lower right")
             self.recolor_legend_plt(legend)
 
-        plt.tight_layout()
+        #plt.tight_layout()
         if filename_out is not None:
             plt.savefig(self.folder_out + filename_out, facecolor=fig.get_facecolor())
 
+
         return fig
 # ----------------------------------------------------------------------------------------------------------------------
-
     def plot_pie(self,values,header,filename_out=None):
 
         fig = plt.figure()
@@ -1133,7 +1134,7 @@ class Plotter(object):
 
         return fig
 # ---------------------------------------------------------------------------------------------------------------------
-    def plot_squarify(self, df, idx_label, idx_size, colors=None,idx_color_255=None, palette='viridis',stat='%', alpha=0, figsize=(15, 5), filename_out=None):
+    def plot_squarify(self, df, idx_label, idx_size, colors=None,idx_color_255=None, palette='viridis',stat='%', alpha=0, figsize=(10, 4), filename_out=None):
         import squarify
         fig = plt.figure(figsize=figsize)
         self.turn_light_mode(fig)
@@ -1217,15 +1218,15 @@ class Plotter(object):
         # ax.spines['left'].set_visible(False)
         # ax.set_facecolor(numpy.array(self.clr_bg)[[2, 1, 0]] / 255)
 
-        plt.tight_layout()
+        #plt.tight_layout()
 
         # ax.tick_params(which='major', length=0)
 
-        io_buf = io.BytesIO()
-        fig.savefig(io_buf, format='raw', facecolor=clr_bg)
-        io_buf.seek(0)
-        image = numpy.reshape(numpy.frombuffer(io_buf.getvalue(), dtype=numpy.uint8),newshape=(int(fig.bbox.bounds[3]), int(fig.bbox.bounds[2]), -1))[:, :, [2, 1, 0]]
-        io_buf.close()
+        fig.savefig(self.io_buf, format='raw', facecolor=clr_bg)
+        self.io_buf.seek(0)
+        image = numpy.reshape(numpy.frombuffer(self.io_buf.getvalue(), dtype=numpy.uint8),newshape=(int(fig.bbox.bounds[3]), int(fig.bbox.bounds[2]), -1))[:, :, [2, 1, 0]]
+        image = numpy.ascontiguousarray(image, dtype=numpy.uint8)
+
         return image
 # ----------------------------------------------------------------------------------------------------------------------
 

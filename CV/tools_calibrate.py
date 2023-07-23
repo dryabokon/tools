@@ -475,17 +475,19 @@ def align_two_images_ECC(im1, im2,mode = cv2.MOTION_AFFINE):
         aligned = cv2.warpAffine(im2, warp_matrix, (im2_gray.shape[1], im2_gray.shape[0]),borderMode=cv2.BORDER_REPLICATE, flags=cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP)
         return im1, aligned
 # ---------------------------------------------------------------------------------------------------------------------
-def pose_estimation_chessboard(img, chess_rows, chess_cols, cameraMatrix, dist):
-    corners_3d = numpy.zeros((chess_rows * chess_cols, 3), numpy.float32)
-    corners_3d[:, :2] = numpy.mgrid[0:chess_cols, 0:chess_rows].T.reshape(-1, 2)
+def get_chessboard_corners(img, chess_rows, chess_cols):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     ret, corners_2d = cv2.findChessboardCorners(gray, (chess_cols, chess_rows), None)
-
-    rvecs, tvecs = numpy.array([]),numpy.array([])
-
-    if ret == True:
+    if ret:
         corners_2d = cv2.cornerSubPix(gray, corners_2d, (11, 11), (-1, -1),(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001))
-        _, rvecs, tvecs, inliers = cv2.solvePnPRansac(corners_3d, corners_2d, cameraMatrix, dist)
+    return corners_2d
+# ---------------------------------------------------------------------------------------------------------------------
+def pose_estimation_chessboard(img, chess_rows, chess_cols, cameraMatrix, dist):
+
+    corners_2d = get_chessboard_corners(img, chess_rows, chess_cols)
+    corners_3d = numpy.zeros((chess_rows * chess_cols, 3), numpy.float32)
+    corners_3d[:, :2] = numpy.mgrid[0:chess_cols, 0:chess_rows].T.reshape(-1, 2)
+    _, rvecs, tvecs, inliers = cv2.solvePnPRansac(corners_3d, corners_2d, cameraMatrix, dist)
 
     return rvecs, tvecs
 # ---------------------------------------------------------------------------------------------------------------------

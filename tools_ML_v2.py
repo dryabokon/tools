@@ -337,6 +337,9 @@ class ML(object):
         self.multiclass = len(set(df_train.iloc[:, idx_target].unique()).union(set(df_test.iloc[:, idx_target].unique())))>2
         self.learn_df(df_train.dropna(),idx_target)
 
+        self.P.set_color(0, self.P.color_red)
+        self.P.set_color(1, self.P.color_blue)
+
         if self.multiclass:
             df_metrics = self.construct_metrics_multiclass(df_train, df_test, df_val, idx_target, do_charts, description)
         else:

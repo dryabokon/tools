@@ -338,9 +338,10 @@ class Plotter_dancing:
 # ---------------------------------------------------------------------------------------------------------------------
     def plot_TS_plots(self, X, labels, tops, bottoms, colors=None, lw=1,linestyle=None, fill=True,alpha = 0.6, blacksigns=False,
                       labels_pos= 'right', align='right',xticks=None, yticks=None, xlim=None, ylim=None, y_label_min_max=None,
-                      invert_y=False,major_step=None,out_format_x=None,legend=None):
+                      invert_y=False,major_step=None,out_format_x=None,legend=None,figsize=None):
 
-        fig = plt.figure(figsize=(self.W / 100, self.H / 100),facecolor=self.P.clr_bg)
+        figsize = (self.W / 100, self.H / 100) if figsize is None else figsize
+        fig = plt.figure(figsize=figsize,facecolor=self.P.clr_bg)
         fig = self.P.turn_light_mode(fig)
 
         labels_line, pos_lines_x, pos_lines_y, labels_scatter, scatter_x, scatter_y, pos_scatter_x, pos_scatter_y = \
@@ -362,6 +363,8 @@ class Plotter_dancing:
             if idx_visible is not None:
                 ax.set_xticks(mdates.date2num(tools_time_convertor.str_to_datetime(xtick_labels_classic[idx_visible])))
                 ax.set_xticklabels(xtick_labels[idx_visible])
+        else:
+            plt.xticks([])
 
         if isinstance(yticks,str) and yticks=='auto':
             plt.gca().tick_params(axis="y", direction="in",pad = -50)
@@ -376,6 +379,7 @@ class Plotter_dancing:
 
         if ylim is not None:plt.gca().set_ylim([ylim[0], ylim[1]])
         if invert_y:plt.gca().invert_yaxis()
+
 
         plt.grid(color=self.P.clr_grid)
         image = self.P.get_image(fig, fig.get_facecolor())
@@ -463,7 +467,7 @@ class Plotter_dancing:
 
         return
 # =====================================================================================================================
-    def plot_stacked_data(self, df, idx_time=0, idx_label=1, idx_value=2,top_objects=3,in_format_x=None, out_format_x=None,major_step=28,legend=None,filename_out=None):
+    def plot_stacked_data(self, df, idx_time=0, idx_label=1, idx_value=2,top_objects=3,in_format_x=None, out_format_x=None,major_step=28,legend=None,alpha=0.6,figsize=(8, 6),filename_out=None):
 
         self.init_layout(name='960_670')
         df_MC = tools_DF.to_multi_column(df, idx_time=idx_time, idx_label=idx_label, idx_value=idx_value,replace_nan=True) #replace_nan=False
@@ -472,9 +476,9 @@ class Plotter_dancing:
         X = tools_time_convertor.str_to_datetime(X,format=in_format_x).values
 
         image = self.plot_TS_plots(X, labels, tops, bottoms,y_label_min_max=[numpy.nanmin(bottoms),numpy.nanmax(tops)],
-                                   yticks='auto',out_format_x=out_format_x,major_step=major_step,legend=legend)
+                                   yticks='auto',out_format_x=out_format_x,major_step=major_step,legend=legend,alpha=alpha,figsize=figsize)
         if filename_out is not None:
             cv2.imwrite(self.folder_out + filename_out, image)
 
-        return
+        return image
 # ---------------------------------------------------------------------------------------------------------------------

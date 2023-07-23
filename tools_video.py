@@ -28,7 +28,8 @@ def rescale_overwrite_images(folder_in_out,mask='*.jpg',target_width=320):
     return
 # --------------------------------------------------------------------------------------------------------------------
 def capture_video(source, filename_out,fps=20):
-    cap = cv2.VideoCapture(source)
+    cap = cv2.VideoCapture(source,cv2.CAP_DSHOW)
+
     success, frame = cap.read()
     out_shape = (frame.shape[1], frame.shape[0])
 
@@ -132,7 +133,7 @@ def extract_frames_v2(filename_in,folder_out,prefix='',start_frame=0, end_frame=
         if success and scale != 1:
             image = do_rescale(image, scale)
         if not success:continue
-        cv2.imwrite(folder_out + prefix + '%05d.jpg'%cnt, image)
+        cv2.imwrite(folder_out + prefix + '%05d.png'%cnt, image)
         success, image = vidcap.read()
         cnt+=step
         if end_frame is not None and cnt >= end_frame:
@@ -165,7 +166,8 @@ def grab_youtube_video(URL,out_path, out_filename,resolution='720p'):
 
     try:
         yt = YouTube(URL)
-        stream_filtered = yt.streams.filter(file_extension="mp4").get_by_resolution(resolution)
+        stream_filtered = yt.streams.filter(file_extension="mp4")
+        stream_filtered = stream_filtered.get_by_resolution(resolution)
         stream_filtered.download(out_path, out_filename)
         df_log = pd.DataFrame({'URL': [URL], 'title': [yt.title], 'description': [yt.description], 'author': [yt.author]})
     except:

@@ -345,10 +345,6 @@ def put_image(image_large,image_small,start_row,start_col):
         result[start_row:end_row_large,start_col:end_col_large]=image_small[start_row_small:end_row_small,start_col_small:end_col_small]
     return result
 # ---------------------------------------------------------------------------------------------------------------------
-def rgb2bgr(image):
-    return image[:, :, [2, 1, 0]]
-    #return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-# --------------------------------------------------------------------------------------------------------------------------
 def desaturate_2d(image):
     if len(image.shape)==2:
         return image
@@ -376,6 +372,9 @@ def desaturate(image,level=1.0):
 
     return result
 #--------------------------------------------------------------------------------------------------------------------------
+def rgb2bgr(image):
+    return image[:, :, [2, 1, 0]]#return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+# --------------------------------------------------------------------------------------------------------------------------
 def hitmap2d_to_jet(hitmap_2d,colormap=None):
     if colormap is None:
         colormap = cv2.COLORMAP_JET
@@ -383,10 +382,30 @@ def hitmap2d_to_jet(hitmap_2d,colormap=None):
     return hitmap_RGB_jet
 # ----------------------------------------------------------------------------------------------------------------------
 def hsv2bgr(hsv):
-    return cv2.cvtColor(numpy.array([hsv[0], hsv[1], hsv[2]], dtype=numpy.uint8).reshape(1, 1, 3), cv2.COLOR_HSV2BGR)
+    if hsv.flatten().shape[0] == 3:
+        res= cv2.cvtColor(numpy.array([hsv[0], hsv[1], hsv[2]], dtype=numpy.uint8).reshape((1, 1, 3)), cv2.COLOR_HSV2BGR)
+    else:
+        res = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+    return res
 # ----------------------------------------------------------------------------------------------------------------------
 def bgr2hsv(brg):
-    return cv2.cvtColor(numpy.array([brg[0], brg[1], brg[2]], dtype=numpy.uint8).reshape(1, 1, 3), cv2.COLOR_BGR2HSV)
+    if brg.flatten().shape[0]==3:
+        res = cv2.cvtColor(numpy.array([brg[0], brg[1], brg[2]], dtype=numpy.uint8).reshape((1, 1, 3)), cv2.COLOR_BGR2HSV)
+    else:
+        res = cv2.cvtColor(brg, cv2.COLOR_BGR2HLS)
+    return res
+# ----------------------------------------------------------------------------------------------------------------------
+def bgr2CMYK(img):
+    K = 255.0 - numpy.max(img, axis=2)
+    C = (255.0 - img[..., 2] - K) / (255.0 - K + 1e-4)*255
+    M = (255.0 - img[..., 1] - K) / (255.0 - K + 1e-4)*255
+    Y = (255.0 - img[..., 0] - K) / (255.0 - K + 1e-4)*255
+    res = numpy.concatenate([numpy.expand_dims(C,axis=2), numpy.expand_dims(M,axis=2), numpy.expand_dims(Y,axis=2)],axis=2).astype(numpy.uint8)
+    return res
+# ----------------------------------------------------------------------------------------------------------------------
+def bgr2YCR(img):
+    res = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
+    return res
 # ----------------------------------------------------------------------------------------------------------------------
 def gre2jet(rgb):
     return cv2.applyColorMap(numpy.array(rgb, dtype=numpy.uint8).reshape((1, 1, 3)), cv2.COLORMAP_JET).reshape(3)
@@ -705,7 +724,7 @@ def batch_convert(path_in, path_out, format_in='.bmp', format_out='.png'):
 # ----------------------------------------------------------------------------------------------------------------------
 def convolve_with_mask_filter2d(image255, mask_pn, min_value=None, max_value=None):
 
-    res = cv2.filter2D(image255.astype(numpy.long), -1, mask_pn)
+    res = cv2.filter2D(image255.astype(numpy.int64), -1, mask_pn)
 
     if min_value is None or max_value is None:
         #min_value = 255*(mask_pn[mask_pn<=0]).sum()
@@ -816,7 +835,7 @@ def do_stitch(img_h, img_w, patches, boarder=12, color=True):
 # ----------------------------------------------------------------------------------------------------------------------
 def sliding_2d(A,h_neg,h_pos,w_neg,w_pos, stat='avg',mode='constant'):
 
-    B = numpy.pad(A,((-h_neg,h_pos),(-w_neg,w_pos)),mode)
+    B = cv2.copyMakeBorder(A, -h_neg, h_pos, -w_neg, w_pos, cv2.BORDER_CONSTANT)
     B = numpy.roll(B, 1, axis=0)
     B = numpy.roll(B, 1, axis=1)
 

@@ -67,7 +67,7 @@ class Time_Profiler():
         f_handle = os.open(filename_out, os.O_RDWR | os.O_CREAT)
 
         for i in idx:
-            value = ('%2.2f\t%s\n'%(V[i],E[i])).encode()
+            value = ('%2.3f\t%s\n'%(V[i],E[i])).encode()
             os.write(f_handle, value)
 
         os.close(f_handle)

@@ -14,12 +14,19 @@ class OpticalFlow_LucasKanade():
         self.colors255 = tools_draw_numpy.get_colors(255,colormap='jet',shuffle=True)
         self.mask_ROI = None
         self.cntr = 0
-        self.gray_prev = cv2.cvtColor(image_start, cv2.COLOR_BGR2GRAY)
-        self.mask_ROI = numpy.full((self.gray_prev.shape[0], self.gray_prev.shape[1]), 255, dtype=numpy.uint8)
+
+        self.init_start_frame(image_start)
         self.update_ROI(face_2d)
         self.face_2d_prev = face_2d
-        self.keypoints_prev = cv2.goodFeaturesToTrack(self.gray_prev, mask=self.mask_ROI, **self.feature_params)
-        self.track_id_prev = numpy.arange(self.keypoints_prev.shape[0])
+        return
+# --------------------------------------------------------------------------------------------------------------------------
+    def init_start_frame(self,image_start):
+        if image_start is not None:
+            self.gray_prev = cv2.cvtColor(image_start, cv2.COLOR_BGR2GRAY)
+            self.mask_ROI = numpy.full((self.gray_prev.shape[0], self.gray_prev.shape[1]), 255, dtype=numpy.uint8)
+            self.keypoints_prev = cv2.goodFeaturesToTrack(self.gray_prev, mask=self.mask_ROI, **self.feature_params)
+            self.track_id_prev = numpy.arange(self.keypoints_prev.shape[0])
+        return
 # --------------------------------------------------------------------------------------------------------------------------
     def update_ROI(self,points_2d=None):
         if points_2d is not None:
@@ -29,27 +36,34 @@ class OpticalFlow_LucasKanade():
         return
 # --------------------------------------------------------------------------------------------------------------------------
     def prune_keypoints(self,keypoints,track_ids):
+
+        if keypoints.shape[0]<=2:
+            return
         for p in keypoints:
             D = numpy.sum(abs(keypoints.reshape((-1, 2)) - p.reshape((-1, 2))), axis=1)
-            i = numpy.argsort(D)[1]
-            if D[i] < 20:
-                keypoints = numpy.delete(keypoints,i,axis=0)
-                track_ids = numpy.delete(track_ids, i)
+            if D.shape[0]>1:
+                i = numpy.argsort(D)[1]
+                if D[i] < 20:
+                    keypoints = numpy.delete(keypoints,i,axis=0)
+                    track_ids = numpy.delete(track_ids, i)
         return
 # --------------------------------------------------------------------------------------------------------------------------
     def add_new_keypoints(self,gray):
+        if self.keypoints_cur.shape[0]==0:
+            return
         keypoints_new = cv2.goodFeaturesToTrack(gray, mask=self.mask_ROI, **self.feature_params)
-        for p in keypoints_new:
-            if self.track_id_cur.shape[0] >= 255:
-                continue
-            if p not in self.keypoints_cur:
-                dist = numpy.min(numpy.sum(abs(self.keypoints_cur.reshape((-1, 2)) - p.reshape((-1, 2))), axis=1))
-                if dist < 10:
+        if keypoints_new is not None:
+            for p in keypoints_new:
+                if self.track_id_cur.shape[0] >= 255:
                     continue
-                self.keypoints_cur = numpy.concatenate([self.keypoints_cur, p.reshape((1, 2))], axis=0)
-                self.track_id_cur = numpy.concatenate([self.track_id_cur, [self.track_id_cur.shape[0]]], axis=0)
+                if p not in self.keypoints_cur:
+                    dist = numpy.min(numpy.sum(abs(self.keypoints_cur.reshape((-1, 2)) - p.reshape((-1, 2))), axis=1))
+                    if dist < 10:
+                        continue
+                    self.keypoints_cur = numpy.concatenate([self.keypoints_cur, p.reshape((1, 2))], axis=0)
+                    self.track_id_cur = numpy.concatenate([self.track_id_cur, [self.track_id_cur.shape[0]]], axis=0)
         return
-
+# --------------------------------------------------------------------------------------------------------------------------
     def evaluate_flow(self, image):
         self.cntr+=1
         self.gray_cur = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -69,7 +83,7 @@ class OpticalFlow_LucasKanade():
             # if self.face_2d_prev is not None:
             #     self.face_2d_cur = cv2.transform(self.face_2d_prev.reshape((-1, 1, 2)), M).reshape((-1, 2))
 
-            M, _ = tools_pr_geom.fit_homography(self.keypoints_prev[idx_current_good], self.keypoints_cur)
+            M = tools_pr_geom.fit_homography(self.keypoints_prev[idx_current_good], self.keypoints_cur)[0]
             if self.face_2d_prev is not None:
                 self.face_2d_cur = cv2.perspectiveTransform(self.face_2d_prev.reshape((-1, 1, 2)).astype(float), M).reshape((-1, 2))
 
@@ -111,5 +125,9 @@ class OpticalFlow_LucasKanade():
         self.track_id_prev = self.track_id_cur.copy()
         self.face_2d_prev = self.face_2d_cur
         self.update_ROI(points_2d=self.face_2d_cur)
+
+        if self.keypoints_prev.shape[0]==0:
+            self.init_start_frame(tools_image.saturate(self.gray_cur))
+
         return
 # ---------------------------------------------------------------------------------------------------------------------

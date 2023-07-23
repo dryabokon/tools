@@ -81,6 +81,7 @@ def prepare_images(path_input, mask='*.png', framerate=10,stop_ms=0,duration_ms=
     if duration_ms is None:
         for b in numpy.arange(0, len(filenames), stride):
             image = cv2.imread(path_input + filenames[b])
+
             if resize_H is not None and resize_W is not None:
                 #image = tools_image.do_resize(image, (resize_W, resize_H))
                 image = cv2.resize(image, (resize_W, resize_H))
