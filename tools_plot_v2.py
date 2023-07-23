@@ -113,8 +113,8 @@ class Plotter(object):
         ax.yaxis.label.set_color(self.clr_font)
 
         ax.tick_params(which='both', color=self.clr_font)
-        ax.tick_params(axis='x', colors=self.clr_font)
-        ax.tick_params(axis='y', colors=self.clr_font)
+        # ax.tick_params(axis='x', colors=self.clr_font)
+        # ax.tick_params(axis='y', colors=self.clr_font)
 
         try:
             ax.zaxis.label.set_color(self.clr_font)
@@ -433,7 +433,7 @@ class Plotter(object):
         self.recolor_legend_plt(legend)
 
         if filename_out is not None:
-            plt.savefig(self.folder_out+filename_out,facecolor=fig.get_facecolor())
+            plt.savefig(self.folder_out+filename_out)
 
         plt.clf()
         plt.close(fig)
