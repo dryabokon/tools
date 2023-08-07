@@ -1,140 +1,127 @@
+import json
+import cv2
+import os
+import uuid
 import numpy
-import requests
-from PIL import Image
 import io
-import matplotlib.pyplot as plt
-import cartopy.io.img_tiles as cimgt
-import cartopy.io.shapereader as shpreader
-import cartopy.crs as ccrs
-import cartopy.feature as cfeature
-from cartopy.feature import ShapelyFeature
+import folium
+from folium import plugins
+import inspect
+from pyppeteer import launch
+import asyncio
 # ----------------------------------------------------------------------------------------------------------------------
-import tools_draw_numpy
+import tools_image
+import tools_time_profiler
+# ----------------------------------------------------------------------------------------------------------------------
 class tools_GIS(object):
     def __init__(self,folder_out=None):
         self.folder_out = folder_out
+        self.TP = tools_time_profiler.Time_Profiler()
         return
+# ----------------------------------------------------------------------------------------------------------------------
+    def evaluate_GPS_boundries(self,gis_points,W,H):
+        filename_temp_html = uuid.uuid4().hex + '.html'
+        filename_temp_png = filename_temp_html.split('.')[0] + '.png'
+        self.build_folium_html(gis_points,filename_temp_html,mode='bbox')
+        self.html_to_png(os.getcwd().replace('\\','/')+self.folder_out[1:]+filename_temp_html,filename_temp_png,W,H)
 
-#---------------------------------------------------------------------------------------------------------------------
-    def get_bitmap_arcgis(self, lat=50, long=30, delta=10,W=800,H=800):
-        array_lat = [lat - delta / 2, lat + delta / 2]
-        array_long = [long - delta / 2, long + delta / 2]
-
-        api = 'https://sampleserver3.arcgisonline.com/ArcGIS/rest/services/World/MODIS/ImageServer/exportImage'
-        url = '{api}?f=image&bbox={coord}&size={W},{H}'.format(api=api, coord='%f,%f,%f,%f' % (array_long[0], array_lat[0], array_long[1], array_lat[1]),W=W,H=H)
-        #url =  https://sampleserver3.arcgisonline.com/ArcGIS/rest/services/World/MODIS/ImageServer/exportImage?f=image&bbox=27,47,33,53&bboxSR=4300&size=800,800
-        res = requests.get(url)
-        image_bytes = io.BytesIO(res.content)
-        img = Image.open(image_bytes)
-        image = numpy.array(img)[:, :, [2, 1, 0]]
-        return image
-
-#---------------------------------------------------------------------------------------------------------------------
-    def get_colors_cool(self,N):
-        c1 = tools_draw_numpy.get_colors(256, colormap='Blues', alpha_blend=0.0, clr_blend=(255, 255, 255), shuffle=False)
-        c2 = tools_draw_numpy.get_colors(256, colormap='Greens', alpha_blend=0.0, clr_blend=(255, 255, 255),shuffle=False)
-        colors_cool = (6.0 * c1 + 4.0 * c2)[::-1] / 10
-        res_colors = numpy.array([colors_cool[int(i)] for i in numpy.linspace(64, 192, N)])
-        return res_colors
-# ---------------------------------------------------------------------------------------------------------------------
-    def get_colors_warm(self,N):
-
-        colors_warm = tools_draw_numpy.get_colors(256, colormap='YlOrRd', alpha_blend=0.0, clr_blend=(0, 0, 0), shuffle=False)
-        res_colors = numpy.array([colors_warm[int(i)] for i in numpy.linspace(64,192, N)])
-
-        return res_colors
-# ---------------------------------------------------------------------------------------------------------------------
-    def fig_to_image(self,fig):
-        io_buf = io.BytesIO()
-        fig.savefig(io_buf, format='raw', facecolor=(1, 1, 1))
-        io_buf.seek(0)
-        image = numpy.reshape(numpy.frombuffer(io_buf.getvalue(), dtype=numpy.uint8),newshape=(int(fig.bbox.bounds[3]), int(fig.bbox.bounds[2]), -1))[:, :, [2, 1, 0]]
-        return image
-#----------------------------------------------------------------------------------------------------------------------
-    def draw_points(self,df,idx_lat,idx_long,idx_value=None,idx_label=None,W=800,H=800,draw_terrain=False,value_by_size = False,edgecolor=(0.25, 0.25, 0.25, 1)):
-
-        min_marker_size = 50
-        max_marker_size = 800
-
-        X = df.iloc[:, idx_long]
-        Y = df.iloc[:, idx_lat]
-
-        lat_range,long_range = [numpy.nanmin(X), numpy.nanmax(X)],[numpy.nanmin(Y), numpy.nanmax(Y)]
-        pad = 0*numpy.abs(max((lat_range[1] - lat_range[0]) / 10, (long_range[1] - long_range[0]) / 10))
-
-        lat_range[0]-=pad
-        lat_range[1]+=pad
-        long_range[0]-=pad
-        long_range[1]+=pad
-
-        fig = plt.figure(figsize=(W / 100, H / 100))
-        stamen_terrain = cimgt.Stamen('terrain-background')
-        projection = stamen_terrain.crs
-        ax = plt.gca(projection=projection)
-        ax.add_feature(cfeature.COASTLINE)
-        ax.add_feature(cfeature.STATES)
-        ax.add_feature(cfeature.RIVERS)
-        ax.add_feature(cfeature.OCEAN)
-        ax.add_feature(cfeature.LAKES, alpha=0.5)
-        #ax.add_feature(cfeature.LAND)
-
-        ax.set_extent([lat_range[0], lat_range[1], long_range[0], long_range[1]], crs=ccrs.PlateCarree())
-
-        if draw_terrain:
-            ax.add_image(stamen_terrain, 8)
-
-        if idx_value is not None:
-            if value_by_size:
-                S = df.iloc[:, idx_value]
-                S-=numpy.nanmin(S)
-                S=min_marker_size+(max_marker_size-min_marker_size)*S/(numpy.nanmax(S))
-                # colors = (0,0.5,1,0)
-                colors = (tools_draw_numpy.get_colors(X.shape[0], colormap='winter', shuffle=True))[:,[2, 1, 0]].astype(numpy.float32) / 255
-            else:
-                S = min_marker_size
-                colors255 = (tools_draw_numpy.get_colors(256, colormap='jet', shuffle=False))[:,[2, 1, 0]].astype(numpy.float32) / 255
-                V = df.iloc[:, idx_value].values
-                V-=numpy.nanmin(V)
-                V/=((numpy.nanmax(V))/255)
-                V[numpy.isnan(V)]=0
-                idx = [int(v) for v in V]
-                colors = colors255[idx]
-        else:
-            S=min_marker_size
-            colors = 'red'
-
-        plt.scatter(x=X,y=Y,color=colors,s=S,alpha=1,transform=ccrs.PlateCarree(),edgecolor=edgecolor)
-        plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
-
-        image = self.fig_to_image(fig)
-
-        return image
-#---------------------------------------------------------------------------------------------------------------------
-    def ex_kenia(self):
+        image_bbox = cv2.imread(self.folder_out+filename_temp_png)
+        os.remove(self.folder_out + filename_temp_html)
+        os.remove(self.folder_out + filename_temp_png)
 
 
-        fig = plt.figure()
-        stamen_terrain = cimgt.Stamen('terrain-background')
-        projection = stamen_terrain.crs
-        ax = plt.gca(projection=projection)
-        ax.add_feature(cfeature.COASTLINE)
-        ax.add_feature(cfeature.STATES)
-        ax.add_feature(cfeature.RIVERS)
-        ax.add_feature(cfeature.OCEAN)
-        ax.add_feature(cfeature.LAKES, alpha=0.5)
-        #ax.add_feature(cfeature.LAND)
+        V = tools_image.bgr2hsv(image_bbox)[:,:,2]
+        xx = numpy.where(V>0)
+        top = numpy.min(numpy.array(xx).T[:,0])
+        left  = numpy.where(V[top] > 0)[0][0]
+        right = numpy.where(V[top] > 0)[0][-1]
+        bottom =V.shape[0]-top-10 +  numpy.sum(V[-top - 10:, left:right], axis=1).argmax()
 
-        ax.set_extent([-23, 55, -35, 40])
+        north = numpy.array(gis_points)[:, 0].max()
+        south = numpy.array(gis_points)[:, 0].min()
+        west = numpy.array(gis_points)[:, 1].min()
+        east = numpy.array(gis_points)[:, 1].max()
 
-        shpfilename = shpreader.natural_earth(resolution='110m',category='cultural',name='admin_0_countries')
-        reader = shpreader.Reader(shpfilename)
-        kenya = [country for country in reader.records() if country.attributes["NAME_LONG"] == "Kenya"][0]
+        scaler = 1e5
+        k_east_west = numpy.longdouble(scaler*(east - west) / (right - left))
+        b_east_west = (east + west - k_east_west*(right+left)/scaler)/2
+        bound_east,bound_west = b_east_west,b_east_west+k_east_west*image_bbox.shape[1]/scaler
 
-        shape_feature = ShapelyFeature([kenya.geometry], ccrs.PlateCarree(), facecolor="lime", edgecolor='black', lw=1)
-        ax.add_feature(shape_feature)
-        plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
+        k_south_nord = numpy.longdouble(scaler * (south - north) / (bottom - top))
+        b_south_nord = (south + north - k_south_nord * (bottom + top) / scaler) / 2
+        bound_north, bound_south = b_south_nord, b_south_nord + k_south_nord * image_bbox.shape[0] / scaler
 
-        image = self.fig_to_image(fig)
+        #print(k_east_west,b_east_west,k_south_nord,b_south_nord)
 
-        return image
-#---------------------------------------------------------------------------------------------------------------------
+        return bound_east,bound_west,bound_north, bound_south
+# ----------------------------------------------------------------------------------------------------------------------
+    def gps_to_ij(self, gis_points, W, H, dct_bbox):
+        scaler = 1e5
+        k_east_west = -numpy.longdouble(scaler * (dct_bbox['east'] - dct_bbox['west']) / (W))
+        b_east_west = (dct_bbox['east'] + dct_bbox['west'] - k_east_west * (W) / scaler) / 2
+        I = (gis_points[:, 1] - b_east_west) * scaler / k_east_west
+
+        k_south_nord = -numpy.longdouble(scaler * (dct_bbox['north'] - dct_bbox['south']) / (H))
+        b_south_nord = (dct_bbox['north'] + dct_bbox['south'] - k_south_nord * (H) / scaler) / 2
+        J = (gis_points[:, 0] - b_south_nord) * scaler / k_south_nord
+        #print(k_east_west, b_east_west, k_south_nord, b_south_nord)
+        IJ = numpy.concatenate([[I],[J]]).astype(int).T
+        return IJ
+# ----------------------------------------------------------------------------------------------------------------------
+    def build_folium_html(self, gis_points,filename_html,colors=None,mode=None):
+
+        tiles = ['openstreetmap','stamentoner','mapquestopen','stamenterrain','cartodbpositron','cartodbdark_matter']
+        map_folium = folium.Map(location=gis_points[0],tiles=tiles[1],zoom_control=True,scrollWheelZoom=True,dragging=True)
+
+        if mode =='bbox':
+            north = numpy.array(gis_points)[:, 0].max()
+            south = numpy.array(gis_points)[:, 0].min()
+            west = numpy.array(gis_points)[:, 1].min()
+            east = numpy.array(gis_points)[:, 1].max()
+            poly_bound = [(north, west), (north, east), (south, east), (south, west), (north, west)]
+            folium.PolyLine(locations=poly_bound,color='#ff0000',weight=1).add_to(map_folium)
+
+        weight,fillOpacity = 1,0.6
+
+        if mode in ['clean','bbox']:
+            weight, fillOpacity = 0, 0
+
+        if colors is None:
+            colors = ['#C00000']*gis_points.shape[0]
+
+        for point,color in zip(gis_points,colors):
+            folium.CircleMarker(location=point,radius=3,color=color,weight=weight,fillColor=color,fillOpacity=fillOpacity).add_to(map_folium)
+
+        folium.CircleMarker(location=gis_points[ 0], radius=12, color=colors[ 0], weight=weight, fillColor=colors[ 0],fillOpacity=1).add_to(map_folium)
+        folium.CircleMarker(location=gis_points[-1], radius=12, color=colors[-1], weight=weight, fillColor=colors[-1],fillOpacity=1).add_to(map_folium)
+
+        map_folium.fit_bounds(map_folium.get_bounds())
+        map_folium.save(self.folder_out + filename_html)
+
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def build_folium_png_with_gps(self,gis_points, filename_out,W,H,draw_points=False):
+        bound_east,bound_west,bound_north, bound_south = self.evaluate_GPS_boundries(gis_points,W,H)
+        filename_temp_html = uuid.uuid4().hex + '.html'
+        self.build_folium_html(gis_points, filename_temp_html,mode=(None if draw_points else 'clean'))
+        self.html_to_png(os.getcwd().replace('\\', '/') + self.folder_out[1:] + filename_temp_html, filename_out,W,H)
+        os.remove(self.folder_out + filename_temp_html)
+        dct_bbox = dict({'east':bound_east,'west':bound_west,'north':bound_north, 'south':bound_south})
+        json.dump(dct_bbox, open(self.folder_out+filename_out.split('.')[0]+'.json', 'w'))
+        image = cv2.imread(self.folder_out +filename_out)
+        return dct_bbox,image
+# ----------------------------------------------------------------------------------------------------------------------
+    async def __html_to_png_core(self,html_full_path, output_image_path,W,H):
+        browser = await launch({'defaultViewport': {'width': W, 'height': H}})
+        page = await browser.newPage()
+        await page.goto('file://'+html_full_path)
+        await page.screenshot({'path': output_image_path,'clip':{"x": 0,"y": 0,"width": W,"height": H}})
+        await browser.close()
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def html_to_png(self,html_full_path,output_image_path,W,H):
+        self.TP.tic(inspect.currentframe().f_code.co_name, reset=True)
+        asyncio.get_event_loop().run_until_complete(self.__html_to_png_core(html_full_path, self.folder_out+output_image_path,W,H))
+        self.TP.print_duration(inspect.currentframe().f_code.co_name)
+        return
+# ----------------------------------------------------------------------------------------------------------------------

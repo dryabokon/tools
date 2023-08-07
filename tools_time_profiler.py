@@ -7,6 +7,8 @@ class Time_Profiler():
     
     def __init__(self,verbose=True):
         self.current_event = None
+        self.current_start = {}
+
         self.dict_event_time = {}
         self.dict_event_cnt  = {}
         self.cnt=0
@@ -26,12 +28,14 @@ class Time_Profiler():
             self.dict_event_time[event] = 0
             self.dict_event_cnt[event] = 0
 
+        self.current_start[event] = time.time()
+
         if self.current_event is not None:
-            self.dict_event_time[self.current_event]+= time.time() - self.current_start
+            self.dict_event_time[self.current_event]+= time.time() - self.current_start[event]
             self.dict_event_cnt[event] += 1
 
         self.current_event = event
-        self.current_start = time.time()
+
 
         if self.verbose:
             print('start', '-', event)
@@ -43,7 +47,7 @@ class Time_Profiler():
         if event not in self.dict_event_time:
             return
         else:
-            self.dict_event_time[event] = time.time() - self.current_start
+            self.dict_event_time[event] = time.time() - self.current_start[event]
             if self.dict_event_time[event]<60:
                 format = '%M:%S'
             elif self.dict_event_time[event]<60*60:

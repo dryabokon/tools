@@ -80,7 +80,7 @@ def draw_points(image, points,color=(0,0,200),w=4,transperency=0,put_text=False,
             cv2.putText(result, '%d %d'%(p[0],p[1]), (min(W - 10, max(10, p[0])), min(H - 5, max(10, p[1]))),cv2.FONT_HERSHEY_SIMPLEX, 1*w/12, clr, 1, cv2.LINE_AA)
 
         if labels is not None:
-            result = draw_text(result, str(labels[i]), (min(W - 10, max(10, p[0])), min(H - 5, max(10, p[1]))), clr, clr_bg=None, font_size=64, alpha_transp=0)
+            result = draw_text(result, str(labels[i]), (min(W - 10, max(10, p[0])), min(H - 5, max(10, p[1]))), (0,0,0), clr_bg=None, font_size=64, alpha_transp=0)
             #cv2.putText(result, '{0}'.format(str(labels[i])), (min(W - 10, max(10, p[0])), min(H - 5, max(10, p[1]))),cv2.FONT_HERSHEY_SIMPLEX, 0.6, clr, 1, cv2.LINE_AA)
 
     del draw

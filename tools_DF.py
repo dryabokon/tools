@@ -6,6 +6,14 @@ from collections import Counter
 from tabulate import tabulate
 import struct
 # ----------------------------------------------------------------------------------------------------------------------
+def fix_ecoding(filename_in):
+    with open(filename_in) as f:
+        lines = f.readlines()
+
+    res = [[s.encode("ascii", "ignore").decode() for s in line.split('\n')[0].split('\t')] for line in lines[1:]]
+    df = pd.DataFrame(res,columns=lines[0].split('\n')[0].split('\t'))
+    return df
+# ----------------------------------------------------------------------------------------------------------------------
 def df_to_XY(df,idx_target,numpy_style=True):
 
     columns = df.columns.to_numpy()
@@ -142,16 +150,19 @@ def remove_long_tail(df,idx_target=0,th=0.01,order=False):
     return df
 # ----------------------------------------------------------------------------------------------------------------------
 def my_agg(df,cols_groupby,cols_value,aggs,list_res_names=None,order_idx=None,ascending=True):
-    dct_agg={}
-    for v,a in zip(cols_value,aggs):
-        if a=='top': a=(lambda x: x.value_counts().index[0] if any(x.value_counts()) else numpy.nan)
+    if len(cols_value)==len(aggs):
+        dct_agg={}
+        for v,a in zip(cols_value,aggs):
+            if a=='top': a=(lambda x: x.value_counts().index[0] if any(x.value_counts()) else numpy.nan)
 
-        if isinstance(a,list):
-            dct_agg[v]=[item for item in a]
-        else:
-            dct_agg[v] = a
+            if isinstance(a,list):
+                dct_agg[v]=[item for item in a]
+            else:
+                dct_agg[v] = a
+        df_res = df.groupby(cols_groupby,dropna=False).agg(dct_agg)
+    else:
+        df_res = df.groupby(cols_groupby, dropna=False).agg(aggs)
 
-    df_res = df.groupby(cols_groupby,dropna=False).agg(dct_agg)
     df_res = df_res.reset_index()
 
     df_res.columns = [''.join(col) for col in df_res.columns]

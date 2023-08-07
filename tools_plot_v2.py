@@ -92,8 +92,8 @@ class Plotter(object):
         else:
             seaborn.set(style="whitegrid")
             seaborn.set_style("whitegrid")
-            #self.clr_bg = numpy.array((1, 1, 1))
-            self.clr_bg = numpy.array((0.95, 0.95, 0.95))
+            self.clr_bg = numpy.array((1, 1, 1))
+            #self.clr_bg = numpy.array((0.95, 0.95, 0.95))
 
             self.clr_grid = numpy.array((192, 192, 192)) / 255  # 'lightgray'
             self.clr_font = numpy.array((0,0,0))#'black'
@@ -578,7 +578,7 @@ class Plotter(object):
             I = 0
             if len(unique_targets) == 2:
                 I = int(100 * HT.f1_score(df[df[target] == unique_targets[0]].iloc[:, 1:],
-                                                       df[df[target] == unique_targets[1]].iloc[:, 1:], is_categorical))
+                                          df[df[target] == unique_targets[1]].iloc[:, 1:], is_categorical))
 
             df = tools_DF.remove_long_tail(df,order=True)
             orientation = 'horizontal' if df[column].unique().shape[0] >3 and is_categorical else 'vertical'
@@ -796,7 +796,11 @@ class Plotter(object):
             plt.plot(XX, df.iloc[:,idx_target],color = colors[i],linewidth=lw)
 
         if idxs_fill is not None:
-            plt.fill_between(XX,df.iloc[:,idxs_fill[0]],df.iloc[:,idxs_fill[1]],color=self.clr_grid)
+            for idx_fill in idxs_fill[::-1]:
+                #plt.fill_between(XX,df.iloc[:,idxs_fill[0]],df.iloc[:,idxs_fill[1]],color=self.clr_grid)
+                y1 = df.iloc[:, idx_fill]
+                y2 = numpy.zeros(shape=XX.shape[0])
+                plt.fill_between(x=XX, y1=y1, y2=y2,color=self.clr_grid, zorder=-2)
 
         if remove_legend:
             plt.legend([], [], frameon=False)
@@ -1105,7 +1109,8 @@ class Plotter(object):
 
         plt.bar(x_pos, values, color=colors)
 
-        plt.xticks(x_pos, labels)
+        #plt.xticks(x_pos, labels)
+        plt.xticks([])
         if yticks is not None:
             plt.yticks(yticks)
         else:
