@@ -223,22 +223,35 @@ class Plotter(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def plot_hist(self,X,bins=None,x_range=None,figsize=(3.5,3.5),filename_out=None):
+    def plot_hist(self, X, bins=None, x_range=None, xlabel=None, color=(0.5,0.5,0.5), markers_x=None, marker_colors=None,markers_shape=None,figsize=(10, 2), filename_out=None):
 
         fig = plt.figure(figsize=figsize)
         fig = self.turn_light_mode(fig)
 
-        plt.hist(X,bins)
+        if markers_x is not None:
+            for i,marker_x in enumerate(markers_x):
+                if marker_x is None:
+                    continue
+                marker_color = marker_colors[i] if marker_colors is not None else (0,0,0)
+                marker = markers_shape[i] if markers_shape is not None else 'o'
+                plt.scatter(marker_x, -1, color=marker_color, marker=marker, zorder=+2)
+
+        plt.hist(X,bins,color=color,stacked=True)
 
         plt.grid(color=self.clr_grid,which='major')
         if x_range is not None:
             plt.xlim(x_range)
 
+        plt.yticks([])
+
+        if xlabel is not None:
+            plt.xlabel(xlabel)
+
         plt.tight_layout()
         if filename_out is not None:
             plt.savefig(self.folder_out + filename_out, facecolor=fig.get_facecolor())
 
-        return
+        return self.get_image(fig, self.clr_bg)
 # ----------------------------------------------------------------------------------------------------------------------
     def plot_1D_features_pos_neg(self,X, Y, labels=True, bins=None,colors=None,palette='tab10',transparency=0.5,xlim=None,filename_out=None):
 
@@ -555,7 +568,7 @@ class Plotter(object):
             plt.savefig(self.folder_out+filename_out,facecolor=fig.get_facecolor())
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def histoplots_df(self,df0,idx_target=0,transparency=0.25,remove_legend=False,legend_loc = 'upper left',figsize=(6,6)):
+    def histoplots_df(self,df0,idx_target=0,transparency=0.25,remove_legend=False,legend_loc = 'upper left',markersize=2,calc_info=True,figsize=(6,6),filename_out=None):
 
         columns = df0.columns
         target = columns[idx_target]
@@ -575,15 +588,18 @@ class Plotter(object):
             is_categorical = tools_DF.is_categorical(df,column)
             if is_categorical:
                 df[column] = df[column].astype(str)
-            I = 0
-            if len(unique_targets) == 2:
-                I = int(100 * HT.f1_score(df[df[target] == unique_targets[0]].iloc[:, 1:],
-                                          df[df[target] == unique_targets[1]].iloc[:, 1:], is_categorical))
+
+            if calc_info:
+                I = 0
+                if len(unique_targets) == 2:
+                    I = int(100 * HT.f1_score(df[df[target] == unique_targets[0]].iloc[:, 1:],
+                                              df[df[target] == unique_targets[1]].iloc[:, 1:], is_categorical))
+
+                df.rename(columns={column: '%s_%02d' % (column, I)}, inplace=True)
+                column = '%s_%02d' % (column, I)
 
             df = tools_DF.remove_long_tail(df,order=True)
             orientation = 'horizontal' if df[column].unique().shape[0] >3 and is_categorical else 'vertical'
-            df.rename(columns={column: '%s_%02d' % (column, I)}, inplace=True)
-            column = '%s_%02d' % (column, I)
 
             df['#']=1
             df_agg = tools_DF.my_agg(df,[target,column],['#'],['count'],order_idx=-1 if is_categorical else None,ascending=False)
@@ -600,8 +616,10 @@ class Plotter(object):
                 else:
                     df_t.sort_values(by=column, inplace=True)
                     clr_fill = tools_draw_numpy.blend(self.get_color(t)[[2, 1, 0]], 255 * self.clr_bg, 1-transparency) / 255.0
-                    plt.plot(df_t[column], df_t['#'], marker='o',markersize=2,color=self.get_color(t)[[2, 1, 0]] / 255.0,lw=1, label=t)
+                    plt.plot(df_t[column], df_t['#'], marker='o',markersize=markersize,color=self.get_color(t)[[2, 1, 0]] / 255.0,lw=1, label=t)
                     plt.fill_between(df_t[column], df_t['#'], df_t['#'] * 0, color=clr_fill,zorder=0)
+
+            #plt.yticks([])
 
             plt.xlabel(column)
             if remove_legend:
@@ -610,7 +628,8 @@ class Plotter(object):
                 legend = plt.legend(loc=legend_loc, bbox_to_anchor=(0.0, 1.15),ncol = 1)
                 self.recolor_legend_plt(legend)
 
-            filename_out = 'histo_%s.png' % (column)
+            if filename_out is None:
+                filename_out = 'histo_%s.png' % (column)
             try:
                 plt.savefig(self.folder_out + filename_out, facecolor=fig.get_facecolor())
             except:
@@ -619,10 +638,10 @@ class Plotter(object):
             plt.clf()
             plt.close(fig)
 
-            mode = 'a+' if os.path.exists(self.folder_out + 'descript.ion') else 'w'
-            f_handle = open(self.folder_out + "descript.ion", mode=mode)
-            f_handle.write("%s %s\n" % (filename_out, '%03d' % I))
-            f_handle.close()
+            if calc_info:
+                mode = 'a+' if os.path.exists(self.folder_out + 'descript.ion') else 'w'
+                with open(self.folder_out + "descript.ion", mode=mode) as f_handle:
+                    f_handle.write("%s %s\n" % (filename_out, '%03d' % I))
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -774,7 +793,7 @@ class Plotter(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def TS_matplotlib(self, df, idxs_target, idx_time, colors=None, lw=1, idxs_fill=None, remove_legend=False, x_range=None, y_range=None, palette='tab10', figsize=(15, 3), filename_out=None):
+    def TS_matplotlib(self, df, idxs_target, idx_time, colors=None, lw=1, idxs_fill=None, remove_legend=False, x_range=None, out_format_x=None,out_locator_x=None, palette='tab10', figsize=(15, 3), filename_out=None):
 
         fig = plt.figure(figsize=figsize)
         fig = self.turn_light_mode(fig)
@@ -808,13 +827,14 @@ class Plotter(object):
             legend = plt.legend(handles=patches,loc="upper left")
             self.recolor_legend_plt(legend)
 
+        if out_format_x is not None:
+            plt.gca().xaxis.set_major_formatter(out_format_x)
+        if out_locator_x is not None:
+            plt.gca().xaxis.set_major_locator(out_locator_x)
+        if x_range is not None:
+            plt.xlim(x_range)
         plt.grid(color=self.clr_grid, which='major')
 
-        if x_range is not None:plt.xlim(x_range)
-        #plt.rcParams.update({'xtick.color': self.clr_font, 'ytick.color': self.clr_font})
-
-        #plt.xticks([])
-        #plt.yticks([])
         plt.tight_layout()
 
         if filename_out is not None:
@@ -861,12 +881,11 @@ class Plotter(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def TS_seaborn(self, df, idxs_target, idx_time, idx_hue=None,bg_image=None,
                    mode='pointplot', idxs_fill=None,remove_legend=False,legent_loc='upper left',remove_grid=False,
-                   remove_xticks=False,remove_yticks=False, x_range=None,y_range=None,out_format_x=None, major_step=None,minor_step=None,invert_y=False,lw=2,transparency=0, figsize=(15, 3), filename_out=None):
+                   remove_xticks=False,remove_yticks=False, x_range=None,y_range=None,out_format_x=None, out_locator_x=None,invert_y=False,lw=2,transparency=0, figsize=(15, 3), filename_out=None):
 
         fig = plt.figure(figsize=figsize)
         fig = self.turn_light_mode(fig)
         columns = [c for c in df.columns]
-
 
         X = columns[idx_time] if idx_time is not None else df.index
         if not isinstance(idxs_target, list):idxs_target = [idxs_target]
@@ -893,34 +912,22 @@ class Plotter(object):
         if not remove_grid:
             plt.grid(color=self.clr_grid,which='major',zorder=-1)
         else:
-            # plt.grid(b=None,which='major')
-            # plt.grid(b=None, which='minor')
             plt.gca().yaxis.grid(False)
 
-        if major_step is not None:
-            xtick_labels,idx_visible = self.get_xtick_labels(df,idx_time,out_format_x,major_step,minor_step)
-            ax = plt.gca()
-            ax.minorticks_on()
-            if idx_visible is not None:
-                ax.set_xticks(idx_visible)
-                ax.set_xticklabels(xtick_labels[idx_visible])
-
-
+        if out_format_x is not None:
+            plt.gca().xaxis.set_major_formatter(out_format_x)
+        if out_locator_x is not None:
+            plt.gca().xaxis.set_major_locator(out_locator_x)
         if x_range is not None:
             plt.xlim(x_range)
         if remove_xticks:
             g.set(xticks=[])
-
         if y_range is not None:
             plt.ylim(y_range)
-
         if remove_yticks:
             g.set(yticks=[])
-            #plt.gca().tick_params(axis='y', colors=(0.5, 0.5, 0.5, 0.00), which='both',direction="out")
-
         if invert_y:
             plt.gca().invert_yaxis()
-
         if remove_legend:
             plt.legend([], [], frameon=False)
         else:
@@ -928,7 +935,7 @@ class Plotter(object):
             legend = plt.legend(handles=patches)
             self.recolor_legend_plt(legend)
 
-        #plt.tight_layout()
+        plt.tight_layout()
 
         if bg_image is not None:
             g.imshow(bg_image[:,:,[2,1,0]],zorder=-1,aspect = g.get_aspect(),extent = g.get_xlim() + g.get_ylim())
@@ -1204,7 +1211,7 @@ class Plotter(object):
         self.set_color('value_max', self.color_black)
         self.TS_seaborn(df, idxs_target=[1, 2], idx_time=0, bg_image=image,mode='pointplot',
                         #idxs_fill=[0,1],
-                          major_step=major_step_days, out_format_x=out_format_x,
+                        out_format_x=out_format_x,
                         remove_legend=True, remove_yticks=False,
                         y_range=[0, H],
                         lw=1,transparency=1,

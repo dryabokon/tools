@@ -5,6 +5,9 @@
 #https://github.com/topics/graph-anomaly-detection
 #https://github.com/GuansongPang/ADRepository-Anomaly-detection-datasets/tree/main/graph%20data
 #https://towardsdatascience.com/pyvis-visualize-interactive-network-graphs-in-python-77e059791f01
+
+#https://towardsdatascience.com/pytorch-geometric-graph-embedding-da71d614c3a
+#https://gist.github.com/anuradhawick/904e7f2d2101f4b76516d04046007426
 # ----------------------------------------------------------------------------------------------------------------------
 import cv2
 import networkx

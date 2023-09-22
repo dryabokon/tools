@@ -126,11 +126,12 @@ def remove_dups(df):
 # ----------------------------------------------------------------------------------------------------------------------
 def remove_long_tail(df,idx_target=0,th=0.01,order=False):
     idxs = numpy.delete(numpy.arange(0, df.shape[1]), idx_target)
+    dtypes = [str(t) for t in df.dtypes.values]
 
     for idx in idxs:
-        max_count = 30 if str(df.dtypes[idx]) in ['object', 'category', 'bool'] else None
+        max_count = 30 if dtypes[idx] in ['object', 'category', 'bool'] else 500
         C = df.iloc[:, idx].value_counts().sort_index(ascending=False).sort_values(ascending=False)
-        #c_is_good = numpy.full(df.shape[0],True)
+
         if max_count is not None and C.shape[0]>max_count:
             critical = sum(C.values) * th
             idx_is_good = [C.values[i:].sum() >= critical for i in range(C.values.shape[0])]
@@ -185,7 +186,7 @@ def add_noise_smart(df,idx_target=0,A = 0.2):
     uX = df.iloc[:, idx[0]].unique()
     uY = df.iloc[:, idx[1]].unique()
 
-    if uY.shape[0]>20 or uX.shape[0]>20:
+    if uY.shape[0]>50 or uX.shape[0]>50:
         return df_res
 
     N = []
@@ -395,6 +396,16 @@ def fetch(df1,col_name1,df2,col_name2,col_value,col_new_name=None):
         V = pd.merge(df1[col_name1],ddd,how='left',left_on=col_name1,right_on=col_name2)[col_value]
         df_res[(col_value if col_new_name is None else col_new_name)] = [v for v in V.values]
 
+
+
+
+    return df_res
+# ---------------------------------------------------------------------------------------------------------------------
+def fetch_multi_col(df1,cols1,df2,cols2,col_value,col_new_name=None):
+    V = pd.merge(df1, df2, how='left', left_on=cols1, right_on=cols2)
+    df_res = V[[c for c in df1.columns] + [col_value]].drop_duplicates(subset=cols1)
+    df_res = df_res.rename(columns=dict(zip([col_value],[col_new_name])))
+
     return df_res
 # ---------------------------------------------------------------------------------------------------------------------
 def is_categorical(df,col_name):
@@ -536,7 +547,7 @@ def remap_counts(df,list_values):
         else:
             df_segm = df[~df.iloc[:,0].isin(list_values)].copy()
         df_segm.iloc[:, 0] = feature_value
-        df_res = df_res.append(df_segm)
+        df_res = pd.concat([df_res, df_segm])
 
     df_res = my_agg(df_res,cols_groupby=df_res.columns[0],cols_value=[df_res.columns[1]],aggs=['sum'])
 
@@ -572,4 +583,23 @@ def from_hex(df):
         df2[c] = df[c].apply(lambda str_hex:struct.unpack('f', b''.join([bytes.fromhex(str_hex[i:i + 2]) for i in range(0, len(str_hex), 2)]))[0])
 
     return df2.astype(float)
+# ---------------------------------------------------------------------------------------------------------------------
+def auto_explode(df, col_name):
+    idx_col = df.columns.get_loc(col_name)
+    idx_head = numpy.arange(0,idx_col)
+    idx_tail = numpy.arange(idx_col+1, df.shape[1])
+
+    df[col_name] = df[col_name].apply(lambda x: (str(x).replace('[','').replace(']','')).split(','))
+    n_cols = df[col_name].apply(len).max()
+    A = (df[col_name].explode().values).reshape((-1, n_cols)).astype(float)
+    df_exploded = pd.DataFrame(A, columns=['E%02d' % d for d in range(n_cols)],index=df.index)
+
+    df2 = pd.concat([df.iloc[:,idx_head],df_exploded,df.iloc[:,idx_tail]],axis=1,ignore_index=True)
+
+    dct_rename = dict(zip([c for c in df2.columns],[df.columns[i] for i in idx_head]+['E%d' % d for d in range(n_cols)]+[df.columns[i] for i in idx_tail]))
+    dtype_conversions =      dict(zip([df.columns[i] for i in idx_head], [df.iloc[:,i].dtype.name for i in idx_head]))
+    dtype_conversions.update(dict(zip([df.columns[i] for i in idx_tail], [df.iloc[:,i].dtype.name for i in idx_tail])))
+    df2 = df2.rename(columns=dct_rename).astype(dtype_conversions)
+
+    return df2
 # ---------------------------------------------------------------------------------------------------------------------

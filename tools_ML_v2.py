@@ -199,7 +199,7 @@ class ML(object):
         metrics_train = [dct_metrics_train['train_%s'%s]for s in name]
         metrics_test  = [dct_metrics_test['test_%s' %s] for s in name]
 
-        df = pd.DataFrame({'metric':name,'train':metrics_train,'test':metrics_test})
+        df = pd.DataFrame({self.classifier.name:name,'train':metrics_train,'test':metrics_test})
 
         if dct_metric_crossval is not None:
             metrics_train_cv = numpy.array([dct_metric_crossval['train_AUC'], dct_metric_crossval['train_ACC'], dct_metric_crossval['train_mAP']])
@@ -284,6 +284,7 @@ class ML(object):
         dct_metric_crossval = None#self.cross_validation_train_test(df_train, idx_target)
 
         df_metrics = self.combine_metrics(dct_metrics_train,dct_metrics_test,dct_metric_crossval)
+        df_metrics = pd.concat([pd.DataFrame(numpy.array(['#', df_train.shape[0], df_test.shape[0]]).reshape((1,-1)), columns=df_metrics.columns),df_metrics])
 
         return df_metrics
 # ----------------------------------------------------------------------------------------------------------------------

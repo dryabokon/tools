@@ -1,21 +1,25 @@
+import numpy
 import pandas as pd
 import os
 import yaml
 import awswrangler as wr
-import redshift_connector
+# import redshift_connector
+# from sqlalchemy import create_engine
 import psycopg2
 # --------------------------------------------------------------------------------------------------------------------
 import tools_DF
 import tools_Logger
+import tools_SQL
 # --------------------------------------------------------------------------------------------------------------------
 class processor(object):
     def __init__(self,filename_config,folder_out=None):
+        self.folder_out = (folder_out if folder_out is not None else './')
         self.connection_wr = None
         self.connection_psycopg2 = None
         self.load_private_config(filename_config)
-        self.folder_out = (folder_out if folder_out is not None else './')
-        self.L = tools_Logger.Logger(self.folder_out + 'log.txt')
 
+        self.L = tools_Logger.Logger(self.folder_out + 'log.txt')
+        self.dct_typ = {'object':'VARCHAR','datetime64[ns]':'DATE','int32':'int','int64':'int','float64':'float'}
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def load_private_config(self,filename_in):
@@ -28,11 +32,12 @@ class processor(object):
 
         with open(filename_in, 'r') as config_file:
             config = yaml.safe_load(config_file)
-            self.connection_wr = redshift_connector.connect(database=config['database']['dbname'], user=config['database']['user'],
-                password=config['database']['password'], host=config['database']['host'],port=config['database']['port'])
+            #self.engine = create_engine(f'postgresql://{user}:{password}@{host}/{database}')
 
-            self.connection_psycopg2 = psycopg2.connect(dbname=config['database']['dbname'],user=config['database']['user'],
-                                          password=config['database']['password'],host=config['database']['host'],port=config['database']['port'])
+            # self.connection_wr = redshift_connector.connect(database=config['database']['dbname'], user=config['database']['user'],
+            #     password=config['database']['password'], host=config['database']['host'],port=config['database']['port'])
+            #
+            self.connection_psycopg2 = psycopg2.connect(dbname=config['database']['dbname'],user=config['database']['user'],password=config['database']['password'],host=config['database']['host'],port=config['database']['port'])
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -67,6 +72,32 @@ class processor(object):
             print(tools_DF.prettify(df.iloc[:10]))
 
         return df
+# ----------------------------------------------------------------------------------------------------------------------
+    def update_table_from_df(self,df,str_typ,schema_name,table_name,create=False):
+        if create:
+            SQL1 = tools_SQL.drop_table_from_df(schema_name, table_name)
+            SQL2 = tools_SQL.create_table_from_df(schema_name, table_name, df, str_typ)
+            self.execute_transaction([SQL1,SQL2])
+
+        chunk_size = 10000
+        for offset in numpy.arange(0,df.shape[0],chunk_size):
+            #print('%d / %d' % (offset,df.shape[0]))
+            SQLs = tools_SQL.insert_to_table_from_df_v2(schema_name, table_name, df.iloc[offset:offset+chunk_size], str_typ)
+            self.execute_transaction(SQLs)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def export_query(self,SQL,filename_out,chunk_size = 10000):
+
+        #N = self.execute_query('select count(*) ' + SQL[SQL.lower().index('from'):]).iloc[0,0]
+        offset = 0
+        while True:
+            #print('%.2f%%: %d/%d'%(offset/N,offset,N))
+            print('%d'%(offset))
+            df = self.execute_query(f"{SQL} LIMIT {chunk_size} OFFSET {offset}")
+            if df.empty:break
+            df.to_csv(self.folder_out+filename_out,index=False,mode=('w' if offset==0 else 'a'),header=(True if offset==0 else False))
+            offset += chunk_size
+        return
 # ----------------------------------------------------------------------------------------------------------------------
     def execute_transaction(self,SQLs):
 

@@ -41,7 +41,7 @@ color_blue = (255, 128, 0)
 cuboid_lines_idx1 = [(1,0),(0,2),(2,3),(3,1), (7,6),(6,4),(4,5),(5,7), (1,0),(0,6),(6,7),(7,1), (3,2),(2,4),(4,5),(5,3)]
 cuboid_lines_idx2 = [(0,1),(1,2),(2,3),(3,0), (4,5),(5,6),(6,7),(7,4), (0,1),(1,5),(5,4),(4,0), (2,3),(3,7),(7,6),(6,2)]
 # ----------------------------------------------------------------------------------------------------------------------
-font_truetype = ImageFont.truetype("UbuntuMono-R.ttf", size=32, encoding="utf-8") if os.name in ['nt'] else ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", size=32, encoding="utf-8")
+#font_truetype = ImageFont.truetype("UbuntuMono-R.ttf", size=32, encoding="utf-8") if os.name in ['nt'] else ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", size=32, encoding="utf-8")
 # ----------------------------------------------------------------------------------------------------------------------
 def gre2jet(rgb):
     return cv2.applyColorMap(numpy.array(rgb, dtype=numpy.uint8).reshape((1, 1, 3)), cv2.COLORMAP_JET).reshape(3)
@@ -193,25 +193,29 @@ def draw_text_fast(image,label,xy, color_fg,clr_bg=None,font_size=16,alpha_trans
     result = cv2.putText(result, label, xy, font, fontScale, (int(color_fg[0]),int(color_fg[1]),int(color_fg[2])), 1,cv2.LINE_AA)
     return result
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_text(image,label,xy, color_fg,clr_bg=None,font_size=16,alpha_transp=0):
+def draw_text(image,label,xy, color_fg,clr_bg=None,font_size=16,alpha_transp=0,hor_align='left',vert_align='top'):
 
     x,y = xy[0],xy[1]
     pImage = Image.fromarray(image)
     draw = ImageDraw.Draw(pImage, 'RGBA')
+    font_truetype = ImageFont.truetype("UbuntuMono-R.ttf", size=font_size, encoding="utf-8") if os.name in ['nt'] else ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", size=32, encoding="utf-8")
 
-    total_display_str_height = 1.1 * (font_truetype.getsize(str(label))[1])
-    text_bottom = y if y > total_display_str_height else y + total_display_str_height
-
+    total_display_str_height = draw.textsize(str(label), font=font_truetype)[1]
     clr = (numpy.array(color_fg)*(1-alpha_transp)+numpy.array(clr_bg)*(alpha_transp)).astype(int) if clr_bg is not None else numpy.array(color_fg).astype(int)
-
     text_width, text_height = font_truetype.getsize(str(label))
-    margin = numpy.ceil(0.05 * text_height)
+
+    if   vert_align == 'top': pos = (x, xy[1])
+    elif vert_align=='center':pos = (x, xy[1] - total_display_str_height // 2)
+    else:                     pos = (x, xy[1] - total_display_str_height)
+
+    if   hor_align == 'left' :  pos = (pos[0], pos[1])
+    elif hor_align == 'center': pos = (pos[0] -text_width//2, pos[1])
+    else:                       pos = (pos[0] -text_width, pos[1])
+
     if clr_bg is not None:
-        draw.rectangle(((x, text_bottom - text_height - 2 * margin), (x + text_width, text_bottom)),fill=(clr_bg[0], clr_bg[1], clr_bg[2]))
+        draw.rectangle(((pos[0],pos[1] ), (pos[0] + text_width,pos[1]+text_height)),fill=(clr_bg[0], clr_bg[1], clr_bg[2]))
 
-    pos0 = (x + margin, text_bottom - text_height - margin)
-    draw.text(pos0, label, fill=(clr[0],clr[1],clr[2]), font=font_truetype)
-
+    draw.text(pos, label, fill=(clr[0],clr[1],clr[2]), font=font_truetype)
     result = numpy.array(pImage)
 
     return result
@@ -626,6 +630,11 @@ def get_colors_custom():
     # my_cmap2 = [BGR_from_HTML(c)/255.0 for c in my_cmap2]
     # my_cmap = colors.ListedColormap(my_cmap2)
     return my_cmap
+# ---------------------------------------------------------------------------------------------------------------------
+def replace_colors(colors,col_from,col_to):
+    for c1,c2 in zip(col_from,col_to):
+        colors[numpy.where(numpy.sum(colors == c1, axis=1) == 3)[0]] = c2
+    return colors
 # ---------------------------------------------------------------------------------------------------------------------
 def BGR_from_HTML(color_HTML='#000000'):
     col = numpy.array(ImageColor.getcolor(color_HTML, "RGB"))

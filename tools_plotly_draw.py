@@ -89,7 +89,9 @@ class DashDraw(object):
 
         return layout
 # ----------------------------------------------------------------------------------------------------------------------
-
+    def draw_iframe(self,children=None,id=None,style=None):
+        layout = html.Iframe(id=id, style=style)
+        return layout
 # ----------------------------------------------------------------------------------------------------------------------
     def parse_data(self,contents):
         content_type, content_string = contents.split(',')

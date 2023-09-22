@@ -78,6 +78,8 @@ def folders_to_animated_gif_ffmpeg(path_input,path_out, mask='.png', framerate=1
 def prepare_images(path_input, mask='*.png', framerate=10,stop_ms=0,duration_ms=None,resize_H=None, resize_W=None,stride=1,do_reverce=False):
     images = []
     filenames = tools_IO.get_filenames(path_input, mask)
+    if len(filenames)==0:
+        return images
     if duration_ms is None:
         for b in numpy.arange(0, len(filenames), stride):
             image = cv2.imread(path_input + filenames[b])
@@ -130,10 +132,12 @@ def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png,*.jpg',
 def folder_to_video(folder_in, filename_out, mask='*.jpg', framerate=24,stop_ms=0,duration_ms=None, resize_W=None, resize_H=None, stride=1,do_reverce=False):
 
     images = prepare_images(folder_in, mask, framerate, stop_ms, duration_ms, resize_H, resize_W, stride, do_reverce)
+    if len(images)==0:
+        return
+
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     resize_H, resize_W = images[0].shape[:2]
     out = cv2.VideoWriter(filename_out,fourcc, framerate, (resize_W,resize_H))
-
 
     for image in images:
         out.write(image)

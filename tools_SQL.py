@@ -61,7 +61,7 @@ def SQL_construct_conditional_clause(col_name,filter,filter_more_less=False):
 
     return str_condition
 # ----------------------------------------------------------------------------------------------------------------------
-def SQL_apply_filter(schema_name,table_name,list_col_name,list_filter,filter_more_less=False,inverce=False):
+def SQL_apply_filter(schema_name,table_name,list_col_name,list_filter,filter_more_less=False,inverce=False,logical_function='AND'):
     sep = ' '
     if not isinstance(list_col_name, (list, tuple, numpy.ndarray, pd.Series)):
         list_col_name = [list_col_name]
@@ -69,12 +69,14 @@ def SQL_apply_filter(schema_name,table_name,list_col_name,list_filter,filter_mor
 
     str_yes_no = (' NOT ' if inverce else '')
     str_conditions = [SQL_construct_conditional_clause(col_name, filter, filter_more_less) for col_name, filter in zip(list_col_name,list_filter)]
-    str_conditions = ' AND '.join(str_conditions)
+    str_conditions = f' {logical_function} '.join(str_conditions)
 
-    SQL = 'SELECT *' + sep + 'FROM %s'%(schema_name+'.'+table_name) + sep + 'WHERE' + str_yes_no + ' (' + str_conditions + ')'
+    SQL = 'SELECT *' + sep + 'FROM %s' % (schema_name + '.' + table_name)
+    if len(str_conditions)>0:
+        SQL+= sep + 'WHERE' + str_yes_no + ' (' + str_conditions + ')'
     return SQL
 # ----------------------------------------------------------------------------------------------------------------------
-def SQL_where( schema_name, table_name, where_clause):
+def SQL_where(schema_name, table_name, where_clause):
     SQL = 'SELECT * ' + 'FROM %s' % (schema_name + '.' + table_name) + ' WHERE ' + where_clause
     return SQL
 # ----------------------------------------------------------------------------------------------------------------------
@@ -86,4 +88,35 @@ def SQL_fetch(self,schema_name_out,table_name_out,col_name_fetch_out,schema_name
     str_on = '%s.%s=%s.%s'%(table_name_out,col_name_fetch_out.lower(),table_name_in,col_name_fetch_in.lower())
     SQL = ('SELECT %s'+sep+'FROM %s' + sep+ 'LEFT OUTER JOIN %s'+sep+'ON %s')%(str_what,str_from,str_join,str_on)
     return SQL
+# ----------------------------------------------------------------------------------------------------------------------
+def drop_table_from_df(schema_name, table_name):
+    SQL = 'DROP TABLE IF EXISTS %s.%s'%(schema_name,table_name)
+    return SQL
+# ----------------------------------------------------------------------------------------------------------------------
+def create_table_from_df(schema_name, table_name, df, str_typ):
+    list_of_fields = [col+' '+typ for col,typ in zip(df.columns, str_typ)]
+
+    str_fields = ', '.join(list_of_fields)
+    SQL = 'CREATE TABLE IF NOT EXISTS %s.%s(%s)'%(schema_name,table_name,str_fields)
+    return SQL
+# ----------------------------------------------------------------------------------------------------------------------
+def insert_to_table_from_df_v2(schema_name,table_name,df,str_typ=None,chunk_size=1000):
+    def preprocess_str(l):
+        l=l.replace('\'','')
+        return (('\'' + l + '\'') if l[0] != '\'' else l)
+    str_fields = ', '.join([col for col in df.columns])
+    SQLs = []
+    for row_start in numpy.arange(0,df.shape[0],chunk_size):
+        #sql_r = [('('+','.join(df.iloc[r,:].astype(str).values.tolist())+')') for r in range(row_start,min(row_start+chunk_size,df.shape[0]))]
+
+        sql_r = []
+        for r in range(row_start, min(row_start + chunk_size, df.shape[0])):
+            list_of_values = df.iloc[r,:].astype(str).values.tolist()
+            list_of_values = [l if t!='VARCHAR' else preprocess_str(l) for l,t in zip(list_of_values,str_typ)]
+            sql_r.append(('('+','.join(list_of_values)+')'))
+
+        SQL_chunk = 'INSERT INTO %s.%s(%s) VALUES\n' % (schema_name, table_name,str_fields) + ',\n'.join(sql_r)
+        SQLs.append(SQL_chunk)
+
+    return SQLs
 # ----------------------------------------------------------------------------------------------------------------------

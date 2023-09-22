@@ -7,11 +7,8 @@ import dash_bootstrap_components as dbc
 # ---------------------------------------------------------------------------------------------------------------------
 import tools_draw_numpy
 import tools_DF
-
 # ---------------------------------------------------------------------------------------------------------------------
 folder_out = './images/output/'
-
-
 # ----------------------------------------------------------------------------------------------------------------------
 class Plotly_builder:
     def __init__(self, dark_mode=False):
@@ -21,6 +18,7 @@ class Plotly_builder:
         self.id_plot_01 = 'ID01'
         self.id_plot_02 = 'ID02'
         self.app = dash.Dash(external_stylesheets=([dbc.themes.BOOTSTRAP]))
+        self.fig_empty = {"layout": {"xaxis": {"visible": False},"yaxis": {"visible": False}}}
         return
 
     # ---------------------------------------------------------------------------------------------------------------------
@@ -134,10 +132,13 @@ class Plotly_builder:
         return fig
 
     # ----------------------------------------------------------------------------------------------------------------------
-    def create_figure_bar(self, labels, values=None, tickvals_x=None, categoryorder=True, font_size=12,
-                          orientation='h'):
+    def create_figure_bar(self, labels, values=None, tickvals_x=None, categoryorder=True, font_size=12,orientation='h'):
+
+        if len(labels)==0:
+            return self.fig_empty
 
         df = pd.DataFrame({'x': 1 if values is None else [v for v in values], 'label': [str(l) for l in labels]})
+
         fig = go.Figure(go.Bar(x=df['x'], y=df['label'], orientation=orientation, hoverinfo='none'),
                         layout=go.Layout(bargap=0.02, font={'size': font_size}))
         fig.update_layout(autosize=True, height=font_size * 1.5 * df.shape[0], margin=dict(t=0, l=0, r=0, b=0))
