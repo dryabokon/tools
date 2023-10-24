@@ -200,9 +200,10 @@ def draw_text(image,label,xy, color_fg,clr_bg=None,font_size=16,alpha_transp=0,h
     draw = ImageDraw.Draw(pImage, 'RGBA')
     font_truetype = ImageFont.truetype("UbuntuMono-R.ttf", size=font_size, encoding="utf-8") if os.name in ['nt'] else ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", size=32, encoding="utf-8")
 
-    total_display_str_height = draw.textsize(str(label), font=font_truetype)[1]
+    total_display_str_height = draw.textbbox((0, 0), str(label), font=font_truetype)[-1]
     clr = (numpy.array(color_fg)*(1-alpha_transp)+numpy.array(clr_bg)*(alpha_transp)).astype(int) if clr_bg is not None else numpy.array(color_fg).astype(int)
-    text_width, text_height = font_truetype.getsize(str(label))
+    text_width  = draw.textbbox((0, 0), str(label), font=font_truetype)[-2]
+    text_height = draw.textbbox((0, 0), str(label), font=font_truetype)[-1]
 
     if   vert_align == 'top': pos = (x, xy[1])
     elif vert_align=='center':pos = (x, xy[1] - total_display_str_height // 2)

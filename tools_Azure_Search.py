@@ -8,12 +8,19 @@ from azure.core.credentials import AzureKeyCredential
 from azure.search.documents import SearchClient
 from azure.search.documents.models import Vector
 from azure.search.documents.indexes import SearchIndexClient
-from azure.search.documents.indexes.models import SearchIndex,SearchField,SearchFieldDataType,SimpleField,SearchableField,VectorSearch,HnswVectorSearchAlgorithmConfiguration
+from azure.search.documents.indexes.models import SearchIndex,SearchField,SearchFieldDataType,SimpleField,SearchableField,VectorSearch,VectorSearchAlgorithmConfiguration#,HnswVectorSearchAlgorithmConfiguration
+#----------------------------------------------------------------------------------------------------------------------
+#from azure.ai.textanalytics import TextAnalyticsClient
 #----------------------------------------------------------------------------------------------------------------------
 class Client_Search(object):
     def __init__(self, filename_config,index_name=None,filename_config_emb_model=None):
+        if filename_config is None:
+            return
         with open(filename_config, 'r') as config_file:
             self.config_search = yaml.safe_load(config_file)
+            if not 'azure' in self.config_search.keys():
+                return
+
             self.search_index_client = SearchIndexClient(self.config_search['azure']['azure_search_endpoint'], AzureKeyCredential(self.config_search['azure']['azure_search_key']))
 
         self.index_name = index_name if index_name is not None else self.config_search['azure']['index_name']
@@ -34,6 +41,9 @@ class Client_Search(object):
     def get_search_client(self,index_name):
         return SearchClient(self.config_search['azure']['azure_search_endpoint'], index_name,AzureKeyCredential(self.config_search['azure']['azure_search_key']))
 #----------------------------------------------------------------------------------------------------------------------
+    def get_NER_client(self):
+        return TextAnalyticsClient(endpoint=self.config_search['azure']['azure_search_endpoint'], credential=AzureKeyCredential(self.config_search['azure']['azure_search_key']))
+# ----------------------------------------------------------------------------------------------------------------------
     def create_fields(self, docs, field_embedding):
         df = pd.DataFrame(docs[:1])
 
@@ -65,7 +75,8 @@ class Client_Search(object):
         return dct_records
 # ----------------------------------------------------------------------------------------------------------------------
     def create_search_index(self,index_name,fields):
-        vector_search = VectorSearch(algorithm_configurations=[HnswVectorSearchAlgorithmConfiguration(name="default", kind="hnsw")])
+        #vector_search = VectorSearch(algorithm_configurations=[HnswVectorSearchAlgorithmConfiguration(name="default", kind="hnsw")])
+        vector_search = VectorSearch(algorithm_configurations=[VectorSearchAlgorithmConfiguration(name="default", kind="hnsw")])
         return SearchIndex(name=index_name, fields=fields, vector_search=vector_search)
 # ----------------------------------------------------------------------------------------------------------------------
     def init_vector_store(self):
@@ -117,4 +128,24 @@ class Client_Search(object):
         if not select is None:
             df = df[select]
         return df
+# ----------------------------------------------------------------------------------------------------------------------
+    def search_texts(self,query,select=None):
+        results = self.search_client.search(search_text=query,select=select)
+        list_of_dict = [r for r in results]
+        if isinstance(select,list):
+            texts = [';'.join([x+':'+str(r[x]) for x in select]) for r in list_of_dict]
+        else:
+            texts = [r[select] for r in list_of_dict]
+        return texts
+# ----------------------------------------------------------------------------------------------------------------------
+    def search_texts_hybrid(self,query,field,select=None,limit=4):
+
+        #vector = Vector(value=self.get_embedding(query), fields=field)
+        # results = self.search_client.search(search_text=query, vectors=[vector], select=select,top=limit)
+        # results = self.search_client.search(search_text=None, vector=[vector], select=select)
+
+        results = self.search_client.search(search_text=query, select=select,top=limit)
+        list_of_dict = [r for r in results]
+        texts = [r[select] for r in list_of_dict]
+        return texts
 # ----------------------------------------------------------------------------------------------------------------------

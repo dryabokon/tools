@@ -1104,37 +1104,43 @@ class Plotter(object):
 
         return fig
 # ----------------------------------------------------------------------------------------------------------------------
-    def plot_bars(self, values, labels, legend=None, yticks=None, transparency=0, colors=None,colormap='viridis',figsize=(4, 4), filename_out=None):
+    def plot_bars(self, y_values, x_values, legend=None, yticks=None,xlim=None,markers_x=None,marker_colors=None, markers_shape=None,colors=(0.5,0.5,0.5),figsize=(3.5, 6), filename_out=None):
 
         fig = plt.figure(figsize=figsize)
         fig = self.turn_light_mode(fig)
 
-        if colors is None:
-            colors = tools_draw_numpy.get_colors(numpy.unique(labels).shape[0], colormap=colormap)[:,[2,1,0]]/255.0
+        plt.plot(x_values, y_values, '-', color=colors)
 
-        x_pos = numpy.arange(labels.shape[0])
+        if markers_x is not None:
+            for i,marker_x in enumerate(markers_x):
+                if marker_x is None:
+                    continue
+                marker_color = marker_colors[i] if marker_colors is not None else (0,0,0)
+                marker = markers_shape[i] if markers_shape is not None else 'o'
+                plt.scatter(marker_x, -1, color=marker_color, marker=marker, zorder=+2)
 
-        plt.bar(x_pos, values, color=colors)
+        if xlim is not None:
+            plt.xlim(xlim)
 
         #plt.xticks(x_pos, labels)
-        plt.xticks([])
+        #plt.xticks([])
+
+        plt.grid(color=self.clr_grid, which='major')
+
         if yticks is not None:
             plt.yticks(yticks)
         else:
             plt.yticks([])
 
-        #plt.grid(color=self.clr_grid)
-
         if legend is not None:
-            legend = plt.legend([legend], loc="lower right")
-            self.recolor_legend_plt(legend)
+            plt.xlabel(legend)
 
-        #plt.tight_layout()
+        plt.tight_layout()
         if filename_out is not None:
             plt.savefig(self.folder_out + filename_out, facecolor=fig.get_facecolor())
 
 
-        return fig
+        return self.get_image(fig, self.clr_bg)
 # ----------------------------------------------------------------------------------------------------------------------
     def plot_pie(self,values,header,filename_out=None):
 

@@ -42,18 +42,19 @@ class Time_Profiler():
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def print_duration(self,event):
+    def print_duration(self,event,format=None):
 
         if event not in self.dict_event_time:
             return
         else:
             self.dict_event_time[event] = time.time() - self.current_start[event]
-            if self.dict_event_time[event]<60:
-                format = '%M:%S'
-            elif self.dict_event_time[event]<60*60:
-                format = '%M:%S'
-            else:
-                format = '%H:%M:%S'
+            if format is None:
+                if self.dict_event_time[event]<60:
+                    format = '%M:%S'
+                elif self.dict_event_time[event]<60*60:
+                    format = '%M:%S'
+                else:
+                    format = '%H:%M:%S'
 
             value = pd.to_datetime(pd.Series([self.dict_event_time[event]]), unit='s').dt.strftime(format).iloc[0]
             if self.verbose:

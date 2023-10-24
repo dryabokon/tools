@@ -2,27 +2,29 @@ import numpy
 import pandas as pd
 import os
 import yaml
-import awswrangler as wr
 # import redshift_connector
 # from sqlalchemy import create_engine
 import psycopg2
 # --------------------------------------------------------------------------------------------------------------------
-import tools_DF
 import tools_Logger
 import tools_SQL
 # --------------------------------------------------------------------------------------------------------------------
 class processor(object):
-    def __init__(self,filename_config,folder_out=None):
+    def __init__(self,filename_config_redshift,folder_out=None):
         self.folder_out = (folder_out if folder_out is not None else './')
         self.connection_wr = None
         self.connection_psycopg2 = None
-        self.load_private_config(filename_config)
+
+        if filename_config_redshift is None:
+            self.init_from_env_variables()
+        else:
+            self.init_from_private_config(filename_config_redshift)
 
         self.L = tools_Logger.Logger(self.folder_out + 'log.txt')
         self.dct_typ = {'object':'VARCHAR','datetime64[ns]':'DATE','int32':'int','int64':'int','float64':'float'}
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def load_private_config(self,filename_in):
+    def init_from_private_config(self, filename_in):
 
         if filename_in is None:
             return None
@@ -33,12 +35,18 @@ class processor(object):
         with open(filename_in, 'r') as config_file:
             config = yaml.safe_load(config_file)
             #self.engine = create_engine(f'postgresql://{user}:{password}@{host}/{database}')
-
             # self.connection_wr = redshift_connector.connect(database=config['database']['dbname'], user=config['database']['user'],
             #     password=config['database']['password'], host=config['database']['host'],port=config['database']['port'])
             #
             self.connection_psycopg2 = psycopg2.connect(dbname=config['database']['dbname'],user=config['database']['user'],password=config['database']['password'],host=config['database']['host'],port=config['database']['port'])
 
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def init_from_env_variables(self):
+        self.connection_psycopg2 = psycopg2.connect(dbname=os.environ["REDSHIFT_DBNAME"],
+                                                    user=os.environ["REDSHIFT_USERNAME"],
+                                                    password=os.environ["REDSHIFT_PASSWORD"],
+                                                    host=os.environ["REDSHIFT_HOST"], port=os.environ["REDSHIFT_PORT"])
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def get_databases(self, verbose=False):
@@ -53,13 +61,19 @@ class processor(object):
         SQL = 'select t.table_name from information_schema.tables t where table_schema=\'%s\''%schema_name
         return self.execute_query(SQL,verbose=verbose)
 # ----------------------------------------------------------------------------------------------------------------------
+    def get_table_structure(self, schema_name, table_name, verbose=False):
+        df = self.execute_query('select ordinal_position as position, column_name,data_type from information_schema.columns where table_name = \'%s\' and table_schema = \'%s\' order by ordinal_position'%(table_name,schema_name), verbose=verbose)
+        return df
+# ----------------------------------------------------------------------------------------------------------------------
     def execute_query_wr(self,SQL,verbose=False):
+        import awswrangler as wr
         self.L.write(SQL)
         df = wr.redshift.read_sql_query(sql=SQL,con=self.connection_wr)
 
         self.L.write_time(SQL)
         if verbose:
-            print(tools_DF.prettify(df.iloc[:10]))
+            #print(tools_DF.prettify(df.iloc[:10]))
+            print(df.head())
 
         return df
 # ----------------------------------------------------------------------------------------------------------------------
@@ -69,7 +83,8 @@ class processor(object):
         df = pd.read_sql_query(SQL, self.connection_psycopg2)
         self.L.write_time(SQL)
         if verbose:
-            print(tools_DF.prettify(df.iloc[:10]))
+            #print(tools_DF.prettify(df.iloc[:10]))
+            print((df.head()))
 
         return df
 # ----------------------------------------------------------------------------------------------------------------------
