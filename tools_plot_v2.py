@@ -318,9 +318,9 @@ class Plotter(object):
         plt.grid(color=self.clr_grid)
         if remove_legend:
             plt.legend([], [], frameon=False)
-        else:
-            legend = J._get_patches_for_fill.axes.legend_
-            self.recolor_legend_seaborn(legend)
+        #else:
+            #legend = J._get_patches_for_fill.axes.legend_
+            #self.recolor_legend_seaborn(legend)
 
         if x_range is not None:plt.xlim(x_range)
         if y_range is not None:plt.ylim(y_range)
@@ -328,6 +328,8 @@ class Plotter(object):
 
         plt.tight_layout()
         ax = plt.gca()
+        ax.set_yticks(ax.get_yticks())
+        ax.set_xticks(ax.get_xticks())
 
         if add_noice and (df.columns[1] in categoricals_hash_map):
             labels_new = self.patch_labels([str(item.get_text()) for item in plt.gca().get_xticklabels()],categoricals_hash_map[df.columns[1]])
@@ -619,19 +621,15 @@ class Plotter(object):
                     plt.plot(df_t[column], df_t['#'], marker='o',markersize=markersize,color=self.get_color(t)[[2, 1, 0]] / 255.0,lw=1, label=t)
                     plt.fill_between(df_t[column], df_t['#'], df_t['#'] * 0, color=clr_fill,zorder=0)
 
-            #plt.yticks([])
-
             plt.xlabel(column)
             if remove_legend:
                 plt.legend([], [], frameon=False)
             else:
                 legend = plt.legend(loc=legend_loc, bbox_to_anchor=(0.0, 1.15),ncol = 1)
                 self.recolor_legend_plt(legend)
-
-            if filename_out is None:
-                filename_out = 'histo_%s.png' % (column)
             try:
-                plt.savefig(self.folder_out + filename_out, facecolor=fig.get_facecolor())
+                plt.savefig(self.folder_out + (filename_out if filename_out is not None else 'histo_%s.png' % (column)), facecolor=fig.get_facecolor())
+                #df_agg.to_csv(self.folder_out + 'df_%s.csv' % (column),index=False)
             except:
                 pass
 
@@ -641,7 +639,7 @@ class Plotter(object):
             if calc_info:
                 mode = 'a+' if os.path.exists(self.folder_out + 'descript.ion') else 'w'
                 with open(self.folder_out + "descript.ion", mode=mode) as f_handle:
-                    f_handle.write("%s %s\n" % (filename_out, '%03d' % I))
+                    f_handle.write("%s %s\n" % ((filename_out if filename_out is not None else 'histo_%s.png' % (column)), '%03d' % I))
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -712,8 +710,8 @@ class Plotter(object):
                 df = df0[[target,c1,c2]].copy()
                 df.dropna(inplace=True)
 
-                is_categorical1 = str(df.dtypes[1]) in ['object', 'category', 'bool']
-                is_categorical2 = str(df.dtypes[2]) in ['object', 'category', 'bool']
+                is_categorical1 = str(df.dtypes.iloc[1]) in ['object', 'category', 'bool']
+                is_categorical2 = str(df.dtypes.iloc[2]) in ['object', 'category', 'bool']
 
                 if is_categorical1: df[c1] = df[c1].astype(str)
                 if is_categorical2: df[c2] = df[c2].astype(str)
@@ -741,6 +739,7 @@ class Plotter(object):
                 if remove_legend:
                     plt.legend([], [], frameon=False)
 
+                df.to_csv(self.folder_out + 'df_%s_%s.csv' % (c1, c2),index=False)
                 mode = 'a+' if os.path.exists(self.folder_out + 'descript.ion') else 'w'
                 f_handle = open(self.folder_out + "descript.ion", mode)
                 f_handle.write("%s %s\n" % (file_out, '%03d'%I))

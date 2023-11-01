@@ -1,5 +1,6 @@
 import warnings
 warnings.filterwarnings("ignore")
+import requests
 import json
 import uuid
 import inspect
@@ -20,10 +21,11 @@ from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.document_loaders import PyPDFLoader
 from langchain.vectorstores import Pinecone
 from langchain.schema import HumanMessage
+
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_time_profiler
 import tools_Azure_Search
-#import pinecone
+import pinecone
 # ----------------------------------------------------------------------------------------------------------------------
 class Assistant(object):
     def __init__(self, filename_config_chat_model,filename_config_emb_model,filename_config_vectorstore, vectorstore_index_name=None,filename_config_neo4j=None,search_mode_hybrid=True,chain_type='QA'):

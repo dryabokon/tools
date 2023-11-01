@@ -138,7 +138,7 @@ def remove_long_tail(df,idx_target=0,th=0.01,order=False):
             c_is_good = C.index.values[idx_is_good]
             c_is_good = c_is_good[:max_count]
 
-            if order and str(df.dtypes[idx]) in ['object', 'category', 'bool']:
+            if order and str(df.dtypes.iloc[idx]) in ['object', 'category', 'bool']:
                 dct_map = dict((k, v) for k, v in zip(C.index.values, numpy.argsort(-C.values)))
                 df['#'] = df.iloc[:, idx].map(dct_map)
 
@@ -177,7 +177,7 @@ def my_agg(df,cols_groupby,cols_value,aggs,list_res_names=None,order_idx=None,as
 # ---------------------------------------------------------------------------------------------------------------------
 def add_noise_smart(df,idx_target=0,A = 0.2):
 
-    df_res  =df.copy()
+    df_res  =df.copy().astype(float)
 
     idx = numpy.delete(numpy.arange(0, df.shape[1]), idx_target)
     df.iloc[:,idx[0]]=df.iloc[:,idx[0]].astype(float)

@@ -2,20 +2,19 @@ import os
 import time
 import numpy
 import pandas as pd
-#----------------------------------------------------------------------------------------------------------------------
-class Time_Profiler():
-    
-    def __init__(self,verbose=True):
+
+
+class Time_Profiler:
+    def __init__(self, verbose=True):
         self.current_event = None
         self.current_start = {}
 
         self.dict_event_time = {}
-        self.dict_event_cnt  = {}
-        self.cnt=0
-        self.verbose=verbose
-        return
+        self.dict_event_cnt = {}
+        self.cnt = 0
+        self.verbose = verbose
 # ----------------------------------------------------------------------------------------------------------------------
-    def tic(self, event,reset=False):
+    def tic(self, event,reset=False,verbose=None):
 
         if reset:
             if event in self.dict_event_time:
@@ -36,28 +35,28 @@ class Time_Profiler():
 
         self.current_event = event
 
-
-        if self.verbose:
+        verbose = self.verbose if verbose is None else verbose
+        if verbose:
             print('start', '-', event)
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def print_duration(self,event,format=None):
+    def print_duration(self,event,verbose=None):
 
         if event not in self.dict_event_time:
             return
         else:
             self.dict_event_time[event] = time.time() - self.current_start[event]
-            if format is None:
-                if self.dict_event_time[event]<60:
-                    format = '%M:%S'
-                elif self.dict_event_time[event]<60*60:
-                    format = '%M:%S'
-                else:
-                    format = '%H:%M:%S'
+            if self.dict_event_time[event]<60:
+                format = '%M:%S'
+            elif self.dict_event_time[event]<60*60:
+                format = '%M:%S'
+            else:
+                format = '%H:%M:%S'
 
             value = pd.to_datetime(pd.Series([self.dict_event_time[event]]), unit='s').dt.strftime(format).iloc[0]
-            if self.verbose:
+            verbose = self.verbose if verbose is None else verbose
+            if verbose:
                 print(value,'-',event)
         return value
 # ----------------------------------------------------------------------------------------------------------------------
@@ -78,4 +77,10 @@ class Time_Profiler():
         os.close(f_handle)
 
         return
+# ----------------------------------------------------------------------------------------------------------------------
+    def prettify(self, value):
+        if value >= 1e9:return f'{value / 1e9:.2f}G'
+        elif value >= 1e6:return f'{value / 1e6:.2f}M'
+        elif value >= 1e3:return f'{value / 1e3:.2f}k'
+        else:return f'{value:.2f}'
 # ----------------------------------------------------------------------------------------------------------------------
