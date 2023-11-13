@@ -49,10 +49,12 @@ def remove_files(path,list_of_masks='*.*',create=False):
     filenames = get_filenames(path, list_of_masks)
     for f in filenames:
         if os.path.isdir(path + f):
+            os.system('rmdir /S /Q ' + path + f)
             #shutil.rmtree(path + f)
             continue
         else:
-            os.remove(path + f)
+            if os.path.isfile(path + f):
+                os.remove(path + f)
     return
 # ----------------------------------------------------------------------------------------------------------------------
 def remove_folders(path):

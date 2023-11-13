@@ -100,9 +100,13 @@ class Pipeliner:
                     if isinstance(sub_step,pd.DataFrame):
                         dfs.append(sub_step)
             if verbose:
-                print(tools_DF.prettify(dfs[-1], showindex=False))
+                if len(dfs)>0:
+                    print(tools_DF.prettify(dfs[-1], showindex=False))
 
-            res = dfs[-1]
+            if len(dfs)>0:
+                res = dfs[-1]
+            else:
+                res = ''
         else:
             res=0
 

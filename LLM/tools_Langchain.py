@@ -235,7 +235,8 @@ class Assistant(object):
         else:
             if (texts is not None and len(texts) > 0):
                 context_free = True
-                query = query + ' Use data below.\n' + '.'.join(texts)
+                #query+= '\nUse data below.\n'
+                query+= '.'.join(texts)
             if context_free:
                 try:
                     if self.chain_type=='QA':

@@ -5,6 +5,7 @@ from sklearn import preprocessing
 from collections import Counter
 from tabulate import tabulate
 import struct
+from textwrap import fill
 # ----------------------------------------------------------------------------------------------------------------------
 def fix_ecoding(filename_in):
     with open(filename_in) as f:
@@ -138,7 +139,7 @@ def remove_long_tail(df,idx_target=0,th=0.01,order=False):
             c_is_good = C.index.values[idx_is_good]
             c_is_good = c_is_good[:max_count]
 
-            if order and str(df.dtypes.iloc[idx]) in ['object', 'category', 'bool']:
+            if order and str(df.dtypes[idx]) in ['object', 'category', 'bool']:
                 dct_map = dict((k, v) for k, v in zip(C.index.values, numpy.argsort(-C.values)))
                 df['#'] = df.iloc[:, idx].map(dct_map)
 
@@ -177,7 +178,7 @@ def my_agg(df,cols_groupby,cols_value,aggs,list_res_names=None,order_idx=None,as
 # ---------------------------------------------------------------------------------------------------------------------
 def add_noise_smart(df,idx_target=0,A = 0.2):
 
-    df_res  =df.copy().astype(float)
+    df_res  =df.copy()
 
     idx = numpy.delete(numpy.arange(0, df.shape[1]), idx_target)
     df.iloc[:,idx[0]]=df.iloc[:,idx[0]].astype(float)
@@ -366,8 +367,17 @@ def apply_filter(df,col_name,filter,inverce=False):
 
     return df[idx]
 # ---------------------------------------------------------------------------------------------------------------------
-def prettify(df,showheader=True,showindex=True,tablefmt='psql',maxcolwidths=None,filename_out=None):
-    res = tabulate(df, headers=df.columns if showheader else [], tablefmt=tablefmt, showindex=showindex,maxcolwidths=maxcolwidths)
+def prettify(df,showheader=True,showindex=True,tablefmt='psql',desc='',maxcolwidths=None,filename_out=None):
+
+    #df.iloc[:,-1] = df.iloc[:,-1].apply(lambda x: fill(x, width=maxcolwidths))
+    if df.shape[0]==0 or df.shape[1]==0:
+        res = ''
+    else:
+        res = tabulate(df, headers=df.columns if showheader else [], tablefmt=tablefmt, showindex=showindex,maxcolwidths=maxcolwidths,disable_numparse=True)
+
+    if desc!='':
+        bar = ''.join(['-'] * len(res.split('\n')[0]))
+        res = bar + '\n' + '| ' + desc + '\n' + res
 
     if filename_out is not None:
         with open(filename_out, 'w', encoding='utf-8') as f:
@@ -512,7 +522,7 @@ def build_hierarchical_dataframe(df, cols_labels_level, col_size, concat_labels=
                 metric = metric_function(*[numpy.array(df_metric_level[col]) for col in cols_metric])
             else:
                 metric = numpy.nan
-            res_level = pd.concat([res_level,pd.DataFrame({'id':df_level[level],'parent_id':parend_ids,'size':df_level[col_size],'metric':metric})])
+            res_level = res_level.append(pd.DataFrame({'id':df_level[level],'parent_id':parend_ids,'size':df_level[col_size],'metric':metric}))
 
         if (i>0):
             res_level_agg = my_agg(res_level,cols_groupby=['id','parent_id'],cols_value=['size'],aggs=['sum']).copy()
@@ -520,9 +530,9 @@ def build_hierarchical_dataframe(df, cols_labels_level, col_size, concat_labels=
                 res_level_agg['metric'] = [metric_function(*[numpy.array(df0[df[level] == id][col]) for col in cols_metric]).mean() for id in res_level_agg['id']]
             else:
                 res_level_agg['metric'] = numpy.nan
-            res = pd.concat([res, res_level_agg])
+            res = res.append(res_level_agg)
         else:
-            res = pd.concat([res,res_level])
+            res = res.append(res_level)
 
     if do_calc_metrics and metrics_for_aggs:
         metric = metric_function(*[numpy.array(df0[col]) for col in cols_metric]).mean()
@@ -530,7 +540,7 @@ def build_hierarchical_dataframe(df, cols_labels_level, col_size, concat_labels=
         metric = numpy.nan
 
     res = res.sort_values(by=['parent_id', 'id'])
-    res = pd.concat([res,pd.Series({'id':description_total, 'parent_id':'', 'size':df[col_size].sum(), 'metric':metric})],ignore_index=True)
+    res = res.append(pd.Series({'id':description_total, 'parent_id':'', 'size':df[col_size].sum(), 'metric':metric}),ignore_index=True)
     return res
 # ---------------------------------------------------------------------------------------------------------------------
 def remap_counts(df,list_values):

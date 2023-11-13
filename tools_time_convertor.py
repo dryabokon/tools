@@ -9,10 +9,14 @@ def str_to_datetime(str_series,format='%Y-%m-%d',errors='ignore'):
     return res
 # ----------------------------------------------------------------------------------------------------------------------
 def datetime_to_str(dt,format='%Y-%m-%d'):
+
     if isinstance(dt, (pd.Series)):
-        res = pd.Series(pd.DatetimeIndex(dt).strftime(format))
-    else:
+        #res = pd.Series(pd.DatetimeIndex(dt).strftime(format))
+        res = dt.apply(lambda x: x.strftime(format))
+    elif isinstance(dt, pd.Timestamp):
         res = dt.strftime(format)
+    else:
+        res = dt.strftime(format,errors='ignore',utc=True)
     return res
 # ----------------------------------------------------------------------------------------------------------------------
 def add_delta(str_value,str_delta,format='%Y-%m-%d'):

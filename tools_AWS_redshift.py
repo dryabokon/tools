@@ -1,52 +1,32 @@
 import numpy
 import pandas as pd
-import os
-import yaml
-# import redshift_connector
-# from sqlalchemy import create_engine
 import psycopg2
-# --------------------------------------------------------------------------------------------------------------------
-import tools_Logger
-import tools_SQL
-# --------------------------------------------------------------------------------------------------------------------
-class processor(object):
-    def __init__(self,filename_config_redshift,folder_out=None):
-        self.folder_out = (folder_out if folder_out is not None else './')
+# ---------------------------------------------------------------------------------------------------------------------
+import config
+from tools import tools_SQL
+from tools.tools_Logger import Logger
+# ---------------------------------------------------------------------------------------------------------------------
+settings = config.Settings()
+# ---------------------------------------------------------------------------------------------------------------------
+class Processor:
+    def __init__(self) -> None:
         self.connection_wr = None
-        self.connection_psycopg2 = None
+        self.connection_psycopg2 = psycopg2.connect(
+            dbname=settings.redshift_database,
+            user=settings.redshift_username,
+            password=settings.redshift_password,
+            host=settings.redshift_server,
+            port=settings.redshift_port
+        )
 
-        if filename_config_redshift is None:
-            self.init_from_env_variables()
-        else:
-            self.init_from_private_config(filename_config_redshift)
-
-        self.L = tools_Logger.Logger(self.folder_out + 'log.txt')
-        self.dct_typ = {'object':'VARCHAR','datetime64[ns]':'DATE','int32':'int','int64':'int','float64':'float'}
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def init_from_private_config(self, filename_in):
-
-        if filename_in is None:
-            return None
-
-        if not os.path.isfile(filename_in):
-            return None
-
-        with open(filename_in, 'r') as config_file:
-            config = yaml.safe_load(config_file)
-            #self.engine = create_engine(f'postgresql://{user}:{password}@{host}/{database}')
-            # self.connection_wr = redshift_connector.connect(database=config['database']['dbname'], user=config['database']['user'],
-            #     password=config['database']['password'], host=config['database']['host'],port=config['database']['port'])
-            #
-            self.connection_psycopg2 = psycopg2.connect(dbname=config['database']['dbname'],user=config['database']['user'],password=config['database']['password'],host=config['database']['host'],port=config['database']['port'])
-
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def init_from_env_variables(self):
-        self.connection_psycopg2 = psycopg2.connect(dbname=os.environ["REDSHIFT_DBNAME"],
-                                                    user=os.environ["REDSHIFT_USERNAME"],
-                                                    password=os.environ["REDSHIFT_PASSWORD"],
-                                                    host=os.environ["REDSHIFT_HOST"], port=os.environ["REDSHIFT_PORT"])
+        self.L = Logger(settings.folder_out + 'log.txt')
+        self.dct_typ = {
+            'object': 'VARCHAR',
+            'datetime64[ns]': 'DATE',
+            'int32': 'int',
+            'int64': 'int',
+            'float64': 'float'
+        }
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def get_databases(self, verbose=False):
@@ -101,6 +81,51 @@ class processor(object):
             self.execute_transaction(SQLs)
         return
 # ----------------------------------------------------------------------------------------------------------------------
+    def get_percentiles(self,schema_name, table_name, column_name):
+        SQL = f'SELECT\
+                          PERCENTILE_CONT(0.01) WITHIN GROUP (ORDER BY {column_name} ) AS percentile_01,\
+                          PERCENTILE_CONT(0.05) WITHIN GROUP (ORDER BY {column_name} ) AS percentile_05,\
+                          PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY {column_name} ) AS percentile_95,\
+                          PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY {column_name} ) AS percentile_99\
+                        FROM {schema_name}.{table_name};'
+
+        df = self.execute_query(SQL=SQL, verbose=False)
+        p01,p05,p95,p99 = df.iloc[0,0],df.iloc[0,1],df.iloc[0,2],df.iloc[0,3]
+        return p01,p05,p95,p99
+# ----------------------------------------------------------------------------------------------------------------------
+    def get_histo(self, schema_name, table_name, column_name,n_bins=50):
+
+        p01,p05,p95,p99 = self.get_percentiles(schema_name, table_name, column_name)
+        bin_width = (p95-p05)/n_bins
+
+        # histogram_data0 = f'(SELECT {column_name}, \
+        #                   FLOOR( {column_name}/{bin_width})*{bin_width} AS bin_start, \
+        #                   FLOOR( {column_name}/{bin_width})*{bin_width}+{bin_width} AS bin_end \
+        #                   FROM {schema_name}.{table_name} where {p05}<={column_name} and {column_name}< {p95})'
+
+        histogram_data = f'(SELECT {column_name}, \
+                          {p05} + FLOOR( ({column_name}-{p05})/{bin_width})*{bin_width} AS bin_start, \
+                          {p05} + FLOOR( ({column_name}-{p05})/{bin_width})*{bin_width}+{bin_width} AS bin_end \
+                          FROM {schema_name}.{table_name} where {p05}<={column_name} and {column_name}< {p95})'
+
+        histogram_bins = f'(SELECT bin_start,bin_end,COUNT(*) AS {column_name}_count FROM {histogram_data} GROUP BY bin_start, bin_end )'
+        SQL0 = f'(SELECT bin_start,bin_end,{column_name}_count FROM {histogram_bins} ORDER BY bin_start)'
+
+        SQL1 = f'(select min({column_name}) as bin_start,{p01} as bin_end,count(*) from {schema_name}.{table_name} where                          {column_name}<{p01})'
+        SQL2 = f'(select {p01} as bin_start,{p05} as bin_end,count(*) from {schema_name}.{table_name} where {p01}<={column_name} and {column_name}<{p05})'
+        SQL3 = f'(select {p95} as bin_start,{p99} as bin_end,count(*) from {schema_name}.{table_name} where {p95}<={column_name} and {column_name}<{p99})'
+        SQL4 = f'(select {p99} as bin_start,max({column_name})  as bin_end,count(*) from {schema_name}.{table_name} where {p99}<={column_name} )'
+
+        SQL = f'select * from {SQL1} UNION ALL {SQL2} UNION ALL {SQL0} UNION ALL {SQL3} UNION ALL {SQL4} order by bin_start'
+        df = self.execute_query(SQL)
+        return df
+
+# ----------------------------------------------------------------------------------------------------------------------
+    def get_corr(self,schema_name, table_name,col1,col2):
+        SQL = f'select correlation_coeff from (with t1 as (select {col1},avg({col1}) over() as avg_col1,{col2},avg({col2}) over() as avg_col2 from {schema_name}.{table_name})\
+                select sum( ({col1}-avg_col1) *({col2}-avg_col2)) as numerator,sqrt(sum( ({col1}-avg_col1)^2)) * sqrt(sum( ({col2}-avg_col2)^2)) as denominator, numerator/denominator as correlation_coeff from t1)'
+        return self.execute_query(SQL).iloc[0,0]
+# ----------------------------------------------------------------------------------------------------------------------
     def export_query(self,SQL,filename_out,chunk_size = 10000):
 
         #N = self.execute_query('select count(*) ' + SQL[SQL.lower().index('from'):]).iloc[0,0]
@@ -110,7 +135,7 @@ class processor(object):
             print('%d'%(offset))
             df = self.execute_query(f"{SQL} LIMIT {chunk_size} OFFSET {offset}")
             if df.empty:break
-            df.to_csv(self.folder_out+filename_out,index=False,mode=('w' if offset==0 else 'a'),header=(True if offset==0 else False))
+            df.to_csv(settings.folder_out+filename_out,index=False,mode=('w' if offset==0 else 'a'),header=(True if offset==0 else False))
             offset += chunk_size
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -127,3 +152,36 @@ class processor(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
+
+
+# WITH histogram_data AS (
+# SELECT
+# trip_duration_hrs,
+# -0.455 AS bin_start,
+# 3.49111 AS bin_end
+# FROM trip_anomaly.trip_fact),
+# histogram_bins AS(SELECT -0.455,3.49111,COUNT(*) AS trip_duration_hrs_count FROM histogram_data GROUP BY bin_start, bin_end)
+# SELECT bin_start,bin_end,trip_duration_hrs_count FROM histogram_bins ORDER BY bin_start;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
