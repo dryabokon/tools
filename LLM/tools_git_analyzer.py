@@ -2,9 +2,10 @@ import os.path
 import numpy
 from git import Repo
 import pandas as pd
-from textwrap import fill
+import tools_draw_numpy
+#from textwrap import fill
 # ---------------------------------------------------------------------------------------------------------------------
-import tools_DF
+import tools_console_color
 from LLM import tools_Langchain
 # ---------------------------------------------------------------------------------------------------------------------
 class Analizer_git(object):
@@ -23,17 +24,6 @@ class Analizer_git(object):
         return repo
 # ---------------------------------------------------------------------------------------------------------------------
     def get_repo_structure_tree(self,root=None, level=0, res=None, as_txt=True):
-        class bcolors:
-            HEADER = '\033[95m'
-            OKBLUE = '\033[94m'
-            OKCYAN = '\033[96m'
-            OKGREEN = '\033[92m'
-            WARNING = '\033[93m'
-            FAIL = '\033[91m'
-            ENDC = '\033[0m'
-            BOLD = '\033[1m'
-            UNDERLINE = '\033[4m'
-
         chr_trace = " "
         chr_bar =  '｜'
 
@@ -52,7 +42,7 @@ class Analizer_git(object):
 
         for entry in entries:
             if entry.type=='tree':
-                prefix, suffix = u'\U0001F5C0' + ' ' + bcolors.UNDERLINE+bcolors.BOLD,bcolors.ENDC
+                prefix, suffix = tools_console_color.uni_folder + ' ' + tools_console_color.UNDERLINE+tools_console_color.BOLD,tools_console_color.ENDC
             else:
                 prefix, suffix = '',''
 

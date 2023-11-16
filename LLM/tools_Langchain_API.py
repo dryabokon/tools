@@ -107,7 +107,8 @@ class Assistant_API(object):
     def init_chain(self,api_spec):
         self.get_api_spec(api_spec)
         #self.chain = get_openapi_chain(api_spec)
-        self.chain = APIChain.from_llm_and_api_docs(self.LLM, api_docs=api_spec, verbose=True)
+        self.chain = APIChain.from_llm_and_api_docs(self.LLM, api_docs=self.api_spec, verbose=True,limit_to_domains=['https://www.example.com'])
+
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def init_agent(self,api_spec,access_token):

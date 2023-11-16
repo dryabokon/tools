@@ -1,6 +1,5 @@
 import warnings
 warnings.filterwarnings("ignore")
-import requests
 import json
 import uuid
 import inspect
@@ -21,14 +20,14 @@ from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.document_loaders import PyPDFLoader
 from langchain.vectorstores import Pinecone
 from langchain.schema import HumanMessage
-
 # ----------------------------------------------------------------------------------------------------------------------
+import tools_Azure_NLP
 import tools_time_profiler
 import tools_Azure_Search
 import pinecone
 # ----------------------------------------------------------------------------------------------------------------------
 class Assistant(object):
-    def __init__(self, filename_config_chat_model,filename_config_emb_model,filename_config_vectorstore, vectorstore_index_name=None,filename_config_neo4j=None,search_mode_hybrid=True,chain_type='QA'):
+    def __init__(self, filename_config_chat_model,filename_config_emb_model,filename_config_vectorstore, filename_config_NLP=None,vectorstore_index_name=None,filename_config_neo4j=None,search_mode_hybrid=True,chain_type='QA'):
         self.TP = tools_time_profiler.Time_Profiler()
         self.embeddings = self.init_emb_model(filename_config_emb_model)
         self.chain = self.init_chain(filename_config_chat_model, filename_config_neo4j=filename_config_neo4j,chain_type=chain_type)
@@ -36,6 +35,7 @@ class Assistant(object):
         self.init_vectorstore_pinecone(filename_config_vectorstore)
         self.search_mode_hybrid=search_mode_hybrid
         self.init_cache()
+        self.NER = tools_Azure_NLP.Client_NLP(filename_config_NLP)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def init_chain(self,filename_config_chat_model,filename_config_neo4j=None,chain_type='QA'):
@@ -191,7 +191,7 @@ class Assistant(object):
 
         return result
 # ----------------------------------------------------------------------------------------------------------------------
-    def run_chain(self, query, azure_search_index_name=None, text_key=None,search_field='token',select='text',limit=4,do_debug=False):
+    def run_chain(self, query, azure_search_index_name=None, text_key=None,search_field='token',select='text',limit=4):
 
         if self.vectorstore_desc == 'pinecone':
             docs = self.do_docsearch_pinecone(query,text_key=text_key,limit=limit)
@@ -200,18 +200,15 @@ class Assistant(object):
                 docs = self.do_docsearch_azure_hybrid(query, azure_search_index_name,search_field=search_field,select=select,limit=limit)
             else:
                 docs = self.do_docsearch_azure(query, azure_search_index_name,select=select)
-        #print('%d document(s) found'%len(docs))
 
-        if do_debug:
-            for d in docs:
-                print(d.page_content)
-                print('------------------')
+        texts = [d.page_content for d in docs]
+
         try:
             response = self.chain.run(question=query,input_documents=docs)
         except:
             response = ''
 
-        return response
+        return response,texts
 # ----------------------------------------------------------------------------------------------------------------------
     def init_search_index(self,azure_search_index_name,search_field,text_key):
         self.azure_search_index_name =azure_search_index_name
@@ -246,7 +243,7 @@ class Assistant(object):
                 except:
                     responce = ''
             else:
-                responce = self.run_chain(query, azure_search_index_name=self.azure_search_index_name, search_field=self.search_field,select=self.text_key)
+                responce, texts= self.run_chain(query, azure_search_index_name=self.azure_search_index_name, search_field=self.search_field,select=self.text_key)
 
             self.dct_cache[query] = responce
             with open(self.filename_cache, "w") as f:

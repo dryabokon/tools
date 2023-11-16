@@ -9,6 +9,7 @@ from azure.search.documents import SearchClient
 from azure.search.documents.models import Vector
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import SearchIndex,SearchField,SearchFieldDataType,SimpleField,SearchableField,VectorSearch,VectorSearchAlgorithmConfiguration#,HnswVectorSearchAlgorithmConfiguration
+from openai import AzureOpenAI
 #----------------------------------------------------------------------------------------------------------------------
 #from azure.ai.textanalytics import TextAnalyticsClient
 #----------------------------------------------------------------------------------------------------------------------
@@ -33,7 +34,12 @@ class Client_Search(object):
                 openai.api_version = self.config_emb['azure']['openai_api_version']
                 openai.api_base = self.config_emb['azure']['openai_api_base']
                 openai.api_key = self.config_emb['azure']['openai_api_key']
-                self.embedding = openai.Embedding
+                self.embedding = AzureOpenAI(
+                    api_key=self.config_emb['azure']['openai_api_key'],
+                    api_version=self.config_emb['azure']['openai_api_version'],
+                    azure_endpoint=self.config_emb['azure']['openai_api_base']
+                ).embeddings
+
                 self.model_deployment_name = self.config_emb['azure']['deployment_name']
 
         return
@@ -90,7 +96,8 @@ class Client_Search(object):
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def get_embedding(self,text):
-        embedding = self.embedding.create(input=text, deployment_id=self.model_deployment_name)["data"][0]["embedding"]
+        #embedding = self.embedding.create(input=text, deployment_id=self.model_deployment_name)["data"][0]["embedding"]
+        embedding = self.embedding.create(input=text,model=self.model_deployment_name).data[0].embedding
         return embedding
 # ----------------------------------------------------------------------------------------------------------------------
     def get_indices(self):
