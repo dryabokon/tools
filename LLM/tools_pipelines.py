@@ -1,3 +1,4 @@
+import uuid
 import io
 import pandas as pd
 import requests
@@ -82,7 +83,7 @@ class Pipeliner:
         df = pd.DataFrame([])
         if response.status_code == 200:
             df = self.parse_response(response.text)
-            #df.to_csv(self.folder_out + f'{uuid.uuid4().hex}.csv', index=False)
+            df.to_csv(self.folder_out + f'{uuid.uuid4().hex}.csv', index=False)
 
         if verbose:
             print(tools_DF.prettify(df, showindex=False))

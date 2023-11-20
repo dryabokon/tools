@@ -7,7 +7,7 @@ import json
 import os
 import yaml
 import io
-import openai
+#import openai
 # ----------------------------------------------------------------------------------------------------------------------
 from langchain.chains import APIChain
 from langchain.chat_models import ChatOpenAI
@@ -29,6 +29,8 @@ class Assistant_API(object):
         self.init_model(filename_config_chat_model,chain_type=chain_type)
         self.init_chain(api_spec)
         self.init_agent(api_spec,access_token)
+        print(f'{self.LLM.model_name} initiated')
+
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def yaml_to_json(self,text_yaml):
@@ -42,12 +44,15 @@ class Assistant_API(object):
         with open(filename_config_chat_model, 'r') as config_file:
             config = yaml.safe_load(config_file)
             if 'openai' in config:
+                #self.engine = "gpt-3.5-turbo"
+                #self.engine = "gpt-4-1106-preview"
+                # self.engine = "gpt-4"
                 openai_api_key = config['openai']['key']
                 os.environ["OPENAI_API_KEY"] = openai_api_key
                 if chain_type == 'QA':
-                    model = ChatOpenAI(temperature=0, openai_api_key=openai_api_key)
+                    model = ChatOpenAI(temperature=0, openai_api_key=openai_api_key,model_name=self.engine)
                 else:
-                    model = OpenAI(temperature=0, openai_api_key=openai_api_key)
+                    model = OpenAI(temperature=0, openai_api_key=openai_api_key,model_name=self.engine)
 
             elif 'azure' in config:
                 os.environ["OPENAI_API_TYPE"] = "azure"
@@ -62,7 +67,6 @@ class Assistant_API(object):
                 #llm = AzureOpenAI(openai_api_type="azure",deployment_name="test1",model_name="gpt-35-turbo")
                 #df = pd.DataFrame([])
                 #agent = create_pandas_dataframe_agent(model, df, verbose=True)
-
 
         self.LLM = model
 
@@ -91,7 +95,8 @@ class Assistant_API(object):
         elif api_spec[-5:].find('.json')==0:
             with open(api_spec, 'r') as f:
                 self.api_spec = json.dumps(json.load(f))
-                self.api_spec = self.yaml_to_json(self.api_spec)
+                if format == 'json':
+                    self.api_spec = self.yaml_to_json(self.api_spec)
         elif api_spec[-5:].find('.yaml')==0:
             with open(api_spec, 'r') as f:
                 self.api_spec = yaml.safe_load(f)
@@ -105,7 +110,7 @@ class Assistant_API(object):
         return self.api_spec
 # ----------------------------------------------------------------------------------------------------------------------
     def init_chain(self,api_spec):
-        self.get_api_spec(api_spec)
+        self.api_spec = self.get_api_spec(api_spec,format='txt')
         #self.chain = get_openapi_chain(api_spec)
         self.chain = APIChain.from_llm_and_api_docs(self.LLM, api_docs=self.api_spec, verbose=True,limit_to_domains=['https://www.example.com'])
 

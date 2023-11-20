@@ -10,6 +10,10 @@ import tools_DF
 import tools_Logger
 import tools_time_profiler
 #----------------------------------------------------------------------------------------------------------------------
+from langchain.chat_models import ChatOpenAI
+from langchain.llms import OpenAI
+from langchain_experimental.agents.agent_toolkits.pandas.base import create_pandas_dataframe_agent
+#----------------------------------------------------------------------------------------------------------------------
 
 class Assistant_OPENAILLM(object):
     def __init__(self, filename_config,folder_out):
@@ -18,8 +22,13 @@ class Assistant_OPENAILLM(object):
             openai.api_key = config['openai']['key']
             os.environ["OPENAI_API_KEY"] = config['openai']['key']
 
-        self.engine = 'gpt-4-1106-preview' #"gpt-4-1106-preview","gpt-3.5-turbo"
+        #self.engine = 'gpt-4-1106-preview' #"gpt-4-1106-preview","gpt-3.5-turbo"
+        self.engine = "gpt-3.5-turbo"
         self.client = OpenAI()
+        self.LLM = ChatOpenAI(temperature=0, openai_api_key=config['openai']['key'], model_name=self.engine)
+
+        #agent = create_pandas_dataframe_agent(self.LLM, pd.DataFrame({'A':[1,2,3],'B':[5,6,7]}), verbose = True)
+
         self.L = tools_Logger.Logger(folder_out+'Assistant_OPENAILLM.csv')
         self.TP = tools_time_profiler.Time_Profiler(verbose=False)
         self.thread = None
