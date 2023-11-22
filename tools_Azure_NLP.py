@@ -1,6 +1,5 @@
 import yaml
 import pandas as pd
-import tools_DF
 #----------------------------------------------------------------------------------------------------------------------
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.textanalytics import TextAnalyticsClient, RecognizeLinkedEntitiesAction, RecognizeEntitiesAction

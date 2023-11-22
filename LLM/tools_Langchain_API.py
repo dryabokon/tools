@@ -45,8 +45,8 @@ class Assistant_API(object):
             config = yaml.safe_load(config_file)
             if 'openai' in config:
                 #self.engine = "gpt-3.5-turbo"
+                self.engine = "gpt-4"
                 #self.engine = "gpt-4-1106-preview"
-                # self.engine = "gpt-4"
                 openai_api_key = config['openai']['key']
                 os.environ["OPENAI_API_KEY"] = openai_api_key
                 if chain_type == 'QA':
@@ -72,6 +72,24 @@ class Assistant_API(object):
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
+    def pretify_string(self,text,N=120):
+        lines = []
+        line = ""
+        for word in text.split():
+            if len(line + word) + 1 <= N:
+                if line:
+                    line += " "
+                line += word
+            else:
+                lines.append(line)
+                line = word
+        if line:
+            lines.append(line)
+
+        result = '\n'.join(lines)
+
+        return result
+
     def get_tools(self, dct_api_spec,access_token):
         def open_api_response(user_query, **kwargs):
             response = openai_agent.run(user_query)
@@ -119,9 +137,9 @@ class Assistant_API(object):
     def init_agent(self,api_spec,access_token):
 
         self.get_api_spec(api_spec)
-        tools = self.get_tools(self.api_spec,access_token)
+        self.tools = self.get_tools(self.api_spec,access_token)
         memory = ConversationBufferWindowMemory(memory_key='chat_history',k=5,return_messages=True)
-        self.agent = initialize_agent(tools=tools,llm=self.LLM,agent=AgentType.CHAT_ZERO_SHOT_REACT_DESCRIPTION,memory=memory,handle_parsing_errors=True,verbose=True)
+        self.agent = initialize_agent(tools=self.tools,llm=self.LLM,agent=AgentType.CHAT_ZERO_SHOT_REACT_DESCRIPTION,memory=memory,handle_parsing_errors=True,verbose=True)
 
         return
 # ----------------------------------------------------------------------------------------------------------------------

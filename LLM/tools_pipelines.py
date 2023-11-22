@@ -4,6 +4,7 @@ import pandas as pd
 import requests
 import yaml
 from langchain_experimental.agents.agent_toolkits.pandas.base import create_pandas_dataframe_agent
+from halo import Halo
 # ---------------------------------------------------------------------------------------------------------------------
 import tools_DF
 import tools_time_profiler
@@ -17,6 +18,7 @@ class Pipeliner:
         self.load_config(filename_config_api)
         self.A  = tools_Langchain_API.Assistant_API(filename_config_chat_model,filename_api_spec,access_token=self.get_access_token())
         self.folder_out = folder_out
+        self.df = None
         return
 # ---------------------------------------------------------------------------------------------------------------------
     def load_config(self,filename_config_api):
@@ -91,25 +93,53 @@ class Pipeliner:
         return df
 # ----------------------------------------------------------------------------------------------------------------------
     def query_over_df(self,query, df,post_proc = '',verbose=True,as_df=True):
+        if (self.df is None) or (self.df.equals(df)):
+            self.df = df
+            self.pandas_agent = create_pandas_dataframe_agent(self.A.LLM, df, verbose=verbose,return_intermediate_steps=True)
 
-        agent = create_pandas_dataframe_agent(self.A.LLM, df, verbose=verbose,return_intermediate_steps=True)
-        agent_res = agent(query+post_proc)
-        if as_df:
-            dfs = []
-            for step in agent_res["intermediate_steps"]:
-                for sub_step in step:
-                    if isinstance(sub_step,pd.DataFrame):
-                        dfs.append(sub_step)
-            if verbose:
+        if not verbose:
+            self.TP.tic('query_over_df',verbose=False)
+            spinner = Halo(color='white',spinner={'interval': 100, 'frames': ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']})
+            spinner.start()
+
+        try:
+            agent_res = self.pandas_agent(query + post_proc)
+
+            if as_df:
+                dfs = []
+                for step in agent_res["intermediate_steps"]:
+                    for sub_step in step:
+                        if isinstance(sub_step,pd.DataFrame):
+                            dfs.append(sub_step)
+
                 if len(dfs)>0:
-                    print(tools_DF.prettify(dfs[-1], showindex=False))
-
-            if len(dfs)>0:
-                res = dfs[-1]
+                    res = dfs[-1]
+                else:
+                    res = agent_res['output']
             else:
-                res = ''
-        else:
-            res=0
+                res= agent_res['output']
+
+        except:
+            res = 'Error'
+
+        if not verbose:
+            spinner.succeed(text=self.TP.print_duration('query_over_df', verbose=False))
+            spinner.stop()
+
+        return res
+# ----------------------------------------------------------------------------------------------------------------------
+    def query_agent(self,query,verbose=True):
+
+        if not verbose:
+            self.TP.tic('query_over_df', verbose=False)
+            spinner = Halo(color='white',spinner={'interval': 100, 'frames': ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']})
+            spinner.start()
+
+        res = self.A.agent.run(query)
+
+        if not verbose:
+            spinner.succeed(text=self.TP.print_duration('query_over_df', verbose=False))
+            spinner.stop()
 
         return res
 # ----------------------------------------------------------------------------------------------------------------------

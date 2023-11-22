@@ -116,7 +116,7 @@ class Assistant_OPENAILLM(object):
 
         if verbose:
             print(query)
-            self.TP.tic('Q_assistant')
+            self.TP.tic('Q_assistant',verbose=False)
             spinner = Halo(spinner={'interval': 100,'frames': ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']})
             spinner.start()
 
