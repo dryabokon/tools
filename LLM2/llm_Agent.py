@@ -66,8 +66,8 @@ class Agent(object):
         self.TP = tools_time_profiler.Time_Profiler()
         self.LLM = LLM
         self.tools = tools
-        self.agent = self.init_agent(agent_type=AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION,verbose=verbose)
-        #self.agent = self.init_agent_custom(verbose)
+        #self.agent = self.init_agent(agent_type=AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION,verbose=verbose)
+        self.agent = self.init_agent_custom(verbose)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def run_query(self, query):

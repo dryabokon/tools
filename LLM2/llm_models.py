@@ -11,8 +11,8 @@ def get_model(filename_config_model, model_type='QA'):
     with open(filename_config_model, 'r') as config_file:
         config = yaml.safe_load(config_file)
         if 'openai' in config:
-            #engine = "gpt-3.5-turbo"
-            engine = "gpt-4"
+            engine = "gpt-3.5-turbo"
+            #engine = "gpt-4"
             #engine = "gpt-4-1106-preview"
             openai_api_key = config['openai']['key']
             os.environ["OPENAI_API_KEY"] = openai_api_key

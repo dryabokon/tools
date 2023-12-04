@@ -11,13 +11,12 @@ from langchain.graphs import Neo4jGraph
 from langchain.chains import GraphCypherQAChain
 from langchain.chains import APIChain
 # ----------------------------------------------------------------------------------------------------------------------
-def get_chain_chat(LLM,chain_type='QA'):
-    model = LLM
-    if chain_type == 'QA':
-        chain = load_qa_chain(model)
-    else:
-        chain = load_summarize_chain(model)
-
+def get_chain_chat(LLM):
+    chain = load_qa_chain(LLM)
+    return chain
+# ----------------------------------------------------------------------------------------------------------------------
+def get_chain_summary(LLM,question_prompt,chain_type="refine"):
+    chain = load_summarize_chain(LLM, question_prompt=question_prompt,chain_type=chain_type,verbose=True)
     return chain
 # ----------------------------------------------------------------------------------------------------------------------
 def get_chain_Neo4j(LLM,filename_config_neo4j):
