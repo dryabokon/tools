@@ -41,12 +41,14 @@ class RAG(object):
         print(filename_in)
         self.TP.tic(inspect.currentframe().f_code.co_name, reset=True)
         texts = self.pdf_to_texts(filename_in) if filename_in.split('/')[-1].split('.')[-1].find('pdf') >= 0 else self.file_to_texts(filename_in)
-        docs =[{'uuid':uuid.uuid4().hex,'text':t} for t in texts]
-        docs_e = self.azure_search.tokenize_documents(docs, field_source='text', field_embedding='token')
 
+        docs =[{'uuid':uuid.uuid4().hex,'text':t} for t in texts]
+        field_embedding = 'token'
+
+        #docs = self.azure_search.tokenize_documents(docs, field_source='text', field_embedding=field_embedding)
+        docs = self.azure_search.tokenize_documents_chroma(docs, field_source='text', field_embedding=field_embedding)
+        search_index = self.azure_search.create_search_index(docs,field_embedding, azure_search_index_name)
         if azure_search_index_name not in self.azure_search.get_indices():
-            fields = self.azure_search.create_fields(docs_e, field_embedding='token')
-            search_index = self.azure_search.create_search_index(azure_search_index_name, fields)
             self.azure_search.search_index_client.create_index(search_index)
 
         self.azure_search.search_client = self.azure_search.get_search_client(azure_search_index_name)
@@ -145,10 +147,11 @@ class RAG(object):
 
         texts = [d.page_content for d in docs]
 
-        try:
-            response = self.chain.run(question=query,input_documents=docs)
-        except:
-            response = ''
+        response = self.chain.run(question=query, input_documents=docs)
+        # try:
+        #     response = self.chain.run(question=query,input_documents=docs)
+        # except:
+        #     response = ''
 
         return response,texts
 # ----------------------------------------------------------------------------------------------------------------------

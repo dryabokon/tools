@@ -235,7 +235,7 @@ class detector_VP:
                 segments = self.Ske.skeleton_to_segments(img_ske)
                 segments_straight = self.Ske.sraighten_segments(segments, min_len=10)
                 segments_long = self.Ske.filter_short_segments2(segments_straight, ratio=0.10)
-                lns = self.Ske.interpolate_segments_by_lines(segments_long)
+                lns,losses = self.Ske.interpolate_segments_by_lines(segments_long)
 
             lns = self.keep_lines_by_length(lns, len_min, len_max)
             lns = self.keep_lines_by_angle(lns, 90  - self.tol_deg_hor_line, 90  + self.tol_deg_hor_line, inv=True)
@@ -266,7 +266,7 @@ class detector_VP:
             segments = self.Ske.skeleton_to_segments(img_ske)
             segments_straight = self.Ske.sraighten_segments(segments, min_len=10)
             segments_long = self.Ske.filter_short_segments2(segments_straight, ratio=0.10)
-            lns = self.Ske.interpolate_segments_by_lines(segments_long)
+            lns,losses = self.Ske.interpolate_segments_by_lines(segments_long)
         lines = lns if lines is None else numpy.concatenate([lines,lns],axis=0)
 
         lines = self.keep_lines_by_length(lines, len_min, len_max)

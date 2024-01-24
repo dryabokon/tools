@@ -1,9 +1,7 @@
 import re
 import numpy
 import numpy_financial
-import pandas
 from scipy.optimize import fsolve
-#from pydantic import BaseModel, Field
 from langchain.chains import LLMMathChain
 from langchain.agents import Tool
 from langchain.agents.agent_toolkits import NLAToolkit
@@ -84,14 +82,14 @@ def get_tool_IRR():
     return tools
 # ----------------------------------------------------------------------------------------------------------------------
 def get_tool_sale_for_target_IRR():
-    #tools =  [StructuredTool.from_function(func=custom_func_sales_for_target_irr_single, name="Sales for IRR target calculator",description="Calculate a sale to achieve a specific IRR from given cash flow string")]
-    tools = [StructuredTool.from_function(func=custom_func_sales_for_target_irr, name="Sales for IRR target calculator",description="Calculate a sale to achieve a specific float IRR from given cash flow array of floats")]
+    tools =  [StructuredTool.from_function(func=custom_func_sales_for_target_irr_single, name="Sales for IRR target calculator",description="Calculate a sale to achieve a specific IRR from given cash flow string")]
+    #tools = [StructuredTool.from_function(func=custom_func_sales_for_target_irr, name="Sales for IRR target calculator",description="Calculate a sale to achieve a specific float IRR from given cash flow array of floats")]
     return tools
 # ----------------------------------------------------------------------------------------------------------------------
 def get_tools_pandas(df):
     python = PythonAstREPLTool(locals={"df": df})
-    tools = [StructuredTool.from_function(func=python.run,name="Pandas Tool", description=f"Tool to answer questions about pandas dataframe 'df'. Run python pandas operations on 'df' that has the following columns: {df.columns.to_list()}")]
-    #tools = [Tool(func=python.run,name="Pandas Tool", description=f"Tool to answer questions about pandas dataframe 'df'. Run python pandas operations on 'df' that has the following columns: {df.columns.to_list()}")]
+    #tools = [StructuredTool.from_function(func=python.run,name="Pandas Tool", description=f"Tool to answer questions about pandas dataframe 'df'. using tool_input key, run python pandas operations on 'df' that has the following columns: {df.columns.to_list()}")]
+    tools = [Tool(func=python.run,name="Pandas Tool", description=f"Tool to answer questions about pandas dataframe 'df'. Run python pandas operations on 'df' that has the following columns: {df.columns.to_list()}")]
     return tools
 # ----------------------------------------------------------------------------------------------------------------------
 def get_tool_age_of_Alice():

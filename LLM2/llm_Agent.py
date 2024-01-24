@@ -75,11 +75,13 @@ class Agent(object):
         return responce, []
 # ----------------------------------------------------------------------------------------------------------------------
     def init_agent(self,agent_type,verbose=True):
+        print('langchain.agents: initialize_agent')
         memory = ConversationBufferWindowMemory(memory_key='chat_history', k=5, return_messages=True)
         agent_executor = initialize_agent(self.tools, self.LLM, agent=agent_type,memory=memory,verbose=verbose,return_intermediate_steps=False)
         return agent_executor
 # ----------------------------------------------------------------------------------------------------------------------
     def init_agent_custom(self,verbose=True):
+        print('custom_agent')
         # agent_executor0 = initialize_agent(self.tools, self.LLM,agent=AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION, verbose=verbose,return_intermediate_steps=True)
         # prompt_template_str0 = agent_executor0.agent.llm_chain.prompt.messages[0].prompt.template
         prompt_template = CustomPromptTemplate(template=prompt_template_str,tools=self.tools,input_variables=["input", "intermediate_steps","history"])

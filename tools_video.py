@@ -3,9 +3,8 @@ import cv2
 import time
 import numpy
 import pandas as pd
-from pytube import YouTube
+#from pytube import YouTube
 from PIL import Image
-from scenedetect import detect, ContentDetector
 from os import listdir
 import fnmatch
 # ----------------------------------------------------------------------------------------------------------------------

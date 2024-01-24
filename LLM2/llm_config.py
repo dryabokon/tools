@@ -11,10 +11,10 @@ def get_config_openAI():
 def get_config_azure():
     class cnfg(object):
         engine = 'azure'
-        filename_config_chat_model = './secrets/private_config_azure_chat.yaml'
-        filename_config_emb_model = './secrets/private_config_azure_embeddings.yaml'
-        filename_config_vectorstore = './secrets/private_config_azure_search.yaml'
-        filename_config_NLP = './secrets/private_config_azure_NLP.yaml'
+        filename_config_chat_model = './secrets/GL/private_config_azure_chat.yaml'
+        filename_config_emb_model = './secrets/GL/private_config_azure_embeddings.yaml'
+        filename_config_vectorstore = './secrets/GL/private_config_azure_search.yaml'
+        #filename_config_NLP = './secrets/private_config_azure_NLP.yaml'
 
     return cnfg()
 # ----------------------------------------------------------------------------------------------------------------------

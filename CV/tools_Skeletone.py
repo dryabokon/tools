@@ -1,3 +1,4 @@
+import math
 import cv2
 import numpy
 from skimage import exposure
@@ -34,6 +35,14 @@ class Skelenonizer(object):
         self.reg = MyLR()
         return
 # ----------------------------------------------------------------------------------------------------------------
+    def get_angle_deg(self, line):
+        x1, y1, x2, y2 = line
+        if x2 - x1 == 0:
+            angle = 0
+        else:
+            angle = 90 + math.atan((y2 - y1) / (x2 - x1)) * 180 / math.pi
+        return angle
+# ----------------------------------------------------------------------------------------------------------------
     def preprocess_amplify(self,image,kernel=(18,7)):
         gray = tools_image.desaturate_2d(image)
         sobel = numpy.zeros(kernel, dtype=numpy.float32)
@@ -43,7 +52,7 @@ class Skelenonizer(object):
 
         result = cv2.filter2D(gray, 0, sobel)
         result2 = numpy.maximum(255 - result, result)
-        result2 = exposure.adjust_gamma(result2, 6)
+        #result2 = exposure.adjust_gamma(result2, 6)
         return result2
 # ----------------------------------------------------------------------------------------------------------------
     def binarize(self,image,blockSize=27,maxValue=255):
@@ -237,20 +246,32 @@ class Skelenonizer(object):
 
         res = numpy.vstack((x,y)).T
 
-        return res.astype(numpy.int)
+        return res.astype(int)
+# ----------------------------------------------------------------------------------------------------------------------
+    def filter_long_segments(self,segments,max_len):
+        result = [s for s in segments if len(s)<=max_len]
+        return result
 # ----------------------------------------------------------------------------------------------------------------------
     def filter_short_segments(self,segments,min_len):
-        result = []
-        for s in segments:
-            if len(s)>min_len:
-                result.append(s)
-
+        result = [s for s in segments if len(s)>=min_len]
         return result
 # ----------------------------------------------------------------------------------------------------------------
     def filter_short_segments2(self, segments, ratio=0.05):
         idx = numpy.argsort([-len(s) for s in segments])[:int(ratio*len(segments))]
         result = [segments[i] for i in idx]
         return result
+# ----------------------------------------------------------------------------------------------------------------
+    def filter_long_streight_segments(self,segments,th_loss=5,max_len=100):
+        segments_res = []
+        lines,losses = self.interpolate_segments_by_lines(segments)
+        for line,loss,segment in zip(lines,losses,segments):
+            length = math.sqrt(sum((line[:2] - line[2:]) ** 2))
+            angle = self.get_angle_deg(line)
+            if (loss< th_loss) and (length<=max_len):
+                segments_res.append(segment)
+
+
+        return segments_res
 # ----------------------------------------------------------------------------------------------------------------
     def interpolate_segment_by_line_slow(self, XY):
         reg = LinearRegression()
@@ -276,20 +297,27 @@ class Skelenonizer(object):
 
         if (X.max() - X.min()) > (Y.max() - Y.min()):
             self.reg.fit(X, Y)
+            loss = math.sqrt(sum((self.reg.predict(X) - Y) ** 2) / Y.shape[0])
             X_inter = numpy.array([(X.min(), X.max())]).T
             Y_inter = self.reg.predict(X_inter)
             line = numpy.array([X_inter[0], Y_inter[0], X_inter[1], Y_inter[1]]).flatten()
         else:
             self.reg.fit(Y, X)
+            loss = math.sqrt(sum((self.reg.predict(Y) - X) ** 2) / Y.shape[0])
             Y_inter = numpy.array([(Y.min(), Y.max())]).T
             X_inter = self.reg.predict(Y_inter)
             line = numpy.array([X_inter[0], Y_inter[0], X_inter[1], Y_inter[1]]).flatten()
 
-        return line
+        return line,loss
 # ----------------------------------------------------------------------------------------------------------------------
     def interpolate_segments_by_lines(self,segments):
-        lines = [self.interpolate_segment_by_line(segment) for segment in segments]
-        return lines
+        lines, losses = [], []
+        for segment in segments:
+            line,loss = self.interpolate_segment_by_line(segment)
+            lines.append(line)
+            losses.append(loss)
+
+        return lines, losses
 # ----------------------------------------------------------------------------------------------------------------------
     def detect_lines_LSD(self, img):
         img_copy = tools_image.desaturate_2d(img)
@@ -309,7 +337,7 @@ class Skelenonizer(object):
         lines=[]
         for i, segment in enumerate(segments):
             if line_upper_bound is None or tools_render_CV.is_point_above_line(segment[0], line_upper_bound):
-                lines.append(self.interpolate_segment_by_line((segment)))
+                lines.append(self.interpolate_segment_by_line(segment)[0])
             else:
                 lines.append((numpy.nan,numpy.nan,numpy.nan,numpy.nan))
 
