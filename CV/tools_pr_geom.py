@@ -86,17 +86,17 @@ def fit_homography(X_source,X_target,method = cv2.RANSAC,do_debug=False):
 
     #method = cv2.LMEDS
     #method = cv2.RHO
-    if X_source.shape[0]<5 or X_target.shape[0]<5:
-        return None,None
+    # if X_source.shape[0]<5 or X_target.shape[0]<5:
+    #     return None,None
 
     H, mask = cv2.findHomography(X_source, X_target, method, 3.0)
     xxx = X_source.reshape((-1, 1, 2)).astype(numpy.float32)
     result  = cv2.perspectiveTransform(xxx,H).reshape((-1,2))
 
     loss =  ((result-X_target)**2).mean()
-    if do_debug:
-        image_debug = debug_projection(X_source, X_target, result)
-        #cv2.imwrite('./images/output/image_dbug.png',image_debug)
+    # if do_debug:
+    #     image_debug = debug_projection(X_source, X_target, result)
+    #     cv2.imwrite('./images/output/image_dbug.png',image_debug)
 
     return H, result
 # ----------------------------------------------------------------------------------------------------------------------

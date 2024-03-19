@@ -4,7 +4,8 @@ def get_config_openAI():
         engine = 'openai'
         filename_config_chat_model  = './secrets/private_config_openai.yaml'
         filename_config_emb_model   = './secrets/private_config_openai.yaml'
-        filename_config_vectorstore = './secrets/private_config_pinecone.yaml'
+        #filename_config_vectorstore = './secrets/private_config_pinecone.yaml'
+        filename_config_vectorstore = './secrets/GL/private_config_azure_search.yaml'
 
     return cnfg()
 # ----------------------------------------------------------------------------------------------------------------------

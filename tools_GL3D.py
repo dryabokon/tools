@@ -17,6 +17,7 @@ import tools_render_GL
 from CV import tools_pr_geom
 import tools_wavefront
 import tools_draw_numpy
+import tools_image
 # ----------------------------------------------------------------------------------------------------------------------
 numpy.set_printoptions(suppress=True)
 numpy.set_printoptions(precision=2)
@@ -25,7 +26,7 @@ numpy.set_printoptions(precision=2)
 # ----------------------------------------------------------------------------------------------------------------------
 class VBO(object):
     def __init__(self):
-        self.n_faces = 35000
+        self.n_faces = 26000*9
 
         self.id = numpy.full(9 * self.n_faces, -1)
         self.cnt = 0
@@ -50,7 +51,8 @@ class VBO(object):
         object.transform_mesh(M)
         for idxv, idxn, idxt in zip(object.idx_vertex, object.idx_normal, object.idx_texture):
             idx_col = object.dct_obj_id[idxv[0]]
-            c = (0.25, 0.75, 0.95)
+            #c = (0.25, 0.75, 0.95)
+            c = (0.75, 0.75, 0.75)
             if len(object.mat_color) > 0 and (object.mat_color[idx_col] is not None):
                 c = object.mat_color[idx_col]
 
@@ -522,17 +524,35 @@ class render_GL3D(object):
         return image_result
 
     # ----------------------------------------------------------------------------------------------------------------------
-    def stage_data(self, folder_out):
+    def stage_data(self, folder_out,do_debug=True,annotation=False):
+
+        name = 'pyramid'
+
         if not os.path.exists(folder_out):
             os.mkdir(folder_out)
-        filenames = tools_IO.get_filenames(folder_out, 'screenshot*.png')
+        filenames = tools_IO.get_filenames(folder_out, name+'*.png')
         ids = [(f.split('.')[0]).split('_')[1] for f in filenames]
         if len(ids) > 0:
             i = 1 + numpy.array(ids, dtype=int).max()
         else:
             i = 0
 
-        cv2.imwrite(folder_out + 'screenshot_%03d.png' % i, self.get_image(do_debug=True))
+        im_screenshot = self.get_image(do_debug=do_debug)
+        if annotation:
+            image_background = cv2.imread('./images/ex_GL/backgrounds/bg%02d.jpg'%numpy.random.randint(1,7))
+            image_background = tools_image.do_resize(image_background,(self.W, self.H))
+            im_screenshot = tools_image.put_layer_on_image(image_background,im_screenshot,background_color=255*self.bg_color)
+            points_2d = tools_render_GL.project_points_MVP_GL(self.object.coord_vert, self.W, self.H, self.mat_projection, self.mat_view,self.mat_model, self.mat_trns)
+            cx = (numpy.min(points_2d[:,0])+numpy.max(points_2d[:,0]))/2
+            cy = (numpy.min(points_2d[:,1])+numpy.max(points_2d[:, 1]))/2
+            wx = (numpy.max(points_2d[:,0])-numpy.min(points_2d[:,0]))
+            wy = (numpy.max(points_2d[:,1])-numpy.min(points_2d[:,1]))
+
+            with open(folder_out + name+'_%03d.txt' % i, 'w') as f:
+                f.writelines('1 %.2f %.2f %.2f %.2f'%(cx/self.W, cy/self.H, wx/self.W, wy/self.H))
+
+
+        cv2.imwrite(folder_out + name+'_%03d.png' % i, im_screenshot)
 
         return
 

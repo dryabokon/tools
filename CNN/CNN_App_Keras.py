@@ -42,14 +42,15 @@ class CNN_App_Keras(object):
 
 
             if not os.path.isfile(feature_filename):
-                bar = progressbar.ProgressBar(max_value=len(local_filenames))
+                bar = progressbar.ProgressBar(maxval=len(local_filenames))
+                bar.start()
                 for b,local_filename in enumerate(local_filenames):
                     bar.update(b)
                     img = cv2.imread(path_input + each + '/' + local_filename)
                     if img is None:continue
                     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                     img = cv2.resize(img, self.input_shape).astype(numpy.float32)
-                    model = Model(inputs=self.model.input, outputs=self.model.get_layer('global_average_pooling2d_1').output)
+                    model = Model(inputs=self.model.input, outputs=self.model.get_layer('global_average_pooling2d').output)
                     feature = model.predict(preprocess_input(numpy.array([img])))[0]
                     features.append(feature)
                     filenames.append(local_filename)

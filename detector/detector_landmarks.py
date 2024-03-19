@@ -22,7 +22,7 @@ class detector_landmarks(object):
 
         self.model_68_points = self.__get_full_model_points()
         if filename_3dmarkers is not None:
-            self.model_68_points = tools_IO.load_mat(filename_3dmarkers,dtype=numpy.float, delim=',')
+            self.model_68_points = tools_IO.load_mat(filename_3dmarkers,dtype=float, delim=',')
 
         self.r_vec = None
         self.t_vec = None
@@ -277,7 +277,7 @@ class detector_landmarks(object):
         point_3d.append((+front_size, +front_size, front_depth))
         point_3d.append((+front_size, -front_size, front_depth))
         point_3d.append((-front_size, -front_size, front_depth))
-        point_3d = numpy.array(point_3d, dtype=numpy.float).reshape(-1, 3)
+        point_3d = numpy.array(point_3d, dtype=float).reshape(-1, 3)
 
         (point_2d, _) = cv2.projectPoints(point_3d,rotation_vector,translation_vector,camera_matrix,dist_coefs)
         point_2d = numpy.int32(point_2d.reshape(-1, 2))
@@ -296,7 +296,7 @@ class detector_landmarks(object):
         result = image.copy()
         color = (0, 128, 255)
 
-        points_3d = numpy.array([[-1, -1, -1], [-1, +1, -1], [+1, +1, -1], [+1, -1, -1], [-1, -1, +1], [-1, +1, +1], [+1, +1, +1],[+1, -1, +1]], dtype=numpy.float32)
+        points_3d = numpy.array([[-1, -1, -1], [-1, +1, -1], [+1, +1, -1], [+1, -1, -1], [-1, -1, +1], [-1, +1, +1], [+1, +1, +1],[+1, -1, +1]], dtype=float)
         points_3d[:4] *= 1.5
 
         points_2d, _ = tools_pr_geom.project_points_ortho(points_3d, rvec.flatten(), tvec.flatten(),numpy.zeros(4), image.shape[1], image.shape[0], scale)

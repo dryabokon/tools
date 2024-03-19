@@ -479,7 +479,7 @@ def get_normal(triangles_3d):
     Nx = A[1] * B[2] - A[2] * B[1]
     Ny = A[2] * B[0] - A[0] * B[2]
     Nz = A[0] * B[1] - A[1] * B[0]
-    n = -numpy.array((Nx, Ny, Nz), dtype=numpy.float)
+    n = -numpy.array((Nx, Ny, Nz), dtype=float)
     n = normalize(n)
     return n
 # ----------------------------------------------------------------------------------------------------------------------

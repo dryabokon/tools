@@ -27,12 +27,12 @@ class Lines(object):
             self.make_arrays()
             return
 
-        data = tools_IO.load_mat_pd(filename_in, delim=' ', dtype=numpy.chararray)
+        data = tools_IO.load_mat_pd(filename_in, delim=' ')
         for each in data:
             key = each[0]
             if key in dict_filenames:
                 self.filename_IDs.append(dict_filenames[key])
-                each = numpy.array(each[1:], dtype=numpy.float)
+                each = numpy.array(each[1:])
                 self.xyxy.append([int(each[0]), int(each[1]), int(each[2]), int(each[3])])
                 self.ids.append(int(each[4]))
 
@@ -83,7 +83,7 @@ class Lines(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def add(self,filename_ID,xyxy,classID,do_standartize=True):
         self.filename_IDs =  numpy.insert(self.filename_IDs,len(self.filename_IDs),filename_ID)
-        self.filename_IDs = self.filename_IDs.astype(numpy.int)
+        self.filename_IDs = self.filename_IDs.astype(int)
 
         if do_standartize:
             xyxy = self.standartize(xyxy)
@@ -93,7 +93,7 @@ class Lines(object):
             self.xyxy = numpy.array([xyxy])
 
         self.ids = numpy.insert(self.ids,len(self.ids),int(classID))
-        self.ids = self.ids.astype(numpy.int)
+        self.ids = self.ids.astype(int)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def remove_by_cut(self,filename_ID,cut):
@@ -447,7 +447,7 @@ class Boxes(object):
         return res
 # ----------------------------------------------------------------------------------------------------------------------
     def add(self, filename_ID, xyxy, classID):
-        self.filename_IDs = numpy.insert(self.filename_IDs, len(self.filename_IDs), int(filename_ID)).astype(numpy.int)
+        self.filename_IDs = numpy.insert(self.filename_IDs, len(self.filename_IDs), int(filename_ID)).astype(int)
         xyxy = self.standartize(xyxy)
         if len(self.xyxy) > 0:
             self.xyxy = numpy.vstack(
@@ -455,7 +455,7 @@ class Boxes(object):
         else:
             self.xyxy = numpy.array([xyxy])
 
-        self.ids = numpy.insert(self.ids, len(self.ids), int(classID)).astype(numpy.int)
+        self.ids = numpy.insert(self.ids, len(self.ids), int(classID)).astype(int)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def remove_by_fileID(self,filename_ID):
@@ -507,5 +507,13 @@ class Boxes(object):
                     self.ids = numpy.delete(self.ids, i, axis=0)
             i+=1
 
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def remove_last(self):
+        L = len(self.filename_IDs)
+        if L>0:
+            self.filename_IDs = numpy.delete(self.filename_IDs,L-1, axis=0)
+            self.xyxy = numpy.delete(self.xyxy, L-1, axis=0)
+            self.ids = numpy.delete(self.ids, L-1, axis=0)
         return
 # ----------------------------------------------------------------------------------------------------------------------

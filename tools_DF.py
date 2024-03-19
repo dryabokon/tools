@@ -522,7 +522,7 @@ def build_hierarchical_dataframe(df, cols_labels_level, col_size, concat_labels=
                 metric = metric_function(*[numpy.array(df_metric_level[col]) for col in cols_metric])
             else:
                 metric = numpy.nan
-            res_level = res_level.append(pd.DataFrame({'id':df_level[level],'parent_id':parend_ids,'size':df_level[col_size],'metric':metric}))
+            res_level = pd.concat([res_level,pd.DataFrame({'id':df_level[level],'parent_id':parend_ids,'size':df_level[col_size],'metric':metric})],ignore_index=True)
 
         if (i>0):
             res_level_agg = my_agg(res_level,cols_groupby=['id','parent_id'],cols_value=['size'],aggs=['sum']).copy()
@@ -530,9 +530,9 @@ def build_hierarchical_dataframe(df, cols_labels_level, col_size, concat_labels=
                 res_level_agg['metric'] = [metric_function(*[numpy.array(df0[df[level] == id][col]) for col in cols_metric]).mean() for id in res_level_agg['id']]
             else:
                 res_level_agg['metric'] = numpy.nan
-            res = res.append(res_level_agg)
+            res = pd.concat([res,res_level_agg])
         else:
-            res = res.append(res_level)
+            res = pd.concat([res,res_level])
 
     if do_calc_metrics and metrics_for_aggs:
         metric = metric_function(*[numpy.array(df0[col]) for col in cols_metric]).mean()
@@ -540,7 +540,7 @@ def build_hierarchical_dataframe(df, cols_labels_level, col_size, concat_labels=
         metric = numpy.nan
 
     res = res.sort_values(by=['parent_id', 'id'])
-    res = res.append(pd.Series({'id':description_total, 'parent_id':'', 'size':df[col_size].sum(), 'metric':metric}),ignore_index=True)
+    res = pd.concat([res,pd.DataFrame({'id':description_total, 'parent_id':'', 'size':df[col_size].sum(), 'metric':metric},index=[0])],ignore_index=True)
     return res
 # ---------------------------------------------------------------------------------------------------------------------
 def remap_counts(df,list_values):

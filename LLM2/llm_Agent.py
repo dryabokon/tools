@@ -1,11 +1,14 @@
 import re
 from typing import List, Union
+from langchain import hub
+
 from langchain.prompts import StringPromptTemplate
 from langchain.chains import LLMChain
 from langchain.chains.conversation.memory import ConversationBufferWindowMemory
 from langchain.schema import AgentAction, AgentFinish, OutputParserException
-from langchain.agents import AgentExecutor, LLMSingleActionAgent, AgentOutputParser
+from langchain.agents import AgentExecutor, LLMSingleActionAgent, AgentOutputParser,create_openai_functions_agent
 from langchain.agents import initialize_agent, AgentType, Tool
+from langchain.agents import AgentExecutor, create_self_ask_with_search_agent
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_time_profiler
 # ----------------------------------------------------------------------------------------------------------------------
@@ -66,12 +69,15 @@ class Agent(object):
         self.TP = tools_time_profiler.Time_Profiler()
         self.LLM = LLM
         self.tools = tools
-        #self.agent = self.init_agent(agent_type=AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION,verbose=verbose)
-        self.agent = self.init_agent_custom(verbose)
+        agent_type = AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION
+        #agent_type = AgentType.SELF_ASK_WITH_SEARCH
+        self.agent = self.init_agent(agent_type=agent_type,verbose=verbose)
+        #self.agent = self.init_agent_custom(verbose)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def run_query(self, query):
         responce = self.agent.run(query)
+        #responce = self.agent.invoke({"input": query})
         return responce, []
 # ----------------------------------------------------------------------------------------------------------------------
     def init_agent(self,agent_type,verbose=True):
@@ -93,8 +99,14 @@ class Agent(object):
             stop=["\nObservation:"],
             allowed_tools=[t.name for t in self.tools]
         )
-        memory = ConversationBufferWindowMemory(k=2)
+        memory = ConversationBufferWindowMemory(k=5)
 
-        agent_executor = AgentExecutor.from_agent_and_tools(agent=custom_agent, tools=self.tools, verbose=verbose,memory=memory,intermediate_steps=True,handle_parsing_errors=True)
+        agent_executor = AgentExecutor.from_agent_and_tools(agent=custom_agent, tools=self.tools, verbose=verbose,memory=memory,intermediate_steps=True,handle_parsing_errors=True,return_intermediate_steps=False)
         return agent_executor
 # ----------------------------------------------------------------------------------------------------------------------
+#     def init_agent_custom2(self,verbose=True):
+#         prompt = hub.pull("hwchase17/openai-functions-agent")
+#         agent = create_openai_functions_agent(self.LLM, self.tools, prompt=prompt)
+#         agent_executor = AgentExecutor(agent=agent, tools=self.tools, verbose=True, return_intermediate_steps=True)
+#         return agent_executor
+    # ----------------------------------------------------------------------------------------------------------------------

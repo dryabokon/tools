@@ -3,7 +3,7 @@ import cv2
 import time
 import numpy
 import pandas as pd
-#from pytube import YouTube
+from pytube import YouTube
 from PIL import Image
 from os import listdir
 import fnmatch
@@ -93,11 +93,11 @@ def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_se
     success, image = vidcap.read()
     if success and scale!=1:image = do_rescale(image,scale)
 
-    count = 1
+    count = 0
 
     while success:
 
-        cv2.imwrite(folder_out+prefix+'%05d.png' % count, image)
+        cv2.imwrite(folder_out+prefix+'%06d.png' % count, image)
         success, image = vidcap.read()
         if success and scale != 1: image = do_rescale(image, scale)
         if end_time_sec is not None and end_time_sec<1000000:

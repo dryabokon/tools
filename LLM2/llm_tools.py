@@ -7,6 +7,7 @@ from langchain.agents import Tool
 from langchain.agents.agent_toolkits import NLAToolkit
 from langchain_experimental.tools.python.tool import PythonAstREPLTool
 from langchain.tools import StructuredTool
+from langchain_community.tools.tavily_search import TavilyAnswer
 # ----------------------------------------------------------------------------------------------------------------------
 def custom_func_IRR_calc(cash_flows:str):
     #print('custom_func_IRR_calc executed..')
@@ -70,7 +71,9 @@ def custom_func_sales_for_target_irr_single(target_and_cash_flows:str):
 # ----------------------------------------------------------------------------------------------------------------------
 def get_tool_calc(LLM):
     calculator = LLMMathChain.from_llm(llm=LLM)
-    tools = [Tool(nfunc=calculator.run,name="Calculator",description=f"""Useful when you need to do math operations or arithmetic.""")]
+    #tools = [Tool(nfunc=calculator.run,name="Calculator",description=f"""Useful when you need to do math operations or arithmetic.""")]
+    #tools = [StructuredTool.from_function(func=calculator.run,name="Calculator",description="Useful when you need to do math operations or arithmetic")]
+    tools = [Tool(func=calculator.run, name="Calculator",description="Useful when you need to do math operations or arithmetic")]
     return tools
 # ----------------------------------------------------------------------------------------------------------------------
 def get_tool_klarna(LLM):
@@ -86,10 +89,14 @@ def get_tool_sale_for_target_IRR():
     #tools = [StructuredTool.from_function(func=custom_func_sales_for_target_irr, name="Sales for IRR target calculator",description="Calculate a sale to achieve a specific float IRR from given cash flow array of floats")]
     return tools
 # ----------------------------------------------------------------------------------------------------------------------
-def get_tools_pandas(df):
+def get_tools_pandas_v01(df):
     python = PythonAstREPLTool(locals={"df": df})
-    #tools = [StructuredTool.from_function(func=python.run,name="Pandas Tool", description=f"Tool to answer questions about pandas dataframe 'df'. using tool_input key, run python pandas operations on 'df' that has the following columns: {df.columns.to_list()}")]
     tools = [Tool(func=python.run,name="Pandas Tool", description=f"Tool to answer questions about pandas dataframe 'df'. Run python pandas operations on 'df' that has the following columns: {df.columns.to_list()}")]
+    return tools
+# ----------------------------------------------------------------------------------------------------------------------
+def get_tools_pandas_v02(df):
+    python = PythonAstREPLTool(locals={"df": df})
+    tools = [StructuredTool.from_function(func=python.run,name="Pandas Tool", description=f"Tool to answer questions about pandas dataframe 'df'. using tool_input key, run python pandas operations on 'df' that has the following columns: {df.columns.to_list()}")]
     return tools
 # ----------------------------------------------------------------------------------------------------------------------
 def get_tool_age_of_Alice():
@@ -101,4 +108,16 @@ def get_tool_age_of_Bob():
     def custom_func_Bob_age(year: str): return int(int(year)-2008)
     tools = [StructuredTool.from_function(func=custom_func_Bob_age, name="age of Bob",description="Calculate an age of Bob given provided year")]
     return tools
+# ----------------------------------------------------------------------------------------------------------------------
+def get_tool_search():
+    tools = [TavilyAnswer(max_results=1, name="Intermediate Answer")]
+    return tools
+# ----------------------------------------------------------------------------------------------------------------------
+def pretify_output(plain_text):
+
+    lines = plain_text.split('\n')
+    for line in lines:
+        items = line.split('')
+
+    return
 # ----------------------------------------------------------------------------------------------------------------------

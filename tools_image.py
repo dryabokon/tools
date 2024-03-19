@@ -908,6 +908,21 @@ def do_rescale(image,scale,anti_aliasing=True,multichannel=False):
     result = numpy.array(resized)
     return result
 # --------------------------------------------------------------------------------------------------------------------
+def apply_gamma(image,gamma,idx=None):
+    table_b = numpy.array([((i / 255.0) ** (1.0 / gamma[0])) * 255 for i in numpy.arange(0, 256)]).astype("uint8")
+    table_g = numpy.array([((i / 255.0) ** (1.0 / gamma[1])) * 255 for i in numpy.arange(0, 256)]).astype("uint8")
+    table_r = numpy.array([((i / 255.0) ** (1.0 / gamma[2])) * 255 for i in numpy.arange(0, 256)]).astype("uint8")
+    image = saturate(image)
+    corrected_image = cv2.merge([cv2.LUT(image[:, :, 0], table_b), cv2.LUT(image[:, :, 1], table_g), cv2.LUT(image[:, :, 2], table_r)]).astype(numpy.uint8)
+
+    if idx is None:
+        res = corrected_image
+    else:
+        res = image.copy()
+        res[idx] = corrected_image[idx]
+
+    return res
+# --------------------------------------------------------------------------------------------------------------------
 def put_color_by_mask(image, mask2d, color):
 
 

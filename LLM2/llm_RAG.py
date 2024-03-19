@@ -18,7 +18,8 @@ class RAG(object):
         self.chain = chain
         self.azure_search = tools_Azure_Search.Client_Search(filename_config_vectorstore,index_name=vectorstore_index_name,filename_config_emb_model=filename_config_emb_model)
         self.init_search_index(vectorstore_index_name, search_field='token')
-        self.search_mode_hybrid = True
+        self.search_mode_hybrid = False
+        print('RAG search mode: ' + ('hybrid' if self.search_mode_hybrid else 'semantic'))
         self.init_cache()
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -31,25 +32,34 @@ class RAG(object):
         return texts
 # ----------------------------------------------------------------------------------------------------------------------
     def file_to_texts(self,filename_in):
-        with open(filename_in, 'r') as f:
+        with open(filename_in, 'r',encoding='utf8', errors ='ignore') as f:
             text_document = f.read()
         texts = RecursiveCharacterTextSplitter(separators=["\n\n", "\n"], chunk_size=500, chunk_overlap=100).create_documents([text_document])
         texts = [text.page_content for text in texts]
         return texts
 # ----------------------------------------------------------------------------------------------------------------------
-    def add_document_azure(self, filename_in, azure_search_index_name):
+    def add_document_azure(self, filename_in, azure_search_index_name,tag=None,do_tokenize=True):
         print(filename_in)
         self.TP.tic(inspect.currentframe().f_code.co_name, reset=True)
         texts = self.pdf_to_texts(filename_in) if filename_in.split('/')[-1].split('.')[-1].find('pdf') >= 0 else self.file_to_texts(filename_in)
 
-        docs =[{'uuid':uuid.uuid4().hex,'text':t} for t in texts]
-        field_embedding = 'token'
+        if tag is None:
+            docs =[{'uuid':uuid.uuid4().hex,'text':t} for t in texts]
+        else:
+            docs =[{'uuid':uuid.uuid4().hex,'tag':tag,'text':t} for t in texts]
 
-        #docs = self.azure_search.tokenize_documents(docs, field_source='text', field_embedding=field_embedding)
-        docs = self.azure_search.tokenize_documents_chroma(docs, field_source='text', field_embedding=field_embedding)
-        search_index = self.azure_search.create_search_index(docs,field_embedding, azure_search_index_name)
-        if azure_search_index_name not in self.azure_search.get_indices():
-            self.azure_search.search_index_client.create_index(search_index)
+        field_embedding = None
+        if do_tokenize:
+            field_embedding = 'token'
+            docs = self.azure_search.tokenize_documents(docs, field_source='text', field_embedding=field_embedding)
+            #docs = self.azure_search.tokenize_documents_SentenceTransformerEmbeddings(docs, field_source='text', field_embedding=field_embedding) #not integrated to search yet in the logic of the class
+
+            search_index = self.azure_search.create_search_index(docs,field_embedding=field_embedding, index_name=azure_search_index_name)
+            if azure_search_index_name not in self.azure_search.get_indices():
+                self.azure_search.search_index_client.create_index(search_index,field_embedding=field_embedding, index_name=azure_search_index_name)
+        else:
+            if azure_search_index_name not in self.azure_search.get_indices():
+                self.azure_search.create_search_index(docs, field_embedding=field_embedding, index_name=azure_search_index_name)
 
         self.azure_search.search_client = self.azure_search.get_search_client(azure_search_index_name)
         self.azure_search.upload_documents(docs)
@@ -62,13 +72,14 @@ class RAG(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def do_docsearch_azure(self, query,azure_search_index_name,select='text',limit=4):
         self.azure_search.search_client = self.azure_search.get_search_client(azure_search_index_name)
-        texts = self.azure_search.search_texts(query,select=select)
+        texts = self.azure_search.search_semantic(query,select=select,limit=limit)
         docs = self.texts_to_docs(texts)
         return docs
 # ----------------------------------------------------------------------------------------------------------------------
     def do_docsearch_azure_hybrid(self, query, azure_search_index_name, search_field='token', select='text',limit=4):
         self.azure_search.search_client = self.azure_search.get_search_client(azure_search_index_name)
-        texts = self.azure_search.search_texts_hybrid(query,field=search_field,select=select,limit=limit)
+        #texts = self.azure_search.search_hybrid(query,field=search_field,select=select,limit=limit)
+        texts = self.azure_search.search_vector(query,field=search_field,select=select,limit=limit)
         docs = self.texts_to_docs(texts)
         return docs
 # ----------------------------------------------------------------------------------------------------------------------
@@ -138,12 +149,12 @@ class RAG(object):
 #
 #         return responce
 # ----------------------------------------------------------------------------------------------------------------------
-    def run_query(self, query, search_field='token',select='text',limit=5):
+    def run_query(self, query, search_field='token',select='text',limit=8):
 
         if self.search_mode_hybrid:
             docs = self.do_docsearch_azure_hybrid(query, self.azure_search_index_name,search_field=search_field,select=select,limit=limit)
         else:
-            docs = self.do_docsearch_azure(query, self.azure_search_index_name,select=select)
+            docs = self.do_docsearch_azure(query, self.azure_search_index_name,select=select,limit=limit)
 
         texts = [d.page_content for d in docs]
 

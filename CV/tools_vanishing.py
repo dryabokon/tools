@@ -43,7 +43,7 @@ class detector_VP:
 
         self.mean_lp_length = 0.520 # meters
 
-        self.config_algo_ver_lines = 'LSD'
+        self.config_algo_ver_lines = 'LSD'#LSD
         self.tol_deg_hor_line = 10
         self.color_markup_grid = (0,0,0)
         self.width_markup_grid = 2
@@ -214,7 +214,7 @@ class detector_VP:
 # -----------------------------------------------------------------------
     def get_lines_ver_candidates_static(self,folder_in,df_boxes=None,len_min=15, len_max=200,do_debug=False):
 
-        filenames = tools_IO.get_filenames(folder_in, '*.jpg')
+        filenames = tools_IO.get_filenames(folder_in, '*.jpg,*.png')
         lines = None
 
         for filename in filenames:
@@ -254,7 +254,7 @@ class detector_VP:
 
         return lines
 # ---------------------------------------------------------------------------------------------------------------------
-    def get_lines_ver_candidates_single_image(self,image,len_min=15, len_max=200,do_debug=False):
+    def get_lines_ver_candidates_single_image(self,image,len_min=15, len_max=200,do_debug=True):
 
         lines = None
         if self.config_algo_ver_lines=='LSD':
@@ -308,7 +308,7 @@ class detector_VP:
 # ----------------------------------------------------------------------------------------------------------------------
     def get_lines_hor_candidates_static(self, folder_in,df_boxes=None, len_min=15,len_max=200,do_debug=False):
         self.TP.tic(inspect.currentframe().f_code.co_name, reset=True)
-        filenames = tools_IO.get_filenames(folder_in, '*.jpg')
+        filenames = tools_IO.get_filenames(folder_in, '*.jpg,*.png')
         lines = None
 
         tol_h = 20
@@ -374,8 +374,6 @@ class detector_VP:
         vp_h_x = vp_h[0]
         vp_h_y = vp_h[1]
 
-        #vp_h_y+=1000
-
         #Focal length of the camera in pixels
         pp = [self.W / 2, self.H / 2]
         if vp_v_x == vp_h_x:return math.fabs(pp[0] - vp_v_x)
@@ -392,7 +390,7 @@ class detector_VP:
             focal_length = math.sqrt(dd)
         else:
             focal_length = math.sqrt(-dd)
-            #focal_length = 0.5 * self.W /numpy.tan(0.5*self.fov_x_deg_default *numpy.pi / 180)
+
 
         return focal_length
 # -----------------------------------------------------------------------
@@ -447,10 +445,10 @@ class detector_VP:
 
         if filename_out is not None:
             if image_debug is None:
-                image_debug = numpy.full((self.H,self.W,3),32,dtype=numpy.uint8)
+                image_debug = numpy.full((self.H,self.W,3),32,dtype=numpy.uint8,color_bg=(255,255,255))
             factor = 3
             H, W = self.H, self.W
-            image_ext = tools_draw_numpy.extend_view_from_image(tools_image.desaturate(image_debug), factor)
+            image_ext = tools_draw_numpy.extend_view_from_image(tools_image.desaturate(image_debug), factor,color_bg=(255,255,255))
             image_ext = tools_draw_numpy.draw_lines(image_ext, tools_draw_numpy.extend_view(vp1_lines, H, W, factor), w=1)
             image_ext = tools_draw_numpy.draw_lines(image_ext, tools_draw_numpy.extend_view(vp1_lines_add, H, W, factor),color=(0,100,200),w=1)
             image_ext = tools_draw_numpy.draw_points(image_ext,tools_draw_numpy.extend_view(vp1[:2], H, W, factor),color=(255, 64, 0), w=8)
@@ -477,8 +475,7 @@ class detector_VP:
 
         image_BEV = cv2.warpPerspective(image, h_ipersp, (int(target_BEV_W), int(target_BEV_H)), borderValue=(32, 32, 32))
         center_BEV = cv2.perspectiveTransform(numpy.array(((self.W / 2, self.H / 2))).reshape((-1, 1, 2)),h_ipersp).reshape((-1, 2))[0]
-        edges_BEV = cv2.perspectiveTransform(edges.reshape((-1, 1, 2)), h_ipersp)
-        lines_edges_BEV = edges_BEV.reshape((-1, 4))
+        lines_edges_BEV = cv2.perspectiveTransform(edges.reshape((-1, 1, 2)), h_ipersp).reshape((-1, 4))
 
         p_camera_BEV_xy = tools_render_CV.line_intersection(numpy.array(lines_edges_BEV[0]),numpy.array(lines_edges_BEV[1]))
         cam_abs_offset = p_camera_BEV_xy[1] - image_BEV.shape[0]
@@ -828,10 +825,10 @@ class detector_VP:
         pitch_cam = 90 - numpy.arctan((p_camera_BEV_xy[1]-point_BEV[1]) / cam_height) * 180 / numpy.pi
         return yaw_res,pitch_cam
 # ----------------------------------------------------------------------------------------------------------------------
-    def box_to_footprint_look_upright(self,box,vp_ver, vp_hor, cam_height, p_camera_BEV_xy,p_center_BEV_xy,h_ipersp):
+    def box_to_footprint_look_upright(self,box,vp_ver, vp_hor, cam_height, p_camera_BEV_xy,p_center_BEV_xy,h_ipersp,do_debug=False):
         footprint, roofprint, metadata, points_BEV_best, dims, ratio_best = None, None, None, None, None, None
         for point_top_right_y in range(min(box[1], box[3]), max(box[1], box[3])):
-            point_top_right = (max(box[0], box[2]), point_top_right_y)
+            point_top_right = numpy.array((max(box[0], box[2]), point_top_right_y))
             point_bottom_right = tools_render_CV.line_intersection((min(box[0],box[2]),max(box[1],box[3]),max(box[0],box[2]),max(box[1],box[3])), (vp_ver[0], vp_ver[1], point_top_right[0], point_top_right[1]))
             point_bottom_left  = tools_render_CV.line_intersection((min(box[0],box[2]),min(box[1],box[3]),min(box[0],box[2]),max(box[1],box[3])), (vp_hor[0], vp_hor[1], point_bottom_right[0], point_bottom_right[1]))
             point_top_left     = tools_render_CV.line_intersection((vp_hor[0], vp_hor[1], point_top_right[0], point_top_right[1]),(vp_ver[0], vp_ver[1], point_bottom_left[0], point_bottom_left[1]))
@@ -841,10 +838,19 @@ class detector_VP:
             if ratio_best is None or abs(ratio - self.taret_ratio_L_W) < abs(ratio_best - self.taret_ratio_L_W):
                 ratio_best = ratio
                 footprint, roofprint, metadata, points_BEV_best = self.calc_footprint(box, cam_height, p_camera_BEV_xy, p_center_BEV_xy, point_bottom_left, point_bottom_right, point_top_right, point_top_left, points_BEV)
+                if do_debug:
+                    image = tools_image.desaturate(cv2.imread(self.folder_out + 'frames/00000.png'))
+                    image = tools_draw_numpy.draw_rect_fast(image,box[0], box[1], box[2], box[3] ,color=(0,0,0), w=3)
+                    image = tools_draw_numpy.draw_contours_cv(image, numpy.array([point_bottom_left, point_bottom_right, point_top_right, point_top_left]),color=(0,217,0),w=3,transperency=0.8)
+                    image_BEV = cv2.imread(self.folder_out + '00149.png')[:,-354:]
+                    image_BEV = tools_draw_numpy.draw_contours_cv(image_BEV, numpy.array(points_BEV), color=(0,  217,0), w=3, transperency=0.8)
+                    cv2.imwrite(self.folder_out + 'BEV_%03d.png' % int((100 * ratio)), numpy.concatenate([image,image_BEV],axis=1))
 
 
         cols = ['cuboid%02d' % i for i in range(16)] + ['yaw_cam_car', 'pitch_cam','L','W','H'] + ['p_bev%02d' % i for i in range(8)]
         df = pd.DataFrame(numpy.concatenate((footprint, roofprint, metadata, points_BEV_best), axis=1).reshape((1, -1)),columns=cols)
+
+
         return df
 # ----------------------------------------------------------------------------------------------------------------------
     def box_to_footprint_look_upleft(self,box,vp_ver, vp_hor, cam_height, p_camera_BEV_xy,p_center_BEV_xy,h_ipersp):
@@ -1129,7 +1135,7 @@ class detector_VP:
 
         return h_ipersp
 # ----------------------------------------------------------------------------------------------------------------------
-    def get_inverce_perspective_mat_v3(self,image,cam_fov_deg,point_van_xy_ver,point_van_xy_hor=None,do_debug=False):
+    def get_inverce_perspective_mat_v3(self,image,cam_fov_deg,point_van_xy_ver,point_van_xy_hor=None,do_debug=True):
         H, W = image.shape[:2]
         target_H = H
 
@@ -1161,8 +1167,8 @@ class detector_VP:
         src = numpy.array((p1,p2,p3,p4), dtype=numpy.float32).reshape((-1,2))
 
         if do_debug:
-            im = tools_draw_numpy.draw_points(tools_image.desaturate(image), src.astype(numpy.int), color=(0, 0, 200), w=4, put_text=True)
-            im = tools_draw_numpy.draw_convex_hull(im, src.astype(numpy.int),color=(0, 0, 200),transperency=0.9)
+            im = tools_draw_numpy.draw_points(tools_image.desaturate(image), src.astype(int), color=(0, 0, 200), w=4, put_text=True)
+            im = tools_draw_numpy.draw_convex_hull(im, src.astype(int),color=(0, 0, 200),transperency=0.9)
             im = tools_draw_numpy.draw_lines(im,[upper_line,bottom_line,line_van_left,line_van_right],color=(0, 0, 200))
             cv2.imwrite('./images/output/ppp.png',im)
 
@@ -1221,10 +1227,10 @@ class detector_VP:
                 # rotation_deg2 = -math.degrees(numpy.arctan((p_up[0] - p_dn[0]) / (p_up[1] - p_dn[1])))
                 # rotation_deg = (rotation_deg1+rotation_deg2)/2
 
-                if do_debug:
-                    image_BEV = cv2.warpPerspective(image, h_ipersp_best, (best_target_W, best_target_H), borderValue=(32, 32, 32))
-                    image_BEV = tools_draw_numpy.draw_lines(image_BEV,[(p_dn[0],p_dn[1],p_up[0],p_up[1])],w=1,color=(128,0,255))
-                    cv2.imwrite('./images/output/xx_%03d.png'%target_W, image_BEV)
+                # if do_debug:
+                #     image_BEV = cv2.warpPerspective(image, h_ipersp_best, (best_target_W, best_target_H), borderValue=(32, 32, 32))
+                #     image_BEV = tools_draw_numpy.draw_lines(image_BEV,[(p_dn[0],p_dn[1],p_up[0],p_up[1])],w=1,color=(128,0,255))
+                #     cv2.imwrite('./images/output/xx_%03d.png'%target_W, image_BEV)
             else:
                 break
 

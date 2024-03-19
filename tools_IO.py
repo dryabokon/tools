@@ -3,7 +3,7 @@ import os
 from os import listdir
 import fnmatch
 import json
-from shutil import copyfile
+from shutil import copyfile,move
 import shutil
 import random
 from sklearn import metrics, datasets
@@ -71,15 +71,28 @@ def remove_folders(path):
             shutil.rmtree(path + f)
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def copy_folder(folder_in,folder_out):
+def copy_folder(folder_in,folder_out,list_of_masks='*.*'):
 
     if not os.path.exists(folder_out):
         os.mkdir(folder_out)
 
-    filenames = get_filenames(folder_in, '*.*')
+    filenames = get_filenames(folder_in, list_of_masks)
     for filename in filenames:
         if os.path.isfile(folder_in + filename):
             copyfile(folder_in + filename, folder_out + filename)
+
+
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+def move_folder(folder_in,folder_out,list_of_masks='*.*'):
+
+    if not os.path.exists(folder_out):
+        os.mkdir(folder_out)
+
+    filenames = get_filenames(folder_in, list_of_masks)
+    for filename in filenames:
+        if os.path.isfile(folder_in + filename):
+            move(folder_in + filename, folder_out + filename)
 
 
     return

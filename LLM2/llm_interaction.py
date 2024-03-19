@@ -52,7 +52,7 @@ def interaction_offline(A,query,method='run_query',do_debug=False,do_spinner=Fal
             spinner = Halo(spinner={'interval': 100, 'frames': ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']})
             spinner.start()
 
-        # res,texts = A.run_query(q)
+        #res,texts = A.run_query(q)
         r = getattr(A, method)(q)
         if len(r) ==2:
             res, texts = r[0],r[1]

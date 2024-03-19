@@ -60,6 +60,9 @@ class Time_Profiler:
                 print(value,'-',event)
         return value
 # ----------------------------------------------------------------------------------------------------------------------
+    def get_diration_sec(self,event):
+        return time.time() - self.current_start[event]
+# ----------------------------------------------------------------------------------------------------------------------
     def stage_stats(self,filename_out):
 
         E = list(self.dict_event_time.keys())

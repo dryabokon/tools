@@ -155,7 +155,11 @@ def draw_rect(image, col_left, row_up, col_right, row_down ,color, w=1, alpha_tr
     result = draw_lines(result, lines, color=color, w=w)
 
     if label is not None:
-        result = draw_text(result,label,(int(col_left),int(row_up)), color_fg=(0,0,0),clr_bg=color,font_size=font_size)
+        if color is not None:
+            color_fg = (0,0,0) if 10*color[0]+60*color[1]+30*color[2]>100*128 else (255, 255, 255)
+        else:
+            color_fg = (128,128,128)
+        result = draw_text(result,label,(int(col_left),int(row_up)), color_fg=color_fg,clr_bg=color,font_size=font_size)
 
     return result
 # ----------------------------------------------------------------------------------------------------------------------
@@ -164,7 +168,7 @@ def draw_rects(image, rects, colors, labels=None, w=2, alpha_transp=0.8):
     for i,r in enumerate(rects):
         clr = colors if (len(numpy.array(colors).shape) == 1) or type(colors) == int else colors[i].tolist()
         label = None if labels is None else labels[i]
-        image = draw_rect(image,r[0,0], r[0,1], r[1,0], r[1,1], clr, w=w, label=label,alpha_transp=alpha_transp)
+        image = draw_rect(image,int(r[0,0]), int(r[0,1]), int(r[1,0]), int(r[1,1]), clr, w=w, label=label,alpha_transp=alpha_transp)
 
     return image
 # ----------------------------------------------------------------------------------------------------------------------
@@ -198,7 +202,7 @@ def draw_text(image,label,xy, color_fg,clr_bg=None,font_size=16,alpha_transp=0,h
     x,y = xy[0],xy[1]
     pImage = Image.fromarray(image)
     draw = ImageDraw.Draw(pImage, 'RGBA')
-    font_truetype = ImageFont.truetype("UbuntuMono-R.ttf", size=font_size, encoding="utf-8") if os.name in ['nt'] else ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", size=32, encoding="utf-8")
+    font_truetype = ImageFont.truetype("UbuntuMono-Regular.ttf", size=font_size, encoding="utf-8") if os.name in ['nt'] else ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", size=32, encoding="utf-8")
 
     total_display_str_height = draw.textbbox((0, 0), str(label), font=font_truetype)[-1]
     clr = (numpy.array(color_fg)*(1-alpha_transp)+numpy.array(clr_bg)*(alpha_transp)).astype(int) if clr_bg is not None else numpy.array(color_fg).astype(int)
@@ -261,24 +265,26 @@ def draw_cuboid(image, points_2d, idx_mode = 1, color=(255, 255, 255), w=1,idx_f
 
     return result
 # ----------------------------------------------------------------------------------------------------------------------
-def draw_contours(image, points, color=(255,255,255),w=1,transperency=0.0):
-
-    idx = numpy.arange(0,points.shape[0])
-    lines = numpy.array([[p1[0],p1[1],p2[0],p2[1]] for p1,p2 in zip(points,points[numpy.roll(idx,1)])])
-    image_res = draw_contours_cv(image, points, color, w=w, transperency=transperency)
-    image_res = draw_lines(image_res, lines, color, w)
-
-    return image_res
+# def draw_contours(image, points, color=(255,255,255),w=1,transperency=0.0):
+#
+#     idx = numpy.arange(0,points.shape[0])
+#     lines = numpy.array([[p1[0],p1[1],p2[0],p2[1]] for p1,p2 in zip(points,points[numpy.roll(idx,1)])])
+#     image_res = draw_contours_cv(image, points, color, w=w, transperency=transperency)
+#     image_res = draw_lines(image_res, lines, color, w)
+#
+#     return image_res
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_contours_cv(image, points, color=(255,255,255),w=-1,transperency=0.0):
 
     pnts = points.reshape(1, -1, 1, 2).astype(int)
     res = image.copy()
     color = (int(color[0]), int(color[1]), int(color[2]))
-    res = cv2.drawContours(res, pnts, -1,color,thickness=w)
-
+    res = cv2.drawContours(res, pnts, -1,color,thickness=-1)
     if transperency>0:
         res = res*(1-transperency)+image*(transperency)
+
+    if w!=-1:
+        res = cv2.drawContours(res, pnts, -1, color, thickness=w)
 
     return res.astype(numpy.uint8)
 # ----------------------------------------------------------------------------------------------------------------------
