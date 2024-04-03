@@ -27,7 +27,7 @@ def numerical_devisor(n):
 
     return n
 # ---------------------------------------------------------------------------------------------------------------------
-def smart_resize(img, target_image_height, target_image_width,bg_color=(128, 128, 128)):
+def smart_resize(img, target_image_height=None, target_image_width=None,bg_color=(128, 128, 128)):
     '''resize image with unchanged aspect ratio using padding'''
 
     pillow_image = PillowImage.fromarray(img)
@@ -411,7 +411,7 @@ def gre2jet(rgb):
     return cv2.applyColorMap(numpy.array(rgb, dtype=numpy.uint8).reshape((1, 1, 3)), cv2.COLORMAP_JET).reshape(3)
 # ----------------------------------------------------------------------------------------------------------------------
 def gre2viridis(rgb):
-    colormap = numpy.flip((numpy.array(cm.cmaps_listed['viridis'].colors255) * 256).astype(int), axis=1)
+    colormap = numpy.flip((numpy.array(cm.cmaps_listed['viridis'].colors) * 256).astype(int), axis=1)
     return colormap[int(rgb[0])]
 # ----------------------------------------------------------------------------------------------------------------------
 def gre2colormap(gray255,cm_name):
@@ -422,7 +422,7 @@ def gre2colormap(gray255,cm_name):
     return res_color
 # ----------------------------------------------------------------------------------------------------------------------
 def hitmap2d_to_viridis(hitmap_2d):
-    colormap = (numpy.array(cm.cmaps_listed['viridis'].colors255) * 256).astype(int)
+    colormap = (numpy.array(cm.cmaps_listed['viridis'].colors) * 256).astype(int)
     colormap = numpy.flip(colormap,axis=1)
     hitmap_RGB = colormap[hitmap_2d[:, :].astype(int)]
 
@@ -954,5 +954,11 @@ def decode_base64(encoded_bytes):
     decoded_bytes = base64.b64decode(encoded_bytes)
     pil_image = PillowImage.open(BytesIO(decoded_bytes))
     image = numpy.array(pil_image)[:, :, [2, 1, 0]]
+    return image
+# --------------------------------------------------------------------------------------------------------------------
+def replace_color(image,color1,color2):
+    mask = numpy.zeros(image.shape[:2],numpy.uint8)
+    mask[numpy.where(numpy.all(image==color1,axis=2))]=255
+    image[numpy.where(mask==255)]=color2
     return image
 # --------------------------------------------------------------------------------------------------------------------

@@ -1,3 +1,7 @@
+import os
+import warnings
+warnings.filterwarnings( 'ignore', module = 'langchain' )
+# ----------------------------------------------------------------------------------------------------------------------
 import re
 import numpy
 import numpy_financial
@@ -9,6 +13,12 @@ from langchain_experimental.tools.python.tool import PythonAstREPLTool
 from langchain.tools import StructuredTool
 from langchain_community.tools.tavily_search import TavilyAnswer
 # ----------------------------------------------------------------------------------------------------------------------
+from LLM2 import llm_config,llm_models,llm_chains,llm_RAG,llm_interaction,llm_tools,llm_Agent
+# ----------------------------------------------------------------------------------------------------------------------
+llm_cnfg = llm_config.get_config_azure()
+#llm_cnfg = llm_config.get_config_openAI()
+# ----------------------------------------------------------------------------------------------------------------------
+
 def custom_func_IRR_calc(cash_flows:str):
     #print('custom_func_IRR_calc executed..')
     A = [re.sub("[^0-9-+.]", "", x) for x in cash_flows.split()]
@@ -69,6 +79,36 @@ def custom_func_sales_for_target_irr_single(target_and_cash_flows:str):
 
     return float(x)
 # ----------------------------------------------------------------------------------------------------------------------
+def custom_func_read_file(filename:str):
+    log_file = './data/output/custom_func_read_file.txt'
+    mode = 'a' if os.path.isfile(log_file) else 'w'
+    with open(log_file, mode) as f:
+        f.write('\n'+filename)
+
+    res = ''
+    filename=str(filename)
+    split = filename.split('"')
+    if len(split) > 1:
+        filename2 = split[1]
+    else:
+        split = filename.split("'")
+        if len(split) > 1:
+            filename2 = split[1]
+        else:
+            filename2 = filename.replace('\n', '')
+            filename2.replace('"','')
+            filename2 = re.sub("[^0-9a-zA-Z.]", "", filename2)
+
+    filename2 = filename2.split('.')[0]
+    filename2 = './data/ex_datasets/log_files/'+filename2+'.txt'
+    with open(log_file, 'a') as f:
+        f.write('\n'+filename2)
+
+    if os.path.exists(filename2):
+        with open(log_file,  'a') as f:f.write('\nOK')
+        with open(filename2, 'r') as f:res = str(f.read())
+    return res
+# ----------------------------------------------------------------------------------------------------------------------
 def get_tool_calc(LLM):
     calculator = LLMMathChain.from_llm(llm=LLM)
     #tools = [Tool(nfunc=calculator.run,name="Calculator",description=f"""Useful when you need to do math operations or arithmetic.""")]
@@ -108,6 +148,14 @@ def get_tool_age_of_Bob():
     def custom_func_Bob_age(year: str): return int(int(year)-2008)
     tools = [StructuredTool.from_function(func=custom_func_Bob_age, name="age of Bob",description="Calculate an age of Bob given provided year")]
     return tools
+# ----------------------------------------------------------------------------------------------------------------------
+def get_tool_read_file():
+    tools =  [StructuredTool.from_function(func=custom_func_read_file, name="Tool to read the file",description="Returns file content based on filename")]
+    return tools
+# ----------------------------------------------------------------------------------------------------------------------
+# def get_tool_analyze_issue():
+#     tools = [Tool(func=A_RAG.run_query, name="File Analyzer", description="Automated analysis of the content retreived by the file reader tool.")]
+#     return tools
 # ----------------------------------------------------------------------------------------------------------------------
 def get_tool_search():
     tools = [TavilyAnswer(max_results=1, name="Intermediate Answer")]

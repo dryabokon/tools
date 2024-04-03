@@ -1,6 +1,5 @@
 import warnings
-warnings.filterwarnings("ignore")
-
+warnings.filterwarnings("ignore", category=DeprecationWarning, module='langchain')
 import os
 import yaml
 import openai

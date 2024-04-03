@@ -31,7 +31,12 @@ class Plotter(object):
         self.folder_out = folder_out
         self.dark_mode = dark_mode
         self.init_base_colors()
+        #!!!
         self.init_colors()
+        # self.init_colors(N=11,cmap='jet',shuffle=False)
+        # self.colors[:3] = numpy.array([[255, 128, 0], [0, 128, 255], [0, 0, 255]])
+        # self.colors[3:] = 0
+
         self.turn_light_mode(None)
         self.io_buf = io.BytesIO()
         return
@@ -127,9 +132,9 @@ class Plotter(object):
 
         return fig
 # ----------------------------------------------------------------------------------------------------------------------
-    def init_colors(self,cmap='tab20',shuffle=True):#tab20 nipy_ nipy_spectral
+    def init_colors(self,N=32,cmap='tab20',shuffle=True):#tab20 nipy_ nipy_spectral
         numpy.random.seed(112)#113
-        self.colors = tools_draw_numpy.get_colors(32, colormap=cmap).astype(int)
+        self.colors = tools_draw_numpy.get_colors(N, colormap=cmap).astype(int)
 
         new_c = []
         # for n in range(self.colors.shape[0]):
@@ -316,6 +321,10 @@ class Plotter(object):
         J = seaborn.scatterplot(data=df,x=df.columns[1],y=df.columns[2],hue=df.columns[0],marker='o',palette=my_pal,edgecolor='none',alpha=1-transparency)
 
         plt.grid(color=self.clr_grid)
+
+        #plt.legend(loc='upper left', bbox_to_anchor=(0.0, 1.15),ncol = 1)
+        plt.legend(bbox_to_anchor=(1.01, 1), borderaxespad=0)
+
         if remove_legend:
             plt.legend([], [], frameon=False)
         #else:
@@ -1027,9 +1036,9 @@ class Plotter(object):
         df = pd.DataFrame(numpy.concatenate((Y.reshape(-1, 1), X), axis=1), columns=['Y', 'x0', 'x1'])
         df.sort_values(by=df.columns[0],inplace=True)
         #colors = [self.get_color(t)[[2, 1, 0]] / 255.0 for t in numpy.sort(numpy.unique(Y))]
-        #colors = [self.colors[n]   [[2, 1, 0]] / 255.0 for n in range(len(numpy.unique(Y)))]
-        colors = None
-        self.plot_2D_features(df, remove_legend=False, colors=colors,marker_size=6,transparency=0.15,filename_out=filename_out)
+        colors = [self.colors[n]   [[2, 1, 0]] / 255.0 for n in range(len(numpy.unique(Y)))]
+        #colors = None
+        self.plot_2D_features(df, remove_legend=False, colors=colors,marker_size=6,transparency=0.75,filename_out=filename_out)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def plot_contourf(self,X0,X1,xx, yy, grid_confidence,xlim=None,ylim=None,xlabel=None,ylabel=None,transparency=0,marker_size=10,figsize=(3.5,3.5),filename_out=None):

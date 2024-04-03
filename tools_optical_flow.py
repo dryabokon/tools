@@ -87,9 +87,9 @@ class OpticalFlow_LucasKanade():
             if self.face_2d_prev is not None:
                 self.face_2d_cur = cv2.perspectiveTransform(self.face_2d_prev.reshape((-1, 1, 2)).astype(float), M).reshape((-1, 2))
 
-        if self.cntr%10 ==0:
-            self.prune_keypoints(self.keypoints_cur,self.track_id_cur)
-            self.add_new_keypoints(self.gray_cur)
+        # if self.cntr%10 ==0:
+        #     self.prune_keypoints(self.keypoints_cur,self.track_id_cur)
+        #     self.add_new_keypoints(self.gray_cur)
 
         return M
 # --------------------------------------------------------------------------------------------------------------------------
@@ -130,4 +130,14 @@ class OpticalFlow_LucasKanade():
             self.init_start_frame(tools_image.saturate(self.gray_cur))
 
         return
-# ---------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------
+    def remove_keypoints(self,rects):
+        empty = numpy.zeros((self.gray_prev.shape[0],self.gray_prev.shape[1],3),dtype=numpy.uint8)
+        im2 = tools_draw_numpy.draw_rects(empty, rects.reshape((-1,2,2)), (255,255,255),alpha_transp=0,w=-1)[:,:,0]
+
+        idx_inside = [im2[p[1],p[0]]>0 for p in self.keypoints_prev.reshape((-1,2)).astype(int)]
+        self.keypoints_prev = self.keypoints_prev[idx_inside]
+        self.track_id_prev = self.track_id_prev[idx_inside]
+
+        return
+# --------------------------------------------------------------------------------------------------------------------------

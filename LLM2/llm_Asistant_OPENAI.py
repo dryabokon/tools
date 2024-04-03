@@ -3,7 +3,6 @@ import time
 import os
 import yaml
 import openai
-from openai import OpenAI
 from halo import Halo
 #----------------------------------------------------------------------------------------------------------------------
 import tools_DF
@@ -11,12 +10,16 @@ import tools_Logger
 import tools_time_profiler
 #----------------------------------------------------------------------------------------------------------------------
 from langchain.chat_models import ChatOpenAI
-from langchain.llms import OpenAI
-#from langchain_experimental.agents.agent_toolkits.pandas.base import create_pandas_dataframe_agent
+from openai import OpenAI
 #----------------------------------------------------------------------------------------------------------------------
 
 class Assistant_OPENAILLM(object):
     def __init__(self, filename_config,folder_out):
+
+
+        client = OpenAI()
+        file = client.files.create(file=open("./ex_00_healthcheck.py", "rb"), purpose='assistants')
+
         with open(filename_config, 'r') as config_file:
             config = yaml.safe_load(config_file)
             openai.api_key = config['openai']['key']
@@ -24,10 +27,8 @@ class Assistant_OPENAILLM(object):
 
         self.engine = 'gpt-4-1106-preview' #"gpt-4-1106-preview","gpt-3.5-turbo"
         #self.engine = "gpt-3.5-turbo"
-        self.client = OpenAI()
-        self.LLM = ChatOpenAI(temperature=0, openai_api_key=config['openai']['key'], model_name=self.engine)
-
         self.client = OpenAI(organization='org-3RPa8REGk1GuWZb27bEEW2jh')
+        self.LLM = ChatOpenAI(temperature=0, openai_api_key=config['openai']['key'], model_name=self.engine)
 
         # stream = self.client.chat.completions.create(
         #     model="gpt-4",

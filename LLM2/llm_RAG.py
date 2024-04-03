@@ -4,23 +4,27 @@ import json
 import uuid
 import inspect
 import os
+from halo import Halo
 # ----------------------------------------------------------------------------------------------------------------------
 from langchain.schema.document import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter,CharacterTextSplitter
 from langchain.document_loaders import PyPDFLoader
 # ----------------------------------------------------------------------------------------------------------------------
+from LLM2 import llm_interaction
 import tools_time_profiler
 import tools_Azure_Search
 # ----------------------------------------------------------------------------------------------------------------------
 class RAG(object):
-    def __init__(self, chain,filename_config_vectorstore,vectorstore_index_name,filename_config_emb_model):
+    def __init__(self, chain,filename_config_vectorstore,vectorstore_index_name,filename_config_emb_model,do_debug=False,do_spinner=False):
         self.TP = tools_time_profiler.Time_Profiler()
         self.chain = chain
         self.azure_search = tools_Azure_Search.Client_Search(filename_config_vectorstore,index_name=vectorstore_index_name,filename_config_emb_model=filename_config_emb_model)
         self.init_search_index(vectorstore_index_name, search_field='token')
-        self.search_mode_hybrid = False
+        self.search_mode_hybrid = True
         print('RAG search mode: ' + ('hybrid' if self.search_mode_hybrid else 'semantic'))
         self.init_cache()
+        self.do_debug = do_debug
+        self.do_spinner = do_spinner
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def pdf_to_texts(self, filename_pdf):
@@ -110,59 +114,44 @@ class RAG(object):
         self.filename_cache = './data/output/' + 'cache.json'
         self.dct_cache = {}
 
-        if os.path.isfile(self.filename_cache):
-            with open(self.filename_cache, 'r') as f:
-                self.dct_cache = json.load(f)
+        # if os.path.isfile(self.filename_cache):
+        #     with open(self.filename_cache, 'r') as f:
+        #         self.dct_cache = json.load(f)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-#     def Q(self,query,context_free=False,texts=None,q_post_proc=None,html_allowed=False):
-#
-#         if (texts is None or len(texts) ==0) and (query in self.dct_cache.keys()):
-#             responce = self.dct_cache[query]
-#         else:
-#             if (texts is not None and len(texts) > 0):
-#                 context_free = True
-#                 #query+= '\nUse data below.\n'
-#                 query+= '.'.join(texts)
-#             if context_free:
-#                 try:
-#                     responce = self.chain.run({'question': query, 'input_documents': []})
-#                 except:
-#                     responce = ''
-#             else:
-#                 responce, texts= self.run_chain(query, azure_search_index_name=self.azure_search_index_name, search_field=self.search_field,select=self.text_key)
-#
-#             self.dct_cache[query] = responce
-#             with open(self.filename_cache, "w") as f:
-#                 f.write(json.dumps(self.dct_cache, indent=4))
-#
-#         if q_post_proc is not None:
-#             responce = self.Q(f'{q_post_proc} Q:{query} A:{responce}', context_free=True)
-#
-#         if responce.find('Unfortunately') == 0 or responce.find('I\'m sorry') == 0 or responce.find('N/A') == 0:
-#             #responce = "⚠️" + responce
-#             responce = '&#9888 ' + responce
-#
-#         if html_allowed:
-#             # responce = f'<span style="color: #086A6A;background-color:#EEF4F4">{query}</span>'
-#             responce = f'<span style="color: #000000;background-color:#D5E5E5">{responce}</span>'
-#
-#         return responce
-# ----------------------------------------------------------------------------------------------------------------------
-    def run_query(self, query, search_field='token',select='text',limit=8):
+    def run_query(self, query:str, search_field='token',limit=6):
+
+        if self.do_spinner:
+            self.TP.tic('RAG', verbose=False,reset=True)
+            spinner = Halo(spinner={'interval': 100, 'frames': ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']})
+            spinner.start()
 
         if self.search_mode_hybrid:
-            docs = self.do_docsearch_azure_hybrid(query, self.azure_search_index_name,search_field=search_field,select=select,limit=limit)
+            docs = self.do_docsearch_azure_hybrid(query, self.azure_search_index_name,search_field=search_field,select=self.select,limit=limit)
         else:
-            docs = self.do_docsearch_azure(query, self.azure_search_index_name,select=select,limit=limit)
+            docs = self.do_docsearch_azure(query, self.azure_search_index_name,select=self.select,limit=limit)
 
-        texts = [d.page_content for d in docs]
+        if self.do_spinner:
+            spinner.stop()
+            spinner.succeed(self.TP.print_duration('RAG', verbose=False))
 
-        response = self.chain.run(question=query, input_documents=docs)
+        texts = [d.page_content[:1024] for d in docs]
+        #response = self.chain.run(question=query, input_documents=docs)
+        query = query + '\n\n'.join(texts)
+        response = self.chain.run(question=query,input_documents=[])
         # try:
         #     response = self.chain.run(question=query,input_documents=docs)
         # except:
         #     response = ''
+
+        if self.do_debug:
+            llm_interaction.display_debug_info(texts)
+
+        mode = 'w' if not os.path.isfile(self.filename_cache) else 'a'
+        with open(self.filename_cache, mode) as f:
+            dct_texts = dict(zip(range(len(texts)),texts))
+            json.dump(dct_texts, f, indent=4)
+            json.dump({'query':query,'response':response}, f, indent=4)
 
         return response,texts
 # ----------------------------------------------------------------------------------------------------------------------

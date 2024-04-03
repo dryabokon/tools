@@ -71,8 +71,8 @@ class Agent(object):
         self.tools = tools
         agent_type = AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION
         #agent_type = AgentType.SELF_ASK_WITH_SEARCH
-        self.agent = self.init_agent(agent_type=agent_type,verbose=verbose)
-        #self.agent = self.init_agent_custom(verbose)
+        #self.agent = self.init_agent(agent_type=agent_type,verbose=verbose)
+        self.agent = self.init_agent_custom(verbose)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def run_query(self, query):
@@ -87,11 +87,13 @@ class Agent(object):
         return agent_executor
 # ----------------------------------------------------------------------------------------------------------------------
     def init_agent_custom(self,verbose=True):
+
         print('custom_agent')
         # agent_executor0 = initialize_agent(self.tools, self.LLM,agent=AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION, verbose=verbose,return_intermediate_steps=True)
         # prompt_template_str0 = agent_executor0.agent.llm_chain.prompt.messages[0].prompt.template
         prompt_template = CustomPromptTemplate(template=prompt_template_str,tools=self.tools,input_variables=["input", "intermediate_steps","history"])
         #custom_agent.llm_chain.run({'input':'1+1','intermediate_steps':[]})
+
 
         custom_agent = LLMSingleActionAgent(
             llm_chain=LLMChain(llm=self.LLM, prompt=prompt_template),
@@ -102,6 +104,8 @@ class Agent(object):
         memory = ConversationBufferWindowMemory(k=5)
 
         agent_executor = AgentExecutor.from_agent_and_tools(agent=custom_agent, tools=self.tools, verbose=verbose,memory=memory,intermediate_steps=True,handle_parsing_errors=True,return_intermediate_steps=False)
+        # fix it to limit # of attempts
+
         return agent_executor
 # ----------------------------------------------------------------------------------------------------------------------
 #     def init_agent_custom2(self,verbose=True):

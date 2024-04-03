@@ -6,6 +6,7 @@ import openai
 import pandas as pd
 import yaml
 import uuid
+from tqdm import tqdm
 #----------------------------------------------------------------------------------------------------------------------
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents import SearchClient
@@ -17,7 +18,7 @@ from langchain.embeddings.azure_openai import AzureOpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain.schema.document import Document
 from azure.search.documents.models import VectorizedQuery, VectorQuery
-from transformers import AutoTokenizer, AutoModel
+from sentence_transformers import SentenceTransformer
 #----------------------------------------------------------------------------------------------------------------------
 #from azure.ai.textanalytics import TextAnalyticsClient
 #----------------------------------------------------------------------------------------------------------------------
@@ -34,6 +35,8 @@ class Client_Search(object):
 
         self.index_name = index_name if index_name is not None else (self.config_search['azure']['index_name'] if 'index_name' in self.config_search['azure'].keys() else None)
         self.search_client = self.get_search_client(self.index_name)
+        self.model_embedding = SentenceTransformer('paraphrase-MiniLM-L6-v2')
+        self.model_embedding.cuda()
 
         # if filename_config_emb_model is not None:
         #     with open(filename_config_emb_model, 'r') as config_file:
@@ -55,10 +58,9 @@ class Client_Search(object):
     #     return TextAnalyticsClient(endpoint=self.config_search['azure']['azure_search_endpoint'], credential=AzureKeyCredential(self.config_search['azure']['azure_search_key']))
 # ----------------------------------------------------------------------------------------------------------------------
     def tokenize_documents(self, dct_records, field_source, field_embedding):
-        print(len(dct_records))
-        for d in dct_records:
-            print('.')
-            d[field_embedding]=self.get_embedding_chroma(d[field_source])
+
+        for d in tqdm([d for d in dct_records],total=len(dct_records),desc='Tokenizing'):
+            d[field_embedding]=self.get_embedding_huggingface(d[field_source])
 
         return dct_records
 # ----------------------------------------------------------------------------------------------------------------------
@@ -143,14 +145,18 @@ class Client_Search(object):
         #     fields=fields)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def get_embedding_chroma(self,text):
-        #embedding = self.embedding.create(input=text, deployment_id=self.model_deployment_name)["data"][0]["embedding"]
-        #embedding = self.embedding.create(input=text,model=self.model_deployment_name).data[0].embedding
-        #embedding = self.embedding.embed_query(text)
-
-        self.chroma_db = Chroma.from_documents([Document(page_content=text, metadata={})], SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2"))
-        embedding = self.chroma_db._collection.get(include=['embeddings'])['embeddings']
-        return embedding[0]
+#     def get_embedding_chroma(self,text):
+#         #embedding = self.embedding.create(input=text, deployment_id=self.model_deployment_name)["data"][0]["embedding"]
+#         #embedding = self.embedding.create(input=text,model=self.model_deployment_name).data[0].embedding
+#         #embedding = self.embedding.embed_query(text)
+#         self.chroma_db = Chroma.from_documents([Document(page_content=text, metadata={})], SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2"))
+#         embedding = self.chroma_db._collection.get(include=['embeddings'])['embeddings']
+#         return embedding[0]
+# ----------------------------------------------------------------------------------------------------------------------
+    def get_embedding_huggingface(self, text):
+        embedding = self.model_embedding.encode(text)
+        embedding = embedding.tolist()
+        return embedding
 # ----------------------------------------------------------------------------------------------------------------------
     def get_indices(self):
         res = [x for x in self.search_index_client.list_index_names()]
@@ -198,7 +204,7 @@ class Client_Search(object):
         return result
 # ----------------------------------------------------------------------------------------------------------------------
     def search_hybrid(self, query,field='token',select=None,as_df=True,limit=5):
-        vector = self.get_embedding_chroma(query)
+        vector = self.get_embedding_huggingface(query)
         search_client = self.get_search_client(self.index_name)
         vector_query = VectorizedQuery(fields=field, exhaustive=True,vector=vector)
         search_res = search_client.search(search_text=query,vector_queries=[vector_query],top=limit)
@@ -207,7 +213,7 @@ class Client_Search(object):
         return result
 # ----------------------------------------------------------------------------------------------------------------------
     def search_vector(self,query,field='token',select=None,as_df=True,limit=4):
-        vector = self.get_embedding_chroma(query)
+        vector = self.get_embedding_huggingface(query)
         search_client = self.get_search_client(self.index_name)
         vector_query = VectorizedQuery(fields=field, exhaustive=True,vector=vector)
         search_res = search_client.search(search_text=None,vector_queries=[vector_query],top=limit)

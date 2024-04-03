@@ -170,7 +170,7 @@ def get_filenames(path_input,list_of_masks):
 def get_next_folder_out(base_folder_out):
     sub_folders = get_sub_folder_from_folder(base_folder_out)
     if len(sub_folders) > 0:
-        sub_folders = numpy.array(sub_folders, dtype=numpy.int)
+        sub_folders = numpy.array(sub_folders, dtype=int)
         sub_folders = numpy.sort(sub_folders)
         sub_folder_out = '%03d'%(sub_folders[-1] + 1)
     else:

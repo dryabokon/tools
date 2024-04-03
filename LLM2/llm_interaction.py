@@ -40,7 +40,7 @@ def display_debug_info(texts):
             print(tools_console_color.apply_style(pretify_string(t), color='blk'))
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def interaction_offline(A,query,method='run_query',do_debug=False,do_spinner=False):
+def interaction_offline(A,query,do_debug=False,do_spinner=False):
     width = 80
     if not isinstance(query,list):
         query = [query]
@@ -52,8 +52,7 @@ def interaction_offline(A,query,method='run_query',do_debug=False,do_spinner=Fal
             spinner = Halo(spinner={'interval': 100, 'frames': ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']})
             spinner.start()
 
-        #res,texts = A.run_query(q)
-        r = getattr(A, method)(q)
+        r = A.run_query(q)
         if len(r) ==2:
             res, texts = r[0],r[1]
         else:
@@ -68,7 +67,7 @@ def interaction_offline(A,query,method='run_query',do_debug=False,do_spinner=Fal
         if len(query)>1:
             print(''.join(['=']*width))
 
-    return
+    return r
 # ----------------------------------------------------------------------------------------------------------------------
 def interaction_live(A,method='run_query',do_debug=False,do_spinner=False):
     width = 80
