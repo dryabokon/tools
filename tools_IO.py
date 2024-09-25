@@ -170,7 +170,7 @@ def get_filenames(path_input,list_of_masks):
 def get_next_folder_out(base_folder_out):
     sub_folders = get_sub_folder_from_folder(base_folder_out)
     if len(sub_folders) > 0:
-        sub_folders = numpy.array(sub_folders, dtype=int)
+        sub_folders = numpy.array([int(str(s))  for s in sub_folders])
         sub_folders = numpy.sort(sub_folders)
         sub_folder_out = '%03d'%(sub_folders[-1] + 1)
     else:
@@ -784,4 +784,15 @@ def validate_str(value):
         res = res.replace('*', '_total_')
 
     return res
+# ----------------------------------------------------------------------------------------------------------------------
+def copy_missed_files(folder_large,folder_small,folder_out):
+    filenames_large = get_filenames(folder_large, '*.jpg')
+    filenames_small = get_filenames(folder_small, '*.jpg')
+    common_files = numpy.intersect1d(filenames_large, filenames_small)
+
+    for filename in filenames_large:
+        if filename not in common_files:
+            copyfile(folder_large + filename, folder_out + filename)
+
+    return
 # ----------------------------------------------------------------------------------------------------------------------

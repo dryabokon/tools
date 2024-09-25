@@ -106,7 +106,7 @@ class Benchmarker(object):
 
         if from_cache and os.path.exists(self.folder_out+'df_true2.csv') and os.path.exists(self.folder_out+'df_pred2.csv'):
             df_true = pd.read_csv(self.folder_out+'df_true2.csv')
-            df_pred = pd.read_csv(self.folder_out+'df_pred2.csv')
+            df_pred = pd.read_csv(self.folder_out+'df_track2.csv')
             return df_true,df_pred
 
         df_true = df_true0.copy()
@@ -117,16 +117,20 @@ class Benchmarker(object):
         jj = tqdm(range(df_true.shape[0]), desc=inspect.currentframe().f_code.co_name) if verbose else range(df_true.shape[0])
         for j in jj:
             best_i, best_iou  = None,-1
-
-            for i in numpy.where(df_true.iloc[j,0] == df_pred.iloc[:,0])[0]:
-                iuo_value = self.iou(df_true[['x1','y1','x2','y2']].iloc[j].values, df_pred[['x1','y1','x2','y2']].iloc[i].values)
+            boxA = df_true[['x1', 'y1', 'x2', 'y2']].iloc[j].values
+            for i in numpy.where(df_true['frame_id'].iloc[j] == df_pred['frame_id'])[0]:
+                boxB = df_pred[['x1', 'y1', 'x2', 'y2']].iloc[i].values
+                iuo_value = self.iou(boxA,boxB)
                 if (iuo_value >= iou_th) and (iuo_value > best_iou):
                     best_i = i
                     best_iou = iuo_value
 
             if best_i is not None:
-                df_true.loc[j,'pred_row'] = best_i
-                df_pred.loc[best_i,'true_row'] = j
+                # df_true['pred_row'].iloc[j] = best_i
+                # df_pred['true_row'].iloc[best_i] = j
+                df_true.iloc[j,df_true.columns.get_loc('pred_row')] = best_i
+                df_pred.iloc[best_i,df_pred.columns.get_loc('true_row')] = j
+
 
         df_true['row_id'] = numpy.arange(df_true.shape[0])
         df_pred['row_id'] = numpy.arange(df_pred.shape[0])
@@ -135,7 +139,6 @@ class Benchmarker(object):
         df_true = tools_DF.fetch(df_true, 'track_id', df_pred_track_id_top, 'track_id', ['track_id_pred_top'],col_new_name=['track_id_pred_top'])
         df_true['IDTP'] = (df_true['track_id_pred'] == df_true['track_id_pred_top'])
 
-
         df_pred = tools_DF.fetch(df_pred, 'true_row', df_true, 'row_id', ['track_id'],col_new_name=['track_id_true'])
         df_pred_track_id_top = tools_DF.my_agg(df_pred, ['track_id_true'], ['track_id'], aggs=['top'],list_res_names=['track_id_top'])
         df_pred = tools_DF.fetch(df_pred, 'track_id_true', df_pred_track_id_top, 'track_id_true', ['track_id_top'],col_new_name=['track_id_top'])
@@ -143,7 +146,7 @@ class Benchmarker(object):
 
         if verbose:
             df_true.to_csv(self.folder_out+'df_true2.csv',index=False)
-            df_pred.to_csv(self.folder_out+'df_pred2.csv', index=False)
+            df_pred.to_csv(self.folder_out+'df_track2.csv', index=False)
 
         return df_true,df_pred
     # ----------------------------------------------------------------------------------------------------------------------

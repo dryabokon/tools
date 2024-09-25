@@ -6,6 +6,7 @@ import cv2
 import numpy
 #from PIL import Image
 import uuid
+from tqdm import tqdm
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_image
 import tools_IO
@@ -90,7 +91,8 @@ def prepare_images(path_input, mask='*.png', framerate=10,stop_ms=0,duration_ms=
             image = tools_image.desaturate(image, 0.2)
             images.append(image)
     else:
-        II = numpy.linspace(0, len(filenames),int((duration_ms - stop_ms) * framerate / 1000 / (2 if do_reverce else 1)),endpoint=True).astype(numpy.int)
+        num = int((duration_ms - stop_ms) * framerate / 1000 / (2 if do_reverce else 1))
+        II = numpy.linspace(0, len(filenames),num,endpoint=True).astype(int)
 
 
         II[II == len(filenames)] = len(filenames) - 1
@@ -98,6 +100,8 @@ def prepare_images(path_input, mask='*.png', framerate=10,stop_ms=0,duration_ms=
         images_orig = []
         for b in numpy.arange(0, len(filenames), stride):
             image = cv2.imread(path_input + filenames[b])
+            #image = cv2.GaussianBlur(image, (5, 5), 0)
+
             if resize_H is not None and resize_W is not None:
                 image = tools_image.do_resize(image, (resize_W, resize_H))
             images_orig += [image]
@@ -129,7 +133,7 @@ def folder_to_animated_gif_imageio(path_input, filename_out, mask='*.png,*.jpg',
 
     return
 # ---------------------------------------------------------------------------------------------------------------------
-def folder_to_video(folder_in, filename_out, mask='*.jpg', framerate=24,stop_ms=0,duration_ms=None, resize_W=None, resize_H=None, stride=1,do_reverce=False):
+def folder_to_video(folder_in, filename_out, mask='*.jpg,*.png', framerate=24,stop_ms=0,duration_ms=None, resize_W=None, resize_H=None, stride=1,do_reverce=False):
 
     images = prepare_images(folder_in, mask, framerate, stop_ms, duration_ms, resize_H, resize_W, stride, do_reverce)
     if len(images)==0:
@@ -139,10 +143,23 @@ def folder_to_video(folder_in, filename_out, mask='*.jpg', framerate=24,stop_ms=
     resize_H, resize_W = images[0].shape[:2]
     out = cv2.VideoWriter(filename_out,fourcc, framerate, (resize_W,resize_H))
 
-    for image in images:
+    for image in tqdm(images,total=len(images),desc='Writing video'):
         out.write(image)
     out.release()
 
+    return
+# ---------------------------------------------------------------------------------------------------------------------
+def folder_to_video_simple(folder_in, filename_out, mask='*.jpg', framerate=24):
+    filenames = tools_IO.get_filenames(folder_in, mask)
+    image = cv2.imread(folder_in+filenames[0])
+
+    resize_H, resize_W =image.shape[:2]
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(filename_out, fourcc, framerate, (resize_W, resize_H))
+
+    for filename in tqdm(filenames, total=len(filenames), desc='Writing video'):
+        out.write(cv2.imread(folder_in+filename))
+    out.release()
     return
 # ---------------------------------------------------------------------------------------------------------------------
 def re_encode(filaneme_in,filename_out):
@@ -369,3 +386,17 @@ def extract_audio(folder_in,filename_video,filename_result):
     os.chdir(cur_dir)
     return
 # ---------------------------------------------------------------------------------------------------------------------
+
+
+# Universal has 3 theme parks in Orlando, one in Hollywood.
+# They are looking at implementing predictive maintenance on their critical components of their attractions to reduce downtime.
+# Some of these include motors, gearboxes, wheels/bearings, etc.
+# There are 3 facets of this process:
+#  What sensors need to be added to each attraction to properly equip them to generate the data needed to build a viable PdM model. For
+# those attractions that already have sensors, how can we access the data
+#       for the PLCs?  We would need to create a platform (no cloud).Once
+#       the data is accessed, we would work with Universal to build, test and
+#       implement a predictive model for each attraction involving initial
+#       anomaly detection, benchmarking, etc.Udayan
+#      will provide some background on some of the initial POCs we ran for
+#      Universal’s Hogwarts Express and Rip Ride Rockit.

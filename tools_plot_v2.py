@@ -1036,7 +1036,7 @@ class Plotter(object):
         df = pd.DataFrame(numpy.concatenate((Y.reshape(-1, 1), X), axis=1), columns=['Y', 'x0', 'x1'])
         df.sort_values(by=df.columns[0],inplace=True)
         #colors = [self.get_color(t)[[2, 1, 0]] / 255.0 for t in numpy.sort(numpy.unique(Y))]
-        colors = [self.colors[n]   [[2, 1, 0]] / 255.0 for n in range(len(numpy.unique(Y)))]
+        colors = [self.colors[n%(self.colors.shape[0])]   [[2, 1, 0]] / 255.0 for n in range(len(numpy.unique(Y)))]
         #colors = None
         self.plot_2D_features(df, remove_legend=False, colors=colors,marker_size=6,transparency=0.75,filename_out=filename_out)
         return

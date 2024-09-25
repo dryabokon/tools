@@ -27,7 +27,7 @@ class detector_VP:
         self.P = tools_plot_v2.Plotter(folder_out=folder_out)
 
 
-        self.TP = tools_time_profiler.Time_Profiler()
+        self.TP = tools_time_profiler.Time_Profiler(verbose=False)
 
         self.H = H
         self.W = W
@@ -430,7 +430,7 @@ class detector_VP:
                 idx_best_inliers = idx_inliers
         return best_hypothesis/best_hypothesis[-1], idx_best_inliers
 # ----------------------------------------------------------------------------------------------------------------------
-    def get_vp(self,lines,filename_out=None,image_debug=None):
+    def get_vp(self,lines,image_debug=None):
         self.TP.tic(inspect.currentframe().f_code.co_name, reset=True)
         vp1, idx_vl1 = self.run_line_ransac(lines)
         vp1_lines = self.reshape_lines_as_flat(lines[idx_vl1])
@@ -443,35 +443,54 @@ class detector_VP:
         else:
             vp1_lines_add  = numpy.array([(vp1[0], vp1[1], self.W-1 if vp1[0]<0 else 0, y) for y in numpy.linspace(0, self.H, 20)])
 
-        if filename_out is not None:
-            if image_debug is None:
-                image_debug = numpy.full((self.H,self.W,3),32,dtype=numpy.uint8,color_bg=(255,255,255))
+        if image_debug is not None:
+            #image_debug = numpy.full((self.H,self.W,3),32,dtype=numpy.uint8)
             factor = 3
             H, W = self.H, self.W
             image_ext = tools_draw_numpy.extend_view_from_image(tools_image.desaturate(image_debug), factor,color_bg=(255,255,255))
             image_ext = tools_draw_numpy.draw_lines(image_ext, tools_draw_numpy.extend_view(vp1_lines, H, W, factor), w=1)
             image_ext = tools_draw_numpy.draw_lines(image_ext, tools_draw_numpy.extend_view(vp1_lines_add, H, W, factor),color=(0,100,200),w=1)
             image_ext = tools_draw_numpy.draw_points(image_ext,tools_draw_numpy.extend_view(vp1[:2], H, W, factor),color=(255, 64, 0), w=8)
+            #cv2.imwrite(self.folder_out + 'VP.png', image_ext)
 
-
-            cv2.imwrite(self.folder_out + filename_out, image_ext)
         self.TP.print_duration(inspect.currentframe().f_code.co_name)
         return vp1,vp1_lines
 
 # ----------------------------------------------------------------------------------------------------------------------
-    def build_BEV_by_fov_van_point(self,image, cam_fov_x_deg,cam_fov_y_deg,point_van_xy_ver,point_van_xy_hor=None,do_rotation=True):
+    def build_BEV_by_fov_van_point(self,image, cam_fov_x_deg,cam_fov_y_deg,point_van_xy_ver,point_van_xy_hor=None,do_rotation=True,crop_rect=None):
+
+        trim = 3.0/4.0
 
         if isinstance(image,str):
             image = tools_image.desaturate(cv2.imread(image), level=0)
 
         h_ipersp,target_BEV_W, target_BEV_H,rot_deg = self.get_inverce_perspective_mat_v3(image, cam_fov_x_deg,point_van_xy_ver,point_van_xy_hor)
-        edges = numpy.array(([0, self.H*3/4], [0, self.H], [self.W, self.H*3/4], [self.W, self.H])).astype(numpy.float32)
+        edges = numpy.array(([0, self.H*trim], [0, self.H], [self.W, self.H*trim], [self.W, self.H])).astype(numpy.float32)
 
         if do_rotation:
             mat_R = tools_image.get_image_affine_rotation_mat(image, rot_deg, reshape=True)
             h_ipersp = numpy.matmul(numpy.concatenate([mat_R,numpy.array([0,0,1.0]).reshape((1,-1))],axis=0),h_ipersp)
             edges_BEV = cv2.perspectiveTransform(edges.reshape((-1,1,2)), h_ipersp).reshape((-1, 2))
             target_BEV_W, target_BEV_H = numpy.max(edges_BEV, axis=0)
+
+        if crop_rect is not None:
+            edges_BEV = cv2.perspectiveTransform(edges.reshape((-1, 1, 2)), h_ipersp).reshape((-1, 2))
+            w, h = numpy.max(edges_BEV, axis=0).astype(int)
+            start_x = int(w*crop_rect[0])
+            stop_x =  int(w*crop_rect[1])
+            start_y = int(h*crop_rect[2])
+            stop_y =  int(h*crop_rect[3])
+
+            target_BEV_W -= abs(start_x)
+            target_BEV_W -= (w-abs(stop_x))
+            target_BEV_H -= abs(start_y)
+            target_BEV_H -= (h-abs(stop_y))
+
+            original_corners = numpy.float32([[0, 0],[w, 0],[w, h],[0, h]])
+            crop_corners = numpy.float32([[+start_x, +start_y], [w+start_x-(w-stop_x), +start_y], [w+start_x-(w-stop_x), h+start_y-(h-stop_y)], [start_x, h+start_y-(h-stop_y)]])
+            mat_crop = cv2.getPerspectiveTransform(crop_corners,original_corners)
+            h_ipersp = numpy.matmul(mat_crop,h_ipersp)
+
 
         image_BEV = cv2.warpPerspective(image, h_ipersp, (int(target_BEV_W), int(target_BEV_H)), borderValue=(32, 32, 32))
         center_BEV = cv2.perspectiveTransform(numpy.array(((self.W / 2, self.H / 2))).reshape((-1, 1, 2)),h_ipersp).reshape((-1, 2))[0]
@@ -517,6 +536,7 @@ class detector_VP:
             p_camera_BEV_xy = tools_image.rotate_point(p_camera_BEV_xy, center, rot_deg, reshape=True)
             center_BEV = tools_image.rotate_point(center_BEV, center, rot_deg, reshape=True)
             lines_edges_BEV = numpy.array([tools_image.rotate_point(p, center, rot_deg, reshape=True) for p in lines_edges_BEV.reshape((-1, 2))]).reshape((-1, 4))
+
 
         image_BEV = tools_draw_numpy.draw_points(image_BEV, [center_BEV],w=10, color=(0, 0, 200))
         image_BEV = tools_draw_numpy.draw_lines(image_BEV, lines_edges_BEV, w=3, color=(0, 0, 200))
@@ -1135,7 +1155,7 @@ class detector_VP:
 
         return h_ipersp
 # ----------------------------------------------------------------------------------------------------------------------
-    def get_inverce_perspective_mat_v3(self,image,cam_fov_deg,point_van_xy_ver,point_van_xy_hor=None,do_debug=True):
+    def get_inverce_perspective_mat_v3(self,image,cam_fov_deg,point_van_xy_ver,point_van_xy_hor=None,do_debug=False):
         H, W = image.shape[:2]
         target_H = H
 
@@ -1170,7 +1190,7 @@ class detector_VP:
             im = tools_draw_numpy.draw_points(tools_image.desaturate(image), src.astype(int), color=(0, 0, 200), w=4, put_text=True)
             im = tools_draw_numpy.draw_convex_hull(im, src.astype(int),color=(0, 0, 200),transperency=0.9)
             im = tools_draw_numpy.draw_lines(im,[upper_line,bottom_line,line_van_left,line_van_right],color=(0, 0, 200))
-            cv2.imwrite('./images/output/ppp.png',im)
+            #cv2.imwrite('./images/output/ppp.png',im)
 
         min_delta = numpy.inf
         h_ipersp_best = None

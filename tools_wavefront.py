@@ -183,7 +183,7 @@ class ObjLoader:
             del_triangles, normals = [], []
         return del_triangles, normals
 # ----------------------------------------------------------------------------------------------------------------------
-    def convert_v0(self, filename_in, filename_out,filename_material=None,do_normalize=True,bias_vertex=0,bias_texture=0,bias_normal=0):
+    def convert_v0(self, filename_in, filename_out,filename_material=None,bias_vertex=0,bias_texture=0,bias_normal=0,center=None,max_size=None):
         coord_vert = []
         coord_texture = []
         coord_norm = []
@@ -230,11 +230,14 @@ class ObjLoader:
                     for triangle in triangles:
                         idx_vertex.append(I[triangle])
 
-        if do_normalize:
-            for c in [0,1,2]:
-                coord_vert[:, c] -= coord_vert[:,c].mean()
-                coord_vert[:, c]/= (coord_vert[:, c].max()/100.0)
+        max_size = 1 if max_size is None else max_size
 
+        for c in [0,1,2]:
+            coord_vert[:, c] -= coord_vert[:,c].mean()
+            coord_vert[:, c]/= (coord_vert[:,c].max()/max_size)
+
+        if center is not None:
+            coord_vert+=center
 
         idx_vertex = numpy.array(idx_vertex)+bias_vertex
         idx_texture = numpy.array(idx_texture)+bias_texture

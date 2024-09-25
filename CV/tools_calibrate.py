@@ -291,6 +291,21 @@ def get_homography_by_keypoints_desc(points_source,des_source, points_destin,des
 
     return M
 # ---------------------------------------------------------------------------------------------------------------------
+def get_euclidian_by_keypoints_desc(points_source,des_source, points_destin,des_destin,matchtype='knn'):
+
+    M = None
+    if points_source is None or des_source is None or points_destin is None or des_destin is None:
+        return M
+
+    src, dst, distance = tools_alg_match.get_matches_from_keypoints_desc(points_source, des_source, points_destin,des_destin, matchtype=matchtype)
+
+    if src is not None:
+        M = get_euclide_by_keypoints(src, dst)
+        if M is None:
+            return M
+
+    return M
+# ---------------------------------------------------------------------------------------------------------------------
 def get_transform_by_keypoints(src,dst):
 
     M,_ = cv2.estimateAffine2D(src, dst,confidence=0.95)
@@ -305,6 +320,11 @@ def get_homography_by_keypoints(src,dst):
     M, mask = cv2.findHomography(src, dst, method, 3.0)
 
     return M
+#----------------------------------------------------------------------------------------------------------------------
+def get_euclide_by_keypoints(src,dst):
+    E, _ = cv2.estimateAffinePartial2D(numpy.array(src), numpy.array(dst))
+
+    return E
 #----------------------------------------------------------------------------------------------------------------------
 def is_homography_good(src, dst,M):
     src_w = numpy.max(src[:, 0])

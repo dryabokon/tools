@@ -1,7 +1,8 @@
 #https://kaustubh-sadekar.github.io/OmniCV-Lib/index.html#output-gallery
 import cv2
 import numpy
-
+import math
+# ----------------------------------------------------------------------------------------------------------------------
 class Converter:
     def __init__(self,param_file_path=None):
         self.Hd = None
@@ -10,6 +11,8 @@ class Converter:
         self.map_y = None
         self.singleLens = False
         self.filePath = param_file_path
+        self.iI, self.iJ = None, None
+        self.xs, self.ys = None, None
 
     def rmat(self,alpha,beta,gamma):
         rx = numpy.array(
@@ -37,22 +40,24 @@ class Converter:
         return numpy.matmul(rz, numpy.matmul(ry, rx))
 # ----------------------------------------------------------------------------------------------------------------------
     def apply_fisheye_effect(self,img, distortion=2):
+        img = cv2.imread(img) if isinstance(img, str) else img
 
-        img = cv2.resize(img, (img.shape[0], img.shape[0]))
+        #img = cv2.resize(img, (img.shape[0], img.shape[0]))
         H, W = img.shape[:2]
 
         x, y = numpy.arange(0, 1 * H), numpy.arange(0, 1 * W)
-        xnd = ((x - 0.5 * W) / W)
-        ynd = ((y - 0.5 * H) / H)
+        cx,cy = 0.5 ,0.5
+        xnd = ((x - cx * W) / W)
+        ynd = ((y - cy * H) / H)
 
         gg1, gg2 = numpy.meshgrid(xnd, ynd)
-        rd = gg1 ** 2 + gg2 ** 2
+        rd = gg1**2 + gg2 ** 2
 
         ddd = (1 - (distortion * rd))
         ddd[ddd == 0] = 1e-4
 
-        xdu = gg1 / ddd
-        ydu = gg2 / ddd
+        xdu = 1.3*gg1 / ddd
+        ydu = 1.3*gg2 / ddd
 
         map_x = (((xdu + 1.0) * W) / 2).astype('float32')
         map_y = (((ydu + 1.0) * H) / 2).astype('float32')
@@ -64,6 +69,100 @@ class Converter:
         dstimg[map_y > H] = 0
 
         return dstimg
+    # ----------------------------------------------------------------------------------------------------------------------
+    def mymap_fisheye(self,i,j,ofocinv, dim,_dtype,_fov):
+
+        H, W = i.shape[:2]
+        xd = i - (W-1) // 2
+        yd = j - (H-1) // 2
+        rd = numpy.hypot(xd, yd)
+        phiang = numpy.arctan(ofocinv * rd)
+        if _dtype == "linear":rr = dim * 180 / (_fov * numpy.pi) * phiang
+        elif _dtype == "equalarea":rr = dim / (2.0 * numpy.sin(_fov * numpy.pi / 720)) * numpy.sin(phiang / 2)
+        elif _dtype == "orthographic":rr = dim / (2.0 * numpy.sin(_fov * numpy.pi / 360)) * numpy.sin(phiang)
+        elif _dtype == "stereographic":rr = dim / (2.0 * numpy.tan(_fov * numpy.pi / 720)) * numpy.tan(phiang / 2)
+        rdmask = (rd != 0)
+        xs = xd.copy()
+        ys = yd.copy()
+        xs[rdmask] = (W-1) // 2 + ((rr[rdmask] / rd[rdmask]) * xd[rdmask]).astype(int)
+        ys[rdmask] = (H-1) // 2 + ((rr[rdmask] / rd[rdmask]) * yd[rdmask]).astype(int)
+        xs[~rdmask] = 0
+        ys[~rdmask] = 0
+
+        #iI = (xs-(W-1)//2)/(rr/rd) + (W-1)//2
+        #iJ = (ys-(H-1)//2)/(rr/rd) + (H-1)//2
+        # i[885, 758], j[885, 758]
+        #xs[751,1163],ys[751,1163] = (885, 758)      #iI[758,885],iJ[758,885]  = (1163, 751)
+        #xs[426,1490],ys[426,1490] = (1266, 267)     iI[267,1266],iJ[267,1266] = (1490, 426)
+        #
+        #iI0 = ((W - 1) // 2 + (rd * (xs - (W - 1) // 2)) / rr)
+        #iJ0 = ((H - 1) // 2 + (rd * (ys - (H - 1) // 2)) / rr)
+        #iI,iJ = self.mymap_fisheye_inv(xs, ys,ofocinv, dim, _dtype, _fov)
+        #ii=0
+
+        return xs, ys
+# ----------------------------------------------------------------------------------------------------------------------
+    def mymap_fisheye_inv(self, xs, ys):
+        height, width = xs.shape
+        iI = numpy.zeros_like(xs, dtype=int)
+        iJ = numpy.zeros_like(ys, dtype=int)
+
+        for y in range(height):
+            for x in range(width):
+                new_x = int(round(xs[y, x]))
+                new_y = int(round(ys[y, x]))
+                if 0 <= new_x < width and 0 <= new_y < height:
+                    iI[new_y, new_x] = x
+                    iJ[new_y, new_x] = y
+
+        return iI, iJ
+# ----------------------------------------------------------------------------------------------------------------------
+    def get_coord(self,p,iI,iJ):
+        res1 = 0
+        R = 20
+        for r in range(0,R):
+            A = iI[p[1] - r:p[1] + r + 1, p[0] - r:p[0] + r + 1]
+            A = A[A>0].flatten()
+            if len(A)>0:
+                res1 = A.mean()
+                break
+
+        res2 =0
+        for r in range(0, R):
+            A = iJ[p[1] - r:p[1] + r + 1, p[0] - r:p[0] + r + 1]
+            A = A[A > 0].flatten()
+            if len(A) > 0:
+                res2 = A.mean()
+                break
+
+        return res1,res2
+# ----------------------------------------------------------------------------------------------------------------------
+    def warmup(self,W,H,_dtype,_format,_fov,_pfov):
+        if self.iI is None:
+            dim = min(W, H) if _format == "circular" else numpy.sqrt(W**2.0 + H**2.0)
+            ofoc = dim / (2 * math.tan(_pfov * numpy.pi / 360))
+            ofocinv = 1.0 / ofoc
+            i, j = numpy.meshgrid(numpy.arange(W), numpy.arange(H))
+            self.xs, self.ys, = self.mymap_fisheye(i, j, ofocinv, dim,_dtype,_fov)
+            self.iI, self.iJ = self.mymap_fisheye_inv(self.xs, self.ys)
+        return
+# ----------------------------------------------------------------------------------------------------------------------
+    def remove_fisheye_effect(self,img,_dtype,_format,_fov,_pfov,xy=[]):
+        # dtypes = ['linear', 'equalarea', 'orthographic', 'stereographic']
+        self.warmup(img.shape[1],img.shape[0],_dtype,_format,_fov,_pfov)
+
+        H,W = img.shape[:2]
+        img_res = cv2.remap(img, self.xs.astype(numpy.float32), self.ys.astype(numpy.float32),interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_WRAP)
+        img_res[(self.xs < 0) | (self.ys < 0) | (self.xs > W) | (self.ys > H)] = 0
+
+        res_xy = numpy.array([self.get_coord(p.astype(int),self.iI,self.iJ) for p in xy])
+        return img_res,res_xy
+# ----------------------------------------------------------------------------------------------------------------------
+    def remove_fisheye_effect_xy(self, W,H,_dtype, _format, _fov, _pfov, xy):
+        # dtypes = ['linear', 'equalarea', 'orthographic', 'stereographic']
+        self.warmup(W,H, _dtype, _format, _fov, _pfov)
+        res_xy = numpy.array([self.get_coord(p, self.iI, self.iJ) for p in xy.astype(int)])
+        return res_xy
 # ----------------------------------------------------------------------------------------------------------------------
     def fisheye2panoram(self,srcFrame,outShape,offset_x=0,x_min=0,x_max=1.0,y_min=0.0,y_max=0.0):
         Cx = srcFrame.shape[0] / 2

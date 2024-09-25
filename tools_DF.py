@@ -181,8 +181,7 @@ def add_noise_smart(df,idx_target=0,A = 0.2):
     df_res  =df.copy()
 
     idx = numpy.delete(numpy.arange(0, df.shape[1]), idx_target)
-    df.iloc[:,idx[0]]=df.iloc[:,idx[0]].astype(float)
-    df.iloc[:,idx[1]]=df.iloc[:,idx[1]].astype(float)
+    df_res = df_res.astype({df.columns[idx[0]]: 'float', df.columns[idx[1]]: 'float'})
 
     uX = df.iloc[:, idx[0]].unique()
     uY = df.iloc[:, idx[1]].unique()
@@ -367,13 +366,13 @@ def apply_filter(df,col_name,filter,inverce=False):
 
     return df[idx]
 # ---------------------------------------------------------------------------------------------------------------------
-def prettify(df,showheader=True,showindex=True,tablefmt='psql',desc='',maxcolwidths=None,filename_out=None):
+def prettify(df,showheader=True,showindex=True,tablefmt='psql',desc='',maxcolwidths=None,floatfmt="%.2f",filename_out=None):
 
     #df.iloc[:,-1] = df.iloc[:,-1].apply(lambda x: fill(x, width=maxcolwidths))
     if df.shape[0]==0 or df.shape[1]==0:
         res = ''
     else:
-        res = tabulate(df, headers=df.columns if showheader else [], tablefmt=tablefmt, showindex=showindex,maxcolwidths=maxcolwidths,disable_numparse=True)
+        res = tabulate(df, headers=df.columns if showheader else [], tablefmt=tablefmt, showindex=showindex,maxcolwidths=maxcolwidths,disable_numparse=True,floatfmt=floatfmt)
 
     if desc!='':
         bar = ''.join(['-'] * len(res.split('\n')[0]))
@@ -397,6 +396,8 @@ def fetch(df1,col_name1,df2,col_name2,col_value,col_new_name=None):
             else:
                 ddd = df2[[col_name2, col]].drop_duplicates(subset=[col_name2])
             V = pd.merge(df1[col_name1], ddd, how='left',left_on=col_name1, right_on=col_name2)[col]
+
+
             df_res[col if col_new_name is None else col_new_name[c]] = [v for v in V.values]
     else:
         if isinstance(col_name2,list):
@@ -612,4 +613,13 @@ def auto_explode(df, col_name):
     df2 = df2.rename(columns=dct_rename).astype(dtype_conversions)
 
     return df2
+# ---------------------------------------------------------------------------------------------------------------------
+def add_column(df, col_name, value,pos=0):
+    cols = df.columns
+    df[col_name] = value
+
+    new_cols = [c for c in cols[:pos]] + [col_name] + [c for c in cols[pos:]]
+    df = df[[c for c in new_cols]]
+
+    return df
 # ---------------------------------------------------------------------------------------------------------------------

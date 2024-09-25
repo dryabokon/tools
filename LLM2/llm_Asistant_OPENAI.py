@@ -9,16 +9,13 @@ import tools_DF
 import tools_Logger
 import tools_time_profiler
 #----------------------------------------------------------------------------------------------------------------------
-from langchain.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI
 from openai import OpenAI
 #----------------------------------------------------------------------------------------------------------------------
-
 class Assistant_OPENAILLM(object):
     def __init__(self, filename_config,folder_out):
-
-
-        client = OpenAI()
-        file = client.files.create(file=open("./ex_00_healthcheck.py", "rb"), purpose='assistants')
+        #client = OpenAI()
+        #file = client.files.create(file=open("./ex_00_healthcheck.py", "rb"), purpose='assistants')
 
         with open(filename_config, 'r') as config_file:
             config = yaml.safe_load(config_file)
@@ -30,19 +27,10 @@ class Assistant_OPENAILLM(object):
         self.client = OpenAI(organization='org-3RPa8REGk1GuWZb27bEEW2jh')
         self.LLM = ChatOpenAI(temperature=0, openai_api_key=config['openai']['key'], model_name=self.engine)
 
-        # stream = self.client.chat.completions.create(
-        #     model="gpt-4",
-        #     messages=[{"role": "user", "content": "Say this is a test"}],
-        #     stream=True,
-        # )
-        # for chunk in stream:
-        #     if chunk.choices[0].delta.content is not None:
-        #         print(chunk.choices[0].delta.content, end="")
-
-
         self.L = tools_Logger.Logger(folder_out+'Assistant_OPENAILLM.csv')
         self.TP = tools_time_profiler.Time_Profiler(verbose=False)
         self.thread = None
+        self.assistant_id = None
         return
 #----------------------------------------------------------------------------------------------------------------------
     def pretify_string(self,text,N=120):
@@ -64,21 +52,19 @@ class Assistant_OPENAILLM(object):
         return result
 # ----------------------------------------------------------------------------------------------------------------------
     def Q(self, prompt, temp=0.7, top_p=1.0, tokens=400, freq_pen=0.0, pres_pen=0.0):
-
-        messages = [{"role": "system","content": prompt}]
-        #response = self.client.chat.completions.create(model=self.engine, messages=messages,temperature=temp, max_tokens=tokens, top_p=top_p, frequency_penalty=freq_pen,presence_penalty=pres_pen)
-        #response = self.client.completions.create(model=self.engine, prompt=prompt)
-        #res = response.choices[0].message.content
-
+        response = self.client.chat.completions.create(model=self.engine, messages=[{"role": "user","content": prompt}],temperature=temp, max_tokens=tokens, top_p=top_p, frequency_penalty=freq_pen,presence_penalty=pres_pen)
+        res = response.choices[0].message.content
+        return res
+# ----------------------------------------------------------------------------------------------------------------------
+    def Q_stream(self,prompt):
         stream = self.client.chat.completions.create(model=self.engine,messages=[{"role": "user", "content": prompt}],stream=True)
         for chunk in stream:
             if chunk.choices[0].delta.content is not None:
                 print(chunk.choices[0].delta.content, end="")
 
         res = ''
-
         return res
-    # ----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
     def wait_for_run_completion(self,thread_id, run_id, sleep_interval=5):
         while True:
             try:
@@ -132,7 +118,7 @@ class Assistant_OPENAILLM(object):
         # response_step = requests.get(url_step, headers=headers)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def Q_assistant(self,query,assistant_id,file_id=None,verbose=True):
+    def run_query(self,query,file_id=None,verbose=False):
 
         if verbose:
             print(query)
@@ -147,7 +133,7 @@ class Assistant_OPENAILLM(object):
         thread = self.client.beta.threads.create(messages=messages)
         self.L.write(thread.id)
 
-        run = self.client.beta.threads.runs.create(thread_id=thread.id,assistant_id=assistant_id)
+        run = self.client.beta.threads.runs.create(thread_id=thread.id,assistant_id=self.assistant_id)
         self.L.write(run.id)
         self.wait_for_run_completion(thread.id, run.id, sleep_interval=5)
         messages = self.client.beta.threads.messages.list(thread_id=thread.id)

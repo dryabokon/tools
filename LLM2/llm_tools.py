@@ -5,13 +5,11 @@ warnings.filterwarnings( 'ignore', module = 'langchain' )
 import re
 import numpy
 import numpy_financial
-from scipy.optimize import fsolve
 from langchain.chains import LLMMathChain
 from langchain.agents import Tool
 from langchain.agents.agent_toolkits import NLAToolkit
 from langchain_experimental.tools.python.tool import PythonAstREPLTool
 from langchain.tools import StructuredTool
-from langchain_community.tools.tavily_search import TavilyAnswer
 # ----------------------------------------------------------------------------------------------------------------------
 from LLM2 import llm_config,llm_models,llm_chains,llm_RAG,llm_interaction,llm_tools,llm_Agent
 # ----------------------------------------------------------------------------------------------------------------------
@@ -28,6 +26,7 @@ def custom_func_IRR_calc(cash_flows:str):
     return irr
 # ----------------------------------------------------------------------------------------------------------------------
 def custom_func_sales_for_target_irr(cash_flows:list, target_irr: float) -> float:
+    from scipy.optimize import fsolve
     #print('custom_func_sales_for_target_irr executed..')
     def f_irr(x, *data):
         cash_flows = data[:-1]
@@ -157,9 +156,9 @@ def get_tool_read_file():
 #     tools = [Tool(func=A_RAG.run_query, name="File Analyzer", description="Automated analysis of the content retreived by the file reader tool.")]
 #     return tools
 # ----------------------------------------------------------------------------------------------------------------------
-def get_tool_search():
-    tools = [TavilyAnswer(max_results=1, name="Intermediate Answer")]
-    return tools
+#def get_tool_search():
+#    tools = [TavilyAnswer(max_results=1, name="Intermediate Answer")]
+#    return tools
 # ----------------------------------------------------------------------------------------------------------------------
 def pretify_output(plain_text):
 

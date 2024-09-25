@@ -1,4 +1,9 @@
 # ----------------------------------------------------------------------------------------------------------------------
+def get_config_neo4j():
+    class cnfg(object):
+        filename_config_neo4j = './secrets/private_config_neo4j.yaml'
+    return cnfg()
+# ----------------------------------------------------------------------------------------------------------------------
 def get_config_openAI():
     class cnfg(object):
         engine = 'openai'
@@ -19,9 +24,11 @@ def get_config_azure():
 
     return cnfg()
 # ----------------------------------------------------------------------------------------------------------------------
-def get_config_neo4j():
+def get_config_GCP():
     class cnfg(object):
-        filename_config_neo4j = './secrets/private_config_neo4j.yaml'
-
+        engine = 'GCP'
+        filename_config_chat_model = './secrets/GL/private_config_GCP.yaml'
+        filename_config_emb_model = './secrets/GL/private_config_GCP.yaml'
+        filename_config_vectorstore = './secrets/GL/private_config_azure_search.yaml'
     return cnfg()
 # ----------------------------------------------------------------------------------------------------------------------

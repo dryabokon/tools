@@ -7,6 +7,7 @@ import json
 import yaml
 from langchain.chains.question_answering import load_qa_chain
 from langchain.chains.summarize import load_summarize_chain
+from langchain.chains import create_retrieval_chain
 from langchain.graphs import Neo4jGraph
 from langchain.chains import GraphCypherQAChain
 from langchain.chains import APIChain
@@ -15,8 +16,13 @@ def get_chain_chat(LLM):
     chain = load_qa_chain(LLM)
     return chain
 # ----------------------------------------------------------------------------------------------------------------------
-def get_chain_summary(LLM,question_prompt,chain_type="refine"):
-    chain = load_summarize_chain(LLM, question_prompt=question_prompt,chain_type=chain_type,verbose=True)
+def get_chain_retrieval(LLM):
+    chain = create_retrieval_chain(LLM)
+    return chain
+# ----------------------------------------------------------------------------------------------------------------------
+def get_chain_summary(LLM,question_prompt=None,chain_type="refine"):
+    #chain = load_summarize_chain(LLM, question_prompt=question_prompt,chain_type=chain_type,verbose=True)
+    chain = load_summarize_chain(LLM, chain_type=chain_type,verbose=True)
     return chain
 # ----------------------------------------------------------------------------------------------------------------------
 def get_chain_Neo4j(LLM,filename_config_neo4j):

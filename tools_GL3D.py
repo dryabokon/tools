@@ -273,7 +273,7 @@ class render_GL3D(object):
                 texture_image = numpy.full((10, 10, 3), 255)
                 self.textured = False
             else:
-                texture_image = cv2.cvtColor(cv2.imread(self.object.filename_texture[-1]), cv2.COLOR_BGR2RGB)
+                texture_image = cv2.cvtColor(cv2.imread(self.object.filename_texture[-1]), cv2.COLOR_BGR2RGB)[::-1]
 
         glBindTexture(GL_TEXTURE_2D, 0)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
@@ -384,10 +384,24 @@ class render_GL3D(object):
 
     # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_transform(self, scale_vec):
-        self.mat_trns = pyrr.Matrix44.from_scale(scale_vec)
+        self.mat_trns = numpy.array(pyrr.Matrix44.from_scale(scale_vec))
         # !!!
         # self.mat_trns[1,1]*=-1
         # self.mat_trns[2,2]*=-1
+
+        #v1,v2 = self.mat_trns[1], self.mat_trns[2]
+
+        #self.mat_trns[0],self.mat_trns[2] = self.mat_trns[2].copy(), self.mat_trns[0].copy()
+
+        # self.mat_trns[0, 0] =0
+        # self.mat_trns[2, 2]= 0
+        # self.mat_trns[2, 0] = 1.0
+        # self.mat_trns[0, 2] = 1.0
+
+
+
+        #self.mat_trns[1,:],self.mat_trns[2,:] = self.mat_trns[2,:],self.mat_trns[1,:]
+
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "transform"), 1, GL_FALSE, self.mat_trns)
         return
 

@@ -7,6 +7,10 @@ from pytube import YouTube
 from PIL import Image
 from os import listdir
 import fnmatch
+from tqdm import tqdm
+import yt_dlp
+import av
+import tools_IO
 # ----------------------------------------------------------------------------------------------------------------------
 def do_rescale(image,scale,anti_aliasing=True,multichannel=False):
     pImage = Image.fromarray(image)
@@ -86,6 +90,7 @@ def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_se
     #tools_IO.remove_files(folder_out,create=True)
     vidcap = cv2.VideoCapture(filename_in)
     total_frames = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
+
     fps = vidcap.get(cv2.CAP_PROP_FPS)
     end_time = vidcap.get(cv2.CAP_PROP_POS_MSEC)
     vidcap.set(cv2.CAP_PROP_POS_MSEC, start_time_sec*1000)
@@ -95,15 +100,21 @@ def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_se
 
     count = 0
 
-    while success:
+    with tqdm(total=total_frames) as pbar:
+        while success:
+            pbar.update(1)
+            cv2.imwrite(folder_out+prefix+'%06d.jpg' % count, image)
+            try:
+                success, image = vidcap.read()
+            except:
+                pass
 
-        cv2.imwrite(folder_out+prefix+'%06d.png' % count, image)
-        success, image = vidcap.read()
-        if success and scale != 1: image = do_rescale(image, scale)
-        if end_time_sec is not None and end_time_sec<1000000:
-            current_time = vidcap.get(cv2.CAP_PROP_POS_MSEC)
-            if current_time > 1000*end_time_sec: success = False
-        count += 1
+            if success and scale != 1: image = do_rescale(image, scale)
+            if end_time_sec is not None and end_time_sec<1000000:
+                current_time = vidcap.get(cv2.CAP_PROP_POS_MSEC)
+                if current_time > 1000*end_time_sec: success = False
+            count += 1
+
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -161,11 +172,29 @@ def extract_frames_v3(filename_in,folder_out,frame_IDs,prefix='',scale=1):
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def grab_youtube_video(URL,out_path, out_filename,resolution='720p'):
+def extract_frames_ffmpeg(filename_in,folder_out,prefix='',start_time_sec=0,end_time_sec=None,stride=1,scale=1):
+
+    if not os.path.exists(folder_out):
+            os.mkdir(folder_out)
+    tools_IO.remove_files(folder_out,create=True)
+
+    hwaccel = {'hwaccel': 'cuda'}
+
+    container = av.open(filename_in,options=hwaccel)
+    cnt = 1
+
+    for frame in tqdm(container.decode(container.streams.video[0]),total=container.streams.video[0].frames):
+        frame.to_image().save(folder_out + prefix + '%06d.jpg' % cnt)
+        cnt+=1
+
+    return
+# ----------------------------------------------------------------------------------------------------------------------
+def grab_youtube_video(URL,out_path, out_filename):
 
     try:
         yt = YouTube(URL)
         stream_filtered = yt.streams.filter(file_extension="mp4")
+        resolution = sorted([s.resolution for s in stream_filtered.fmt_streams if s.resolution is not None and s.resolution[-1] == 'p'])[-1]
         stream_filtered = stream_filtered.get_by_resolution(resolution)
         stream_filtered.download(out_path, out_filename)
         df_log = pd.DataFrame({'URL': [URL], 'title': [yt.title], 'description': [yt.description], 'author': [yt.author]})
@@ -173,4 +202,58 @@ def grab_youtube_video(URL,out_path, out_filename,resolution='720p'):
         df_log = pd.DataFrame({'URL':[],'title':[],'description':[],'author':[]})
 
     return df_log
+# ----------------------------------------------------------------------------------------------------------------------
+# def grab_youtube_stream0(source,folder_out,total_frames = 1000):
+#     tools_IO.remove_files(folder_out,'*.jpg')
+#
+#     with yt_dlp.YoutubeDL({'format': 'bestvideo[ext=mp4]', 'noplaylist': True, 'quiet': True, 'simulate': True}) as ydl:
+#         cap = cv2.VideoCapture(ydl.extract_info(source, download=False)['url'])
+#
+#
+#     for i in tqdm(range(total_frames), total=total_frames):
+#         ret, image = cap.read()
+#         cv2.imwrite(folder_out + 'frame_%06d.jpg' % i, image)
+#
+#     cap.release()
+#     cv2.destroyAllWindows()
+#
+#     import tools_animation
+#     tools_animation.folder_to_video(folder_out, folder_out+source.split('?v=')[-1]+'.mp4')
+#
+#     return
+# ----------------------------------------------------------------------------------------------------------------------
+def grab_youtube_stream(source,filename_out,total_frames = 1000):
+    # youtube_dl_options = {
+    #     "format": "best[height=720]",  # This will select the specific resolution typed here
+    #     "outtmpl": "%(title)s-%(id)s.%(ext)s",
+    #     "restrictfilenames": True,
+    #     "nooverwrites": True,
+    #     "writedescription": True,
+    #     "writeinfojson": True,
+    #     "writeannotations": True,
+    #     "writethumbnail": True,
+    #     "writeautomaticsub": True
+    # }
+
+    youtube_dl_options = {'format': 'bestvideo[ext=mp4]', 'noplaylist': True, 'quiet': True, 'simulate': True}
+
+    with yt_dlp.YoutubeDL(youtube_dl_options) as ydl:
+        cap = cv2.VideoCapture(ydl.extract_info(source, download=False)['url'])
+
+    ret, image = cap.read()
+
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+
+    resize_H, resize_W = image.shape[:2]
+    framerate = 24
+    out = cv2.VideoWriter(filename_out, fourcc, framerate, (resize_W, resize_H))
+
+    for i in tqdm(range(total_frames), total=total_frames):
+        ret, image = cap.read()
+        out.write(image)
+
+    out.release()
+    cap.release()
+    cv2.destroyAllWindows()
+    return
 # ----------------------------------------------------------------------------------------------------------------------

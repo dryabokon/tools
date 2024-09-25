@@ -36,7 +36,7 @@ class processor_Neo4j(object):
             auth = (config['database']['user'], config['database']['password'])
             self.database = config['database']['dbname']
             self.driver = neo4j.GraphDatabase.driver(url, auth=auth)
-            self.gds = GraphDataScience(url, auth=auth, database=self.database)
+            #self.gds = GraphDataScience(url, auth=auth, database=self.database)
 
 
         return

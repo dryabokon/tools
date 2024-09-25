@@ -131,6 +131,12 @@ def get_best_matches(image1,image2,disp_v1, disp_v2, disp_h1, disp_h2, window_si
     return numpy.array(coord1), numpy.array(coord2),numpy.array(quality)
 
 # ---------------------------------------------------------------------------------------------------------------------
+def get_descriptions(image,keypoints, detector='SIFT'):
+    if detector == 'SIFT':detector = cv2.SIFT_create()
+    else:detector = cv2.ORB_create()
+    keypoints, descriptors = detector.compute(image, [cv2.KeyPoint(int(x[0]), int(x[1]), 1) for x in keypoints])
+    return descriptors
+# ---------------------------------------------------------------------------------------------------------------------
 def get_keypoints_desc(image1, detector='SIFT'):
 
     if len(image1.shape) == 2:
@@ -349,12 +355,20 @@ def get_matches_on_desc_knn(des_source, des_destin):
     matches = bf.knnMatch(des_destin, des_source, k=2)
 
     verify_ratio = 0.8
+    #verify_ratio = 200.0
     verified_matches = []
     for m1, m2 in matches:
-        if m1.distance < 0.8 * m2.distance:
+        if m1.distance < verify_ratio * m2.distance:
             verified_matches.append(m1)
 
     return verified_matches
+# --------------------------------------------------------------------------------------------------------------------------
+def get_match_quality(des_source, des_destin):
+
+    matches = cv2.BFMatcher().knnMatch(des_destin, des_source, k=2)
+    q = [0*m1.distance + m2.distance for m1, m2 in matches]
+    res = numpy.array(q).mean()
+    return res
 # --------------------------------------------------------------------------------------------------------------------------
 def get_matches_on_desc_flann(des_source, des_destin):
 

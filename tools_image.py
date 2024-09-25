@@ -70,15 +70,32 @@ def smart_resize_point(original_x, original_y, original_w, original_h, target_w,
     if scale_hor<scale_ver:
         scale = scale_hor
         y = int(original_y * scale)
-        x = int(original_x * scale)
-        x+=int(0.5 * (target_w - original_w * scale))
+        x = int((original_x * scale)+ (0.5 * (target_w - original_w * scale)))
+        # original_y2 = int(y/scale)
+        # original_x2 = int((x - (0.5 * (target_w - original_w * scale)))/scale)
+
     else:
         scale = scale_ver
         x = int(original_x * scale)
-        y = int(original_y * scale)
-        y+=int(0.5 * (target_h - original_h * scale))
+        y = int((original_y * scale) + (0.5 * (target_h - original_h * scale)))
+        # original_x2 = int(x/scale)
+        # original_y2 = int((y - (0.5 * (target_h - original_h * scale)))/scale)
 
     return x,y
+# ---------------------------------------------------------------------------------------------------------------------
+def smart_resize_point_inv(x, y, original_w, original_h, target_w, target_h):
+    scale_hor = target_h / original_h
+    scale_ver = target_w / original_w
+    if scale_hor<scale_ver:
+        scale = scale_hor
+        original_y = int(y/scale)
+        original_x = int((x - (0.5 * (target_w - original_w * scale)))/scale)
+    else:
+        scale = scale_ver
+        original_x = int(x/scale)
+        original_y = int((y - (0.5 * (target_h - original_h * scale)))/scale)
+
+    return original_x, original_y
 # ---------------------------------------------------------------------------------------------------------------------
 def canvas_extrapolate(img,new_height,new_width):
 
@@ -123,6 +140,11 @@ def draw_padding(image,top, left, bottom, right,color):
     result[-bottom:, :] = color
     result[:, :left] = color
     result[:, -right:] = color
+    return result
+# ---------------------------------------------------------------------------------------------------------------------
+def add_padding(image,top, left, bottom, right,color):
+    result = numpy.full((image.shape[0]+top+bottom,image.shape[1]+left+right,3),color).astype(numpy.uint8)
+    result[top:top+image.shape[0],left:left+image.shape[1]]=image
     return result
 # ---------------------------------------------------------------------------------------------------------------------
 def fade_header(img,color,top):
@@ -953,7 +975,8 @@ def encode_base64(image):
 def decode_base64(encoded_bytes):
     decoded_bytes = base64.b64decode(encoded_bytes)
     pil_image = PillowImage.open(BytesIO(decoded_bytes))
-    image = numpy.array(pil_image)[:, :, [2, 1, 0]]
+    image = numpy.array(pil_image)
+    #image = image[:, :, [2, 1, 0]]
     return image
 # --------------------------------------------------------------------------------------------------------------------
 def replace_color(image,color1,color2):

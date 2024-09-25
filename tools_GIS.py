@@ -140,7 +140,7 @@ class tools_GIS(object):
         gis_points = numpy.concatenate(list_of_points,axis=0)
 
         tiles = ['openstreetmap','stamentoner','mapquestopen','stamenterrain','cartodbpositron','cartodbdark_matter']
-        map_folium = folium.Map(location=gis_points[0],tiles=tiles[1],zoom_control=True,scrollWheelZoom=True,dragging=True)
+        map_folium = folium.Map(location=gis_points[0],tiles=tiles[0],zoom_control=True,scrollWheelZoom=True,dragging=True)
 
         if mode =='bbox':
             north = numpy.array(gis_points)[:, 0].max()

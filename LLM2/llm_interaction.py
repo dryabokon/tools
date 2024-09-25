@@ -1,5 +1,8 @@
+from PIL import Image as PImage
 import pandas as pd
 from halo import Halo
+from langchain.text_splitter import RecursiveCharacterTextSplitter,CharacterTextSplitter
+from langchain_community.document_loaders import PyPDFLoader
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_console_color
 import tools_DF
@@ -7,6 +10,52 @@ import tools_time_profiler
 # ----------------------------------------------------------------------------------------------------------------------
 TP = tools_time_profiler.Time_Profiler()
 # ----------------------------------------------------------------------------------------------------------------------
+def from_list_of_dict(list_of_dict, select, as_df):
+    if as_df:
+        df = pd.DataFrame(list_of_dict)
+        df = df.iloc[:, [c.find('@') < 0 for c in df.columns]]
+        if select is not None and df.shape[0] > 0:
+            df = df[select]
+        result = df
+    else:
+        if isinstance(select, list):
+            result = [';'.join([x + ':' + str(r[x]) for x in select]) for r in list_of_dict]
+        else:
+            if select is not None:
+                result = [r[select] for r in list_of_dict]
+            else:
+                result = '\n'.join([str(r) for r in list_of_dict])
+    return result
+# ----------------------------------------------------------------------------------------------------------------------
+def file_to_texts(filename_in,chunk_size=2000):
+    with open(filename_in, 'r',encoding='utf8', errors ='ignore') as f:
+        text_document = f.read()
+    texts = RecursiveCharacterTextSplitter(separators=["\n\n", "\n"], chunk_size=chunk_size, chunk_overlap=100).create_documents([text_document])
+    texts = [text.page_content for text in texts]
+    return texts
+# ----------------------------------------------------------------------------------------------------------------------
+def pdf_to_texts(filename_pdf,chunk_size=2000):
+
+    loader = PyPDFLoader(filename_pdf)
+    pages = loader.load_and_split()
+    text_splitter = CharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=100)
+    docs = text_splitter.split_documents(pages)
+    texts = [t for t in set([doc.page_content for doc in docs])]
+    return texts
+# ----------------------------------------------------------------------------------------------------------------------
+def pdf_to_texts_and_images(filename_pdf,chunk_size=2000):
+    from pdf2image import convert_from_path
+    images = convert_from_path(filename_pdf)
+    loader = PyPDFLoader(filename_pdf)
+    pages = loader.load_and_split()
+    texts = [page.page_content for page in pages]
+
+    images = [img.resize((640, int(640*img.size[1]/img.size[0]))) for img in images]
+    images = [PImage.merge("RGB", (img.split())) for img in images]
+
+    return texts,images
+# ----------------------------------------------------------------------------------------------------------------------
+
 def pretify_string(text,N=80):
     lines = []
     line = ""

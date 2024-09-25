@@ -193,13 +193,14 @@ def rotate_view(M,delta_angle):
     # M_new = pyrr.matrix44.multiply(M, RR)
     return M_new
 # ----------------------------------------------------------------------------------------------------------------------
-def define_cam_position(W,H,cam_fov_deg = 11,cam_offset_dist = 64,cam_height = 6.5):
-    a_pitch = -numpy.arctan(cam_height / cam_offset_dist)
-    rvec, tvec  = [0,0.0,0], [10, cam_height, cam_offset_dist]
+def define_cam_position(W,H,cam_fov_deg = 11,cam_offset_dist = 64,cam_height = 6.5,cam_shift = 0.0):
+
+    rvec, tvec  = [0,0.0,0], [cam_shift, cam_height, cam_offset_dist]
     tg_half_fovx = numpy.tan(cam_fov_deg * numpy.pi / 360)
     camera_matrix_3x3 = tools_pr_geom.compose_projection_mat_3x3(W, H, tg_half_fovx, tg_half_fovx)
 
     RT_GL = compose_RT_mat_GL(rvec, tvec, do_rodriges=True, do_flip=True)
+    a_pitch = -numpy.arctan(cam_height / (cam_offset_dist + 1e-6))
     RT_GL = rotate_view(RT_GL,(a_pitch,0,0))
     rvec,tvec = decompose_to_rvec_tvec_GL(RT_GL)
 

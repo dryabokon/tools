@@ -1,7 +1,7 @@
 import numpy
 import cv2
 import tools_image
-import dlib
+#import dlib
 from scipy.spatial import Delaunay
 import tools_IO
 import pyrr
