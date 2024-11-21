@@ -53,7 +53,11 @@ def gre2viridis(rgb):
 def draw_points_fast(image, points,color=(0,0,200),w=4,transperency=0,put_text=False,labels=None):
     for i,p in enumerate(points):
         clr = color if (len(numpy.array(color).shape) == 1) or type(color) == int else color[i].tolist()
-        image = cv2.circle(image, (int(p[0]), int(p[1])), w, clr, -1)
+        if w>1:
+            image = cv2.circle(image, (int(p[0]), int(p[1])), w, clr, -1)
+        else:
+            if 0<=p[1]<image.shape[0] and 0<=p[0]<image.shape[1]:
+                image[int(p[1]),int(p[0])] = clr
     return image
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_points(image, points,color=(0,0,200),w=4,transperency=0,put_text=False,labels=None):

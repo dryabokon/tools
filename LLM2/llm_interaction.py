@@ -78,7 +78,8 @@ def display_res(res,width):
     if isinstance(res, pd.DataFrame):
         print(tools_DF.prettify(res, showindex=False))
     else:
-        print(pretify_string(res, N=width))
+        #print(pretify_string(res, N=width))
+        print(res)
     return
 # ----------------------------------------------------------------------------------------------------------------------
 def display_debug_info(texts):

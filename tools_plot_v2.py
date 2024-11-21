@@ -31,13 +31,9 @@ class Plotter(object):
         self.folder_out = folder_out
         self.dark_mode = dark_mode
         self.init_base_colors()
-        #!!!
-        self.init_colors()
-        # self.init_colors(N=11,cmap='jet',shuffle=False)
-        # self.colors[:3] = numpy.array([[255, 128, 0], [0, 128, 255], [0, 0, 255]])
-        # self.colors[3:] = 0
 
-        self.turn_light_mode(None)
+        self.init_colors()
+        #self.turn_light_mode(None)
         self.io_buf = io.BytesIO()
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -422,7 +418,7 @@ class Plotter(object):
             df = tools_DF.add_noise_smart(df)
 
         ax = Axes3D(fig)
-        fig.add_axes(ax,rect=[0, 0, 1, 1])
+        #fig.add_axes(ax,rect=[0, 0, 1, 1])
         fig = self.turn_light_mode(fig,ax)
 
         sc = ax.scatter(df.iloc[:, 1], df.iloc[:, 2], df.iloc[:, 0], s=40, c=df.iloc[:, 0], marker='o', cmap=palette, alpha=1)
@@ -441,6 +437,10 @@ class Plotter(object):
         #plt.tight_layout()
         if filename_out is not None:
             plt.savefig(self.folder_out + filename_out, facecolor=fig.get_facecolor())
+
+
+        plt.show()
+
 
         return fig
 #-----------------------------------------------------------------------------------------------------------------------
@@ -850,6 +850,7 @@ class Plotter(object):
             plt.close()
 
         plt.close(fig)
+        fig.clf()
 
         return fig
 # ----------------------------------------------------------------------------------------------------------------------
@@ -902,7 +903,7 @@ class Plotter(object):
         hue = df.columns[idx_hue] if idx_hue is not None else None
 
         for i,idx_target in enumerate(idxs_target):
-            if   mode == 'pointplot'  :g = seaborn.pointplot(data=df, x=X, y=df.columns[idx_target], scale=0.25,color=colors[i],markers='', label=df.columns[idx_target],errwidth=4)
+            if   mode == 'pointplot'  :g = seaborn.pointplot(data=df, x=X, y=df.columns[idx_target], color=colors[i],markers='', label=df.columns[idx_target],errwidth=4)
             elif mode == 'scatterplot':g = seaborn.scatterplot(data=df, x=X, y=df.columns[idx_target],size=numpy.full(df.shape[0],2.25),color=colors[i],alpha=1-transparency,edgecolor=None,markers='0',label=df.columns[idx_target])
             elif mode == 'barplot'    :g = seaborn.barplot(data=df,x=X, y=df.columns[idx_target],hue=hue,color=colors[i])
             else:                      g = seaborn.lineplot(data=df, x=X, y=df.columns[idx_target],color=colors[i],label=df.columns[idx_target])
@@ -1210,6 +1211,24 @@ class Plotter(object):
 
         fig = plt.figure(figsize=figsize)
         seaborn.heatmap(df_Q, vmax=1,        annot=True, fmt='.2f', cmap='GnBu' , cbar_kws={"shrink": .5}, robust=True, square=True)
+
+        if filename_out is not None:
+            plt.savefig(self.folder_out+filename_out,facecolor=fig.get_facecolor())
+
+        return
+# ---------------------------------------------------------------------------------------------------------------------
+    def scatter_3d(self,df1, df2=None,figsize=(8,8),filename_out=None):
+        col0, col1, col2 = df1.columns[:3]
+        fig = plt.figure(figsize=(8, 8))
+        ax = plt.axes(projection="3d")
+
+        ax.scatter3D(df1.iloc[:, 0], df1.iloc[:, 1], df1.iloc[:, 2], c='blue', marker='.')
+        if df2 is not None:
+            ax.scatter3D(df2.iloc[:, 0], df2.iloc[:, 1], df2.iloc[:, 2], c='red', marker='.')
+
+        ax.set_xlabel(col0)
+        ax.set_ylabel(col1)
+        ax.set_zlabel(col2)
 
         if filename_out is not None:
             plt.savefig(self.folder_out+filename_out,facecolor=fig.get_facecolor())

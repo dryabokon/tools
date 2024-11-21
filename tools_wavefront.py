@@ -1,7 +1,6 @@
 import os
 import numpy
 import pyvista
-import pyrr
 #----------------------------------------------------------------------------------------------------------------------
 class ObjLoader:
     def __init__(self):
@@ -270,56 +269,39 @@ class ObjLoader:
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def export_mesh(self, filename_out, X, coord_texture, coord_norm,idx_vertex,idx_texture,idx_normal,filename_material=None):
+    def export_mesh(self, filename_out, X, coord_texture, coord_norm,idx_vertex,idx_texture,idx_normal,filename_material=None,material_name=None,mode='w+'):
 
-        f_handle = open(filename_out, "w+")
-        f_handle.write("# Obj file\n")
-        f_handle.write("o Object\n")
-        for x in X: f_handle.write("v %1.2f %1.2f %1.2f\n" % (x[0], x[1], x[2]))
+        fmt = '%+1.3f'
 
-        if coord_texture is None:
-            f_handle.write("vt 0 0\n")
-        else:
-            for t in coord_texture: f_handle.write("vt %1.2f %1.2f\n" % (t[0], t[1]))
+        with open(filename_out, mode) as f_handle:
+            f_handle.write("# Obj file\n")
+            f_handle.write("o %s\n" % (material_name if material_name is not None else 'Object'))
+            if filename_material is not None:f_handle.write('mtllib %s\n' % filename_material)
+            if material_name     is not None:f_handle.write('usemtl %s\n' % material_name)
+            for x in X: f_handle.write(f'v {fmt} {fmt} {fmt}\n' % (x[0], x[1], x[2]))
 
-        for n in coord_norm:
-            f_handle.write("vn %1.2f %1.2f %1.2f\n" % (n[0], n[1], n[2]))
+            if coord_texture is None:
+                f_handle.write("vt 0 0\n")
+            else:
+                for t in coord_texture: f_handle.write("vt %1.2f %1.2f\n" % (t[0], t[1]))
 
-        for iv,it,inr in zip(idx_vertex,idx_texture,idx_normal):
-            f_handle.write("f %d/%d/%d %d/%d/%d %d/%d/%d\n" % (iv[0] + 1, it[0]+1, inr[0] + 1, iv[1] + 1, it[1]+1, inr[1] + 1, iv[2] + 1, it[2]+1, inr[2] + 1))
+            for n in coord_norm:f_handle.write("vn %1.2f %1.2f %1.2f\n" % (n[0], n[1], n[2]))
 
-            #f_handle.write("f %d/%d/%d %d/%d/%d %d/%d/%d\n" % (t[0]+1, tx[0], n + 1, t[1] + 1, tx[1], n + 1, t[2] + 1, tx[2], n + 1))
+            for iv,it,inr in zip(idx_vertex,idx_texture,idx_normal):
+                f_handle.write("f %d/%d/%d %d/%d/%d %d/%d/%d\n" % (iv[0] + 1, it[0]+1, inr[0] + 1, iv[1] + 1, it[1]+1, inr[1] + 1, iv[2] + 1, it[2]+1, inr[2] + 1))
 
-        if filename_material is not None:
-            f_handle.write('mtllib %s\n' % filename_material)
-
-        f_handle.close()
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def export_material(self,filename_out,color255,filename_texture=None):
+    def export_material(self,filename_out,mat_name,color255,transparency=0,filename_texture=None,mode='w+'):
 
-        # with open(filename_out, "w+") as f:
-        #     f.write('Ka %1.4f %1.4f %1.4f\n' % (color255[0]/255.0, color255[1]/255.0, color255[2]/255.0))
-        #     if filename_texture is not None:
-        #         f.write('map_Kd %s\n'%filename_texture)
-
-        with open(filename_out, "w+") as f:
+        with open(filename_out, mode) as f:
             f.write('# Material\n')
-            f.write('newmtl Material\n')
-            f.write('Ns 96.078431\n')
-            f.write('Ka %1.4f %1.4f %1.4f\n' % (color255[0] / 255.0, color255[1] / 255.0, color255[2] / 255.0))
-            f.write('Kd 0.640000 0.640000 0.640000\n')
-            f.write('Ks 0.500000 0.500000 0.500000\n')
-            f.write('Ke 0.600000 0.000000 0.000000\n')
-            f.write('Ni 1.00000\n')
-            f.write('d 1.00000\n')
-            f.write('illum 20\n')
-
-
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def append_to_file(self,filename_in,filename_out):
-
+            f.write('newmtl %s\n'%mat_name)
+            f.write('Kd %1.4f %1.4f %1.4f\n' % (color255[0] / 255.0, color255[1] / 255.0, color255[2] / 255.0))
+            if transparency>0:
+                f.write('d %.1f\n'%(1-transparency))
+            if filename_texture is not None:
+                f.write('map_Kd %s\n'%filename_texture)
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
