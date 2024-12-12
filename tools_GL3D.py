@@ -164,10 +164,10 @@ class render_GL3D(object):
         # projection from camera to screen.
 
         vert_shader = """#version 400
-                                    in layout(location = 0) vec3 position;
-                                    in layout(location = 1) vec3 color;
-                                    in layout(location = 2) vec3 vertNormal;
-                                    in layout(location = 3) vec2 inTextureCoords;
+                                    layout(location = 0) in vec3 position;
+                                    layout(location = 1) in vec3 color;
+                                    layout(location = 2) in vec3 vertNormal;
+                                    layout(location = 3) in vec2 inTextureCoords;
 
                                     uniform mat4 transform,view,model,projection,light;
                                     out vec3 inColor;

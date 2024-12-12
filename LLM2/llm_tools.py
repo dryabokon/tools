@@ -1,4 +1,5 @@
 import os
+from scipy.optimize import fsolve
 import warnings
 warnings.filterwarnings( 'ignore', module = 'langchain' )
 # ----------------------------------------------------------------------------------------------------------------------
@@ -7,7 +8,7 @@ import numpy
 import numpy_financial
 from langchain.chains import LLMMathChain
 from langchain.agents import Tool
-from langchain.agents.agent_toolkits import NLAToolkit
+from langchain_community.agent_toolkits.nla.toolkit import NLAToolkit
 from langchain_experimental.tools.python.tool import PythonAstREPLTool
 from langchain.tools import StructuredTool
 # ----------------------------------------------------------------------------------------------------------------------
@@ -139,13 +140,15 @@ def get_tools_pandas_v02(df):
     return tools
 # ----------------------------------------------------------------------------------------------------------------------
 def get_tool_age_of_Alice():
-    def custom_func_Alice_age(year: str):return int(int(year)-1979)
-    tools = [StructuredTool.from_function(func=custom_func_Alice_age, name="age of Alice",description="Calculate an age of Alice given provided year")]
+    def custom_func_Alice_age(year: str):return int(int(year)-2000)
+    #tools = [StructuredTool.from_function(func=custom_func_Alice_age, name="age of Alice",description="Calculate an age of Alice given provided year")]
+    tools  = [Tool(func=custom_func_Alice_age, name="age of Alice",description="Calculate an age of Alice given provided year")]
     return tools
 # ----------------------------------------------------------------------------------------------------------------------
 def get_tool_age_of_Bob():
-    def custom_func_Bob_age(year: str): return int(int(year)-2008)
-    tools = [StructuredTool.from_function(func=custom_func_Bob_age, name="age of Bob",description="Calculate an age of Bob given provided year")]
+    def custom_func_Bob_age(year: str): return int(int(year)-2010)
+    #tools = [StructuredTool.from_function(func=custom_func_Bob_age, name="age of Bob",description="Calculate an age of Bob given provided year")]
+    tools = [Tool(func=custom_func_Bob_age, name="age of Bob",description="Calculate an age of Bob given provided year")]
     return tools
 # ----------------------------------------------------------------------------------------------------------------------
 def get_tool_read_file():

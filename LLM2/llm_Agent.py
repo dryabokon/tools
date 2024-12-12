@@ -71,13 +71,13 @@ class Agent(object):
         self.tools = tools
         agent_type = AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION
         #agent_type = AgentType.SELF_ASK_WITH_SEARCH
-        #self.agent = self.init_agent(agent_type=agent_type,verbose=verbose)
-        self.agent = self.init_agent_custom(verbose)
+        self.agent = self.init_agent(agent_type=agent_type,verbose=verbose)
+        #self.agent = self.init_agent_custom(verbose)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def run_query(self, query):
-        responce = self.agent.run(query)
-        #responce = self.agent.invoke({"input": query})
+        #responce = self.agent.run(query)
+        responce = self.agent.invoke({"input": query})
         return responce, []
 # ----------------------------------------------------------------------------------------------------------------------
     def init_agent(self,agent_type,verbose=True):
