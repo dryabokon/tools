@@ -839,7 +839,7 @@ class render_GL3D(object):
 
         tg_half_fovx = numpy.tan(self.cam_fov_deg * numpy.pi / 360)
         self.init_mat_projection(tg_half_fovx, tg_half_fovx)
-        self.init_mat_model((0, 0, 0), (0, 0, 0))
+        self.init_mat_model((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
         if not skip_transform:
             self.__init_mat_transform(self.scale)
 
