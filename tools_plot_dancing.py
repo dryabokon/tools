@@ -341,7 +341,8 @@ class Plotter_dancing:
                       invert_y=False,major_step=None,out_format_x=None,legend=None,figsize=None):
 
         figsize = (self.W / 100, self.H / 100) if figsize is None else figsize
-        fig = plt.figure(figsize=figsize,facecolor=self.P.clr_bg)
+        facecolor = (255, 255, 255) if self.P.dark_mode else (0, 0, 0)
+        fig = plt.figure(figsize=figsize,facecolor=facecolor)
         fig = self.P.turn_light_mode(fig)
 
         labels_line, pos_lines_x, pos_lines_y, labels_scatter, scatter_x, scatter_y, pos_scatter_x, pos_scatter_y = \
@@ -462,7 +463,7 @@ class Plotter_dancing:
         idx_target = numpy.arange(1, df2.shape[1])[::-1]
 
         self.P.TS_seaborn(df2, idxs_target=idx_target.tolist(),idxs_fill=idx_target-1,idx_time=0,
-                          out_format_x=out_format_x,major_step=major_step,transparency=0.25,
+                          out_format_x=out_format_x,transparency=0.25,
                           mode=mode, lw=1,remove_xticks=False,figsize=figsize,filename_out=filename_out)
 
         return
