@@ -24,6 +24,7 @@ class Track_Visualizer:
         self.B = tools_mAP.Benchmarker(folder_out=folder_out)
         self.hit_colors_true = [(0, 0, 192), (32, 132, 0),(0, 104, 192)]
         self.hit_colors_pred = [(0, 158, 168), (128, 128, 0)]
+        self.colors80 = tools_draw_numpy.get_colors(80, shuffle=True)
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def get_color_true(self,is_hit,is_hit_track,use_IDTP):
@@ -47,21 +48,36 @@ class Track_Visualizer:
             color = self.hit_colors_pred[int(is_hit)]
 
         return color
-# ----------------------------------------------------------------------------------------------------------------------
-    def get_representatives(self,folder_in_images,df,idx_sort=None,H=64,layout='ver'):
+    # ----------------------------------------------------------------------------------------------------------------------
+    def get_image_by_frame_id(self, source, df_filenames, frame_id, vidcap):
+        if vidcap is None:
+            filename = df_filenames[df_filenames['frame_id'] == frame_id]['filename'].values[0]
+            image = cv2.imread(source + filename)
+        else:
+            vidcap.set(cv2.CAP_PROP_POS_FRAMES, frame_id)
+            success, image = vidcap.read()
+        return image
+    # ----------------------------------------------------------------------------------------------------------------------
+    def get_representatives(self,source,df,idx_sort=None,H=64,layout='ver'):
 
-        filenames = numpy.array(tools_IO.get_filenames(folder_in_images, '*.jpg,*.png'))
-        filenames = [filenames[k - 1] for k in df.iloc[:, 0].values]
-        df = df.astype({df.columns[0]: str})
-        df.iloc[:, 0] = filenames
+        is_video = ('mp4' in source.lower()) or ('avi' in source.lower()) or ('mkv' in source.lower())
+
+        if is_video:
+            vidcap = cv2.VideoCapture(source)
+            df_filenames = pd.DataFrame({'frame_id': numpy.arange(0, int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT)))})
+        else:
+            vidcap = None
+            df_filenames = pd.DataFrame({'filename': tools_IO.get_filenames(source, '*.jpg,*.png')})
+            df_filenames['frame_id'] = numpy.arange(0, df_filenames.shape[0])
 
         df['obj_size'] = (df['x2'] - df['x1']) * (df['y2'] - df['y1'])
-        df_agg = tools_DF.my_agg(df,cols_groupby=['track_id'],cols_value=['obj_size'],aggs=['max'],list_res_names=['obj_size_max'])
+        df['size'] = (df['x2'] - df['x1']) * (df['y2'] - df['y1'])
 
+        df_agg = tools_DF.my_agg(df,cols_groupby=['track_id'],cols_value=['obj_size'],aggs=['max'],list_res_names=['obj_size_max'])
         df2 = tools_DF.fetch(df,'track_id',df_agg,col_name2='track_id',col_value='obj_size_max')
         df2 = df[df['obj_size'] == df2['obj_size_max']]
-
         df2 = df2.drop_duplicates(subset=['track_id'])
+
         if idx_sort is not None:
             df2 = pd.concat([df2[df2['track_id']==i] for i in idx_sort])
         else:
@@ -75,10 +91,11 @@ class Track_Visualizer:
             im_large[:H, :]=32
 
         for r in range(df2.shape[0]):
-            filename = df2.iloc[r, 0]
+            frame_id = df2['frame_id'].iloc[r]
             track_id = df2['track_id'].iloc[r]
             rect = df2[['x1','y1','x2','y2']].iloc[r].values.astype(int)
-            image = cv2.imread(folder_in_images + filename)
+            image = self.get_image_by_frame_id(source, df_filenames, frame_id, vidcap)
+
             rect[0] = max(0, rect[0])
             rect[1] = max(0, rect[1])
             rect[2] = min(image.shape[1], rect[2])
@@ -123,7 +140,7 @@ class Track_Visualizer:
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def draw_sequence(self,folder_in_images,df_true_rich, df_pred_rich, conf_th=0.10, use_IDTP=True,H = 64):
+    def draw_sequence_recall_precision(self, source, df_true_rich, df_pred_rich, conf_th=0.10, use_IDTP=True, H = 64):
 
         if df_true_rich.shape[0]>0:
             cols = df_true_rich.iloc[:, 0].max()
@@ -138,7 +155,7 @@ class Track_Visualizer:
                 is_hit_track = df_true_rich['IDTP'].iloc[r]
                 image[dct_map[obj_id],frame]= self.get_color_true(is_hit,is_hit_track,use_IDTP)
 
-            im_represent = self.get_representatives(folder_in_images, df_true_rich,H=H)
+            im_represent = self.get_representatives(source, df_true_rich,H=H)
             image = cv2.resize(image, (800,im_represent.shape[0]), interpolation=cv2.INTER_NEAREST)
             for r in range(rows):image[r*H] = 64
             image = numpy.concatenate((im_represent, image), axis=1)
@@ -158,7 +175,7 @@ class Track_Visualizer:
                 is_hit_track = df_pred_rich['IDTP'].iloc[r]
                 image[dct_map[obj_id], frame] = self.get_color_pred(is_hit,is_hit_track,use_IDTP)
 
-            im_represent = self.get_representatives(folder_in_images, df_pred_rich)
+            im_represent = self.get_representatives(source, df_pred_rich)
             image = cv2.resize(image, (800, im_represent.shape[0]), interpolation=cv2.INTER_NEAREST)
             for r in range(rows): image[r * H] = 64
             image = numpy.concatenate((im_represent, image), axis=1)
@@ -204,94 +221,120 @@ class Track_Visualizer:
         plt.clf()
 
         return
-# ----------------------------------------------------------------------------------------------------------------------
-    def draw_stacked_simple(self,folder_in_images, df_true, df_pred, iou_th=0.5,conf_th=0.10):
+    # ----------------------------------------------------------------------------------------------------------------------
+    def get_stacked_simple(self, frame, frame_id, df_true, df_pred, conf_th=0.10):
+        frame = tools_image.desaturate(frame)
+        gt = df_true[df_true['frame_id']==(frame_id)]
+        det = df_pred[df_pred['frame_id'] == (frame_id)]
+        det = det[det['conf'] >= conf_th]
+
+        rects_gt = gt[['x1', 'y1', 'x2', 'y2']].values
+        obj_id_gt = gt.iloc[:, 1].values.astype(int)
+
+        rects_det = det[['x1', 'y1', 'x2', 'y2']].values
+        obj_id_det = det.iloc[:, 1].values.astype(int)
+
+        colors_true = [self.colors80[(x - 1) % 80] for x in obj_id_gt]
+        colors_pred = [self.colors80[(x - 1) % 80] for x in obj_id_det]
+
+        image_gt = tools_draw_numpy.draw_rects(frame, rects_gt.reshape((-1, 2, 2)), colors=colors_true, labels=obj_id_gt.astype(str), w=2, alpha_transp=0.8)
+        image_det = tools_draw_numpy.draw_rects(frame, rects_det.reshape((-1, 2, 2)), colors=colors_pred, labels=obj_id_det.astype(str), w=2, alpha_transp=0.8)
+        return image_gt, image_det
+    # ----------------------------------------------------------------------------------------------------------------------
+    def draw_stacked_simple(self,source, df_true, df_pred, iou_th=0.5,conf_th=0.10):
         tools_IO.remove_files(self.folder_out,'*.jpg')
-        filenames = tools_IO.get_filenames(folder_in_images, '*.jpg,*.png')
-        colors80 = tools_draw_numpy.get_colors(80,shuffle=True)
-        for i, filename in tqdm(enumerate(filenames),total=len(filenames),desc=inspect.currentframe().f_code.co_name):
-            if not os.path.isfile(folder_in_images + filename):continue
 
-            image = cv2.imread(folder_in_images +filename)
-            image = tools_image.desaturate(image)
-            gt = df_true[df_true.iloc[:, 0] == (i + 1)]
-            det = df_pred[df_pred.iloc[:,0]==(i+1)]
-            det = det[det['conf']>=conf_th]
+        is_video = ('mp4' in source.lower()) or ('avi' in source.lower()) or ('mkv' in source.lower())
 
-            rects_gt = gt[['x1', 'y1', 'x2', 'y2']].values
-            obj_id_gt = gt.iloc[:, 1].values.astype(int)
+        if is_video:
+            vidcap = cv2.VideoCapture(source)
+            df_filenames = pd.DataFrame({'frame_id': numpy.arange(0, int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT)))})
+        else:
+            vidcap = None
+            df_filenames = pd.DataFrame({'filename': tools_IO.get_filenames(source, '*.jpg,*.png')})
+            df_filenames['frame_id'] = numpy.arange(0,df_filenames.shape[0])
 
-            rects_det = det[['x1', 'y1', 'x2', 'y2']].values
-            obj_id_det = det.iloc[:, 1].values.astype(int)
-
-            colors_true = [colors80[(x - 1) % 80] for x in obj_id_gt]
-            colors_pred = [colors80[(x - 1) % 80] for x in obj_id_det]
-
-            image_gt  = tools_draw_numpy.draw_rects(image, rects_gt.reshape((-1,2,2))   , colors=colors_true,labels=obj_id_gt.astype(str), w=2, alpha_transp=0.8)
-            image_det = tools_draw_numpy.draw_rects(image, rects_det.reshape((-1, 2, 2)), colors=colors_pred,labels=obj_id_det.astype(str), w=2,alpha_transp=0.8)
-            cv2.imwrite(self.folder_out +filename.split('.')[0]+'.jpg', numpy.concatenate((image_gt, image_det), axis=1 if self.stack_h else 0))
+        for frame_id in tqdm(range(df_filenames.shape[0]), total=df_filenames.shape[0], desc=inspect.currentframe().f_code.co_name):
+            frame = self.get_image_by_frame_id(source, df_filenames, frame_id, vidcap)
+            image_gt, image_det = self.get_stacked_simple(frame, frame_id, df_true, df_pred, conf_th=conf_th)
+            cv2.imwrite(self.folder_out + '%06d' % frame_id + '.jpg',numpy.concatenate((image_gt, image_det), axis=1 if self.stack_h else 0))
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def draw_boxes_GT_pred_stacked(self, folder_in_images, df_true_rich, df_pred_rich, conf_th=0.10, iou_th=0.1, use_IDTP=True):
+    def draw_boxes_GT_pred_stacked(self, source, df_true_rich, df_pred_rich, conf_th=0.10, use_IDTP=True,as_video=True):
 
-        file_true = df_true_rich.iloc[:, 0].values
+        tools_IO.remove_files(self.folder_out, '*.jpg')
+
+        is_video = ('mp4' in source.lower()) or ('avi' in source.lower()) or ('mkv' in source.lower())
+
+        if is_video:
+            vidcap = cv2.VideoCapture(source)
+            df_filenames = pd.DataFrame({'frame_id': numpy.arange(0, int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT)))})
+        else:
+            vidcap = None
+            df_filenames = pd.DataFrame({'filename': tools_IO.get_filenames(source, '*.jpg,*.png')})
+            df_filenames['frame_id'] = numpy.arange(0, df_filenames.shape[0])
+
+        frame_id_true = df_true_rich['frame_id'].values
         coord_true = df_true_rich[['x1', 'y1', 'x2', 'y2']].values
         conf_true = df_true_rich['conf_pred'].values
         obj_id_gt = df_true_rich['track_id'].values.astype(int)
         hit_true = ~numpy.isnan(df_true_rich['conf_pred'].values)
         hit_true_IDTP = df_true_rich['IDTP'].values
 
-        file_pred = df_pred_rich.iloc[:, 0].values
+        frame_id_pred = df_pred_rich['frame_id'].values
         coord_pred = df_pred_rich[['x1', 'y1', 'x2', 'y2']].values
         conf_pred = df_pred_rich['conf'].values
         obj_id_pred = df_pred_rich['track_id'].values
         hit_pred = df_pred_rich['true_row'].values >= 0
         hit_pred_IDTP = df_pred_rich['IDTP'].values
 
-        colors80 = tools_draw_numpy.get_colors(80, shuffle=True)
+        for frame_id in tqdm(range(df_filenames.shape[0]), total=df_filenames.shape[0],desc=inspect.currentframe().f_code.co_name):
 
-        for b, filename in tqdm(enumerate(df_true_rich.iloc[:, 0].unique()), total=df_true_rich.iloc[:, 0].unique().shape[0], desc=inspect.currentframe().f_code.co_name):
-            image0 = cv2.imread(folder_in_images + filename)
+            image0 = self.get_image_by_frame_id(source, df_filenames, frame_id, vidcap)
             if image0 is None: continue
+
             image_fact = tools_image.desaturate(image0)
             image_pred = tools_image.desaturate(image0)
 
-            idx_fact = numpy.where(df_true_rich.iloc[:, 0].values == filename)
-            idx_pred = numpy.where(df_pred_rich.iloc[:, 0].values == filename)
+            idx_fact = numpy.where(df_true_rich['frame_id'] == frame_id)
+            idx_pred = numpy.where(df_pred_rich['frame_id'] == frame_id)
 
             for coord, hit, conf, obj_id, hit_IDTP in zip(coord_true[idx_fact], hit_true[idx_fact], conf_true[idx_fact],obj_id_gt[idx_fact],hit_true_IDTP[idx_fact]):
                 if conf < conf_th:hit,hit_IDTP = 0,0
-                image_fact = tools_draw_numpy.draw_rect(image_fact, coord[0], coord[1], coord[2], coord[3],color=self.get_color_true(hit,hit_IDTP,use_IDTP), label=str(obj_id),w=2, alpha_transp=0.25)
+                label = str(obj_id)
+                label = None
+                image_fact = tools_draw_numpy.draw_rect(image_fact, coord[0], coord[1], coord[2], coord[3],color=self.get_color_true(hit,hit_IDTP,use_IDTP), label=label,w=2, alpha_transp=0.25)
 
-            for coord in coord_pred[numpy.where(file_pred == filename)]:
+            for coord in coord_pred[numpy.where(frame_id_pred == frame_id)]:
                 image_fact = tools_draw_numpy.draw_rect(image_fact, coord[0], coord[1], coord[2], coord[3], color=(128, 128, 128),w=1, alpha_transp=1)
 
             for coord, hit, conf,obj_id,hit_IDTP in zip(coord_pred[idx_pred], hit_pred[idx_pred], conf_pred[idx_pred],obj_id_pred[idx_pred],hit_pred_IDTP[idx_pred]):
                 is_hit = (hit and hit_IDTP) if use_IDTP else hit
                 if conf < conf_th:continue
-                image_pred = tools_draw_numpy.draw_rect(image_pred, coord[0], coord[1], coord[2], coord[3],color=self.get_color_pred(is_hit,hit_IDTP,use_IDTP),label=str(obj_id), w=2, alpha_transp=0.25)
+                label = str(obj_id)
+                label = None
+                image_pred = tools_draw_numpy.draw_rect(image_pred, coord[0], coord[1], coord[2], coord[3],color=self.get_color_pred(is_hit,hit_IDTP,use_IDTP),label=label, w=2, alpha_transp=0.25)
 
-            for coord in coord_true[numpy.where(file_true == filename)]:
+            for coord in coord_true[numpy.where(frame_id_true == frame_id)]:
                 image_pred = tools_draw_numpy.draw_rect(image_pred, coord[0], coord[1], coord[2], coord[3], color=(128, 128, 128),w=1, alpha_transp=1)
 
-            cv2.imwrite(self.folder_out + (filename.split('/')[-1]).split('.')[0]+'.jpg', numpy.concatenate((image_fact, image_pred), axis=1 if self.stack_h else 0))
+            image = numpy.concatenate((image_fact, image_pred), axis=1 if self.stack_h else 0)
+            image = cv2.resize(image, (image.shape[1] // 2, image.shape[0] // 2), interpolation=cv2.INTER_NEAREST)
+            cv2.imwrite(self.folder_out + '%06d' % frame_id + '.jpg', image)
 
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def draw_stacked_RAG(self,folder_in_images, df_true_rich, df_pred_rich,conf_th=0.10,use_IDTP=False):
-        tools_IO.remove_files(self.folder_out, '*.jpg')
-        filenames = numpy.array(tools_IO.get_filenames(folder_in_images , '*.jpg,*.png'))
+        vidcap.release()
 
-        filenames_true = [filenames[k-1] for k in df_true_rich.iloc[:, 0].values]
-        filenames_pred = [filenames[k-1] for k in df_pred_rich.iloc[:, 0].values]
+        if as_video:
+            filenames = tools_IO.get_filenames(self.folder_out, '*.jpg')
+            resize_H, resize_W = cv2.imread(self.folder_out+filenames[0]).shape[:2]
+            out = cv2.VideoWriter(self.folder_out + 'tracks_RAG.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 24, (resize_W, resize_H))
 
-        df_true_rich = df_true_rich.astype({df_true_rich.columns[0]: str})
-        df_pred_rich = df_pred_rich.astype({df_pred_rich.columns[0]: str})
-        df_true_rich.iloc[:, 0] = filenames_true
-        df_pred_rich.iloc[:, 0] = filenames_pred
+            for filename in tqdm(filenames, desc="Writing frames to video", total=len(filenames)):
+                out.write(cv2.imread(self.folder_out+filename))
+            out.release()
+            tools_IO.remove_files(self.folder_out, '*.jpg')
 
-        self.draw_boxes_GT_pred_stacked(folder_in_images, df_true_rich, df_pred_rich, conf_th=conf_th, use_IDTP=use_IDTP)
         return
 # ----------------------------------------------------------------------------------------------------------------------
 

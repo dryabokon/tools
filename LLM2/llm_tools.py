@@ -155,6 +155,17 @@ def get_tool_read_file():
     tools =  [StructuredTool.from_function(func=custom_func_read_file, name="Tool to read the file",description="Returns file content based on filename")]
     return tools
 # ----------------------------------------------------------------------------------------------------------------------
+def get_tool_sensor_SW():
+    return [StructuredTool.from_function(func=custom_func_read_file, name="Sensor SW",
+                                         description="Returns sensor SW content based on filename")]
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+def get_tool_sensor_spec():
+    return [StructuredTool.from_function(func=custom_func_read_file, name="Sensor Spec",
+                                         description="Returns sensor Spec content based on filename")]
+
+# ----------------------------------------------------------------------------------------------------------------------
 # def get_tool_analyze_issue():
 #     tools = [Tool(func=A_RAG.run_query, name="File Analyzer", description="Automated analysis of the content retreived by the file reader tool.")]
 #     return tools

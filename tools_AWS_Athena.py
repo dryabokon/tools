@@ -20,8 +20,8 @@ class processor_S3(object):
         self.L = tools_Logger.Logger(self.folder_out + 'log.txt')
         boto3.setup_default_session(aws_access_key_id=self.aws_access_key_id,aws_secret_access_key=self.aws_secret_access_key, region_name=self.region)
 
-        self.client_athena = boto3.client('athena')
-        self.client_s3 = boto3.client('s3')
+        self.client_athena = boto3.airsim_client('athena')
+        self.client_s3 = boto3.airsim_client('s3')
         self.service_resource = boto3.resource('s3')
 
         return

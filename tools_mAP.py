@@ -104,7 +104,7 @@ class Benchmarker(object):
     # ----------------------------------------------------------------------------------------------------------------------
     def calc_hits_stats_iou(self, df_true0, df_pred0, iou_th=0.5, from_cache=True,verbose=True):
 
-        if from_cache and os.path.exists(self.folder_out+'df_true2.csv') and os.path.exists(self.folder_out+'df_pred2.csv'):
+        if from_cache and os.path.exists(self.folder_out+'df_true2.csv') and os.path.exists(self.folder_out+'df_track2.csv'):
             df_true = pd.read_csv(self.folder_out+'df_true2.csv')
             df_pred = pd.read_csv(self.folder_out+'df_track2.csv')
             return df_true,df_pred

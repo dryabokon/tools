@@ -155,7 +155,8 @@ def draw_rect_fast(image, col_left, row_up, col_right, row_down ,color, w=-1,alp
         overlay = image.copy()
         cv2.rectangle(image, (int(col_left), int(row_up)), (int(col_right), int(row_down)),(int(color[0]), int(color[1]), int(color[2])), thickness=-1)
         image = cv2.addWeighted(overlay, alpha_transp, image, 1 - alpha_transp, 0)
-        cv2.rectangle(image, (int(col_left), int(row_up)), (int(col_right), int(row_down)),(int(color[0]), int(color[1]), int(color[2])), thickness=w)
+        if w>0:
+            cv2.rectangle(image, (int(col_left), int(row_up)), (int(col_right), int(row_down)),(int(color[0]), int(color[1]), int(color[2])), thickness=w)
     else:
         cv2.rectangle(image, (int(col_left), int(row_up)), (int(col_right), int(row_down)),(int(color[0]), int(color[1]), int(color[2])), thickness=w)
 
@@ -179,7 +180,7 @@ def draw_rect(image, col_left, row_up, col_right, row_down ,color, w=1, alpha_tr
 
     if label is not None:
         if color is not None:
-            color_fg = (0,0,0) if 10*color[0]+60*color[1]+30*color[2]>100*128 else (255, 255, 255)
+            color_fg = (0,0,0) if 10.0*color[0]+60.0*color[1]+30.0*color[2]>100.0*128 else (255, 255, 255)
         else:
             color_fg = (128,128,128)
         result = draw_text(result,label,(int(col_left),int(row_up)), color_fg=color_fg,clr_bg=color,font_size=font_size)
@@ -304,7 +305,8 @@ def draw_contours(image, points, color=(255,255,255),w=1,transperency=0.0):
     idx = numpy.arange(0,points.shape[0])
     lines = numpy.array([[p1[0],p1[1],p2[0],p2[1]] for p1,p2 in zip(points,points[numpy.roll(idx,1)])])
     image_res = draw_contours_cv(image, points, color, w=w, transperency=transperency)
-    image_res = draw_lines(image_res, lines, color, w)
+    if w>0:
+        image_res = draw_lines(image_res, lines, color, w)
 
     return image_res
 # ----------------------------------------------------------------------------------------------------------------------

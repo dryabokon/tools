@@ -394,7 +394,7 @@ def my_print_int(mat, rows=None, cols=None,file = None):
 # ----------------------------------------------------------------------------------------------------------------------
 def get_sub_folder_from_folder(path):
     subfolders = [f.path for f in os.scandir(path) if f.is_dir() ]
-    subfolders = [subfolders[i].split(path)[1] for i in range(0,len(subfolders))]
+    subfolders = sorted([subfolders[i].split(path)[1] for i in range(0,len(subfolders))])
 
     return subfolders
 # ----------------------------------------------------------------------------------------------------------------------

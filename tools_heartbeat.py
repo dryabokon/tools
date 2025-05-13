@@ -19,4 +19,7 @@ class tools_HB(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def get_frame_id(self):return self.frame_ids[-1]
     def get_fps(self):return self.fps
+    def get_delta_time(self):
+        delta = time.time()-self.heartbeat0
+        return delta
 # ----------------------------------------------------------------------------------------------------------------------

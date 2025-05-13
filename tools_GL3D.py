@@ -269,7 +269,7 @@ class render_GL3D(object):
             texture_image = numpy.full((10, 10, 3), 255)
             self.textured = False
         else:
-            if (self.object.filename_texture[-1] is None) or (not os.path.exists(self.object.filename_texture[-1])):
+            if len(self.object.filename_texture)==0 or (self.object.filename_texture[-1] is None) or (not os.path.exists(self.object.filename_texture[-1])):
                 texture_image = numpy.full((10, 10, 3), 255)
                 self.textured = False
             else:
@@ -540,7 +540,7 @@ class render_GL3D(object):
     # ----------------------------------------------------------------------------------------------------------------------
     def stage_data(self, folder_out,do_debug=True,annotation=False):
 
-        name = 'pyramid'
+        name = 'obj'
 
         if not os.path.exists(folder_out):
             os.mkdir(folder_out)

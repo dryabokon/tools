@@ -8,16 +8,16 @@ class Agent_BQ(object):
     def __init__(self,project, dataset,table_name):
         self.LLM = llm_models.get_model(llm_config.get_config_GCP().filename_config_chat_model, model_type='QA')
         self.table_ddl = self.get_table_ddl(project, dataset, table_name)
-        desc = {'Speed': 'Speed of the train',
-                'AveTempC': 'Average Temperature in Celsius',
-                'UTCTimeDate': 'Time and Date in UTC',
-                'Unit': 'Unit of train',
-                'wheel': 'Wheel of the train',
-                'WHI': 'wheel health index',
-                'BHI': 'business health index'}
+        # desc = {'Speed': 'Speed of the train',
+        #         'AveTempC': 'Average Temperature in Celsius',
+        #         'UTCTimeDate': 'Time and Date in UTC',
+        #         'Unit': 'Unit of train',
+        #         'wheel': 'Wheel of the train',
+        #         'WHI': 'wheel health index',
+        #         'BHI': 'business health index'}
 
 
-        self.desc = ' '.join([f'{k} is {v}. ' for k, v in desc.items()])
+        #self.desc = ' '.join([f'{k} is {v}. ' for k, v in desc.items()])
         self.history = []
         self.client = bigquery.Client(project=project, location='US')
 
@@ -25,6 +25,10 @@ class Agent_BQ(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def get_table_ddl(self,project, dataset, table):
         query = f""" SELECT table_name, ddl FROM `{dataset}.INFORMATION_SCHEMA.TABLES` WHERE table_name = '{table}'; """
+        print('------------------')
+        print(query)
+        print('------------------')
+
         loader = BigQueryLoader(query, project=project, metadata_columns="table_name", page_content_columns="ddl")
         data = loader.load()
         res = data[0].page_content

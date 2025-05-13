@@ -1,3 +1,4 @@
+import base64
 import numpy
 import tools_wavefront
 from CV import tools_pr_geom
@@ -320,3 +321,32 @@ class OBJ_Utils:
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
+    def get_base64Obj(self,filename_obj):
+        with open(filename_obj, 'rb') as f:
+            base64Obj = f.read()
+        base64Obj = base64.b64encode(base64Obj).decode('utf-8')
+        base64Obj = '"' + base64Obj + '"'
+        return base64Obj
+    # ----------------------------------------------------------------------------------------------------------------------
+    def replace_last_substring(self,text, substring, replacement):
+        idx = text.rfind(substring)
+        return text[:idx] + replacement + text[idx + len(substring):]
+    # ----------------------------------------------------------------------------------------------------------------------
+    def obj_2_html(self,filename_obj, filename_mat, filename_img):
+        with open('./images/ex_GL/renderer_self_contained.html') as f:
+            txt_html = f.read()
+
+        with open(filename_obj) as f:
+            placeholder_objText = f.read()
+
+        with open(filename_mat) as f:
+            placeholder_mtlText = f.read()
+
+        placeholder_base64Texture = f'data:image/png;base64,{self.get_base64Obj(filename_img)[1:-1]}'
+
+        txt_html = self.replace_last_substring(txt_html, 'placeholder_objText', "`" + placeholder_objText + "`")
+        txt_html = self.replace_last_substring(txt_html, 'placeholder_mtlText', "`" + placeholder_mtlText + "`")
+        txt_html = self.replace_last_substring(txt_html, 'placeholder_base64Texture',"`" + placeholder_base64Texture + "`")
+
+        return txt_html
+    # ----------------------------------------------------------------------------------------------------------------------

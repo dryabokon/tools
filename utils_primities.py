@@ -448,7 +448,7 @@ class Boxes(object):
 # ----------------------------------------------------------------------------------------------------------------------
     def add(self, filename_ID, xyxy, classID):
         self.filename_IDs = numpy.insert(self.filename_IDs, len(self.filename_IDs), int(filename_ID)).astype(int)
-        xyxy = self.standartize(xyxy)
+        #xyxy = self.standartize(xyxy)
         if len(self.xyxy) > 0:
             self.xyxy = numpy.vstack(
                 (self.xyxy, numpy.array([[int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3])]])))
