@@ -1,5 +1,8 @@
+import pandas as pd
 import time
 import numpy
+# ----------------------------------------------------------------------------------------------------------------------
+import tools_DF
 # ----------------------------------------------------------------------------------------------------------------------
 class Time_Profiler:
     def __init__(self, verbose=True):
@@ -64,14 +67,26 @@ class Time_Profiler:
         return time.time() - self.current_start[event]
 # ----------------------------------------------------------------------------------------------------------------------
     def stage_stats(self,filename_out):
-
         E = list(self.dict_event_time.keys())
         V = [self.dict_event_time[e]/self.dict_event_cnt[e] for e in E if self.dict_event_cnt[e]>0]
-        idx = numpy.argsort(-numpy.array(V))
+        fps = [1/(self.dict_event_time[e]/self.dict_event_cnt[e]) for e in E if self.dict_event_cnt[e]>0]
 
+        df_stats = pd.DataFrame({'event': E, 'count': self.dict_event_cnt.values(), 'time_total': self.dict_event_time.values(), 'time_avg': V, 'fps': fps})
+        df_stats = df_stats.sort_values(by='time_avg', ascending=False)
+
+        total_row = {
+            'event': 'TOTAL',
+            'count': df_stats['count'].max(),
+            'time_total': df_stats['time_total'].sum(),
+            'time_avg': df_stats['time_total'].sum()/df_stats['count'].max(),
+            'fps': 1/(df_stats['time_total'].sum()/df_stats['count'].max())
+        }
+        df_stats = pd.concat([df_stats, pd.DataFrame([total_row])], ignore_index=True)
+        df_stats = df_stats.fillna(' ')
+
+        res = tools_DF.prettify(df_stats,showindex=False)
         with open(filename_out, 'w') as f:
-            for i in idx:
-                f.write('%2.4f\t%s\n'%(V[i],E[i]))
+            f.write(res)
 
         return
 # ----------------------------------------------------------------------------------------------------------------------

@@ -95,6 +95,7 @@ class Track_Visualizer:
             track_id = df2['track_id'].iloc[r]
             rect = df2[['x1','y1','x2','y2']].iloc[r].values.astype(int)
             image = self.get_image_by_frame_id(source, df_filenames, frame_id, vidcap)
+            if image is None: continue
 
             rect[0] = max(0, rect[0])
             rect[1] = max(0, rect[1])

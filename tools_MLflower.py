@@ -43,19 +43,17 @@ class MLFlower(object):
     # ---------------------------------------------------------------------------------------------------------------------
     def check_is_available(self,host,port,username, password):
 
+        if host is None or port is None:
+            return False
+
         try:
             response = requests.get(f'{host}:{port}', auth=HTTPBasicAuth(username, password), timeout=5)
-            # print(response.status_code)
-            # print('-------------------')
             if response.status_code == 200:
                 result = True
             else:
                 result = False
 
         except requests.exceptions.RequestException as e:
-            # print('-------------------')
-            # print('exception:', e)
-            # print('-------------------')
             result = False
 
         if result is False:
