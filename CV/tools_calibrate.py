@@ -265,7 +265,8 @@ def get_transform_by_keypoints_desc(points_source,des_source, points_destin,des_
     src, dst, distance = tools_alg_match.get_matches_from_keypoints_desc(points_source, des_source, points_destin, des_destin, matchtype=matchtype)
 
     if src is not None and dst is not None:
-        M = get_transform_by_keypoints(src, dst)
+        #M = get_transform_by_keypoints(src, dst)
+        M = get_euclide_by_keypoints(src, dst)
 
         if M is None:
             return M

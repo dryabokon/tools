@@ -22,8 +22,10 @@ class MLFlower(object):
         print(f'ML FLow server available at {host}:{port} OK')
         self.is_available = True
 
-        os.environ['MLFLOW_TRACKING_USERNAME'] = username_mlflow
-        os.environ['MLFLOW_TRACKING_PASSWORD'] = password_mlflow
+        if username_mlflow is not None and password_mlflow is not None:
+            os.environ['MLFLOW_TRACKING_USERNAME'] = username_mlflow
+            os.environ['MLFLOW_TRACKING_PASSWORD'] = password_mlflow
+
         mlflow.set_tracking_uri(f'{host}:{port}')
 
         self.remote_host = host
