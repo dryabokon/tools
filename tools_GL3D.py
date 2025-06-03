@@ -796,8 +796,12 @@ class render_GL3D(object):
 
     # ----------------------------------------------------------------------------------------------------------------------
     def get_default_ETU(self):
-        obj_min = self.object.coord_vert.min()
-        obj_max = self.object.coord_vert.max()
+        if self.object is not None:
+            obj_min = self.object.coord_vert.min()
+            obj_max = self.object.coord_vert.max()
+        else:
+            obj_min = -1.0
+            obj_max = +1.0
         # eye = numpy.array((0, 0, +5 * (obj_max - obj_min)))
         # target = eye - numpy.array((0, 0, 1.0))
         # up = numpy.array((0, -1, 0.0))
