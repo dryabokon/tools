@@ -1,9 +1,8 @@
 #----------------------------------------------------------------------------------------------------------------------
 import cv2
 import os
-import numpy
 import pandas as pd
-from siamfc_pytorch.siamfc.siamfc import TrackerSiamFC
+from .siamfc_pytorch.siamfc.siamfc import TrackerSiamFC
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_draw_numpy
 import tools_time_profiler
@@ -18,7 +17,7 @@ class Tracker_SiamFC:
         self.buffer_is_tracked = [False]*10
         self.ROI = None
 
-        self.tracker = TrackerSiamFC(net_path='./siamfc_pytorch/siamfc_alexnet_e50.pth')
+        self.tracker = TrackerSiamFC(net_path=os.path.join(os.path.dirname(__file__), 'siamfc_pytorch/siamfc_alexnet_e50.pth'))
         self.colors80 = tools_draw_numpy.get_colors(80, colormap='nipy_spectral', shuffle=True)
         self.colors80[0] = (0, 0, 255)
         self.colors80[1] = (128, 0, 0)
@@ -40,11 +39,12 @@ class Tracker_SiamFC:
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def draw_tracks(self, image, rects, track_ids, labels=None):
+
         colors = [self.colors80[track_id % 80] for track_id in track_ids]
         if labels is None: labels = [None] * len(track_ids)
         for rect, track_id, color, label in zip(rects, track_ids.astype(str), colors, labels):
             col_left, row_up, col_right, row_down = rect.flatten()
-            image = tools_draw_numpy.draw_rect_fast(image, col_left, row_up, col_right, row_down, color, w=2,label=label,alpha_transp=0)
+            image = tools_draw_numpy.draw_rect_fast(image, col_left, row_up, col_right, row_down, color, w=2,label=None,alpha_transp=0)
 
         return image
 # ----------------------------------------------------------------------------------------------------------------------

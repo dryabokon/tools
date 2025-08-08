@@ -4,8 +4,8 @@ def now_str(format='%Y-%m-%d'):
     dt = datetime_to_str(pd.Timestamp.now(),format)
     return dt
 # ----------------------------------------------------------------------------------------------------------------------
-def str_to_datetime(str_series,format='%Y-%m-%d',errors='ignore'):
-    res = pd.to_datetime(str_series, format=format, errors=errors)
+def str_to_datetime(str_series,format='%Y-%m-%d'):
+    res = pd.to_datetime(str_series, format=format)
     return res
 # ----------------------------------------------------------------------------------------------------------------------
 def datetime_to_str(dt,format='%Y-%m-%d'):

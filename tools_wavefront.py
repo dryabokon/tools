@@ -275,7 +275,7 @@ class ObjLoader:
         with open(filename_out, mode) as f_handle:
             f_handle.write("# Obj file\n")
             f_handle.write("o %s\n" % (material_name if material_name is not None else 'Object'))
-            if filename_material is not None:f_handle.write('mtllib %s\n' % filename_material)
+            if filename_material is not None:f_handle.write('mtllib %s\n' % filename_material.split('/')[-1])
             if material_name     is not None:f_handle.write('usemtl %s\n' % material_name)
             for x in X: f_handle.write(f'v {fmt} {fmt} {fmt}\n' % (x[0], x[1], x[2]))
 
@@ -300,7 +300,7 @@ class ObjLoader:
             if transparency>0:
                 f.write('d %.1f\n'%(1-transparency))
             if filename_texture is not None:
-                f.write('map_Kd %s\n'%filename_texture)
+                f.write('map_Kd %s\n'%filename_texture.split('/')[-1])
 
         return
 # ----------------------------------------------------------------------------------------------------------------------

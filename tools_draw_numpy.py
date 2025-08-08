@@ -46,9 +46,9 @@ cuboid_lines_idx2 = [(0,1),(1,2),(2,3),(3,0), (4,5),(5,6),(6,7),(7,4), (0,1),(1,
 def gre2jet(rgb):
     return cv2.applyColorMap(numpy.array(rgb, dtype=numpy.uint8).reshape((1, 1, 3)), cv2.COLORMAP_JET).reshape(3)
 # ----------------------------------------------------------------------------------------------------------------------
-def gre2viridis(rgb):
-    colormap = numpy.flip((numpy.array(cm.cmaps_listed['viridis'].colors255) * 256).astype(int), axis=1)
-    return colormap[rgb[0]]
+# def gre2viridis(rgb):
+#     colormap = numpy.flip((numpy.array(cm.cmaps_listed['viridis'].colors255) * 256).astype(int), axis=1)
+#     return colormap[rgb[0]]
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_points_fast(image, points,color=(0,0,200),w=4,transperency=0,put_text=False,labels=None):
     for i,p in enumerate(points):
@@ -235,7 +235,8 @@ def draw_text(image,label,xy, color_fg,clr_bg=None,font_size=32,alpha_transp=0,h
     x,y = xy[0],xy[1]
     pImage = Image.fromarray(image)
     draw = ImageDraw.Draw(pImage, 'RGBA')
-    font_truetype = ImageFont.truetype("UbuntuMono-Regular.ttf", size=font_size, encoding="utf-8") if os.name in ['nt'] else ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", size=32, encoding="utf-8")
+    #font_truetype = ImageFont.truetype("UbuntuMono-Regular.ttf", size=font_size, encoding="utf-8") if os.name in ['nt'] else ImageFont.truetype("/usr/share/fonts/truetype/ubuntu/UbuntuMono-R.ttf", size=font_size, encoding="utf-8")
+    font_truetype = ImageFont.truetype("UbuntuMono-Regular.ttf", size=font_size, encoding="utf-8") if os.name in ['nt'] else ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", size=font_size, encoding="utf-8")
 
     total_display_str_height = draw.textbbox((0, 0), str(label), font=font_truetype)[-1]
 
@@ -714,4 +715,9 @@ def values_to_colors(values,palette='viridis'):
     col255 = get_colors(256, shuffle=False, colormap=palette)
     colors = [col255[int(v)] if not numpy.isnan(v) else col255[0] for v in values_scaled]
     return  colors
+# ----------------------------------------------------------------------------------------------------------------------
+def random_noise(H,W,color):
+    image = numpy.full((H, W, 3),color, dtype=numpy.uint8)
+    noise = numpy.random.randint(0, 32, (H, W, 3), dtype=numpy.uint8)-32
+    return image+noise
 # ----------------------------------------------------------------------------------------------------------------------

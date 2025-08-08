@@ -1,6 +1,7 @@
 import pandas as pd
 from google.cloud import bigquery
-from langchain_community.document_loaders import BigQueryLoader
+#from langchain_community.document_loaders import BigQueryLoader
+from langchain_google_community import BigQueryLoader
 # ----------------------------------------------------------------------------------------------------------------------
 from LLM2 import llm_models,llm_config
 # ----------------------------------------------------------------------------------------------------------------------

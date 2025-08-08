@@ -7,7 +7,7 @@ class tools_HB(object):
         self.heartbeat_times = [self.heartbeat0]
         self.fps = 0.0
         return
-# ----------------------------------------------------------------------------------------------------------------------
+    # ----------------------------------------------------------------------------------------------------------------------
     def do_heartbeat(self):
         self.frame_ids.append(self.frame_ids[-1]+1)
         self.heartbeat_times.append(time.time())

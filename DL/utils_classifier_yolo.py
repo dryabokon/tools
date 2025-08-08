@@ -6,7 +6,7 @@ from ultralytics import YOLO
 class Classifier_yolo:
     def __init__(self,folder_out,config=None):
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        print('Using device:', device)
+        print('Using device:','\033[92m'+'cuda'+'\033[0m') if device == 'cuda' else '\033[33m'+'CPU'+'\033[0m'
 
         if not os.path.isdir(folder_out):
             os.mkdir(folder_out)

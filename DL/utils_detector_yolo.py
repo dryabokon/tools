@@ -10,22 +10,29 @@ import tools_draw_numpy
 # ----------------------------------------------------------------------------------------------------------------------
 class Detector_yolo:
     def __init__(self,folder_out,config=None):
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        print('Using device:', device)
-
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        model_name = config.model_detect if (config is not None and config.model_detect is not None) else 'yolo11n.pt'
+        print('Using model:',model_name)
+        print('Using device:','\033[92m'+'cuda'+'\033[0m') if self.device == 'cuda' else '\033[33m'+'CPU'+'\033[0m'
+        
         if not os.path.isdir(folder_out):
             os.mkdir(folder_out)
 
         self.folder_out = folder_out
-        self.device = device
-        self.model_detect = YOLO(config['model_detect'] if (config is not None and 'model_detect' in config.keys() and config['model_detect'] is not None) else 'yolov8n.pt')
-        self.model_detect.to(device)
+
+
+        self.model_detect = YOLO(model_name)
+        self.model_detect.to(self.device)
         self.colors80 = tools_draw_numpy.get_colors(80, colormap='nipy_spectral', shuffle=True)
         self.dct_class_names = None
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def update_config(self, config):
         self.config = config
+        model_name = config.model_detect if (config is not None and config.model_detect is not None) else 'yolo11n.pt'
+        print('Using model:', model_name)
+        self.model_detect = YOLO(model_name)
+        self.model_detect.to(self.device)
         return
     # ----------------------------------------------------------------------------------------------------------------------
 

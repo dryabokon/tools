@@ -164,23 +164,24 @@ class Track_Visualizer:
             cv2.imwrite(self.folder_out+'seq_recall_%02d.png'%int(100*conf_th),image)
 
         if df_pred_rich.shape[0]>0:
-            cols = df_pred_rich.iloc[:, 0].max()
-            rows = df_pred_rich.iloc[:, 1].unique().shape[0]
-            image = numpy.full((rows, cols, 3), 32, dtype=numpy.uint8)
-            dct_map = dict(zip(sorted(df_pred_rich.iloc[:, 1].unique()), range(rows)))
-            for r in range(df_pred_rich.shape[0]):
-                if df_pred_rich['conf'].iloc[r]<conf_th:continue
-                frame = df_pred_rich['frame_id'].iloc[r] - 1
-                obj_id = df_pred_rich['track_id'].iloc[r]
-                is_hit = (df_pred_rich['true_row'].iloc[r]!=-1)
-                is_hit_track = df_pred_rich['IDTP'].iloc[r]
-                image[dct_map[obj_id], frame] = self.get_color_pred(is_hit,is_hit_track,use_IDTP)
+            cols = df_pred_rich['frame_id'].max()
+            rows = df_pred_rich['track_id'].unique().shape[0]
+            if rows>=2:
+                image = numpy.full((rows, cols, 3), 32, dtype=numpy.uint8)
+                dct_map = dict(zip(sorted(df_pred_rich.iloc[:, 1].unique()), range(rows)))
+                for r in range(df_pred_rich.shape[0]):
+                    if df_pred_rich['conf'].iloc[r]<conf_th:continue
+                    frame = df_pred_rich['frame_id'].iloc[r] - 1
+                    obj_id = df_pred_rich['track_id'].iloc[r]
+                    is_hit = (df_pred_rich['true_row'].iloc[r]!=-1)
+                    is_hit_track = df_pred_rich['IDTP'].iloc[r]
+                    image[dct_map[obj_id], frame] = self.get_color_pred(is_hit,is_hit_track,use_IDTP)
 
-            im_represent = self.get_representatives(source, df_pred_rich)
-            image = cv2.resize(image, (800, im_represent.shape[0]), interpolation=cv2.INTER_NEAREST)
-            for r in range(rows): image[r * H] = 64
-            image = numpy.concatenate((im_represent, image), axis=1)
-            cv2.imwrite(self.folder_out + 'seq_precision_%02d.png'%int(100*conf_th),image)
+                im_represent = self.get_representatives(source, df_pred_rich)
+                image = cv2.resize(image, (800, im_represent.shape[0]), interpolation=cv2.INTER_NEAREST)
+                for r in range(rows): image[r * H] = 64
+                image = numpy.concatenate((im_represent, image), axis=1)
+                cv2.imwrite(self.folder_out + 'seq_precision_%02d.png'%int(100*conf_th),image)
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
