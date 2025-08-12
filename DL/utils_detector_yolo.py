@@ -11,10 +11,10 @@ import tools_draw_numpy
 class Detector_yolo:
     def __init__(self,folder_out,config=None):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        model_name = config.model_detect if (config is not None and config.model_detect is not None) else 'yolo11n.pt'
-        print('Using model:',model_name)
-        print('Using device:','\033[92m'+'cuda'+'\033[0m') if self.device == 'cuda' else '\033[33m'+'CPU'+'\033[0m'
-        
+        model_name = config.model_detect if (config is not None and config.model_detect is not None) else 'yolov8n.pt'
+        device_colored = ('\033[92m' + 'cuda' + '\033[0m' if self.device == 'cuda' else '\033[33m' + 'CPU' + '\033[0m')
+        print('[Detectr] device:',device_colored,'-',model_name)
+
         if not os.path.isdir(folder_out):
             os.mkdir(folder_out)
 
@@ -37,10 +37,8 @@ class Detector_yolo:
     # ----------------------------------------------------------------------------------------------------------------------
 
     def get_detections(self,filename_in, col_start=None,do_debug=False):
-        conf_th = 0.5
-
         image = cv2.imread(filename_in) if isinstance(filename_in, str) else filename_in
-
+        class_names = []
         res = self.model_detect.predict(source=image, verbose=False, device=self.device)
         if res[0].boxes is not None:
             rects = res[0].boxes.xyxy.cpu().numpy()
@@ -57,7 +55,6 @@ class Detector_yolo:
         df_pred = pd.DataFrame(numpy.concatenate((class_ids.reshape((-1, 1)),rects.reshape((-1, 4)), confs.reshape(-1, 1)), axis=1),columns=['class_ids',             'x1', 'y1', 'x2', 'y2', 'conf'])
         df_pred = df_pred.astype({'class_ids': int, 'x1': int, 'y1': int, 'x2': int, 'y2': int, 'conf': float})
         df_pred['class_name'] = class_names
-        #df_pred = df_pred[df_pred['conf'] > conf_th]
 
         return df_pred
 # ----------------------------------------------------------------------------------------------------------------------

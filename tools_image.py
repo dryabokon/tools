@@ -27,8 +27,7 @@ def numerical_devisor(n):
 
     return n
 # ---------------------------------------------------------------------------------------------------------------------
-def smart_resize(img, target_image_height=None, target_image_width=None,bg_color=(128, 128, 128)):
-    '''resize image with unchanged aspect ratio using padding'''
+def smart_resize(img, target_image_height=None, target_image_width=None,bg_color=(128, 128, 128),align_center = True):
 
     pillow_image = PillowImage.fromarray(img)
 
@@ -40,14 +39,16 @@ def smart_resize(img, target_image_height=None, target_image_width=None,bg_color
     if target_image_height is None:
         target_image_height = int(img.shape[0]*target_image_width/img.shape[1])
 
-
     scale = min(target_image_width / original_image_width, target_image_height / original_image_height)
     nw = int(original_image_width * scale)
     nh = int(original_image_height * scale)
 
     pillow_image = pillow_image.resize((nw, nh), PillowImage.BICUBIC)
     new_image = PillowImage.new('RGB', (target_image_width, target_image_height), bg_color)
-    new_image.paste(pillow_image, ((target_image_width - nw) // 2, (target_image_height - nh) // 2))
+    if align_center:
+        new_image.paste(pillow_image, ((target_image_width - nw) // 2, (target_image_height - nh) // 2))
+    else:
+        new_image.paste(pillow_image, (0, 0))
     return numpy.array(new_image)
 # ---------------------------------------------------------------------------------------------------------------------
 def center_crop(img, size):

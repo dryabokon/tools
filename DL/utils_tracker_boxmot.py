@@ -26,6 +26,7 @@ class Tracker_boxmot:
             self.tracker = BotSort(model_weights=Path('osnet_x0_25_msmt17.pt'), device='cuda:0', fp16=False)
         else:
             self.tracker = None
+        print('[Tracker] device:', f'CPU - BOXMOT {algorithm}')
 
         self.colors80 = tools_draw_numpy.get_colors(80, colormap='nipy_spectral', shuffle=True)
 
@@ -40,8 +41,7 @@ class Tracker_boxmot:
         dets = df_det[['x1', 'y1', 'x2', 'y2','conf','class_ids']].values
         image = cv2.imread(filename_in) if isinstance(filename_in, str) else filename_in
         embs = None
-        # if df_det.shape[1]>col_start:
-        #     embs = df_det.iloc[:,col_start:].values
+
         self.tracker.update(dets, image,embs)
 
         rects = numpy.array([a.history_observations[-1][:4] for a in self.tracker.active_tracks if a.history_observations and (len(a.history_observations) > 2)])

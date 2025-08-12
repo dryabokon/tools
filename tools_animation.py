@@ -158,7 +158,8 @@ def folder_to_video_simple(folder_in, filename_out, mask='*.jpg', framerate=24):
     out = cv2.VideoWriter(filename_out, fourcc, framerate, (resize_W, resize_H))
 
     for filename in tqdm(filenames, total=len(filenames), desc='Writing video'):
-        out.write(cv2.imread(folder_in+filename))
+        image = cv2.imread(folder_in + filename)
+        out.write(image)
     out.release()
     return
 # ---------------------------------------------------------------------------------------------------------------------

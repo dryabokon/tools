@@ -16,6 +16,7 @@ class Tracker_deep_sort:
     def __init__(self,folder_out,max_iou_distance=0.7, max_age=30, n_init=3):
         if not os.path.isdir(folder_out):
             os.mkdir(folder_out)
+        print('[Tracker] device:', 'CPU - deep_sort')
 
         self.folder_out = folder_out
 

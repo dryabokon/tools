@@ -1,128 +1,186 @@
-import pandas as pd
 import time
-import numpy
-# ----------------------------------------------------------------------------------------------------------------------
+import pandas as pd
+from contextlib import contextmanager
+# --------------------------------------------------------------------------
 import tools_DF
-# ----------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 class Time_Profiler:
     def __init__(self, verbose=True):
         self.current_event = None
-        self.current_start = {}
-
-        self.dict_event_time = {}
-        self.dict_event_cnt = {}
+        self.current_start = {}  # {event: start_perf_counter}
+        self.dict_event_time = {}  # {event: total_seconds}
+        self.dict_event_cnt  = {}  # {event: finished_intervals}
         self.verbose = verbose
-# ----------------------------------------------------------------------------------------------------------------------
-    def tic(self, event,reset=False,verbose=None):
+
+    # --------------------------------------------------------------------------
+    def tic(self, event, reset=False, verbose=None):
+
+        now = time.perf_counter()
+        verbose = self.verbose if verbose is None else verbose
 
         if reset:
-            if event in self.dict_event_time:
-                del self.dict_event_time[event]
-            if event in self.dict_event_cnt:
-                del self.dict_event_cnt[event]
+            self.dict_event_time.pop(event, None)
+            self.dict_event_cnt.pop(event, None)
+            if self.current_event == event:
+                self.current_event = None
+                self.current_start.pop(event, None)
 
-        if event not in self.dict_event_time:
-            self.dict_event_time[event] = 0
-            self.dict_event_cnt[event] = 0
+        if self.current_event is not None:
+            prev = self.current_event
+            start = self.current_start.pop(prev, None)
+            if start is not None:
+                delta = now - start
+                self.dict_event_time[prev] = self.dict_event_time.get(prev, 0.0) + delta
+                self.dict_event_cnt[prev]  = self.dict_event_cnt.get(prev, 0) + 1
+                if verbose:
+                    print("stop  -", prev, f"(+{delta:.3f}s)")
+            # If toggling the same event, we just stopped it and we’re done
+            if prev == event:
+                self.current_event = None
+                return
 
+
+        self.current_event = event
+        self.current_start[event] = now
+
+        self.dict_event_time.setdefault(event, 0.0)
+        self.dict_event_cnt.setdefault(event, 0)
+        if verbose:
+            print("start -", event)
+
+    # --------------------------------------------------------------------------
+    def stop(self, verbose=None):
 
         if self.current_event is None:
-            self.current_event = event
-            self.current_start[event] = time.time()
-        else:
-            delta=0
-            if event in self.current_start:
-                delta = time.time() - self.current_start[event]
-            self.dict_event_time[self.current_event]+=delta
-            self.dict_event_cnt[event] += 1
-            self.current_event = None
+            return
+        self.tic(self.current_event, verbose=verbose)
 
+    # --------------------------------------------------------------------------
+    def print_duration(self, event, verbose=None):
 
         verbose = self.verbose if verbose is None else verbose
-        if verbose:
-            print('start', '-', event)
+        total = self.get_duration_sec(event)
+        if total is None:
+            return None
 
-        return
-# ----------------------------------------------------------------------------------------------------------------------
-    def print_duration(self,event,verbose=None):
+        if total < 60:
 
-        if event not in self.dict_event_time:
-            return
+            value = f"{total:0.3f}s"
+        elif total < 3600:
+            value = time.strftime('%M:%S', time.gmtime(total))
         else:
-            self.dict_event_time[event] = time.time() - self.current_start[event]
-            if self.dict_event_time[event]<60:
-                format = '%M:%S'
-            elif self.dict_event_time[event]<60*60:
-                format = '%M:%S'
-            else:
-                format = '%H:%M:%S'
+            value = time.strftime('%H:%M:%S', time.gmtime(total))
 
-            value = time.strftime(format, time.gmtime(self.dict_event_time[event]))
-            verbose = self.verbose if verbose is None else verbose
-            if verbose:
-                print(value,'-',event)
+        if verbose:
+            print(value, '-', event)
         return value
-# ----------------------------------------------------------------------------------------------------------------------
-    def get_diration_sec(self,event):
-        return time.time() - self.current_start[event]
-# ----------------------------------------------------------------------------------------------------------------------
-    def stage_stats(self,filename_out):
-        E = list(self.dict_event_time.keys())
-        V = [self.dict_event_time[e]/self.dict_event_cnt[e] for e in E if self.dict_event_cnt[e]>0]
-        fps = [1/(self.dict_event_time[e]/self.dict_event_cnt[e]) for e in E if self.dict_event_cnt[e]>0]
 
-        df_stats = pd.DataFrame({'event': E, 'count': self.dict_event_cnt.values(), 'time_total': self.dict_event_time.values(), 'time_avg': V, 'fps': fps})
-        df_stats = df_stats.sort_values(by='time_avg', ascending=False)
+    # --------------------------------------------------------------------------
+    def get_duration_sec(self, event):
 
-        total_row = {
+        if (event not in self.dict_event_time) and (event not in self.current_start):
+            return None
+        total = self.dict_event_time.get(event, 0.0)
+        if self.current_event == event and event in self.current_start:
+            total += time.perf_counter() - self.current_start[event]
+        return total
+
+    # --------------------------------------------------------------------------
+    def to_dataframe(self):
+
+
+        events = set(self.dict_event_time.keys()) | set(self.dict_event_cnt.keys()) | set(self.current_start.keys())
+
+        rows = []
+        for e in sorted(events):
+            time_total = self.get_duration_sec(e) or 0.0
+            count = self.dict_event_cnt.get(e, 0)
+            time_avg = (time_total / count) if count > 0 else None
+            fps = (1.0 / time_avg) if (time_avg and time_avg > 0) else None
+            rows.append({
+                'event': e,
+                'count': count,
+                'time_total': time_total,
+                'time_avg': time_avg,
+                'fps': fps
+            })
+
+        df = pd.DataFrame(rows)
+        if not df.empty:
+            df = df.sort_values(by=['time_avg', 'time_total'], ascending=[False, False], na_position='last')
+        return df.reset_index(drop=True)
+
+    # --------------------------------------------------------------------------
+    def stage_stats(self, filename_out):
+
+        df = self.to_dataframe()
+
+        if df.empty:
+            with open(filename_out, 'w') as f:
+                f.write("No stats recorded.\n")
+            return
+
+        total_time = df['time_total'].sum()
+        total_count = df['count'].max()
+        total_fps = total_count/ (total_time + 1e-6)
+        total_avg = total_time / (total_count + 1e-6)
+
+        total_row = pd.DataFrame([{
             'event': 'TOTAL',
-            'count': df_stats['count'].max(),
-            'time_total': df_stats['time_total'].sum(),
-            'time_avg': df_stats['time_total'].sum()/df_stats['count'].max(),
-            'fps': 1/(df_stats['time_total'].sum()/df_stats['count'].max())
-        }
-        df_stats = pd.concat([df_stats, pd.DataFrame([total_row])], ignore_index=True)
-        df_stats = df_stats.fillna(' ')
+            'count': total_count,
+            'time_total': total_time,
+            'time_avg': total_avg,
+            'fps': total_fps
+        }])
 
-        res = tools_DF.prettify(df_stats,showindex=False)
+        out = pd.concat([df, total_row], ignore_index=True)
+
+        try:
+
+
+            res = tools_DF.prettify(out, showindex=False)
+            text = res
+        except Exception:
+            text = out.to_string(index=False)
+
         with open(filename_out, 'w') as f:
-            f.write(res)
+            f.write(text)
 
-        return
-# ----------------------------------------------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
     def print_stats(self):
-        E = list(self.dict_event_time.keys())
-        V = [self.dict_event_time[e]/self.dict_event_cnt[e] for e in E if self.dict_event_cnt[e]>0]
-        idx = numpy.argsort(-numpy.array(V))
+        df = self.to_dataframe()
+        if df.empty:
+            print("No stats recorded.")
+            return
+        for _, r in df.iterrows():
+            avg = f"{r['time_avg']:.6f}s" if pd.notnull(r['time_avg']) else "-"
+            fps = f"{r['fps']:.2f}" if pd.notnull(r['fps']) else "-"
+            print(f"{avg}\t{fps} FPS\t{r['event']}")
 
-        for i in idx:
-            print('%2.3f\t%s'%(V[i],E[i]))
-
-        return
-# ----------------------------------------------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
     def prettify(self, value):
-        if value >= 1e9:return f'{value / 1e9:.2f}G'
-        elif value >= 1e6:return f'{value / 1e6:.2f}M'
-        elif value >= 1e3:return f'{value / 1e3:.2f}k'
-        else:return f'{value:.2f}'
-# ----------------------------------------------------------------------------------------------------------------------
-    def funA(self):
-        time.sleep(1.2)
-        return
+        if value >= 1e9:   return f'{value / 1e9:.2f}G'
+        if value >= 1e6:   return f'{value / 1e6:.2f}M'
+        if value >= 1e3:   return f'{value / 1e3:.2f}k'
+        return f'{value:.2f}'
 
-    def funB(self):
-        time.sleep(0.3)
-        return
-# ----------------------------------------------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
+    @contextmanager
+    def timer(self, event, verbose=None):
+        self.tic(event, verbose=verbose)
+        try:
+            yield
+        finally:
+            self.stop(verbose=verbose)
+
+    # --------------------------------------------------------------------------
+    # Demo helpers
+    def funA(self): time.sleep(1.2)
+    def funB(self): time.sleep(0.3)
+
     def test(self):
-        for i in range(10):
-            self.tic('A')
-            self.funA()
-            self.tic('A')
-
-            self.tic('B')
-            self.funB()
-            self.tic('B')
-
+        for _ in range(10):
+            self.tic('A'); self.funA(); self.tic('A')  # toggle A
+            self.tic('B'); self.funB(); self.tic('B')  # toggle B
         self.print_stats()
-# ----------------------------------------------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------

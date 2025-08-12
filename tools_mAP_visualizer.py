@@ -325,7 +325,8 @@ class Track_Visualizer:
             image = cv2.resize(image, (image.shape[1] // 2, image.shape[0] // 2), interpolation=cv2.INTER_NEAREST)
             cv2.imwrite(self.folder_out + '%06d' % frame_id + '.jpg', image)
 
-        vidcap.release()
+        if vidcap is not None:
+            vidcap.release()
 
         if as_video:
             filenames = tools_IO.get_filenames(self.folder_out, '*.jpg')
