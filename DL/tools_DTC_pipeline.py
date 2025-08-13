@@ -36,8 +36,8 @@ class Pipeliner:
         self.Tracker = None
         self.Classifier = None
         self.Grabber = None
-        self.update_config(self.config)
         self.update_grabber(Grabber)
+        self.update_config(self.config)
         self.save_tracks = save_tracks
 
 
@@ -135,21 +135,6 @@ class Pipeliner:
 
         if self.config.gt is not None:
             self.update_true(pd.read_csv(config.gt, header=None))
-
-        if self.config.source is None:
-            self.df_filenames = None
-            self.frames_count = 0
-            return
-
-        if ('.mp4' in self.config.source.lower()) or ('.avi' in self.config.source.lower()) or ('.ts' in self.config.source.lower()) or ('.mkv' in self.config.source.lower()) or ('http' in self.config.source) or (self.config.source == '0'):
-            cap = cv2.VideoCapture(self.config.source)
-            self.df_filenames = None
-            self.frames_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            cap.release()
-        else:
-            self.df_filenames = pd.DataFrame({'filename':tools_IO.get_filenames(self.config.source, '*.jpg,*.png') })
-            self.df_filenames['frame_id'] = numpy.arange(1, 1 + self.df_filenames.shape[0])
-            self.frames_count = self.df_filenames.shape[0]
 
         return
     # ----------------------------------------------------------------------------------------------------------------------
@@ -455,7 +440,9 @@ class Pipeliner:
         space = font_size + 20
 
         frame_id = self.HB.get_frame_id()
-        total_frames = self.frames_count
+        total_frames = self.Grabber.get_max_frame_id()
+        if total_frames == numpy.inf:
+            total_frames = 0
         delta_time = self.HB.get_delta_time()
         fps = self.HB.get_fps()
         label = '%06d / %06d | %.1f sec | %.1f fps @ %dpx | %.0f ms' % (frame_id, total_frames,delta_time, fps, image.shape[0] ,1000.0 / (fps + 1e-4))
@@ -767,7 +754,7 @@ class Pipeliner:
 
         tools_IO.remove_files(self.folder_out, 'profile_*.png')
         if not self.Grabber.exhausted:
-            progress_bar = tqdm(total=self.frames_count, desc='Profiling',bar_format="{l_bar}{bar}|{n_fmt}/{total_fmt} [{elapsed}<{remaining}]")
+            progress_bar = tqdm(total=self.Grabber.get_max_frame_id(), desc='Profiling',bar_format="{l_bar}{bar}|{n_fmt}/{total_fmt} [{elapsed}<{remaining}]")
             prev = 0
             while not self.Grabber.exhausted:
                 time.sleep(0.1)
@@ -881,9 +868,7 @@ class Pipeliner:
         tools_IO.remove_files(self.folder_out, '*.png')
         tools_IO.remove_files(self.folder_out, '*.mp4')
 
-        N = self.frames_count
-        if self.config.limit is not None and self.config.limit > 0:
-            N = min(self.frames_count, self.config.limit)
+        N = min(self.Grabber.get_max_frame_id(),(self.config.limit if self.config.limit is not None else numpy.inf))
 
         for i in tqdm(range(int(N)), desc='processing video'):
             self.HB.do_heartbeat()

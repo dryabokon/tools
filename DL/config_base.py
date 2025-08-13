@@ -11,7 +11,7 @@ class cnfg_base(object):
     resize_W = None
     resize_H = None
     start = 0
-    limit = 0
+    limit = None
     gt = None
     iou_th = 0.25
     min_object_size = 10

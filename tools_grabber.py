@@ -10,6 +10,7 @@ import threading
 # ---------------------------------------------------------------------------------------------------------------------
 import tools_heartbeat
 import tools_draw_numpy
+import tools_IO
 # ---------------------------------------------------------------------------------------------------------------------
 class Grabber:
     def __init__(self, source,looped=True):
@@ -18,14 +19,20 @@ class Grabber:
         self.should_be_closed = False
         self.HB = tools_heartbeat.tools_HB()
 
-        self.frame_buffer_size = 500
+        self.mode = None
+        self.max_frame_id = None
+        self.is_initiated = False
+        self.current_frame = None
         self.frame_buffer = []
         self.frame_ids = []
-        self.last_frame_given = -1
+        self.last_frame_given = None
         self._lock = Lock()
-        print('Initializing Grabber with source:', self.source)
         threading.Thread(target=self.capture_frames, daemon=True).start()
 
+        while not self.is_initiated:
+            time.sleep(0.01)
+
+        print('Grabber Initiated:', self.source)
         return 
     # ---------------------------------------------------------------------------------------------------------------------
     def get_cookies(self):
@@ -80,72 +87,175 @@ class Grabber:
         image = tools_draw_numpy.draw_text_fast(image, label, (0, space * 2), color_fg=color_fg, clr_bg=clr_bg,font_size=font_size)
         return image
     # ---------------------------------------------------------------------------------------------------------------------
+    def is_endless_stream(self,source):
+        if isinstance(source,int):return True
+        else:
+            if source.startswith('http') or source.startswith('rtsp'):return True
+            if source.startswith('nvarguscamerasrc') or source.startswith('v4l2src') or source.isdigit():return True
+        return False
+    # ---------------------------------------------------------------------------------------------------------------------
+    def is_mp4_video(self,source):
+        if isinstance(source, int): return False
+        if source.endswith('.mp4') or source.endswith('.avi') or source.endswith('.mov'):return True
+        return False
+    # ---------------------------------------------------------------------------------------------------------------------
+    def open_capture(self,source):
+        if isinstance(source, int) or (isinstance(source, str) and source.isdigit()):
+            return cv2.VideoCapture(int(source),cv2.CAP_DSHOW)
+        if isinstance(source, str) and (source.startswith('nvarguscamerasrc') or source.startswith('v4l2src') or source.startswith('rtsp://') or source.startswith('rtsps://')):
+            if 'appsink' not in source:
+                source = source.strip() + ' ! appsink drop=1 sync=false'
+            return cv2.VideoCapture(source, cv2.CAP_GSTREAMER)
+        return cv2.VideoCapture(source)
+    # ---------------------------------------------------------------------------------------------------------------------
+    def get_max_frame_id(self):
+        return self.max_frame_id
+    # ---------------------------------------------------------------------------------------------------------------------
     def capture_empty(self):
-        self.exhausted = True
+        self.mode = 'empty'
+        self.max_frame_id = 1
+        self.last_frame_given = 0
         with self._lock:
-            self.frame_buffer.append(tools_draw_numpy.random_noise(256, 256, (128, 128, 200)))
-            self.frame_ids.append(0)
+            self.frame_buffer = [tools_draw_numpy.random_noise(480, 640, (128, 128, 164))]
+            self.frame_ids = [0]
+            self.is_initiated = True
+
+        self.exhausted = True
 
         while not self.should_be_closed:
             time.sleep(0.01)
             self.HB.do_heartbeat()
+            with self._lock:
+                self.frame_buffer[0] = tools_draw_numpy.random_noise(480, 640, (128, 128, 164))
+                self.frame_ids[0] = 0
+
+        return
+
+    # ---------------------------------------------------------------------------------------------------------------------
+    def capture_filenames(self):
+        self.mode = 'filenames'
+        filenames = tools_IO.get_filenames(self.source, '*.jpg,*.png')
+        self.max_frame_id = len(filenames)
+        self.last_frame_given = -1
+        self.exhausted = False
+        for i, filename in enumerate(filenames):
+            self.HB.do_heartbeat()
+            frame = cv2.imread(self.source+filename)
+            with self._lock:
+                self.frame_buffer.append(frame)
+                self.frame_ids.append(i)
+            self.is_initiated = True
+
+        self.exhausted = True
+
+        return
+    # ---------------------------------------------------------------------------------------------------------------------
+    def capture_finite(self):
+        self.mode = 'finite'
+        self.cap = self.open_capture(self.source)
+        self.max_frame_id = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.exhausted = False
+        self.last_frame_given = -1
+        for i in range(self.max_frame_id):
+            time.sleep(0.01)
+            self.HB.do_heartbeat()
+            ret, frame = self.cap.read()
+            with self._lock:
+                self.frame_buffer.append(frame)
+                self.frame_ids.append(self.HB.get_frame_id())
+            self.is_initiated = True
+
+        self.exhausted = True
+        self.cap.release()
+        return
+    # ---------------------------------------------------------------------------------------------------------------------
+    def capture_endless(self):
+        self.mode = 'endless'
+        self.cap = self.open_capture(self.source)
+        self.max_frame_id = numpy.inf
+        self.last_frame_given = 0
+        while not self.should_be_closed:
+            time.sleep(0.01)
+            self.HB.do_heartbeat()
+            ret, frame = self.cap.read()
+            if str(self.source) in ['0', '1']:
+                frame = cv2.flip(frame, 1)
+
+            with self._lock:
+                self.current_frame = frame
+
+            self.is_initiated = True
+
+        if self.cap:
+            self.cap.release()
+
         return
     # ---------------------------------------------------------------------------------------------------------------------
     def capture_frames(self):
-        if self.source is None or self.source == '':
-            print('Empty source, capturing empty frames ..')
-            self.capture_empty()
-        else:
-            self.exhausted = False
-            self.cap = cv2.VideoCapture(self.source)
-            if not self.cap.isOpened():
-                print('Error: Could not open video source:', self.source)
-                self.cap.release()
-                self.capture_empty()
-                return
-
-            while not self.should_be_closed:
-                time.sleep(0.01)
-                if not self.exhausted:
-                    self.HB.do_heartbeat()
-                    ret, frame = self.cap.read()
-
-                    if not ret:
-                        self.exhausted = True
-                    else:
-                        with self._lock:
-                            self.frame_buffer.append(frame)
-                            self.frame_ids.append(self.HB.get_frame_id())
-
-            if self.cap:
-                self.cap.release()
+        if   self.source is None or self.source == ''   :self.capture_empty()
+        elif self.is_endless_stream(self.source)        :self.capture_endless()
+        elif self.is_mp4_video(self.source)             :self.capture_finite()
+        else                                            :self.capture_filenames()
         return
     # ---------------------------------------------------------------------------------------------------------------------
-    def get_frame(self,frame_id=None):
-        if frame_id is None:
+    def get_frame_empty(self,frame_id=None):
+        return self.frame_buffer[-1]
+    # ---------------------------------------------------------------------------------------------------------------------
+    def get_frame_finite(self,frame_id=None):
+        if frame_id is not None:
             with self._lock:
-                if self.last_frame_given + 1 < len(self.frame_buffer):
+                if frame_id in self.frame_ids:
+                    index = self.frame_ids.index(frame_id)
+                    result = self.frame_buffer[index].copy()
+                else:
+                    if self.looped:
+                        result = self.frame_buffer[int(frame_id) % len(self.frame_buffer)].copy()
+                    else:
+                        result = None
+        else:
+            with self._lock:
+                if self.last_frame_given + 1  < len(self.frame_buffer):
                     self.last_frame_given += 1
+                    result = self.frame_buffer[self.last_frame_given].copy()
                 else:
                     if self.exhausted:
                         if self.looped:
                             self.last_frame_given = 0
-                            print('Restarting ..')
+                            if len(self.frame_buffer) >= 2:
+                                print('Restarting ..')
                         else:
                             self.last_frame_given = len(self.frame_buffer) - 1
                     else:
                         self.last_frame_given = len(self.frame_buffer) - 1
 
-                return self.frame_buffer[self.last_frame_given].copy()
+                    result = self.frame_buffer[self.last_frame_given].copy()
 
+        return result
+    # ---------------------------------------------------------------------------------------------------------------------
+    def get_frame_endless(self,frame_id=None):
+        if frame_id is None:
+            with self._lock:
+                self.last_frame_given+=1
+                self.frame_ids.append(self.last_frame_given)
+                self.frame_buffer.append(self.current_frame.copy())
+                self.frame_buffer = self.frame_buffer[-1000:]
+                self.frame_ids = self.frame_ids[-1000:]
+                return self.current_frame.copy()
         else:
             with self._lock:
                 if frame_id in self.frame_ids:
                     index = self.frame_ids.index(frame_id)
-                    return self.frame_buffer[index].copy()
+                    result = self.frame_buffer[index].copy()
                 else:
-                    if self.looped:
-                        return self.frame_buffer[int(frame_id) % len(self.frame_buffer)].copy()
-                    else:
-                        return None
+                    H,W = self.current_frame.shape[:2]
+                    result = tools_draw_numpy.random_noise(H, W, (70, 80, 64))
+
+        return result
+    # ---------------------------------------------------------------------------------------------------------------------
+    def get_frame(self,frame_id=None):
+        if   self.mode == 'empty':return self.get_frame_empty(frame_id)
+        elif self.mode== 'filenames':return self.get_frame_finite(frame_id)
+        elif self.mode == 'finite': return self.get_frame_finite(frame_id)
+        elif self.mode == 'endless':return self.get_frame_endless(frame_id)
+        return
     # ---------------------------------------------------------------------------------------------------------------------
