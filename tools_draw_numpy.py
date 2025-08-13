@@ -1,10 +1,8 @@
 import os
 import cv2
 import numpy
-import matplotlib.cm as cm
 import pandas as pd
 from matplotlib import colors
-from scipy.spatial import ConvexHull
 from skimage.draw import disk, line_aa,ellipse,circle_perimeter_aa
 from PIL import Image, ImageDraw,ImageFont,ImageColor
 import matplotlib.pyplot as plt
@@ -326,7 +324,7 @@ def draw_contours_cv(image, points, color=(255,255,255),w=-1,transperency=0.0):
     return res.astype(numpy.uint8)
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_convex_hull_cv(image, points, color=(255,255,255),transperency=0.0):
-
+    from scipy.spatial import ConvexHull
     hull = ConvexHull(numpy.array(points,dtype=int))
     cntrs = numpy.array(points,dtype=int)[hull.vertices].reshape(1,-1, 1, 2).astype(int)
     res = cv2.drawContours(image.copy(), cntrs,-1,color,thickness=-1)
@@ -337,7 +335,7 @@ def draw_convex_hull_cv(image, points, color=(255,255,255),transperency=0.0):
     return res.astype(numpy.uint8)
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_convex_hull(image,points,color=(255, 0, 0),transperency=0.0):
-
+    from scipy.spatial import ConvexHull
     if points[:,0].max()-points[:,0].min()<1:return image
     if points[:,1].max()-points[:,1].min()<1:return image
 
