@@ -1,3 +1,4 @@
+import os
 import yaml
 from yaml.loader import SafeLoader
 import requests
@@ -13,9 +14,11 @@ import tools_draw_numpy
 import tools_IO
 # ---------------------------------------------------------------------------------------------------------------------
 class Grabber:
-    def __init__(self, source,looped=True):
+    def __init__(self, source,looped=True,width=None,height=None):
         self.looped = looped
         self.source = source
+        self.width = width
+        self.height = height
         self.should_be_closed = False
         self.HB = tools_heartbeat.tools_HB()
 
@@ -55,29 +58,6 @@ class Grabber:
             return login_data
 
         return None
-    # ---------------------------------------------------------------------------------------------------------------------
-    def capture_frames_ffmpeg(self,width,height):
-
-        cookies = f"x-runtime-guid={self.get_cookies()['token']};"
-        cmd = ["ffmpeg", "-headers", f"Cookie: {cookies}\r\n", "-user_agent", "Mozilla/5.0", "-tls_verify", "0", "-i",self.source, "-f", "image2pipe", "-pix_fmt", "bgr24", "-vcodec", "rawvideo", "-"]
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=10**8)
-
-        while not self.should_be_closed:
-            time.sleep(0.01)
-            self.HB.do_heartbeat()
-            raw_frame = proc.stdout.read(width * height * 3)
-            if not raw_frame:
-                continue
-
-            frame = numpy.frombuffer(raw_frame, numpy.uint8).reshape((height, width, 3))
-
-            with self._lock:
-                self.frame_buffer.append(frame)
-                #self.frame_buffer = self.frame_buffer[-self.frame_buffer_size:]
-
-        #self.frame_buffer = []
-        proc.terminate()
-        return
     # ----------------------------------------------------------------------------------------------------------------------
     def print_debug_info(self,image, font_size=18):
         clr_bg = (192, 192, 192) if image[:200, :200].mean() > 192 else (64, 64, 64)
@@ -87,11 +67,15 @@ class Grabber:
         image = tools_draw_numpy.draw_text_fast(image, label, (0, space * 2), color_fg=color_fg, clr_bg=clr_bg,font_size=font_size)
         return image
     # ---------------------------------------------------------------------------------------------------------------------
-    def is_endless_stream(self,source):
+    def is_endless_stream_argus(self,source):
         if isinstance(source,int):return True
         else:
-            if source.startswith('http') or source.startswith('rtsp'):return True
             if source.startswith('nvarguscamerasrc') or source.startswith('v4l2src') or source.isdigit():return True
+        return False
+    # ---------------------------------------------------------------------------------------------------------------------
+    def is_endless_stream_ffmpeg(self,source):
+        if source.startswith('http') or source.startswith('rtsp'):
+            return True
         return False
     # ---------------------------------------------------------------------------------------------------------------------
     def is_mp4_video(self,source):
@@ -100,9 +84,11 @@ class Grabber:
         return False
     # ---------------------------------------------------------------------------------------------------------------------
     def open_capture(self,source):
+
         if isinstance(source, int) or (isinstance(source, str) and source.isdigit()):
-            #cv2.CAP_DSHOW
-            return cv2.VideoCapture(int(source))
+            if os.name in ['nt']:return cv2.VideoCapture(int(source),cv2.CAP_DSHOW)
+            else:                return cv2.VideoCapture(int(source))
+
         if isinstance(source, str) and (source.startswith('nvarguscamerasrc') or source.startswith('v4l2src') or source.startswith('rtsp://') or source.startswith('rtsps://')):
             if 'appsink' not in source:
                 source = source.strip() + ' ! appsink drop=1 sync=false'
@@ -154,6 +140,11 @@ class Grabber:
     def capture_finite(self):
         self.mode = 'finite'
         self.cap = self.open_capture(self.source)
+        if not self.cap.isOpened():
+            print(f'Error: opening {self.source}')
+            self.capture_empty()
+            return
+
         self.max_frame_id = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
         self.exhausted = False
         self.last_frame_given = -1
@@ -170,7 +161,7 @@ class Grabber:
         self.cap.release()
         return
     # ---------------------------------------------------------------------------------------------------------------------
-    def capture_endless(self):
+    def capture_endless_argus(self):
         self.mode = 'endless'
         self.cap = self.open_capture(self.source)
         self.max_frame_id = numpy.inf
@@ -192,9 +183,33 @@ class Grabber:
 
         return
     # ---------------------------------------------------------------------------------------------------------------------
+    def capture_endless_ffmpeg(self,width,height):
+        self.mode = 'endless'
+        cookies = f"x-runtime-guid={self.get_cookies()['token']};"
+        cmd = ["ffmpeg", "-headers", f"Cookie: {cookies}\r\n", "-user_agent", "Mozilla/5.0", "-tls_verify", "0", "-i",self.source, "-f", "image2pipe", "-pix_fmt", "bgr24", "-vcodec", "rawvideo", "-"]
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=10 ** 8)
+
+        self.max_frame_id = numpy.inf
+        self.last_frame_given = 0
+        while not self.should_be_closed:
+            time.sleep(0.01)
+            self.HB.do_heartbeat()
+            frame = proc.stdout.read(width * height * 3)
+            if not frame:continue
+            frame = numpy.frombuffer(frame, numpy.uint8).reshape((height, width, 3))
+            with self._lock:
+                self.current_frame = frame
+
+            self.is_initiated = True
+
+        proc.terminate()
+
+        return
+# ---------------------------------------------------------------------------------------------------------------------
     def capture_frames(self):
         if   self.source is None or self.source == ''   :self.capture_empty()
-        elif self.is_endless_stream(self.source)        :self.capture_endless()
+        elif self.is_endless_stream_argus(self.source)  :self.capture_endless_argus()
+        elif self.is_endless_stream_ffmpeg(self.source) :self.capture_endless_ffmpeg(self.width,self.height)
         elif self.is_mp4_video(self.source)             :self.capture_finite()
         else                                            :self.capture_filenames()
         return

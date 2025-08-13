@@ -1,10 +1,19 @@
 import json
+import yaml
+#----------------------------------------------------------------------------------------------------------------------
 class cnfg_base(object):
-
+    # ----------------------------------------------------------------------------------------------------------------------
+    def load(self,filename_in):
+        C = cnfg_base()
+        with open(filename_in, 'r') as file:
+            config = yaml.safe_load(file)
+            for key, value in config.items(): setattr(C, key, None if str(value) == 'None' else value)
+        return C
+    # ----------------------------------------------------------------------------------------------------------------------
     def save(self, filename_out):
         with open(filename_out, 'w') as f:
             json.dump({k: getattr(self, k) for k in dir(self) if not (k.startswith("__") or callable(getattr(self, k)))}, f, indent=4)
-
+    # ----------------------------------------------------------------------------------------------------------------------
     exp_name = 'default'
     source = None
 
