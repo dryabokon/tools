@@ -2,13 +2,13 @@ import json
 import yaml
 #----------------------------------------------------------------------------------------------------------------------
 class cnfg_base(object):
-    # ----------------------------------------------------------------------------------------------------------------------
-    def load(self,filename_in):
-        C = cnfg_base()
-        with open(filename_in, 'r') as file:
-            config = yaml.safe_load(file)
-            for key, value in config.items(): setattr(C, key, None if str(value) == 'None' else value)
-        return C
+    def __init__(self, filename_in=None):
+        if filename_in is not None:
+            C = self
+            with open(filename_in, 'r') as file:
+                config = yaml.safe_load(file)
+                for key, value in config.items(): setattr(C, key, None if str(value) == 'None' else value)
+        return
     # ----------------------------------------------------------------------------------------------------------------------
     def save(self, filename_out):
         with open(filename_out, 'w') as f:
@@ -34,7 +34,7 @@ class cnfg_base(object):
     model_detect = None
 
     do_tracking = False
-    tracker = 'DEEPSORT'
+    tracker = 'BOXMOT'
     model_track = None
     track_lifetime = 2
 
