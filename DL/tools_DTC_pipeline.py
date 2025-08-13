@@ -17,7 +17,6 @@ import tools_mAP_visualizer
 import tools_animation
 import tools_MLflower
 import tools_time_profiler
-import tools_grabber
 # ----------------------------------------------------------------------------------------------------------------------
 from DL import utils_detector_yolo
 from DL import utils_classifier_yolo
@@ -25,9 +24,9 @@ from DL import utils_tracker_deep_sort
 from DL import utils_tracker_yolo
 # ----------------------------------------------------------------------------------------------------------------------
 class Pipeliner:
-    def __init__(self,config,looped=True):
-        self.looped = looped
-        self.folder_out = './output/'
+    def __init__(self,folder_out,config,Grabber,save_tracks=True):
+
+        self.folder_out = folder_out
         self.config = config
 
         self.df_true = None
@@ -37,9 +36,10 @@ class Pipeliner:
         self.Tracker = None
         self.Classifier = None
         self.Grabber = None
-
         self.update_config(self.config)
-        self.update_grabber(self.config.source)
+        self.update_grabber(Grabber)
+        self.save_tracks = save_tracks
+
 
         self.HB = tools_heartbeat.tools_HB()
         self.TP = tools_time_profiler.Time_Profiler(verbose=False)
@@ -83,6 +83,9 @@ class Pipeliner:
         if self.config.detector == 'BG_Sub2':
             from DL import utils_detector_BG_Sub2
             D = utils_detector_BG_Sub2.Detector_BG_Sub2(self.folder_out, self.config)
+        elif self.config.detector == 'Detectron':
+            from DL import utils_detector_detectron2
+            D = utils_detector_detectron2.Detector_detectron2(self.folder_out, self.config)
         else:
             D = utils_detector_yolo.Detector_yolo(self.folder_out, self.config)
 
@@ -129,15 +132,19 @@ class Pipeliner:
 
         self.Tracker = self.init_tracker()
         self.Detector = self.init_detector()
-        #self.Classifier = self.init_classifier()
 
         if self.config.gt is not None:
             self.update_true(pd.read_csv(config.gt, header=None))
 
+        if self.config.source is None:
+            self.df_filenames = None
+            self.frames_count = 0
+            return
+
         if ('.mp4' in self.config.source.lower()) or ('.avi' in self.config.source.lower()) or ('.ts' in self.config.source.lower()) or ('.mkv' in self.config.source.lower()) or ('http' in self.config.source) or (self.config.source == '0'):
             cap = cv2.VideoCapture(self.config.source)
             self.df_filenames = None
-            self.frames_count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+            self.frames_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             cap.release()
         else:
             self.df_filenames = pd.DataFrame({'filename':tools_IO.get_filenames(self.config.source, '*.jpg,*.png') })
@@ -393,7 +400,7 @@ class Pipeliner:
     def get_hash(self,x):
         return hashlib.sha256(str(x).encode('utf-8')).hexdigest()
     # ----------------------------------------------------------------------------------------------------------------------
-    def __draw_detects(self, image, rects, labels=None,colors=(0, 128, 255)):
+    def draw_detects(self, image, rects, labels=None, colors=(0, 128, 255)):
         if labels is None:
             labels = ['' for r in rects]
 
@@ -545,13 +552,13 @@ class Pipeliner:
         filename_out = 'df_track.csv'
         self.mode = 'a' if os.path.isfile(self.folder_out + filename_out) else 'w'
 
-        df_det_frame = self.Detector.get_detections(frame)
-        df_det_frame = tools_DF.add_column(df_det_frame, 'track_id', -1, pos=1)
-        df_det_frame.to_csv(self.folder_out + filename_out, index=False, header=True if self.mode == 'w' else False,mode=self.mode, float_format='%.2f')
+        self.df_det_frame = self.Detector.get_detections(frame)
+        self.df_det_frame = tools_DF.add_column(self.df_det_frame, 'track_id', -1, pos=1)
+        self.df_det_frame.to_csv(self.folder_out + filename_out, index=False, header=True if self.mode == 'w' else False,mode=self.mode, float_format='%.2f')
 
         image_debug = None
         if do_debug:
-            image_debug = self.__draw_detects(tools_image.desaturate(frame, 0.3), df_det_frame[['x1', 'y1', 'x2', 'y2']].values, colors=(0, 128, 255))
+            image_debug = self.draw_detects(tools_image.desaturate(frame, 0.3), self.df_det_frame[['x1', 'y1', 'x2', 'y2']].values, colors=(0, 128, 255))
 
         return image_debug
     # ----------------------------------------------------------------------------------------------------------------------
@@ -602,10 +609,10 @@ class Pipeliner:
             if self.config.do_classification:
                 labels = (df_track_frame_filtered['class_name'].astype(str) + ' ' + (df_track_frame_filtered['conf'] * 100).round().astype(int).astype(str) + '%').values
                 colors = [self.colors80[track_id % 80] if track_id != -1 else (0, 128, 255) for track_id in df_track_frame_filtered['track_id'].values]
-                image_debug = self.__draw_detects(image_debug,df_track_frame_filtered[['x1', 'y1', 'x2', 'y2']].values, labels=labels,colors=colors)
+                image_debug = self.draw_detects(image_debug, df_track_frame_filtered[['x1', 'y1', 'x2', 'y2']].values, labels=labels, colors=colors)
 
             if (self.config.do_tracking is False) and (self.config.do_classification is False) and self.config.do_detection:
-                image_debug = self.__draw_detects(image_debug,df_det_frame[['x1', 'y1', 'x2', 'y2']].values, colors=(0, 128, 255))
+                image_debug = self.draw_detects(image_debug, df_det_frame[['x1', 'y1', 'x2', 'y2']].values, colors=(0, 128, 255))
 
         return image_debug
     # ----------------------------------------------------------------------------------------------------------------------
@@ -855,12 +862,12 @@ class Pipeliner:
 
         return
     # ----------------------------------------------------------------------------------------------------------------------
-    def update_grabber(self, source):
-        if self.Grabber:
+    def update_grabber(self, Grabber):
+        if self.Grabber is not None:
             self.Grabber.should_be_closed = True
             time.sleep(0.1)
 
-        self.Grabber = tools_grabber.Grabber(source,self.looped)
+        self.Grabber = Grabber
         self.df_pred = None
         time.sleep(0.2)
         self.HB = tools_heartbeat.tools_HB()

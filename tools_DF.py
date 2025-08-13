@@ -366,7 +366,7 @@ def apply_filter(df,col_name,filter,inverce=False):
 
     return df[idx]
 # ---------------------------------------------------------------------------------------------------------------------
-def prettify(df,showheader=True,showindex=True,tablefmt='psql',desc='',maxcolwidths=None,floatfmt="%.2f",filename_out=None):
+def prettify(df,showheader=True,showindex=True,tablefmt='psql',desc='',maxcolwidths=None,floatfmt='%.2f',filename_out=None):
 
     #df.iloc[:,-1] = df.iloc[:,-1].apply(lambda x: fill(x, width=maxcolwidths))
     if df.shape[0]==0 or df.shape[1]==0:

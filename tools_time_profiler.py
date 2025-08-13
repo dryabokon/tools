@@ -87,13 +87,11 @@ class Time_Profiler:
 
     # --------------------------------------------------------------------------
     def to_dataframe(self):
-
-
         events = set(self.dict_event_time.keys()) | set(self.dict_event_cnt.keys()) | set(self.current_start.keys())
-
         rows = []
         for e in sorted(events):
             time_total = self.get_duration_sec(e) or 0.0
+            time_percent = (time_total / sum(self.dict_event_time.values())) * 100 if sum(self.dict_event_time.values()) > 0 else None
             count = self.dict_event_cnt.get(e, 0)
             time_avg = (time_total / count) if count > 0 else None
             fps = (1.0 / time_avg) if (time_avg and time_avg > 0) else None
@@ -101,6 +99,7 @@ class Time_Profiler:
                 'event': e,
                 'count': count,
                 'time_total': time_total,
+                'time_percent': time_percent,
                 'time_avg': time_avg,
                 'fps': fps
             })
@@ -124,20 +123,11 @@ class Time_Profiler:
         total_count = df['count'].max()
         total_fps = total_count/ (total_time + 1e-6)
         total_avg = total_time / (total_count + 1e-6)
+        total_percent = 100.0
 
-        total_row = pd.DataFrame([{
-            'event': 'TOTAL',
-            'count': total_count,
-            'time_total': total_time,
-            'time_avg': total_avg,
-            'fps': total_fps
-        }])
-
+        total_row = pd.DataFrame([{'event': 'TOTAL','count': total_count,'time_total': total_time,'time_percent':total_percent,'time_avg': total_avg,'fps': total_fps}])
         out = pd.concat([df, total_row], ignore_index=True)
-
         try:
-
-
             res = tools_DF.prettify(out, showindex=False)
             text = res
         except Exception:
