@@ -101,7 +101,8 @@ class Grabber:
     # ---------------------------------------------------------------------------------------------------------------------
     def open_capture(self,source):
         if isinstance(source, int) or (isinstance(source, str) and source.isdigit()):
-            return cv2.VideoCapture(int(source),cv2.CAP_DSHOW)
+            #cv2.CAP_DSHOW
+            return cv2.VideoCapture(int(source))
         if isinstance(source, str) and (source.startswith('nvarguscamerasrc') or source.startswith('v4l2src') or source.startswith('rtsp://') or source.startswith('rtsps://')):
             if 'appsink' not in source:
                 source = source.strip() + ' ! appsink drop=1 sync=false'
