@@ -34,7 +34,7 @@ class cnfg_base(object):
     model_detect = None
 
     do_tracking = False
-    tracker = 'BOXMOT'
+    tracker = 'DEEPSORT'
     model_track = None
     track_lifetime = 2
 
