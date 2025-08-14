@@ -678,7 +678,7 @@ class Pipeliner:
         return dct_metrics
     # ----------------------------------------------------------------------------------------------------------------------
     def create_profiles(self,use_gt=False):
-        images,significance,track_ids = [],[],[]
+        images,significance,track_ids,meta_seconds = [],[],[],[]
         if use_gt:
             for obj_id in self.df_true['track_id'].unique():
                 df_repr = self.df_true[self.df_true['track_id'] == obj_id].copy()
@@ -706,12 +706,13 @@ class Pipeliner:
                 images.append(image[rect[1]:rect[3], rect[0]:rect[2]])
                 significance.append(df_repr['frame_id'].min())
                 track_ids.append(obj_id)
+                meta_seconds.append(int((self.HB.get_frame_id() - self.df_pred[self.df_pred['track_id'] == obj_id]['frame_id'].min()) / self.HB.get_fps()))
 
             idx = numpy.argsort(significance)[::-1]
             images = [images[i] for i in idx]
             track_ids = [track_ids[i] for i in idx]
 
-        return images, track_ids
+        return images, track_ids,meta_seconds
     # ----------------------------------------------------------------------------------------------------------------------
     def stack_profiles(self,images,track_ids,width=64,height=64,seconds_keep_inactive=30):
         tol = 2
@@ -763,7 +764,7 @@ class Pipeliner:
                 prev = len(self.Grabber.frame_buffer)
             progress_bar.close()
 
-        images,track_ids = self.create_profiles(use_gt=False)
+        images,track_ids,meta_seconds = self.create_profiles(use_gt=False)
 
         for i,image in enumerate(images):
             cv2.imwrite(self.folder_out + f'profile_{self.get_hash(track_ids[i])[:2]}.png', image)

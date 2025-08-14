@@ -14,11 +14,12 @@ import tools_draw_numpy
 import tools_IO
 # ---------------------------------------------------------------------------------------------------------------------
 class Grabber:
-    def __init__(self, source,looped=True,width=None,height=None):
+    def __init__(self, source,looped=True,width=None,height=None,cred_config_yaml=None):
         self.looped = looped
         self.source = source
         self.width = width
         self.height = height
+        self.cred_config_yaml = cred_config_yaml
         self.should_be_closed = False
         self.HB = tools_heartbeat.tools_HB()
 
@@ -40,7 +41,7 @@ class Grabber:
     # ---------------------------------------------------------------------------------------------------------------------
     def get_cookies(self):
 
-        with open('./cred.yaml') as file:
+        with open(self.cred_config_yaml) as file:
             cred_config = yaml.load(file, Loader=SafeLoader)
             usernames = [u for u in cred_config['credentials']['usernames']]
             passwords = [str(cred_config['credentials']['usernames'][u]['password']) for u in usernames]
