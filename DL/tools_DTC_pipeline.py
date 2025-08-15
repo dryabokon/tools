@@ -1,4 +1,3 @@
-#abc
 import time
 import inspect
 import os
@@ -16,7 +15,6 @@ import tools_heartbeat
 import tools_IO
 import tools_mAP_visualizer
 import tools_animation
-import tools_MLflower
 import tools_time_profiler
 # ----------------------------------------------------------------------------------------------------------------------
 from DL import utils_detector_yolo
@@ -44,7 +42,7 @@ class Pipeliner:
 
         self.HB = tools_heartbeat.tools_HB()
         self.TP = tools_time_profiler.Time_Profiler(verbose=False)
-        self.MLFlower = self.init_MLflow()
+        #self.MLFlower = self.init_MLflow()
         self.V = tools_mAP_visualizer.Track_Visualizer(self.folder_out, stack_h=True)
         self.colors80 = tools_draw_numpy.get_colors(80, colormap='nipy_spectral', shuffle=True)
         self.frame_buffer = []
@@ -52,6 +50,7 @@ class Pipeliner:
         return
     # ----------------------------------------------------------------------------------------------------------------------
     def init_MLflow(self):
+        import tools_MLflower
         username_mlflow = os.getenv("MLFLOW_TRACKING_USERNAME")
         password_mlflow = os.getenv("MLFLOW_TRACKING_PASSWORD")
         username_ssh    = os.getenv("USERNAME_SSH")
@@ -199,11 +198,12 @@ class Pipeliner:
     # ----------------------------------------------------------------------------------------------------------------------
     def get_next_frame(self):
         frame = self.Grabber.get_frame()
-        if frame is None:
-            ii=0
 
-        if self.config.resize_W is not None and self.config.resize_H is not None:
-            frame = cv2.resize(frame, (self.config.resize_W, self.config.resize_H))
+        if self.config.resize_ratio is not None:
+            H,W = frame.shape[0:2]
+            new_H = int(H * self.config.resize_ratio)
+            new_W = int(W * self.config.resize_ratio)
+            frame = cv2.resize(frame, (new_W, new_H))
 
         return frame
     # ----------------------------------------------------------------------------------------------------------------------
@@ -576,7 +576,7 @@ class Pipeliner:
 
         self.TP.tic('track')
         df_track_frame = self.fetch_lifetimes(df_track_frame)
-        self.df_pred = df_track_frame if self.df_pred is None else (pd.concat([self.df_pred, df_track_frame], axis=0) if self.df_pred.shape[0] > 0 else df_track_frame)
+        self.df_pred = df_track_frame if self.df_pred is None else (pd.concat([self.df_pred.dropna(how='all', axis=1), df_track_frame.dropna(how='all', axis=1)], axis=0) if self.df_pred.shape[0] > 0 else df_track_frame)
         df_track_frame_filtered = self.df_pred[self.df_pred['frame_id'] == frame_id]
         df_track_frame_filtered,df_retro = self.filter_short_timers(df_track_frame_filtered)
         self.TP.tic('track')
@@ -715,7 +715,7 @@ class Pipeliner:
 
         return images, track_ids,meta_seconds
     # ----------------------------------------------------------------------------------------------------------------------
-    def stack_profiles(self,images,track_ids,width=64,height=64,seconds_keep_inactive=30):
+    def stack_profiles(self,images,track_ids,width=64,height=64,seconds_keep_inactive=30,color_bg=(240, 240, 240),color_fg=(0, 0, 0)):
         tol = 2
         result = None
         images_live = []
@@ -731,22 +731,22 @@ class Pipeliner:
 
             is_live = self.df_pred[self.df_pred['frame_id']>= self.HB.get_frame_id()-tol]['track_id'].isin([track_id]).any()
             color = (self.colors80[track_id % 80] if track_id >= 0 else (0, 128, 255)) if is_live else (64, 64, 64)
-            color_fg = (0, 0, 0) if 10 * int(color[0]) + 60 * int(color[1]) + 30 * int(color[2]) > 100 * 128 else (255, 255, 255)
+            color_fg_id = (0, 0, 0) if 10 * int(color[0]) + 60 * int(color[1]) + 30 * int(color[2]) > 100 * 128 else (255, 255, 255)
 
             meta_seconds = int((self.HB.get_frame_id() - self.df_pred[self.df_pred['track_id'] == track_id]['frame_id'].min() )/ self.HB.get_fps())
-            image = tools_image.smart_resize(image, height, width,bg_color=(240,240,240),align_center=False)
-            image_metadata = numpy.full((height, 80, 3), 240, dtype=numpy.uint8)
-            image_metadata = tools_draw_numpy.draw_text_fast(image_metadata, f'{class_name}', (2, 2), color_fg=(0, 0, 0), clr_bg=(240, 240, 240), font_size=16) if class_name is not None else image_metadata
-            image_metadata = tools_draw_numpy.draw_text_fast(image_metadata, f'{meta_seconds} sec', (2, 20),color_fg=(0, 0, 0), clr_bg=(240, 240, 240), font_size=16)
+            image = tools_image.smart_resize(image, height, width,bg_color=color_bg,align_center=False)
+            image_metadata = numpy.full((height, 80, 3), color_bg, dtype=numpy.uint8)
+            image_metadata = tools_draw_numpy.draw_text_fast(image_metadata, f'{class_name}', (2, 2), color_fg=color_fg, clr_bg=color_bg, font_size=16) if class_name is not None else image_metadata
+            image_metadata = tools_draw_numpy.draw_text_fast(image_metadata, f'{meta_seconds} sec', (2, 20),color_fg=color_fg, clr_bg=color_bg, font_size=16)
             image_colorbar = numpy.full((height, 30, 3), color, dtype=numpy.uint8)
-            image_colorbar = tools_draw_numpy.draw_text_fast(image_colorbar, f'{self.get_hash(track_id)[:2]}',(int(2), int(2)), color_fg=color_fg, clr_bg=color,font_size=16)
+            image_colorbar = tools_draw_numpy.draw_text_fast(image_colorbar, f'{self.get_hash(track_id)[:2]}',(int(2), int(2)), color_fg=color_fg_id, clr_bg=color,font_size=16)
             image = numpy.concatenate((image_metadata, image_colorbar, image), axis=1)
 
             if is_live                              :images_live.append(image)
             elif meta_seconds<=seconds_keep_inactive:images_retro.append(tools_image.desaturate(image))
 
         if len(images_live+images_retro)>0:
-            image_break = numpy.full((24, width+80+30, 3), 240, dtype=numpy.uint8)
+            image_break = numpy.full((24, width+80+30, 3), color_bg, dtype=numpy.uint8)
             image_break[12] = (32, 32, 32)
             result = numpy.concatenate(images_live +[image_break] +images_retro,axis=0)
 

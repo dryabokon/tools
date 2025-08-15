@@ -17,8 +17,7 @@ class cnfg_base(object):
     exp_name = 'default'
     source = None
 
-    resize_W = None
-    resize_H = None
+    resize_ratio = None
     start = 0
     limit = None
     gt = None

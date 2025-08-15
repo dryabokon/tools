@@ -1,5 +1,6 @@
 import os
 import yaml
+import socket
 from yaml.loader import SafeLoader
 import requests
 import numpy
@@ -67,34 +68,48 @@ class Grabber:
         label = '%06d / %06d | %.1f sec | %.1f fps'%(self.last_frame_given,len(self.frame_buffer),self.HB.get_delta_time(), self.HB.get_fps())
         image = tools_draw_numpy.draw_text_fast(image, label, (0, space * 2), color_fg=color_fg, clr_bg=clr_bg,font_size=font_size)
         return image
+
     # ---------------------------------------------------------------------------------------------------------------------
-    def is_endless_stream_argus(self,source):
-        if isinstance(source,int):return True
-        else:
-            if source.startswith('nvarguscamerasrc') or source.startswith('v4l2src') or source.isdigit():return True
+    def udp_ok(self,ip="0.0.0.0",port=None):
+        if port is None:
+            return False
+        
+        timeout = 0.5
+        bufsize = 2048
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.bind((ip, port))
+            s.setblocking(False)
+            deadline = time.time() + timeout
+            while time.time() < deadline:
+                try:
+                    data, addr = s.recvfrom(bufsize)
+                    return True
+                except BlockingIOError:
+                    time.sleep(0.01)
+            return False
+        finally:
+            s.close()
+    # ---------------------------------------------------------------------------------------------------------------------
+    def is_endless_stream_argus(self, source):
+        if isinstance(source, int): return False
+        if (source.startswith('nvarguscamerasrc') or source.startswith('v4l2src')):return True
         return False
     # ---------------------------------------------------------------------------------------------------------------------
     def is_endless_stream_ffmpeg(self,source):
-        if source.startswith('http') or source.startswith('rtsp'):
-            return True
+        if isinstance(source, int): return False
+        if source.startswith('udp'):return True
         return False
     # ---------------------------------------------------------------------------------------------------------------------
+    def is_endless_stream_webcam(self,source):
+        if isinstance(source, str) and self.source in ['0','1']: return True
+        if isinstance(source, int): return True
+        return False
+        # ---------------------------------------------------------------------------------------------------------------------
     def is_mp4_video(self,source):
         if isinstance(source, int): return False
         if source.endswith('.mp4') or source.endswith('.avi') or source.endswith('.mov'):return True
         return False
-    # ---------------------------------------------------------------------------------------------------------------------
-    def open_capture(self,source):
-
-        if isinstance(source, int) or (isinstance(source, str) and source.isdigit()):
-            if os.name in ['nt']:return cv2.VideoCapture(int(source),cv2.CAP_DSHOW)
-            else:                return cv2.VideoCapture(int(source))
-
-        if isinstance(source, str) and (source.startswith('nvarguscamerasrc') or source.startswith('v4l2src') or source.startswith('rtsp://') or source.startswith('rtsps://')):
-            if 'appsink' not in source:
-                source = source.strip() + ' ! appsink drop=1 sync=false'
-            return cv2.VideoCapture(source, cv2.CAP_GSTREAMER)
-        return cv2.VideoCapture(source)
     # ---------------------------------------------------------------------------------------------------------------------
     def get_max_frame_id(self):
         return self.max_frame_id
@@ -103,8 +118,9 @@ class Grabber:
         self.mode = 'empty'
         self.max_frame_id = 1
         self.last_frame_given = 0
+        color = (98, 94, 76)
         with self._lock:
-            self.frame_buffer = [tools_draw_numpy.random_noise(480, 640, (128, 128, 164))]
+            self.frame_buffer = [tools_draw_numpy.random_noise(480, 640, color)]
             self.frame_ids = [0]
             self.is_initiated = True
 
@@ -114,7 +130,7 @@ class Grabber:
             time.sleep(0.01)
             self.HB.do_heartbeat()
             with self._lock:
-                self.frame_buffer[0] = tools_draw_numpy.random_noise(480, 640, (128, 128, 164))
+                self.frame_buffer[0] = tools_draw_numpy.random_noise(480, 640, color)
                 self.frame_ids[0] = 0
 
         return
@@ -140,7 +156,7 @@ class Grabber:
     # ---------------------------------------------------------------------------------------------------------------------
     def capture_finite(self):
         self.mode = 'finite'
-        self.cap = self.open_capture(self.source)
+        self.cap = cv2.VideoCapture(self.source)
         if not self.cap.isOpened():
             print(f'Error: opening {self.source}')
             self.capture_empty()
@@ -164,16 +180,16 @@ class Grabber:
     # ---------------------------------------------------------------------------------------------------------------------
     def capture_endless_argus(self):
         self.mode = 'endless'
-        self.cap = self.open_capture(self.source)
+        source = self.source
+        if 'appsink' not in source:
+            source = source.strip() + ' ! appsink drop=1 sync=false'
+        self.cap = cv2.VideoCapture(source, cv2.CAP_GSTREAMER)
         self.max_frame_id = numpy.inf
         self.last_frame_given = 0
         while not self.should_be_closed:
             time.sleep(0.01)
             self.HB.do_heartbeat()
             ret, frame = self.cap.read()
-            if str(self.source) in ['0', '1']:
-                frame = cv2.flip(frame, 1)
-
             with self._lock:
                 self.current_frame = frame
 
@@ -184,7 +200,91 @@ class Grabber:
 
         return
     # ---------------------------------------------------------------------------------------------------------------------
-    def capture_endless_ffmpeg(self,width,height):
+    def capture_endless_ffmpeg(self):
+        self.mode = 'endless'
+
+        port = int(self.source.rsplit(':', 1)[-1]) if ':' in self.source else None
+        ip = '127.0.0.1'
+        
+        self.cap = None
+        if self.udp_ok(ip, port):
+            self.cap = cv2.VideoCapture(self.source, cv2.CAP_FFMPEG)
+            
+        if self.cap is None or (not self.cap.isOpened()):
+            print(f'Error: opening {self.source}')
+            self.capture_empty()
+            return
+
+        self.max_frame_id = numpy.inf
+        self.last_frame_given = 0
+        failed = 0
+        while not self.should_be_closed:
+            time.sleep(0.01)
+            self.HB.do_heartbeat()
+            ret, frame = self.cap.read()
+
+            if not ret:
+                failed+=1
+            else:
+                failed = 0
+                with self._lock:
+                    self.current_frame = frame
+
+            if failed>20:
+                print(f'Error: failed to read from {self.source}, stopping capture.')
+                if self.cap:
+                    self.cap.release()
+                self.capture_empty()
+                return
+
+            self.is_initiated = True
+
+        if self.cap:
+            self.cap.release()
+        return
+
+    # ---------------------------------------------------------------------------------------------------------------------
+    def capture_endless_webcam(self):
+        self.mode = 'endless'
+
+        if os.name in ['nt']:
+            self.cap = cv2.VideoCapture(self.source, cv2.CAP_DSHOW)
+        else:
+            self.cap = cv2.VideoCapture(self.source)
+
+        if self.cap is None or (not self.cap.isOpened()):
+            print(f'Error: opening {self.source}')
+            self.capture_empty()
+            return
+
+        self.max_frame_id = numpy.inf
+        self.last_frame_given = 0
+        failed = 0
+        while not self.should_be_closed:
+            time.sleep(0.01)
+            self.HB.do_heartbeat()
+            ret, frame = self.cap.read()
+            if not ret:
+                failed += 1
+            else:
+                failed = 0
+                with self._lock:
+                    self.current_frame = frame
+
+            if failed > 20:
+                print(f'Error: failed to read from {self.source}, stopping capture.')
+                if self.cap:
+                    self.cap.release()
+                self.capture_empty()
+                return
+
+            self.is_initiated = True
+
+        if self.cap:
+            self.cap.release()
+        return
+    # ---------------------------------------------------------------------------------------------------------------------
+    def capture_endless_grab(self,width,height):
         self.mode = 'endless'
         cookies = f"x-runtime-guid={self.get_cookies()['token']};"
         cmd = ["ffmpeg", "-headers", f"Cookie: {cookies}\r\n", "-user_agent", "Mozilla/5.0", "-tls_verify", "0", "-i",self.source, "-f", "image2pipe", "-pix_fmt", "bgr24", "-vcodec", "rawvideo", "-"]
@@ -209,8 +309,9 @@ class Grabber:
 # ---------------------------------------------------------------------------------------------------------------------
     def capture_frames(self):
         if   self.source is None or self.source == ''   :self.capture_empty()
+        elif self.is_endless_stream_webcam(self.source) :self.capture_endless_webcam()
         elif self.is_endless_stream_argus(self.source)  :self.capture_endless_argus()
-        elif self.is_endless_stream_ffmpeg(self.source) :self.capture_endless_ffmpeg(self.width,self.height)
+        elif self.is_endless_stream_ffmpeg(self.source) :self.capture_endless_ffmpeg()
         elif self.is_mp4_video(self.source)             :self.capture_finite()
         else                                            :self.capture_filenames()
         return
