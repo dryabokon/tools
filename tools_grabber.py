@@ -9,6 +9,7 @@ import cv2
 import time
 from threading import Lock
 import threading
+from yt_dlp import YoutubeDL
 # ---------------------------------------------------------------------------------------------------------------------
 import tools_heartbeat
 import tools_draw_numpy
@@ -101,6 +102,11 @@ class Grabber:
         if source.startswith('udp'):return True
         return False
     # ---------------------------------------------------------------------------------------------------------------------
+    def is_endless_stream_youtube(self,source):
+        if isinstance(source, int): return False
+        if source.startswith('https://www.youtube.com') or source.startswith('https://youtu.be'):return True
+        return
+        # ---------------------------------------------------------------------------------------------------------------------
     def is_endless_stream_webcam(self,source):
         if isinstance(source, str) and self.source in ['0','1']: return True
         if isinstance(source, int): return True
@@ -306,12 +312,65 @@ class Grabber:
         proc.terminate()
 
         return
-# ---------------------------------------------------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------------------------------------------
+    def capture_endless_YT(self):
+        self.mode = 'endless'
+
+        target_h = 720  # 360 / 480 / 720 / 1080
+        ydl_opts = {"noplaylist": True,
+                    "quiet": True,
+                    "format": (f"best[ext=mp4][height<={target_h}][acodec!=none]"
+                        f"[vcodec!*=av01][vcodec!*=vp9]"
+                        f"/bestvideo[height<={target_h}][vcodec!*=av01][vcodec!*=vp9]"
+                        f"/best[height<={target_h}]"),
+                    "cookiefile": r"cookies.txt",
+                    "extractor_args":{"youtube": {"player_client": ["android", "web"]}}
+                    }
+        with YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(self.source, download=False)
+            stream_url = info.get("url")
+            self.cap = cv2.VideoCapture(stream_url, cv2.CAP_FFMPEG)
+
+            if self.cap is None or (not self.cap.isOpened()):
+                print(f'Error: opening {self.source}')
+                self.capture_empty()
+                return
+
+        self.max_frame_id = numpy.inf
+        self.last_frame_given = 0
+        failed = 0
+        while not self.should_be_closed:
+            time.sleep(1.0/30.0)
+            self.HB.do_heartbeat()
+            ret, frame = self.cap.read()
+
+            if not ret:
+                failed+=1
+            else:
+                failed = 0
+                with self._lock:
+                    self.current_frame = frame
+
+            if failed>20:
+                print(f'Error: failed to read from {self.source}, stopping capture.')
+                if self.cap:
+                    self.cap.release()
+                self.capture_empty()
+                return
+
+            self.is_initiated = True
+
+        if self.cap:
+            self.cap.release()
+
+        return
+    # ---------------------------------------------------------------------------------------------------------------------
     def capture_frames(self):
         if   self.source is None or self.source == ''   :self.capture_empty()
         elif self.is_endless_stream_webcam(self.source) :self.capture_endless_webcam()
         elif self.is_endless_stream_argus(self.source)  :self.capture_endless_argus()
         elif self.is_endless_stream_ffmpeg(self.source) :self.capture_endless_ffmpeg()
+        elif self.is_endless_stream_youtube(self.source):self.capture_endless_YT()
         elif self.is_mp4_video(self.source)             :self.capture_finite()
         else                                            :self.capture_filenames()
         return

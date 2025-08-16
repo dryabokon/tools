@@ -406,7 +406,7 @@ class Pipeliner:
         return image
 
     # ----------------------------------------------------------------------------------------------------------------------
-    def __draw_tracks(self, image, rects, track_ids=None,color=None):
+    def draw_tracks(self, image, rects, track_ids=None, color=None):
 
         if track_ids is None:
             track_ids =[-1]*len(rects)
@@ -591,15 +591,15 @@ class Pipeliner:
             self.TP.tic('IO:draw')
             image_debug = tools_image.desaturate(frame, 0.3)
 
-            if self.config.do_tracking:
-                image_debug = self.__draw_tracks(image_debug,df_track_frame_filtered[['x1', 'y1', 'x2', 'y2']].values,track_ids=df_track_frame_filtered['track_id'].values)
+            if self.config.do_tracking or self.config.do_profiling:
+                image_debug = self.draw_tracks(image_debug, df_track_frame_filtered[['x1', 'y1', 'x2', 'y2']].values, track_ids=df_track_frame_filtered['track_id'].values)
 
             if self.config.do_classification:
                 labels = (df_track_frame_filtered['class_name'].astype(str) + ' ' + (df_track_frame_filtered['conf'] * 100).round().astype(int).astype(str) + '%').values
                 colors = [self.colors80[track_id % 80] if track_id != -1 else (0, 128, 255) for track_id in df_track_frame_filtered['track_id'].values]
                 image_debug = self.draw_detects(image_debug, df_track_frame_filtered[['x1', 'y1', 'x2', 'y2']].values, labels=labels, colors=colors)
 
-            if (self.config.do_tracking is False) and (self.config.do_classification is False) and self.config.do_detection:
+            if (self.config.do_tracking is False) and (self.config.do_classification is False) and (self.config.do_profiling is False) and self.config.do_detection:
                 image_debug = self.draw_detects(image_debug, df_det_frame[['x1', 'y1', 'x2', 'y2']].values, colors=(0, 128, 255))
 
         return image_debug
@@ -680,6 +680,8 @@ class Pipeliner:
     # ----------------------------------------------------------------------------------------------------------------------
     def create_profiles(self,use_gt=False):
         images,significance,track_ids,meta_seconds = [],[],[],[]
+        resize_ratio = self.config.resize_ratio
+
         if use_gt:
             for obj_id in self.df_true['track_id'].unique():
                 df_repr = self.df_true[self.df_true['track_id'] == obj_id].copy()
@@ -687,6 +689,8 @@ class Pipeliner:
                 df_repr = df_repr.sort_values(by='size', ascending=False)
                 image = self.Grabber.get_frame(frame_id=df_repr.iloc[0]['frame_id'])
                 rect = df_repr.iloc[0][['x1', 'y1', 'x2', 'y2']].values.astype(int)
+                rect = (rect / resize_ratio).astype(int) if resize_ratio is not None else rect
+
                 images.append(image[rect[1]:rect[3], rect[0]:rect[2]])
                 track_ids.append(obj_id)
         else:
@@ -704,6 +708,8 @@ class Pipeliner:
                 rect[1] = max(0, rect[1])
                 rect[2] = min(image.shape[1], rect[2])
                 rect[3] = min(image.shape[0], rect[3])
+                rect = (rect / resize_ratio).astype(int) if resize_ratio is not None else rect
+
                 images.append(image[rect[1]:rect[3], rect[0]:rect[2]])
                 significance.append(df_repr['frame_id'].min())
                 track_ids.append(obj_id)
@@ -734,20 +740,20 @@ class Pipeliner:
             color_fg_id = (0, 0, 0) if 10 * int(color[0]) + 60 * int(color[1]) + 30 * int(color[2]) > 100 * 128 else (255, 255, 255)
 
             meta_seconds = int((self.HB.get_frame_id() - self.df_pred[self.df_pred['track_id'] == track_id]['frame_id'].min() )/ self.HB.get_fps())
-            image = tools_image.smart_resize(image, height, width,bg_color=color_bg,align_center=False)
+            image_obj = tools_image.smart_resize(image, height, width,bg_color=color_bg,align_center=False)
             image_metadata = numpy.full((height, 80, 3), color_bg, dtype=numpy.uint8)
             image_metadata = tools_draw_numpy.draw_text_fast(image_metadata, f'{class_name}', (2, 2), color_fg=color_fg, clr_bg=color_bg, font_size=16) if class_name is not None else image_metadata
             image_metadata = tools_draw_numpy.draw_text_fast(image_metadata, f'{meta_seconds} sec', (2, 20),color_fg=color_fg, clr_bg=color_bg, font_size=16)
             image_colorbar = numpy.full((height, 30, 3), color, dtype=numpy.uint8)
             image_colorbar = tools_draw_numpy.draw_text_fast(image_colorbar, f'{self.get_hash(track_id)[:2]}',(int(2), int(2)), color_fg=color_fg_id, clr_bg=color,font_size=16)
-            image = numpy.concatenate((image_metadata, image_colorbar, image), axis=1)
+            image = numpy.concatenate((image_metadata, image_colorbar, image_obj), axis=1)
 
             if is_live                              :images_live.append(image)
-            elif meta_seconds<=seconds_keep_inactive:images_retro.append(tools_image.desaturate(image))
+            elif meta_seconds<=seconds_keep_inactive:images_retro.append(image)
 
         if len(images_live+images_retro)>0:
             image_break = numpy.full((24, width+80+30, 3), color_bg, dtype=numpy.uint8)
-            image_break[12] = (32, 32, 32)
+            image_break[12] = color_fg
             result = numpy.concatenate(images_live +[image_break] +images_retro,axis=0)
 
         return result
@@ -770,6 +776,39 @@ class Pipeliner:
         for i,image in enumerate(images):
             cv2.imwrite(self.folder_out + f'profile_{self.get_hash(track_ids[i])[:2]}.png', image)
         return
+    # ----------------------------------------------------------------------------------------------------------------------
+    def draw_time_lapse(self,df_pred,W,H,color_bg_rgb,dct_profiles,W_seconds = 10):
+        max_items = 5
+        margin = 100
+        height_px = int(H/ max_items)
+        now = self.HB.get_frame_id()
+        fps = self.HB.get_fps()
+        W_frames = int(W_seconds*fps)
+        def frame_id_to_pixel_id(frame_id):return (W-1-margin) - (now - frame_id)*(W-1-margin)/W_frames
+
+        image = numpy.full((H, W, 3), color_bg_rgb, dtype=numpy.uint8)
+        if df_pred is None or df_pred.shape[0] == 0:
+            return image
+
+        df_pos_start = tools_DF.my_agg(df_pred,cols_groupby=['track_id'],cols_value=['frame_id'],aggs=['min'],list_res_names=['position_start'])
+        df_pos_stop  = tools_DF.my_agg(df_pred,cols_groupby=['track_id'],cols_value=['frame_id'],aggs=['max'],list_res_names=['position_stop'])
+        df_pos = df_pos_start.merge(df_pos_stop, on='track_id', how='inner')
+        df_pos = df_pos.sort_values(by=['track_id'],ascending=False)
+
+        for r,track_id in enumerate(dct_profiles.keys()):
+            if r * height_px> H:break
+            track_id = df_pos['track_id'].iloc[r]
+            small_image = dct_profiles[track_id]
+            scale = height_px / small_image.shape[0]
+            small_image = cv2.resize(small_image, (int(small_image.shape[1] * scale), height_px))
+            i1 = frame_id_to_pixel_id(df_pos['position_start'].iloc[r])
+            i2 = frame_id_to_pixel_id(df_pos['position_stop'].iloc[r])
+            Y = int(r * height_px)
+            col = self.colors80[(track_id) % 80]
+            image = tools_draw_numpy.draw_line_fast(image, Y+height_px/2, i1, Y+height_px/2, i2, color_bgr=col, w=2)
+            image= tools_image.put_image(image,small_image,Y,int(i2)-10)
+
+        return image
     # ----------------------------------------------------------------------------------------------------------------------
     def create_folder_train_test_val(self):
         for name in ['train/', 'test/', 'val/']:
