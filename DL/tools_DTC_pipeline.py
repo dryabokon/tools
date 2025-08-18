@@ -80,10 +80,10 @@ class Pipeliner:
         return username_mlflow, password_mlflow, username_ssh,password_ssh
     # ----------------------------------------------------------------------------------------------------------------------
     def init_detector(self):
-        if self.config.detector == 'BG_Sub2':
+        if self.config.detection_model == 'BG_Sub2':
             from DL import utils_detector_BG_Sub2
             D = utils_detector_BG_Sub2.Detector_BG_Sub2(self.folder_out, self.config)
-        elif self.config.detector == 'Detectron':
+        elif self.config.detection_model == 'Detectron':
             from DL import utils_detector_detectron2
             D = utils_detector_detectron2.Detector_detectron2(self.folder_out, self.config)
         else:
@@ -92,9 +92,9 @@ class Pipeliner:
         return D
     # ----------------------------------------------------------------------------------------------------------------------
     def init_tracker(self):
-        if self.config.tracker == 'DEEPSORT':
+        if self.config.tracking_model == 'DEEPSORT':
             T = utils_tracker_deep_sort.Tracker_deep_sort(self.folder_out)
-        elif self.config.tracker == 'BOXMOT'    :
+        elif self.config.tracking_model == 'BOXMOT'    :
             from DL import utils_tracker_boxmot
             T = utils_tracker_boxmot.Tracker_boxmot(self.folder_out)
         else:

@@ -11,7 +11,7 @@ import tools_draw_numpy
 class Detector_yolo:
     def __init__(self,folder_out,config=None):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        model_name = config.model_detect if (config is not None and config.model_detect is not None) else 'yolov8n.pt'
+        model_name = config.detection_model if (config is not None and config.detection_model is not None) else 'yolov8n.pt'
         device_colored = ('\033[92m' + 'cuda' + '\033[0m' if self.device == 'cuda' else '\033[33m' + 'CPU' + '\033[0m')
         print('[Detectr] device:',device_colored,'-',model_name)
 

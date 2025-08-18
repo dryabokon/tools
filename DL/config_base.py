@@ -29,17 +29,14 @@ class cnfg_base(object):
     n_dilate = 4
 
     do_detection = False
-    detector = 'yolo'
-    model_detect = None
+    detection_model = 'yolov8n.pt'
 
     do_tracking = False
-    tracker = 'BOXMOT'
-    model_track = None
+    tracking_model = 'BOXMOT'
     track_lifetime = 2
 
     do_classification = False
-    classifier = 'yolo'
-    model_classify = None
+    classification_model = 'yolo'
     classification_confidence_th = 0.5
 
     do_profiling = False
