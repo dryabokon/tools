@@ -406,7 +406,7 @@ class Pipeliner:
         return image
 
     # ----------------------------------------------------------------------------------------------------------------------
-    def draw_tracks(self, image, rects, track_ids=None, color=None):
+    def draw_tracks(self, image, rects, track_ids=None, color=None,highlight_ids=[]):
 
         if track_ids is None:
             track_ids =[-1]*len(rects)
@@ -420,9 +420,14 @@ class Pipeliner:
             col_left, row_up, col_right, row_down = rect.flatten()
             image = tools_draw_numpy.draw_rect_fast(image, col_left, row_up, col_right, row_down, color,w=-1,alpha_transp=0.5)
             if track_id >=0:
-
                 color_fg = (0, 0, 0) if 10 * int(color[0]) + 60 * int(color[1]) + 30 * int(color[2]) > 100 * 128 else (255, 255, 255)
                 image = tools_draw_numpy.draw_text_fast(image, f'{self.get_hash(track_id)[:2]}',(int(col_left), int(row_up)), color_fg=color_fg, clr_bg=color,font_size=16)
+
+            if track_id in highlight_ids:
+                image = tools_draw_numpy.draw_line_fast(image, int(row_up), int(col_left), int(row_up), int(col_right),color, w=3)
+                image = tools_draw_numpy.draw_line_fast(image, int(row_down), int(col_left), int(row_down),int(col_right), color, w=3)
+                image = tools_draw_numpy.draw_line_fast(image, int(row_up), int(col_left), int(row_down), int(col_left),color, w=3)
+                image = tools_draw_numpy.draw_line_fast(image, int(row_up), int(col_right), int(row_down),int(col_right), color, w=3)
 
         return image
 
@@ -592,7 +597,11 @@ class Pipeliner:
             image_debug = tools_image.desaturate(frame, 0.3)
 
             if self.config.do_tracking or self.config.do_profiling:
-                image_debug = self.draw_tracks(image_debug, df_track_frame_filtered[['x1', 'y1', 'x2', 'y2']].values, track_ids=df_track_frame_filtered['track_id'].values)
+                current_frame_id = self.HB.get_frame_id()
+                highlight_ids = []
+                if self.config.do_profiling:
+                    highlight_ids = [track_id for track_id in df_track_frame_filtered['track_id'].values if (current_frame_id - self.df_pred[self.df_pred['track_id']==track_id]['frame_id'].min() <= 20)]
+                image_debug = self.draw_tracks(image_debug, df_track_frame_filtered[['x1', 'y1', 'x2', 'y2']].values, track_ids=df_track_frame_filtered['track_id'].values,highlight_ids=highlight_ids)
 
             if self.config.do_classification:
                 labels = (df_track_frame_filtered['class_name'].astype(str) + ' ' + (df_track_frame_filtered['conf'] * 100).round().astype(int).astype(str) + '%').values
@@ -721,6 +730,7 @@ class Pipeliner:
 
         return images, track_ids,meta_seconds
     # ----------------------------------------------------------------------------------------------------------------------
+
     def stack_profiles(self,images,track_ids,width=64,height=64,seconds_keep_inactive=30,color_bg=(240, 240, 240),color_fg=(0, 0, 0)):
         tol = 2
         result = None
