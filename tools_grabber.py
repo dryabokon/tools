@@ -107,7 +107,7 @@ class Grabber:
         return
         # ---------------------------------------------------------------------------------------------------------------------
     def is_endless_stream_webcam(self,source):
-        if isinstance(source, str) and self.source in ['0','1']: return True
+        if isinstance(source, str) and self.source in ['0','1','2','3']: return True
         if isinstance(source, int): return True
         return False
         # ---------------------------------------------------------------------------------------------------------------------
