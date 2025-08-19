@@ -275,9 +275,9 @@ class Grabber:
         self.mode = 'endless'
 
         if os.name in ['nt']:
-            self.cap = cv2.VideoCapture(self.source, cv2.CAP_DSHOW)
+            self.cap = cv2.VideoCapture(int(self.source), cv2.CAP_DSHOW)
         else:
-            self.cap = cv2.VideoCapture(self.source)
+            self.cap = cv2.VideoCapture(int(self.source))
 
         if self.cap is None or (not self.cap.isOpened()):
             print(f'Error: opening {self.source}')
