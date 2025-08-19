@@ -30,6 +30,7 @@ class cnfg_base(object):
 
     do_detection = False
     detection_model = 'yolov8n.pt'
+    confidence_th = None
 
     do_tracking = False
     tracking_model = 'BOXMOT'

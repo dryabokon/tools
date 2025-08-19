@@ -9,7 +9,6 @@ import cv2
 import time
 from threading import Lock
 import threading
-from yt_dlp import YoutubeDL
 # ---------------------------------------------------------------------------------------------------------------------
 import tools_heartbeat
 import tools_draw_numpy
@@ -121,6 +120,8 @@ class Grabber:
         return self.max_frame_id
     # ---------------------------------------------------------------------------------------------------------------------
     def capture_empty(self):
+        print('capture_empty')
+        
         self.mode = 'empty'
         self.max_frame_id = 1
         self.last_frame_given = 0
@@ -143,6 +144,7 @@ class Grabber:
 
     # ---------------------------------------------------------------------------------------------------------------------
     def capture_filenames(self):
+        print('capture_filenames')
         self.mode = 'filenames'
         filenames = tools_IO.get_filenames(self.source, '*.jpg,*.png')
         self.max_frame_id = len(filenames)
@@ -161,6 +163,7 @@ class Grabber:
         return
     # ---------------------------------------------------------------------------------------------------------------------
     def capture_finite(self):
+        print('capture_finite')
         self.mode = 'finite'
         self.cap = cv2.VideoCapture(self.source)
         if not self.cap.isOpened():
@@ -185,6 +188,8 @@ class Grabber:
         return
     # ---------------------------------------------------------------------------------------------------------------------
     def capture_endless_argus(self):
+        print('capture_endless_argus')
+
         self.mode = 'endless'
         source = self.source
         if 'appsink' not in source:
@@ -207,6 +212,7 @@ class Grabber:
         return
     # ---------------------------------------------------------------------------------------------------------------------
     def capture_endless_ffmpeg(self):
+        print('capture_endless_ffmpeg')
         self.mode = 'endless'
 
         port = int(self.source.rsplit(':', 1)[-1]) if ':' in self.source else None
@@ -251,6 +257,7 @@ class Grabber:
 
     # ---------------------------------------------------------------------------------------------------------------------
     def capture_endless_webcam(self):
+        print('capture_endless_webcam')
         self.mode = 'endless'
 
         if os.name in ['nt']:
@@ -291,6 +298,7 @@ class Grabber:
         return
     # ---------------------------------------------------------------------------------------------------------------------
     def capture_endless_grab(self,width,height):
+        print('capture_endless_grab')
         self.mode = 'endless'
         cookies = f"x-runtime-guid={self.get_cookies()['token']};"
         cmd = ["ffmpeg", "-headers", f"Cookie: {cookies}\r\n", "-user_agent", "Mozilla/5.0", "-tls_verify", "0", "-i",self.source, "-f", "image2pipe", "-pix_fmt", "bgr24", "-vcodec", "rawvideo", "-"]
@@ -314,9 +322,12 @@ class Grabber:
         return
     # ---------------------------------------------------------------------------------------------------------------------
     def capture_endless_YT(self):
+        print('capture_endless_YT')
+        from yt_dlp import YoutubeDL
         self.mode = 'endless'
 
         target_h = 720  # 360 / 480 / 720 / 1080
+
         ydl_opts = {"noplaylist": True,
                     "quiet": True,
                     "format": (f"best[ext=mp4][height<={target_h}][acodec!=none]"

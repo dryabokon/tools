@@ -12,6 +12,7 @@ class Detector_yolo:
     def __init__(self,folder_out,config=None):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model_name = config.detection_model if (config is not None and config.detection_model is not None) else 'yolov8n.pt'
+        self.confidence_th = config.confidence_th
         device_colored = ('\033[92m' + 'cuda' + '\033[0m' if self.device == 'cuda' else '\033[33m' + 'CPU' + '\033[0m')
         print('[Detectr] device:',device_colored,'-',model_name)
 
@@ -26,7 +27,11 @@ class Detector_yolo:
         self.colors80 = tools_draw_numpy.get_colors(80, colormap='nipy_spectral', shuffle=True)
         self.dct_class_names = None
         return
-# ----------------------------------------------------------------------------------------------------------------------
+    # ----------------------------------------------------------------------------------------------------------------------
+    def update_confidence_th(self,confidence_th):
+        self.confidence_th = confidence_th
+        return
+    # ----------------------------------------------------------------------------------------------------------------------
     def update_config(self, config):
         self.config = config
         model_name = config.model_detect if (config is not None and config.model_detect is not None) else 'yolo11n.pt'
@@ -39,12 +44,16 @@ class Detector_yolo:
     def get_detections(self,filename_in, col_start=None,do_debug=False):
         image = cv2.imread(filename_in) if isinstance(filename_in, str) else filename_in
         class_names = []
-        res = self.model_detect.predict(source=image, verbose=False, device=self.device)
+
+        if self.confidence_th is None:res = self.model_detect.predict(source=image, verbose=False, device=self.device)
+        else                         :
+            res = self.model_detect.predict(source=image, verbose=False, device=self.device, conf=self.confidence_th)
+
         if res[0].boxes is not None:
+            confs = res[0].boxes.conf.cpu().numpy()
             rects = res[0].boxes.xyxy.cpu().numpy()
             class_ids = res[0].boxes.cls.cpu().numpy()
             self.dct_class_names = res[0].names
-            confs = res[0].boxes.conf.cpu().numpy()
             class_names = numpy.array([self.dct_class_names[i] for i in class_ids])
 
         if do_debug and isinstance(filename_in, str):
@@ -55,6 +64,8 @@ class Detector_yolo:
         df_pred = pd.DataFrame(numpy.concatenate((class_ids.reshape((-1, 1)),rects.reshape((-1, 4)), confs.reshape(-1, 1)), axis=1),columns=['class_ids',             'x1', 'y1', 'x2', 'y2', 'conf'])
         df_pred = df_pred.astype({'class_ids': int, 'x1': int, 'y1': int, 'x2': int, 'y2': int, 'conf': float})
         df_pred['class_name'] = class_names
+        if self.confidence_th is not None:
+            df_pred = df_pred[df_pred['conf']>=self.confidence_th]
 
         return df_pred
 # ----------------------------------------------------------------------------------------------------------------------

@@ -127,6 +127,11 @@ class Pipeliner:
 
         return filename_out
     # ----------------------------------------------------------------------------------------------------------------------
+    def update_confidence_th(self,confidence_th):
+        self.config.confidence_th = confidence_th
+        self.Detector.update_confidence_th(confidence_th)
+        return
+    # ----------------------------------------------------------------------------------------------------------------------
     def update_config(self,config):
         self.config = config
 

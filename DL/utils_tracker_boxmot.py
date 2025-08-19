@@ -21,7 +21,8 @@ class Tracker_boxmot:
         if algorithm == 'OCSORT':
             self.tracker = OcSort()
         elif algorithm == 'BYTE':
-            self.tracker = ByteTrack()
+            #self.tracker = ByteTrack()
+            self.tracker = ByteTrack(track_thresh=0.05)
         elif algorithm == 'BOTSORT':
             self.tracker = BotSort(model_weights=Path('osnet_x0_25_msmt17.pt'), device='cuda:0', fp16=False)
         else:
@@ -38,11 +39,14 @@ class Tracker_boxmot:
         if 'class_ids' not in df_det.columns:
             df_det['class_ids'] = -1
 
-        dets = df_det[['x1', 'y1', 'x2', 'y2','conf','class_ids']].values
+
+        dets = df_det[['x1', 'y1', 'x2', 'y2','conf','class_ids']].copy()
+        dets['conf'] = 1.0
+
         image = cv2.imread(filename_in) if isinstance(filename_in, str) else filename_in
         embs = None
 
-        self.tracker.update(dets, image,embs)
+        self.tracker.update(dets.values, image,embs)
 
         rects = numpy.array([a.history_observations[-1][:4] for a in self.tracker.active_tracks if a.history_observations and (len(a.history_observations) > 2)])
         confs = numpy.array([a.conf for a in self.tracker.active_tracks if a.history_observations and (len(a.history_observations) > 2)]).astype(float)

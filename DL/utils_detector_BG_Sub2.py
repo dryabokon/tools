@@ -9,6 +9,7 @@ import tools_draw_numpy
 # ----------------------------------------------------------------------------------------------------------------------
 class Detector_BG_Sub2:
     def __init__(self,folder_out,config=None):
+        self.confidence_th = config.confidence_th
         if not os.path.isdir(folder_out):
             os.mkdir(folder_out)
 
@@ -30,6 +31,10 @@ class Detector_BG_Sub2:
         self.config = config
 
         self.colors80 = tools_draw_numpy.get_colors(80, colormap='nipy_spectral', shuffle=True)
+        return
+    # ----------------------------------------------------------------------------------------------------------------------
+    def update_confidence_th(self,confidence_th):
+        self.confidence_th = confidence_th
         return
     # ----------------------------------------------------------------------------------------------------------------------
     def update_config(self, config):

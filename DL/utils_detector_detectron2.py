@@ -13,6 +13,7 @@ import tools_draw_numpy
 class Detector_detectron2:
     def __init__(self,folder_out,config=None):
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.confidence_th = config.confidence_th
         if not os.path.isdir(folder_out):
             os.mkdir(folder_out)
 
@@ -30,6 +31,10 @@ class Detector_detectron2:
         self.device = device
         self.colors80 = tools_draw_numpy.get_colors(80, colormap='nipy_spectral', shuffle=True)
         self.config = config
+        return
+    # ----------------------------------------------------------------------------------------------------------------------
+    def update_confidence_th(self,confidence_th):
+        self.confidence_th = confidence_th
         return
     # ----------------------------------------------------------------------------------------------------------------------
     def update_config(self, config):
