@@ -197,12 +197,26 @@ class Grabber:
         self.cap = cv2.VideoCapture(source, cv2.CAP_GSTREAMER)
         self.max_frame_id = numpy.inf
         self.last_frame_given = 0
+
+        failed = 0
         while not self.should_be_closed:
             time.sleep(0.01)
             self.HB.do_heartbeat()
             ret, frame = self.cap.read()
-            with self._lock:
-                self.current_frame = frame
+
+            if not ret:
+                failed += 1
+            else:
+                failed = 0
+                with self._lock:
+                    self.current_frame = frame
+
+            if failed > 20:
+                print(f'Error: failed to read from {self.source}, stopping capture.')
+                if self.cap:
+                    self.cap.release()
+                self.capture_empty()
+                return
 
             self.is_initiated = True
 
