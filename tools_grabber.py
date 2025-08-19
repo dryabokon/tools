@@ -204,7 +204,7 @@ class Grabber:
             self.HB.do_heartbeat()
             ret, frame = self.cap.read()
 
-            if not ret:
+            if frame is None:
                 failed += 1
             else:
                 failed = 0
