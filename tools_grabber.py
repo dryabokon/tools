@@ -208,6 +208,7 @@ class Grabber:
                 failed += 1
             else:
                 failed = 0
+                self.is_initiated = True
                 with self._lock:
                     self.current_frame = frame
 
@@ -218,7 +219,7 @@ class Grabber:
                 self.capture_empty()
                 return
 
-            self.is_initiated = True
+
 
         if self.cap:
             self.cap.release()
