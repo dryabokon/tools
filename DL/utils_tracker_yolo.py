@@ -13,7 +13,7 @@ class Tracker_yolo:
         if not os.path.isdir(folder_out):
             os.mkdir(folder_out)
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        model_name = config.model_track if (config is not None and config.model_track is not None) else 'yolov8n.pt'
+        model_name = 'yolov8n.pt'
         device_colored = ('\033[92m' + 'cuda' + '\033[0m' if self.device == 'cuda' else '\033[33m' + 'CPU' + '\033[0m')
         print('[Tracker] device:',device_colored,'-',model_name)
 

@@ -16,6 +16,7 @@ import tools_IO
 # ---------------------------------------------------------------------------------------------------------------------
 class Grabber:
     def __init__(self, source,looped=True,width=None,height=None,cred_config_yaml=None):
+        self.name = 'Grabber cv2'
         self.looped = looped
         self.source = source
         self.width = width
