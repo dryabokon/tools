@@ -30,6 +30,7 @@ class cnfg_base(object):
 
     do_detection = False
     detection_model = 'yolov8n.pt'
+    detection_model_desc = 'default model'
     confidence_th = None
 
     do_tracking = False
