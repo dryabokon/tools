@@ -253,6 +253,7 @@ class Grabber:
                 failed = 0
                 with self._lock:
                     self.current_frame = frame
+                    self.is_initiated = True
 
             if failed>20:
                 print(f'Error: failed to read from {self.source}, stopping capture.')
@@ -260,8 +261,6 @@ class Grabber:
                     self.cap.release()
                 self.capture_empty()
                 return
-
-            self.is_initiated = True
 
         if self.cap:
             self.cap.release()
@@ -295,6 +294,7 @@ class Grabber:
                 failed = 0
                 with self._lock:
                     self.current_frame = frame
+                    self.is_initiated = True
 
             if failed > 20:
                 print(f'Error: failed to read from {self.source}, stopping capture.')
@@ -302,8 +302,6 @@ class Grabber:
                     self.cap.release()
                 self.capture_empty()
                 return
-
-            self.is_initiated = True
 
         if self.cap:
             self.cap.release()
@@ -373,6 +371,7 @@ class Grabber:
                 failed = 0
                 with self._lock:
                     self.current_frame = frame
+                    self.is_initiated = True
 
             if failed>20:
                 print(f'Error: failed to read from {self.source}, stopping capture.')
@@ -380,8 +379,6 @@ class Grabber:
                     self.cap.release()
                 self.capture_empty()
                 return
-
-            self.is_initiated = True
 
         if self.cap:
             self.cap.release()
