@@ -273,8 +273,14 @@ class Grabber:
 
         if os.name in ['nt']:
             self.cap = cv2.VideoCapture(int(self.source), cv2.CAP_DSHOW)
+            if self.width and self.height:
+                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         else:
             self.cap = cv2.VideoCapture(int(self.source))
+            if self.width and self.height:
+                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
 
         if self.cap is None or (not self.cap.isOpened()):
             print(f'Error: opening {self.source}')
