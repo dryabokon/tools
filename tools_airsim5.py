@@ -1,18 +1,15 @@
-#https://github.com/Cosys-Lab/Cosys-AirSim
-# ---------------------------------------------------------------------------------------------------------------------
 import cv2
-import math
 import json
 import numpy
 import socket
-# ---------------------------------------------------------------------------------------------------------------------
-import airsim
+import cosysairsim as airsim
 # ---------------------------------------------------------------------------------------------------------------------
 import tools_image
 import tools_render_GL
 import tools_draw_numpy
 import tools_GL3D_light
 # ---------------------------------------------------------------------------------------------------------------------
+
 class tools_airsim:
     def __init__(self,ip_airsim,camera_rad_yaw_pitch_roll,fov,height_abs_BEV=100):
         self.fov = fov
@@ -46,8 +43,8 @@ class tools_airsim:
         self.init_mat(self.fov, self.height_abs_BEV)
 
         self.camera_rad_yaw_pitch_roll = camera_rad_yaw_pitch_roll
-        self.new_setup(camera_rad_yaw_pitch_roll)
-
+        self.vehicle_name = None#"Drone"
+        self.setup(camera_rad_yaw_pitch_roll)
         return
     # ---------------------------------------------------------------------------------------------------------------------
     def check_is_available(self,ip_airsim,port=41451):
@@ -59,22 +56,28 @@ class tools_airsim:
             return False
         return
     # ---------------------------------------------------------------------------------------------------------------------
-    def new_setup(self,camera_rad_yaw_pitch_roll):
+    def setup(self,camera_rad_yaw_pitch_roll):
         yaw, pitch,roll = camera_rad_yaw_pitch_roll
 
-        self.airsim_client.simSetCameraPose("0", airsim.Pose(airsim.Vector3r(0.0, 0.0, -0.5),airsim.to_quaternion(pitch, 0.0, 0.0)))
-        self.airsim_client.simSetCameraPose("1", airsim.Pose(airsim.Vector3r(0.0, 0.0, -2.5),airsim.to_quaternion(+numpy.pi / 8, 0.0, 0)),vehicle_name=self.virtual_camera_name)
-        self.airsim_client.simSetCameraPose("2", airsim.Pose(airsim.Vector3r(0.0, 0.0, -self.height_abs_BEV),airsim.to_quaternion(-numpy.pi / 2, 0, 0.0)))
+        cam_defs = [("0", airsim.Pose(airsim.Vector3r(0.0, 0.0, -1.0), airsim.euler_to_quaternion(0.0, pitch, 0.0))),
+                    ("1", airsim.Pose(airsim.Vector3r(0.0, 0.0, -2.5), airsim.euler_to_quaternion(+numpy.pi / 8, 0.0, 0.0))),
+                    ("2",airsim.Pose(airsim.Vector3r(0.0, 0.0, -75.0), airsim.euler_to_quaternion(-numpy.pi / 2, 0.0, yaw)))]
 
-        self.image_request_ego    = airsim.ImageRequest("0", airsim.ImageType.Scene, pixels_as_float=False, compress=False)
-        self.image_request_ground = airsim.ImageRequest("1", airsim.ImageType.Scene, pixels_as_float=False, compress=False)
-        self.image_request_BEV    = airsim.ImageRequest("2", airsim.ImageType.Scene, pixels_as_float=False, compress=False)
+        reqs = [airsim.ImageRequest(cname, airsim.ImageType.Scene, pixels_as_float=False, compress=False) for cname, _ in cam_defs]
+        self.image_request_ego    = reqs[0]
+        self.image_request_ground = reqs[1]
+        self.image_request_BEV    = reqs[2]
 
         return
-# ---------------------------------------------------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------------------------------------------
+    def setup_vehicle_based(self,camera_rad_yaw_pitch_roll):
+        pose = airsim.Pose(airsim.Vector3r(0.0, 0.0, 0.0), airsim.euler_to_quaternion(0.0, 0.0, 0.0))
+        self.airsim_client.simSetVehiclePose(pose, ignore_collision=True, vehicle_name=self.vehicle_name)
+        return
+    # ---------------------------------------------------------------------------------------------------------------------
     def get_settings(self):
         return json.loads(self.airsim_client.client.call('getSettingsString'))
-# ---------------------------------------------------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------------------------------------------
     def get_virtual_camera_name(self):
         if 'Vehicles' not in self.dct_settings: return ''
 
@@ -83,40 +86,8 @@ class tools_airsim:
                 return v
 
         return ''
+
     # ---------------------------------------------------------------------------------------------------------------------
-    def get_airsim_camera_pose(self):
-        xyz = self.get_drone_position()
-        yaw, pitch, roll = self.get_drone_orientation()
-        orientation = airsim.to_quaternion(pitch, roll, yaw)
-        pose_constructed = airsim.Pose(airsim.Vector3r(xyz[0], xyz[1], xyz[2]),orientation)
-        return pose_constructed
-# ---------------------------------------------------------------------------------------------------------------------
-    def quaternion_to_euler_angles(self, w, x, y, z):
-        t0 = +2.0 * (w * x + y * z)
-        t1 = +1.0 - 2.0 * (x * x + y * y)
-        t2 = +2.0 * (w * y - z * x)
-        t2 = +1.0 if t2 > +1.0 else t2
-        t2 = -1.0 if t2 < -1.0 else t2
-        t3 = +2.0 * (w * z + x * y)
-        t4 = +1.0 - 2.0 * (y * y + z * z)
-        yaw = math.atan2(t3, t4)
-        pitch = math.asin(t2)
-        roll = math.atan2(t0, t1)
-        return [yaw, pitch, roll]
-# ---------------------------------------------------------------------------------------------------------------------
-    def euler_angles_to_quaternion(self, yaw, pitch, roll):
-        cy = math.cos(yaw * 0.5)
-        sy = math.sin(yaw * 0.5)
-        cp = math.cos(pitch * 0.5)
-        sp = math.sin(pitch * 0.5)
-        cr = math.cos(roll * 0.5)
-        sr = math.sin(roll * 0.5)
-        w = cy * cp * cr + sy * sp * sr
-        x = cy * cp * sr - sy * sp * cr
-        y = sy * cp * sr + cy * sp * cr
-        z = sy * cp * cr - cy * sp * sr
-        return [w, x, y, z]
-# ---------------------------------------------------------------------------------------------------------------------
     def get_fov(self):
         return self.airsim_client.simGetCameraInfo('').fov
     # ---------------------------------------------------------------------------------------------------------------------
@@ -143,11 +114,15 @@ class tools_airsim:
             #print("AirSim client is not available or not connected.")
         return
     # ---------------------------------------------------------------------------------------------------------------------
+    def get_drone_position(self):
+        pos = self.airsim_client.simGetObjectPose(self.airsim_client.listVehicles()[0]).position
+        return numpy.array([pos.x_val, pos.y_val, pos.z_val])
+    # ---------------------------------------------------------------------------------------------------------------------
     def update_position_camera_based(self,position,roll_pitch_yaw):
 
         if len(roll_pitch_yaw)==3:
             roll, pitch, yaw = roll_pitch_yaw
-            pose = airsim.Pose(airsim.Vector3r(position[0], position[1], position[2]), airsim.to_quaternion(pitch,roll,yaw))
+            pose = airsim.Pose(airsim.Vector3r(position[0], position[1], position[2]), airsim.euler_to_quaternion(roll, pitch, yaw))
         else:
             q = airsim.Quaternionr(roll_pitch_yaw[0], roll_pitch_yaw[1], roll_pitch_yaw[2], roll_pitch_yaw[3])
             pose = airsim.Pose(airsim.Vector3r(position[0], position[1], position[2]), q)
@@ -157,13 +132,12 @@ class tools_airsim:
 
         return
     # ---------------------------------------------------------------------------------------------------------------------
-    def get_drone_position(self):
-        pos = self.airsim_client.simGetObjectPose(self.airsim_client.listVehicles()[0]).position
-        return numpy.array([pos.x_val, pos.y_val, pos.z_val])
-    # ---------------------------------------------------------------------------------------------------------------------
-    def get_drone_orientation(self):
-        orientation = self.airsim_client.simGetObjectPose(self.airsim_client.listVehicles()[0]).orientation
-        return self.quaternion_to_euler_angles(orientation.w_val, orientation.x_val, orientation.y_val, orientation.z_val)
+    def update_position_vehicle_based(self,position,roll_pitch_yaw):
+        roll, pitch, yaw = roll_pitch_yaw
+        pose = airsim.Pose(airsim.Vector3r(position[0], position[1], position[2]),airsim.euler_to_quaternion(roll, pitch, yaw))
+        self.airsim_client.simSetVehiclePose(pose, ignore_collision=True, vehicle_name=self.vehicle_name)
+
+        return
     # ----------------------------------------------------------------------------------------------------------------------
     def get_image(self, cam='ego'):
         try:
@@ -172,12 +146,21 @@ class tools_airsim:
             elif cam=='BEV'   :response = self.airsim_client.simGetImages([self.image_request_BEV])[0]
             else              :response = self.airsim_client.simGetImages([self.image_request_ego])[0]
             image = numpy.frombuffer(response.image_data_uint8, dtype=numpy.uint8).reshape(response.height, response.width,3)
+
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         except:
             image = numpy.full((self.H, self.W, 3), 128, dtype=numpy.uint8) + numpy.random.randint(0, 32,(self.H, self.W, 3),dtype=numpy.uint8) - 32
-            print(f'Error:get_image')
+            print(f'Error:get_image_new')
 
         return image
     # ----------------------------------------------------------------------------------------------------------------------
+    def get_image_vehicle_based(self):
+        response = self.airsim_client.simGetImage("0", airsim.ImageType.Scene, vehicle_name=self.vehicle_name)
+        image = numpy.frombuffer(response, dtype=numpy.uint8)
+        image = cv2.imdecode(image, cv2.IMREAD_COLOR)
+        return image
+    # ----------------------------------------------------------------------------------------------------------------------
+
     def init_renderer(self, W, H, fov):
         self.R = tools_GL3D_light.render_GL3D(filename_obj=None, W=W, H=H, do_normalize_model_file=False, textured=True,
                                         is_visible=False, projection_type='P', cam_fov_deg=fov, scale=(1, 1, 1),
@@ -228,8 +211,6 @@ class tools_airsim:
             points_3d -= numpy.array(shift).reshape((1, 3))
 
         points_3d[:, 1]*= -1
-        points_3d[:, 2] = 0
-
         H, W = image.shape[:2]
         transperency = 0.8
         points_2d = tools_render_GL.project_points_MVP_GL(points_3d, W, H, self.mat_projection_BEV, self.mat_view_BEV, self.mat_model_BEV, self.mat_trns_BEV)
@@ -316,7 +297,6 @@ class tools_airsim:
             points_3d-=numpy.array(shift).reshape((1,3))
 
         points_3d[:, 1] *= -1
-        points_3d[:, 2] = 0
 
         H, W = image.shape[:2]
         points_2d = tools_render_GL.project_points_MVP_GL(points_3d.reshape((-1, 3)), W, H, self.mat_projection_BEV,self.mat_view_BEV, self.mat_model_BEV, self.mat_trns_BEV)
@@ -371,7 +351,7 @@ class tools_airsim:
             origin -= numpy.array(shift).reshape((1, 3))
 
         H, W = image.shape[:2]
-        origin[:,1] *= -1
+        origin[:, 1] *= -1
         origin[:,2] = 0
 
         origin_2d = tools_render_GL.project_points_MVP_GL(origin.reshape((-1, 3)), W, H, self.mat_projection_BEV, self.mat_view_BEV, self.mat_model_BEV, self.mat_trns_BEV)

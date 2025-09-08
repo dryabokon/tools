@@ -2,8 +2,6 @@ import os
 import pandas as pd
 import requests
 from requests.auth import HTTPBasicAuth
-import mlflow
-from mlflow.tracking import MlflowClient
 # ----------------------------------------------------------------------------------------------------------------------
 class MLFlower(object):
     def __init__(self,host,port,username_mlflow=None,password_mlflow=None,remote_storage_folder=None,username_ssh=None,ppk_key_path=None,password_ssh=None):
@@ -19,6 +17,7 @@ class MLFlower(object):
                 self.is_available = False
                 return
 
+
         print(f'ML FLow server available at {host}:{port} OK')
         self.is_available = True
 
@@ -26,6 +25,8 @@ class MLFlower(object):
             os.environ['MLFLOW_TRACKING_USERNAME'] = username_mlflow
             os.environ['MLFLOW_TRACKING_PASSWORD'] = password_mlflow
 
+        import mlflow
+        from mlflow.tracking import MlflowClient
         mlflow.set_tracking_uri(f'{host}:{port}')
 
         self.remote_host = host
