@@ -1,3 +1,4 @@
+import numpy
 import cv2
 import pandas as pd
 import json
@@ -45,7 +46,7 @@ class DetectorFireFly:
         response = requests.post(self.API + '/get_detections',data=base64.b64encode(cv2.imencode('.jpg', image)[1]).decode('utf-8'))
         dct_res = json.loads(response.content.decode())
         if dct_res:
-            df = pd.DataFrame(dct_res.get('detections', []))
+            df_pred = pd.DataFrame(dct_res.get('detections', []))
             if not df_pred.empty:
                 i=0
 
@@ -57,4 +58,17 @@ class DetectorFireFly:
         #df_pred = df_pred.astype({'class_ids': int, 'x1': int, 'y1': int, 'x2': int, 'y2': int, 'conf': float})
         #df_pred['class_name'] = class_names
         return df_pred
+    # ----------------------------------------------------------------------------------------------------------------------
+    def get_frame_and_pred(self):
+        df_pred = pd.DataFrame({'class_ids': [], 'class_name': [], 'track_id': [], 'x1': [], 'y1': [], 'x2': [], 'y2': [], 'conf': []})
+        image = None
+        response = requests.get(self.API + '/get_detections_native')
+        dct_res = json.loads(response.content.decode())
+        if dct_res:
+            encoded_bytes = dct_res.get('image', None)
+            if encoded_bytes is not None:
+                decoded_bytes = base64.b64decode(encoded_bytes)
+                image = cv2.imdecode(numpy.frombuffer(decoded_bytes, numpy.uint8), cv2.IMREAD_COLOR)
+
+        return image, df_pred
     # ----------------------------------------------------------------------------------------------------------------------
