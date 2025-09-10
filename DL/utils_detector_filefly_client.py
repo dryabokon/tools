@@ -1,3 +1,4 @@
+
 import numpy
 import cv2
 import pandas as pd
@@ -19,24 +20,24 @@ class DetectorFireFly:
 # ----------------------------------------------------------------------------------------------------------------------
     def set_video_source(self):
         str_source = "camera " + self.source if self.source in ['0', '1', '2', '3', '4'] else self.source
-        print('set_video_source')
-        print(str_source)
+        # print('set_video_source')
+        # print(str_source)
         if str_source is not None:
             response = requests.post(self.API + '/set_video_source', json={"source": str_source},headers={'Content-Type': 'application/json'})
-            print(response.content.decode())
+            #print(response.content.decode())
 
         return
     # ----------------------------------------------------------------------------------------------------------------------
     def start_processing(self):
         response = requests.post(self.API + '/start_processing', headers={'Content-Type': 'application/json'})
-        print('start_processing')
-        print(response.content.decode())
+        # print('start_processing')
+        # print(response.content.decode())
         return
     # ----------------------------------------------------------------------------------------------------------------------
     def stop_processing(self):
         response = requests.post(self.API + '/stop_processing', headers={'Content-Type': 'application/json'})
-        print('stop_processing')
-        print(response.content.decode())
+        # print('stop_processing')
+        # print(response.content.decode())
         return
     # ----------------------------------------------------------------------------------------------------------------------
     def warmup(self,img):
