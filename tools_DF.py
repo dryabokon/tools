@@ -366,17 +366,37 @@ def apply_filter(df,col_name,filter,inverce=False):
 
     return df[idx]
 # ---------------------------------------------------------------------------------------------------------------------
-def prettify(df,showheader=True,showindex=True,tablefmt='psql',desc='',maxcolwidths=None,floatfmt='%.2f',filename_out=None):
+def prettify0(df,showheader=True,showindex=True,tablefmt='psql',desc='',maxcolwidths=None,floatfmt='%.2f',filename_out=None):
 
     #df.iloc[:,-1] = df.iloc[:,-1].apply(lambda x: fill(x, width=maxcolwidths))
     if df.shape[0]==0 or df.shape[1]==0:
         res = ''
     else:
-        res = tabulate(df, headers=df.columns if showheader else [], tablefmt=tablefmt, showindex=showindex,maxcolwidths=maxcolwidths,disable_numparse=True,floatfmt=floatfmt)
+        res = tabulate(df, headers=df.columns if showheader else [], tablefmt=tablefmt, showindex=showindex,maxcolwidths=maxcolwidths,disable_numparse=False,floatfmt=floatfmt)
 
     if desc!='':
         bar = ''.join(['-'] * len(res.split('\n')[0]))
         res = bar + '\n' + '| ' + desc + '\n' + res
+
+    if filename_out is not None:
+        with open(filename_out, 'w', encoding='utf-8') as f:
+            f.write(res)
+
+    return res
+# ---------------------------------------------------------------------------------------------------------------------
+def prettify(df,showheader=True,showindex=True,tablefmt='psql',desc='',maxcolwidths=None,floatfmt='.2f',filename_out=None):
+    if df.shape[0] == 0 or df.shape[1] == 0:
+        res = ''
+    else:
+        df_fmt = df.copy()
+        for col in df_fmt.select_dtypes(include=['float']):
+            df_fmt[col] = df_fmt[col].map(lambda x: format(x, floatfmt))
+
+        res = tabulate(df_fmt,headers=df_fmt.columns if showheader else [],tablefmt=tablefmt,showindex=showindex,maxcolwidths=maxcolwidths)
+
+    if desc != '':
+        bar = '-' * len(res.split('\n')[0])
+        res = f"{bar}\n| {desc}\n{res}"
 
     if filename_out is not None:
         with open(filename_out, 'w', encoding='utf-8') as f:
