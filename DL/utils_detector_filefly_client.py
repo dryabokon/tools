@@ -9,7 +9,7 @@ class DetectorFireFly:
     def __init__(self,ip_address,port,source=None):
         self.ip_address = ip_address
         self.port = port
-        self.source = source
+        self.source = str(source) if source is not None else None
         self.API = f"http://{self.ip_address}:{self.port}"
         self.stop_processing()
         self.set_video_source()
