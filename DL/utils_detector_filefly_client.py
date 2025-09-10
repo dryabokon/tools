@@ -117,11 +117,12 @@ class DetectorFireFly:
                     'conf': df_pred_firefly['confidence'].values
                 })
 
-            # encoded_bytes = dct_res.get('image', None)
-            # if encoded_bytes is not None:
-            #     decoded_bytes = base64.b64decode(encoded_bytes)
-            #     image = cv2.imdecode(numpy.frombuffer(decoded_bytes, numpy.uint8), cv2.IMREAD_COLOR)
-            #     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            encoded_bytes = dct_res.get('image', None)
+            if encoded_bytes is not None:
+                decoded_bytes = base64.b64decode(encoded_bytes)
+                image = cv2.imdecode(numpy.frombuffer(decoded_bytes, numpy.uint8), cv2.IMREAD_COLOR)
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
         return image, df_pred
     # ----------------------------------------------------------------------------------------------------------------------
+
