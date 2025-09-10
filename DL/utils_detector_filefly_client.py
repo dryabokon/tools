@@ -1,4 +1,4 @@
-
+import socket
 import numpy
 import cv2
 import pandas as pd
@@ -12,32 +12,51 @@ class DetectorFireFly:
         self.port = port
         self.source = str(source) if source is not None else None
         self.API = f"http://{self.ip_address}:{self.port}"
+
+        if not self.check_is_available(ip_address, port):
+            print(f'FireFly not available at {ip_address}')
+            self.is_available = False
+            return
+
+        self.is_available = True
+
         self.stop_processing()
         self.set_video_source()
         self.start_processing()
 
         return
-# ----------------------------------------------------------------------------------------------------------------------
+    # ----------------------------------------------------------------------------------------------------------------------
+    def check_is_available(self,ip,port):
+        try:
+            sock = socket.create_connection((ip, port), timeout=2)
+            sock.close()
+            return True
+        except socket.error as e:
+            return False
+        return
+    # ----------------------------------------------------------------------------------------------------------------------
     def set_video_source(self):
-        str_source = "camera " + self.source if self.source in ['0', '1', '2', '3', '4'] else self.source
-        # print('set_video_source')
-        # print(str_source)
-        if str_source is not None:
-            response = requests.post(self.API + '/set_video_source', json={"source": str_source},headers={'Content-Type': 'application/json'})
-            #print(response.content.decode())
-
+        if self.is_available:
+            str_source = "camera " + self.source if self.source in ['0', '1', '2', '3', '4'] else self.source
+            # print('set_video_source')
+            # print(str_source)
+            if str_source is not None:
+                response = requests.post(self.API + '/set_video_source', json={"source": str_source},headers={'Content-Type': 'application/json'})
+                #print(response.content.decode())
         return
     # ----------------------------------------------------------------------------------------------------------------------
     def start_processing(self):
-        response = requests.post(self.API + '/start_processing', headers={'Content-Type': 'application/json'})
-        # print('start_processing')
-        # print(response.content.decode())
+        if self.is_available:
+            response = requests.post(self.API + '/start_processing', headers={'Content-Type': 'application/json'})
+            # print('start_processing')
+            # print(response.content.decode())
         return
     # ----------------------------------------------------------------------------------------------------------------------
     def stop_processing(self):
-        response = requests.post(self.API + '/stop_processing', headers={'Content-Type': 'application/json'})
-        # print('stop_processing')
-        # print(response.content.decode())
+        if self.is_available:
+            response = requests.post(self.API + '/stop_processing', headers={'Content-Type': 'application/json'})
+            # print('stop_processing')
+            # print(response.content.decode())
         return
     # ----------------------------------------------------------------------------------------------------------------------
     def warmup(self,img):
@@ -57,6 +76,8 @@ class DetectorFireFly:
     # ----------------------------------------------------------------------------------------------------------------------
     def get_detections(self,filename_in,do_debug=False):
         df_pred = pd.DataFrame({'class_ids':[],'class_name':[],'x1': [], 'y1': [], 'x2': [], 'y2': [], 'conf': []})
+        if not self.is_available:
+            return df_pred
 
         image = cv2.imread(filename_in) if isinstance(filename_in,str) else filename_in
         response = requests.post(self.API + '/get_detections',data=base64.b64encode(cv2.imencode('.jpg', image)[1]).decode('utf-8'))
@@ -78,6 +99,9 @@ class DetectorFireFly:
     def get_frame_and_pred(self):
         df_pred = pd.DataFrame({'class_ids':[],'class_name':[],'x1': [], 'y1': [], 'x2': [], 'y2': [], 'conf': []})
         image = None
+        if not self.is_available:
+            return image, df_pred
+
         response = requests.get(self.API + '/get_detections_native')
         dct_res = json.loads(response.content.decode())
         if dct_res:
