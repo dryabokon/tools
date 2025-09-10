@@ -21,15 +21,22 @@ class DetectorFireFly:
         if self.source is not None:
             str_source = "camera " + self.source if self.source in ['0','1','2','3','4'] else self.source
             response = requests.post(self.API + '/set_video_source', json={"source": str_source},headers={'Content-Type': 'application/json'})
+            print('set_video_source')
+            print(str_source)
+            print(response.content.decode())
 
         return
     # ----------------------------------------------------------------------------------------------------------------------
     def start_processing(self):
         response = requests.post(self.API + '/start_processing', headers={'Content-Type': 'application/json'})
+        print('start_processing')
+        print(response.content.decode())
         return
     # ----------------------------------------------------------------------------------------------------------------------
     def stop_processing(self):
         response = requests.post(self.API + '/stop_processing', headers={'Content-Type': 'application/json'})
+        print('stop_processing')
+        print(response.content.decode())
         return
     # ----------------------------------------------------------------------------------------------------------------------
     def warmup(self,img):
