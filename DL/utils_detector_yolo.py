@@ -21,7 +21,6 @@ class Detector_yolo:
 
         self.folder_out = folder_out
 
-
         self.model_detect = YOLO(model_name)
         self.model_detect.to(self.device)
         self.colors80 = tools_draw_numpy.get_colors(80, colormap='nipy_spectral', shuffle=True)
@@ -43,6 +42,7 @@ class Detector_yolo:
     def get_detections(self,filename_in, col_start=None,do_debug=False):
         image = cv2.imread(filename_in) if isinstance(filename_in, str) else filename_in
         df_pred = pd.DataFrame({'class_ids': [],'class_name':[], 'x1': [], 'y1': [], 'x2': [], 'y2': [], 'conf': []})
+        if image is None:return df_pred
 
         if self.confidence_th is None:
             res = self.model_detect.predict(source=image, verbose=False, device=self.device)

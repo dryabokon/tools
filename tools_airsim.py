@@ -34,6 +34,7 @@ class tools_airsim:
         self.airsim_client.confirmConnection()
 
         self.dct_settings = self.get_settings()
+        self.vehicle_name = self.airsim_client.listVehicles()[0]
         self.virtual_camera_name = self.get_virtual_camera_name()
 
         self.set_fov(self.fov)
@@ -60,9 +61,10 @@ class tools_airsim:
         return
     # ---------------------------------------------------------------------------------------------------------------------
     def new_setup(self,camera_rad_yaw_pitch_roll):
+
         yaw, pitch,roll = camera_rad_yaw_pitch_roll
 
-        self.airsim_client.simSetCameraPose("0", airsim.Pose(airsim.Vector3r(0.0, 0.0, -0.5),airsim.to_quaternion(pitch, 0.0, 0.0)))
+        self.airsim_client.simSetCameraPose("0", airsim.Pose(airsim.Vector3r(+0.20, 0.0, -0.35),airsim.to_quaternion(pitch, 0.0, 0.0)))
         self.airsim_client.simSetCameraPose("1", airsim.Pose(airsim.Vector3r(0.0, 0.0, -2.5),airsim.to_quaternion(+numpy.pi / 8, 0.0, 0)),vehicle_name=self.virtual_camera_name)
         self.airsim_client.simSetCameraPose("2", airsim.Pose(airsim.Vector3r(0.0, 0.0, -self.height_abs_BEV),airsim.to_quaternion(-numpy.pi / 2, 0, 0.0)))
 
@@ -158,7 +160,7 @@ class tools_airsim:
         return
     # ---------------------------------------------------------------------------------------------------------------------
     def get_drone_position(self):
-        pos = self.airsim_client.simGetObjectPose(self.airsim_client.listVehicles()[0]).position
+        pos = self.airsim_client.simGetObjectPose(self.vehicle_name).position
         return numpy.array([pos.x_val, pos.y_val, pos.z_val])
     # ---------------------------------------------------------------------------------------------------------------------
     def get_drone_orientation(self):
