@@ -214,32 +214,19 @@ class tools_airsim:
         image = self.R.get_image(do_debug=True)
         return image
 # ---------------------------------------------------------------------------------------------------------------------
-    def draw_camera_on_BEV(self,image,eye,target,shift,color):
-        scale = 35.0
-
-        target = target-(target-eye)*scale
-        target = numpy.array(target)
-
-        target_rotated1 = tools_image.rotate_point(target[:2], eye[:2], 180-self.fov/2, reshape=False)
-        target_rotated2 = tools_image.rotate_point(target[:2], eye[:2], 180+self.fov/2, reshape=False)
-
-        points_3d = numpy.concatenate((numpy.array((eye)).reshape(-1,3),numpy.array((target_rotated1[0],target_rotated1[1],0)).reshape(-1,3),numpy.array((target_rotated2[0],target_rotated2[1],0)).reshape(-1,3)),axis=0)
-
-        points_3d = points_3d.reshape((-1, 3))
-        if shift is not None:
-            points_3d -= numpy.array(shift).reshape((1, 3))
-
-        points_3d[:, 1]*= -1
-        points_3d[:, 2] = 0
-
+    def draw_camera_on_BEV(self,image,ground_points3d,shift,color):
         H, W = image.shape[:2]
         transperency = 0.8
-        points_2d = tools_render_GL.project_points_MVP_GL(points_3d, W, H, self.mat_projection_BEV, self.mat_view_BEV, self.mat_model_BEV, self.mat_trns_BEV)
-        image = tools_draw_numpy.draw_contours_cv(image, points_2d.reshape((-1, 2)), color=color, w=-1, transperency=transperency)
-        image = tools_draw_numpy.draw_line_fast(image, points_2d[0][1], points_2d[0][0], points_2d[1][1],points_2d[1][0], color, w=1)
-        image = tools_draw_numpy.draw_line_fast(image, points_2d[1][1], points_2d[1][0], points_2d[2][1],points_2d[2][0], color, w=1)
-        image = tools_draw_numpy.draw_line_fast(image, points_2d[2][1], points_2d[2][0], points_2d[0][1],points_2d[0][0], color, w=1)
 
+        if len(ground_points3d)>0:
+            points_3d = numpy.array(ground_points3d).reshape((-1, 3))
+            if shift is not None:
+                points_3d -= numpy.array(shift).reshape((1, 3))
+
+            points_3d[:, 1] *= -1
+            points_3d[:, 2] = 0
+            points_2d = tools_render_GL.project_points_MVP_GL(points_3d, W, H, self.mat_projection_BEV, self.mat_view_BEV, self.mat_model_BEV, self.mat_trns_BEV).reshape((-1, 2))
+            image = tools_draw_numpy.draw_contours_cv(image, points_2d[[2,1,3,0,2]], color=color, w=-1, transperency=transperency)
 
         return image
 # ---------------------------------------------------------------------------------------------------------------------
