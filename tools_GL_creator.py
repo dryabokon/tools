@@ -221,7 +221,7 @@ class OBJ_Utils:
 # ----------------------------------------------------------------------------------------------------------------------
     def construct_cuboid_normals(self,rvec,tvec):
         normals = numpy.array([[0,0,-1],[0,0,+1],[0,-1,0],[0,+1,0],[-1,0,0],[+1,0,0]],dtype=numpy.float32)
-        RT = tools_pr_geom.compose_RT_mat(rvec, tvec, do_rodriges=True, do_flip=False, GL_style=False)
+        RT = tools_pr_geom.compose_RT_mat(rvec, (0,0,0), do_rodriges=True, do_flip=False, GL_style=False)
         normals = tools_pr_geom.apply_matrix_GL(RT, normals)[:, :3]
         return normals
 # ----------------------------------------------------------------------------------------------------------------------

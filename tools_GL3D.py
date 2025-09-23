@@ -51,18 +51,17 @@ class VBO(object):
         object.transform_mesh(M)
         for idxv, idxn, idxt in zip(object.idx_vertex, object.idx_normal, object.idx_texture):
             idx_col = object.dct_obj_id[idxv[0]]
-            #c = (0.25, 0.75, 0.95)
             c = (0.75, 0.75, 0.75)
             if len(object.mat_color) > 0 and (object.mat_color[idx_col] is not None):
                 c = object.mat_color[idx_col]
+                c = (c[2],c[1],c[0])
 
             clr = numpy.array([c, c, c]).flatten()
 
-            self.data[self.iterator:                    self.iterator + 9] = (object.coord_vert[idxv]).flatten()
-            self.data[self.iterator + self.color_offset:self.iterator + self.color_offset + 9] = clr
-            self.data[self.iterator + self.normal_offset:self.iterator + self.normal_offset + 9] = (object.coord_norm[idxn]).flatten()
-            self.data[2*self.iterator // 3 + self.texture_offset:2 * self.iterator // 3 + self.texture_offset + 6] = (object.coord_texture[idxt]).flatten()
-
+            self.data[                     self.iterator     :                      self.iterator + 9] = (object.coord_vert[idxv]).flatten()
+            self.data[self.color_offset   +self.iterator     :self.color_offset   + self.iterator + 9] = clr
+            self.data[self.normal_offset  +self.iterator     :self.normal_offset  + self.iterator + 9] = (object.coord_norm[idxn]).flatten()
+            self.data[self.texture_offset +self.iterator*2//3:self.texture_offset + self.iterator*2//3+ 6] = (object.coord_texture[idxt]).flatten()
             self.id[self.iterator:                  self.iterator + 9] = self.cnt
             self.iterator += 9
 
@@ -130,6 +129,7 @@ class render_GL3D(object):
 
         self.object = self.init_object(filename_obj,M_obj)
 
+        self.eye_default = None
         if (eye is None):
             self.eye_default, self.target_default, self.up_default = self.get_default_ETU()
         else:
@@ -385,22 +385,10 @@ class render_GL3D(object):
     # ----------------------------------------------------------------------------------------------------------------------
     def __init_mat_transform(self, scale_vec):
         self.mat_trns = numpy.array(pyrr.Matrix44.from_scale(scale_vec))
-        # !!!
-        # self.mat_trns[1,1]*=-1
-        # self.mat_trns[2,2]*=-1
 
-        #v1,v2 = self.mat_trns[1], self.mat_trns[2]
-
-        #self.mat_trns[0],self.mat_trns[2] = self.mat_trns[2].copy(), self.mat_trns[0].copy()
-
-        # self.mat_trns[0, 0] =0
-        # self.mat_trns[2, 2]= 0
-        # self.mat_trns[2, 0] = 1.0
-        # self.mat_trns[0, 2] = 1.0
-
-
-
-        #self.mat_trns[1,:],self.mat_trns[2,:] = self.mat_trns[2,:],self.mat_trns[1,:]
+        # temp = self.mat_trns[1, 1]
+        # self.mat_trns[1, 1] = self.mat_trns[2, 2]
+        # self.mat_trns[2, 2] = temp
 
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "transform"), 1, GL_FALSE, self.mat_trns)
         return
@@ -701,18 +689,12 @@ class render_GL3D(object):
     def transform_model(self, mode):
 
         T = pyrr.Matrix44.from_scale(self.scale)
-        if mode == 'XY':
-            M = pyrr.matrix44.create_from_z_rotation(-math.pi / 2)
-        elif mode == 'XZ':
-            M = pyrr.matrix44.create_from_y_rotation(-math.pi / 2)
-        elif mode == 'YZ':
-            M = pyrr.matrix44.create_from_x_rotation(-math.pi / 2)
-        elif mode == 'xy':
-            M = pyrr.matrix44.create_from_z_rotation(+math.pi / 2)
-        elif mode == 'yz':
-            M = pyrr.matrix44.create_from_y_rotation(+math.pi / 2)
-        elif mode == 'xz':
-            M = pyrr.matrix44.create_from_x_rotation(+math.pi / 2)
+        if   mode == 'XY':M = pyrr.matrix44.create_from_z_rotation(-math.pi / 2)
+        elif mode == 'XZ':M = pyrr.matrix44.create_from_y_rotation(-math.pi / 2)
+        elif mode == 'YZ':M = pyrr.matrix44.create_from_x_rotation(-math.pi / 2)
+        elif mode == 'xy':M = pyrr.matrix44.create_from_z_rotation(+math.pi / 2)
+        elif mode == 'yz':M = pyrr.matrix44.create_from_y_rotation(+math.pi / 2)
+        elif mode == 'xz':M = pyrr.matrix44.create_from_x_rotation(+math.pi / 2)
         self.mat_trns = numpy.dot(T, M)
         glUniformMatrix4fv(glGetUniformLocation(self.shader, "transform"), 1, GL_FALSE, self.mat_trns)
         self.reset_view(skip_transform=True)

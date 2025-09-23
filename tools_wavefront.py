@@ -20,8 +20,8 @@ class ObjLoader:
         self.idx_vertex = []
         self.idx_texture = []
         self.idx_normal = []
-        offset_vert=0
-        offset_text=0
+
+
         object_id=-1
         self.dct_obj_id = {}
 
@@ -32,8 +32,6 @@ class ObjLoader:
             values = numpy.array(values)
 
             if values[0] == 'o':
-                offset_vert=len(self.coord_vert)
-                offset_text=len(self.coord_texture)
                 object_id+=1
                 self.mat_color.append(None)
                 self.filename_texture.append(None)
@@ -90,8 +88,8 @@ class ObjLoader:
                         text_i.append(int(w[1]) - 1)
                         norm_i.append(int(w[2]) - 1)
 
-                face_i = [f+offset_vert for f in face_i]
-                text_i = [t+offset_text for t in text_i]
+                face_i = [f for f in face_i]
+                text_i = [t for t in text_i]
                 self.idx_vertex.append(face_i)
                 self.idx_texture.append(text_i)
                 self.idx_normal.append(norm_i)
@@ -99,7 +97,9 @@ class ObjLoader:
                     self.dct_obj_id[f]=object_id
 
             if values[0]=='mtllib':
-                mat,texture = self.get_material(folder_name+values[1])
+                filename_mat = folder_name+values[1]
+            if values[0]=='usemtl':
+                mat,texture = self.get_material(filename_mat,values[1])
                 self.mat_color[-1]=mat
                 if texture is not None:
                     self.filename_texture[-1]=(folder_name + texture)
@@ -116,8 +116,9 @@ class ObjLoader:
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def get_material(self,filename_mat):
+    def get_material(self,filename_mat,mat_name=None):
         mat_color,filename_texture = None,None
+        ready_to_read = mat_name is None
 
         if not os.path.exists(filename_mat):
             return mat_color, filename_texture
@@ -125,9 +126,15 @@ class ObjLoader:
         for line in open(filename_mat, 'r'):
             values = line.split()
             if not values: continue
-            values = numpy.array(values)
-            if values[0] == 'Ka':mat_color=tuple([float(v) for v in values[1:4]])
-            if values[0] == 'map_Kd': filename_texture = values[1]
+            if (mat_name is not None) and not ready_to_read:
+                if mat_name in values[1:]:
+                    ready_to_read = True
+            else:
+                if ready_to_read:
+                    if values[0] == 'Kd' and mat_color is None:
+                        mat_color=tuple([float(v) for v in values[1:4]])
+                    if values[0] == 'map_Kd' and filename_texture is None:
+                        filename_texture = values[1]
 
         return mat_color, filename_texture
 # ----------------------------------------------------------------------------------------------------------------------

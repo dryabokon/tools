@@ -10,13 +10,14 @@ import tools_draw_numpy
 # ----------------------------------------------------------------------------------------------------------------------
 class Detector_yolo:
     def __init__(self,folder_out,config=None):
+        self.name = 'yolo'
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model_name = config.detection_model if (config is not None and config.detection_model is not None) else 'yolov8n.pt'
-        self.confidence_th = config.confidence_th
+        self.confidence_th = config.confidence_th if config is not None else None
         device_colored = ('\033[92m' + 'cuda' + '\033[0m' if self.device == 'cuda' else '\033[33m' + 'CPU' + '\033[0m')
         print('[Detectr] device:',device_colored,'-',model_name)
 
-        if not os.path.isdir(folder_out):
+        if (folder_out is not None) and (not os.path.isdir(folder_out)):
             os.mkdir(folder_out)
 
         self.folder_out = folder_out
@@ -56,7 +57,7 @@ class Detector_yolo:
             self.dct_class_names = res[0].names
             class_names = numpy.array([self.dct_class_names[i] for i in class_ids])
 
-            if do_debug and isinstance(filename_in, str):
+            if do_debug and isinstance(filename_in, str) and self.folder_out is not None:
                 image_res = tools_image.desaturate(image)
                 image_res = self.draw_detections(image_res,rects,class_ids, confs)
                 cv2.imwrite(self.folder_out + filename_in.split('/')[-1], image_res)

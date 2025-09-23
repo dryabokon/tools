@@ -44,7 +44,7 @@ class tools_airsim:
 
         self.init_renderer(self.W, self.H, self.fov)
         self.height_abs_BEV = height_abs_BEV
-        self.init_mat(self.fov, self.height_abs_BEV)
+        self.init_mat(90, self.height_abs_BEV)
 
         self.camera_rad_yaw_pitch_roll = camera_rad_yaw_pitch_roll
         self.new_setup(camera_rad_yaw_pitch_roll)
@@ -64,7 +64,8 @@ class tools_airsim:
 
         yaw, pitch,roll = camera_rad_yaw_pitch_roll
 
-        self.airsim_client.simSetCameraPose("0", airsim.Pose(airsim.Vector3r(+0.20, 0.0, -0.35),airsim.to_quaternion(pitch, 0.0, 0.0)))
+        self.airsim_client.simSetCameraPose("0", airsim.Pose(airsim.Vector3r(+0.30, 0.0, -0.35),airsim.to_quaternion(pitch, 0.0, 0.0)))
+        #self.airsim_client.simSetCameraPose("0", airsim.Pose(airsim.Vector3r(+0.0, 0.0, -0.0),airsim.to_quaternion(pitch, 0.0, 0.0)))
         self.airsim_client.simSetCameraPose("1", airsim.Pose(airsim.Vector3r(0.0, 0.0, -2.5),airsim.to_quaternion(+numpy.pi / 8, 0.0, 0)),vehicle_name=self.virtual_camera_name)
         self.airsim_client.simSetCameraPose("2", airsim.Pose(airsim.Vector3r(0.0, 0.0, -self.height_abs_BEV),airsim.to_quaternion(-numpy.pi / 2, 0, 0.0)))
 
