@@ -224,7 +224,7 @@ def draw_text_fast(image,label,xy, color_fg,clr_bg=None,font_size=16,alpha_trans
     else:                       pos = (pos[0] - text_width, pos[1])
 
     if clr_bg is not None:
-        cv2.rectangle(image, (pos[0],pos[1]),(pos[0] + text_width,pos[1]+text_height),(int(clr_bg[0]), int(clr_bg[1]), int(clr_bg[2])), thickness=-1)
+        cv2.rectangle(image, (int(pos[0]),int(pos[1])),(int(pos[0]) + text_width,int(pos[1])+text_height),(int(clr_bg[0]), int(clr_bg[1]), int(clr_bg[2])), thickness=-1)
 
     result = cv2.putText(result, label, (pos[0],pos[1]+text_height), font, fontScale, (int(color_fg[0]),int(color_fg[1]),int(color_fg[2])), thickness=1,lineType=cv2.LINE_AA,bottomLeftOrigin=False)
     return result
