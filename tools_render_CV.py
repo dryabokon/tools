@@ -3,7 +3,7 @@ import cv2
 import numpy
 import pyrr
 from sympy.geometry import intersection, Point, Line
-from scipy.spatial import distance as dist
+from scipy.spatial.transform import Rotation
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_draw_numpy
 import tools_IO
@@ -1210,4 +1210,61 @@ def distance_point_to_line_3d(line, point):
     t = v.dot(d)
     P = p_start + t * d
     return numpy.linalg.norm(P - point)
+# ----------------------------------------------------------------------------------------------------------------------
+def from_euler(roll, pitch, yaw):return Rotation.from_euler('xyz', [roll, pitch, yaw]).as_quat()
+def to_euler(q):return Rotation.from_quat(q).as_euler('xyz')
+def to_euler_as_mat(q):return Rotation.from_quat(q).as_matrix()
+def rotate_vector(v, q):
+    x, y, z, w = q
+    q_vec = numpy.array([x, y, z])
+    uv = numpy.cross(q_vec, v)
+    uuv = numpy.cross(q_vec, uv)
+    return v + 2.0 * (w * uv + uuv)
+# ----------------------------------------------------------------------------------------------------------------------
+def quaternion_multiply(q1, q2):
+    x1, y1, z1, w1 = q1
+    x2, y2, z2, w2 = q2
+    return numpy.array([w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2])
+# ---------------------------------------------------------------------------------------------------------------------
+def ground_plane_intersection(point_3d,position,W,H,orientation_cam,cam_pitch_deg,fov_deg,left_right_flip):
+    if point_3d is None:
+        return None
+    q_offset = from_euler(0.0, cam_pitch_deg * numpy.pi / 180.0, 0.0)
+    orientation = quaternion_multiply(orientation_cam, q_offset)
+
+    x, y = point_3d
+
+    fov_x = fov_deg
+    fov_y = fov_x * H / W
+
+    nx = (x - W / 2) / (W / 2)
+    ny = (y - H / 2) / (H / 2)
+    if left_right_flip:
+        nx = -nx
+
+    yaw = -numpy.arctan(nx * numpy.tan(numpy.deg2rad(fov_x / 2)))
+    pitch = numpy.arctan(ny * numpy.tan(numpy.deg2rad(fov_y / 2)))
+    direction_local = numpy.array([numpy.cos(pitch) * numpy.cos(yaw), numpy.cos(pitch) * numpy.sin(yaw), -numpy.sin(pitch)])
+    direction_global = to_euler_as_mat(orientation) @ direction_local
+
+    if abs(direction_global[2]) < 1e-6:
+        return None
+
+    t = -position[2] / direction_global[2]
+    gx = position[0] + t * direction_global[0]
+    gy = position[1] + t * direction_global[1]
+
+    return numpy.array([gx,gy,0.0])
+# ----------------------------------------------------------------------------------------------------------------------
+def boundaries_to_3d_groud(position, orientation_cam,W,H,cam_pitch_deg,fov_deg,left_right_flip):
+    cx, cy = W / 2.0, H / 2.0
+    width, height = W / 2.0, H / 2.0
+    point_3d1 = (cx - width, cy - height)
+    point_3d2 = (cx - width, cy + height)
+    point_3d3 = (cx + width, cy + height)
+    point_3d4 = (cx + width, cy - height)
+    ground_points = [ground_plane_intersection(point_3d,position,W,H,orientation_cam,cam_pitch_deg,fov_deg,left_right_flip) for point_3d in [point_3d1,point_3d2,point_3d3,point_3d4] ]
+    if numpy.any(numpy.array([g is None for g in ground_points])):
+        return []
+    return ground_points
 # ----------------------------------------------------------------------------------------------------------------------

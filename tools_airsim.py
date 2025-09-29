@@ -8,7 +8,6 @@ import socket
 # ---------------------------------------------------------------------------------------------------------------------
 import airsim
 # ---------------------------------------------------------------------------------------------------------------------
-import tools_image
 import tools_render_GL
 import tools_draw_numpy
 import tools_GL3D_light
@@ -227,7 +226,7 @@ class tools_airsim:
             points_3d[:, 1] *= -1
             points_3d[:, 2] = 0
             points_2d = tools_render_GL.project_points_MVP_GL(points_3d, W, H, self.mat_projection_BEV, self.mat_view_BEV, self.mat_model_BEV, self.mat_trns_BEV).reshape((-1, 2))
-            image = tools_draw_numpy.draw_contours_cv(image, points_2d[[2,1,3,0,2]], color=color, w=-1, transperency=transperency)
+            image = tools_draw_numpy.draw_convex_hull(image, points_2d[[2,1,3,0,2]], color=color, transperency=transperency)
 
         return image
 # ---------------------------------------------------------------------------------------------------------------------

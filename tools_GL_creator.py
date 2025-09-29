@@ -1,3 +1,4 @@
+import shutil
 import base64
 import numpy
 import tools_wavefront
@@ -30,7 +31,24 @@ class OBJ_Utils:
         self.do_transpose = True
 
         return
-# ----------------------------------------------------------------------------------------------------------------------
+    # ----------------------------------------------------------------------------------------------------------------------
+    def construct_transform(self, E=numpy.eye(3), rotate_X_deg=0, rotate_Y_deg=0, rotate_Z_deg=0, translateX=0, translateY=0,translateZ=0):
+        P = numpy.eye(4)
+        P[:3, :3] = numpy.array(E)
+        rx = numpy.deg2rad(rotate_X_deg)
+        ry = numpy.deg2rad(rotate_Z_deg)
+        rz = numpy.deg2rad(rotate_Y_deg)
+        cx, sx = numpy.cos(rx), numpy.sin(rx)
+        cy, sy = numpy.cos(ry), numpy.sin(ry)
+        cz, sz = numpy.cos(rz), numpy.sin(rz)
+        Rx = numpy.array([[1, 0, 0, 0], [0, cx, -sx, 0], [0, sx, cx, 0], [0, 0, 0, 1]], dtype=numpy.float32)
+        Ry = numpy.array([[cy, 0, sy, 0], [0, 1, 0, 0], [-sy, 0, cy, 0], [0, 0, 0, 1]], dtype=numpy.float32)
+        Rz = numpy.array([[cz, -sz, 0, 0], [sz, cz, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]], dtype=numpy.float32)
+        T = numpy.eye(4)
+        T[3, :3] = [translateX, translateZ, translateY]
+        M = P @ Rz @ Ry @ Rx @ T
+        return M
+    # ----------------------------------------------------------------------------------------------------------------------
     def construct_material(self,name,color,transparency=0.0):
         mat = Material()
         mat.name = name
@@ -254,7 +272,84 @@ class OBJ_Utils:
         idx_normals = -1 + numpy.array(idx_normals, dtype=numpy.int32)
         return idx_normals
 # ----------------------------------------------------------------------------------------------------------------------
-    def test_00(self,filename_obj='All.obj', filename_mat='mat.mtl'):
+    def convert_triangulation(self,filename_in, filename_out):
+        TW = tools_wavefront.ObjLoader()
+        TW.convert(filename_in, self.folder_out + filename_out)
+        return
+    # ----------------------------------------------------------------------------------------------------------------------
+    def add_scenes(self,filename_obj1, filename_obj2, filename_out, M_obj1=None, M_obj2=None):
+
+        Obj1 = tools_wavefront.ObjLoader(filename_obj1)
+        Obj2 = tools_wavefront.ObjLoader(filename_obj2,do_autoscale=True)
+        Obj1.transform_mesh(M_obj1)
+        Obj2.transform_mesh(M_obj2)
+
+        shutil.copy2(filename_obj1, self.folder_out + filename_out)
+
+        Obj2.export_mesh(self.folder_out + filename_out,
+                         Obj2.coord_vert,
+                         coord_texture=Obj2.coord_texture,
+                         coord_norm=Obj2.coord_norm,
+                         idx_vertex=numpy.array(Obj2.idx_vertex) + Obj1.coord_vert.shape[0],
+                         idx_texture=numpy.array(Obj2.idx_texture) + Obj1.coord_texture.shape[0],
+                         idx_normal=numpy.array(Obj2.idx_normal) + Obj1.coord_norm.shape[0],
+                         filename_material=Obj2.filename_mat,
+                         material_name=Obj2.mat_name, mode='a+')
+        return
+
+    # ----------------------------------------------------------------------------------------------------------------------
+    def test_00_scene_cubes(self,filename_out, do_Y_flip=False):
+
+        filename_mat = filename_out.split('/')[-1].replace('.obj', '.mtl')
+        sign = 1 if do_Y_flip else -1
+
+        mat_plane = self.construct_material('plane', (197, 196, 192))
+        mat_white = self.construct_material('white', (255, 255, 255))
+        mat_yellow = self.construct_material('yellow', (237, 224, 100))
+        mat_green = self.construct_material('green', (197, 237, 125))
+        mat_blue = self.construct_material('blue', (165, 203, 229))
+        mat_orange = self.construct_material('orange', (200, 128, 0))
+        mat_red = self.construct_material('red', (200, 0, 0))
+        mat_pink = self.construct_material('pink', (255, 192, 203))
+        mat_black = self.construct_material('black', (0, 0, 0))
+        mat_purple = self.construct_material('purple', (128, 0, 128))
+
+        self.export_material(filename_mat, mat_plane)
+        self.append_material(filename_mat, mat_white)
+        self.append_material(filename_mat, mat_yellow)
+        self.append_material(filename_mat, mat_green)
+        self.append_material(filename_mat, mat_blue)
+        self.append_material(filename_mat, mat_orange)
+        self.append_material(filename_mat, mat_red)
+        self.append_material(filename_mat, mat_pink)
+        self.append_material(filename_mat, mat_black)
+        self.append_material(filename_mat, mat_purple)
+
+        mesh_circle = self.construct_circle((200, 200, 1), (0, 0, 0), (0, 0 * sign, 0), mat_plane)
+        mesh_cube_white = self.construct_cube((1, 1, 0.01), (0, 0, 0), (0, 0 * sign, 0), mat_white)
+
+        mesh_cube_red = self.construct_cube((1, 1, 1), (0, 0, 0), (+10, -0 * sign, 0.5), mat_red)
+        mesh_cube_orange = self.construct_cube((1, 1, 1), (0, 0, 0), (+10, +10 * sign, 0.5), mat_orange)
+        mesh_cube_yellow = self.construct_cube((1, 1, 1), (0, 0, 0), (+5, +10 * sign, 0.5), mat_yellow)
+        mesh_cube_green = self.construct_cube((1, 1, 1), (0, 0, 0), (-10, +10 * sign, 0.5), mat_green)
+        mesh_cube_blue = self.construct_cube((1, 1, 1), (0, 0, 0), (-10, -0 * sign, 0.5), mat_blue)
+        mesh_cube_pink = self.construct_cube((1, 1, 1), (0, 0, 0), (-10, -10 * sign, 0.5), mat_pink)
+        mesh_bube_purple = self.construct_cube((1, 1, 1), (0, 0, 0), (+10, -10 * sign, 0.5), mat_purple)
+
+        self.export_mesh(filename_out, filename_mat, mesh_circle)
+        self.append_mesh(filename_out, filename_mat, mesh_cube_white)
+        self.append_mesh(filename_out, filename_mat, mesh_cube_red)
+        self.append_mesh(filename_out, filename_mat, mesh_cube_orange)
+        self.append_mesh(filename_out, filename_mat, mesh_cube_yellow)
+        self.append_mesh(filename_out, filename_mat, mesh_cube_green)
+        self.append_mesh(filename_out, filename_mat, mesh_cube_blue)
+        self.append_mesh(filename_out, filename_mat, mesh_cube_pink)
+        self.append_mesh(filename_out, filename_mat, mesh_bube_purple)
+
+        return
+
+    # ----------------------------------------------------------------------------------------------------------------------
+    def test_01_figures(self,filename_obj='All.obj', filename_mat='mat.mtl'):
 
         mat_plane = self.construct_material('plane', (64, 64, 64))
         mat_line = self.construct_material('line', (0, 100, 192))

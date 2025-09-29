@@ -1,11 +1,16 @@
 import os
+
+import cv2
 import numpy
+#import pyvista
 #----------------------------------------------------------------------------------------------------------------------
 class ObjLoader:
-    def __init__(self):
+    def __init__(self,filename_obj=None,do_autoscale=False):
+        if filename_obj is not None:
+            self.load_mesh(filename_obj,do_autoscale=do_autoscale)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def load_mesh(self, filename_obj, do_autoscale=True):
+    def load_mesh(self, filename_obj, do_autoscale=False):
 
         folder_name=''
         split = filename_obj.split('/')
@@ -13,6 +18,8 @@ class ObjLoader:
 
         self.mat_color = []
         self.filename_texture = []
+        self.filename_mat = None
+        self.mat_name = None
 
         self.coord_vert = []
         self.coord_texture = []
@@ -97,12 +104,13 @@ class ObjLoader:
                     self.dct_obj_id[f]=object_id
 
             if values[0]=='mtllib':
-                filename_mat = folder_name+values[1]
+                self.filename_mat = folder_name+values[1]
             if values[0]=='usemtl':
-                mat,texture = self.get_material(filename_mat,values[1])
+                self.mat_name = values[1]
+                mat,texture = self.get_material(self.filename_mat,self.mat_name)
                 self.mat_color[-1]=mat
                 if texture is not None:
-                    self.filename_texture[-1]=(folder_name + texture)
+                    self.filename_texture[-1]=texture
 
         if len(self.coord_texture) == 0: self.coord_texture.append([0,0])
 
@@ -111,8 +119,12 @@ class ObjLoader:
         self.coord_norm = numpy.array(self.coord_norm)
 
         if do_autoscale:
-            max_value = self.coord_vert.max()
-            self.coord_vert/= max_value
+            min_value = numpy.min(self.coord_vert,axis=0)
+            max_value = numpy.max(self.coord_vert,axis=0)
+            shift = (max_value+min_value)/2.0
+            self.coord_vert = self.coord_vert - shift
+            S = numpy.max(numpy.abs(self.coord_vert))
+            self.coord_vert = self.coord_vert / S
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
@@ -135,6 +147,12 @@ class ObjLoader:
                         mat_color=tuple([float(v) for v in values[1:4]])
                     if values[0] == 'map_Kd' and filename_texture is None:
                         filename_texture = values[1]
+
+        if filename_texture is not None:
+            filename_texture = os.path.dirname(filename_mat) + '/' + filename_texture
+            if os.path.exists(filename_texture):
+                im = cv2.imread(filename_texture)
+                mat_color = im[:,:,[2,1,0]].mean(axis=(0, 1))/255.0
 
         return mat_color, filename_texture
 # ----------------------------------------------------------------------------------------------------------------------
@@ -168,89 +186,95 @@ class ObjLoader:
 #         return
 # ----------------------------------------------------------------------------------------------------------------------
     def transform_mesh(self,M):
+        if M is None:return 
+        
+        if M.shape[0] == 3:
+            Mtemp = numpy.eye(4)
+            Mtemp[:3, :3] = M
+            M = Mtemp
 
-        X4D = numpy.hstack((numpy.array(self.coord_vert), numpy.full((len(self.coord_vert), 1), 1)))
-        X = ((M.T).dot(X4D.T)).T
+        X4D = numpy.column_stack((self.coord_vert, numpy.ones(len(self.coord_vert))))
+        X = X4D.dot(M)
         self.coord_vert = X[:, :3]
         return
 # ----------------------------------------------------------------------------------------------------------------------
-#     def get_trianges(self, X):
-#         cloud = pyvista.PolyData(X)
-#
-#         surf = cloud.delaunay_2d()
-#         F = numpy.array(surf.faces)
-#         if len(F) > 0 and F[0] == 3:
-#
-#             del_triangles = F.reshape((len(F) // 4, 4))
-#             del_triangles = del_triangles[:, 1:]
-#             normals = numpy.array(surf.face_normals)
-#         else:
-#             del_triangles, normals = [], []
-#         return del_triangles, normals
+    def get_trianges(self, X):
+        cloud = pyvista.PolyData(X)
+
+        surf = cloud.delaunay_2d()
+        F = numpy.array(surf.faces)
+        if len(F) > 0 and F[0] == 3:
+
+            del_triangles = F.reshape((len(F) // 4, 4))
+            del_triangles = del_triangles[:, 1:]
+            normals = numpy.array(surf.face_normals)
+        else:
+            del_triangles, normals = [], []
+        return del_triangles, normals
 # ----------------------------------------------------------------------------------------------------------------------
-#     def convert_v0(self, filename_in, filename_out,filename_material=None,bias_vertex=0,bias_texture=0,bias_normal=0,center=None,max_size=None):
-#         coord_vert = []
-#         coord_texture = []
-#         coord_norm = []
-#
-#         idx_vertex = []
-#         idx_texture = []
-#         idx_normal = []
-#
-#         lines = open(filename_in).readlines()
-#
-#         for line in lines:
-#             values = line.split()
-#             if not values: continue
-#             values = numpy.array(values)
-#             if values[0] == 'v': coord_vert.append([float(v) for v in values[1:4]])
-#             if values[0] == 'vt': coord_texture.append([float(v) for v in values[1:3]])
-#             if values[0] == 'vn': coord_norm.append([float(v) for v in values[1:4]])
-#
-#         coord_vert = numpy.array(coord_vert)
-#         coord_texture = numpy.array(coord_texture)
-#         coord_norm = numpy.array(coord_norm)
-#
-#         for line in lines:
-#             values = line.split()
-#             if not values: continue
-#             values = numpy.array(values)
-#             if values[0] == 'f':
-#                 X = []
-#                 Iv,It,In = [],[],[]
-#                 for face in values[1:]:
-#                     Iv.append(int(face.split('/')[0]) - 1)
-#                     It.append(int(face.split('/')[1]) - 1)
-#                     In.append(int(face.split('/')[2]) - 1)
-#                     X.append(coord_vert[Iv[-1]])
-#                 X = numpy.array(X)
-#                 Iv = numpy.array(Iv)
-#                 if len(Iv) == 3:
-#                     idx_vertex.append(Iv)
-#                     idx_texture.append(It)
-#                     idx_normal.append(In)
-#
-#                 else:
-#                     triangles, normals = self.get_trianges(X)
-#                     for triangle in triangles:
-#                         idx_vertex.append(I[triangle])
-#
-#         max_size = 1 if max_size is None else max_size
-#
-#         for c in [0,1,2]:
-#             coord_vert[:, c] -= coord_vert[:,c].mean()
-#             coord_vert[:, c]/= (coord_vert[:,c].max()/max_size)
-#
-#         if center is not None:
-#             coord_vert+=center
-#
-#         idx_vertex = numpy.array(idx_vertex)+bias_vertex
-#         idx_texture = numpy.array(idx_texture)+bias_texture
-#         idx_normal = numpy.array(idx_normal)+bias_normal
-#
-#         self.export_mesh(filename_out, coord_vert, coord_texture=coord_texture,coord_norm=coord_norm,idx_vertex=idx_vertex,idx_texture=idx_texture,idx_normal=idx_normal,filename_material=filename_material)
-#
-#         return
+    def convert_v0(self, filename_in, filename_out,filename_material=None,bias_vertex=0,bias_texture=0,bias_normal=0,center=None,max_size=None):
+        coord_vert = []
+        coord_texture = []
+        coord_norm = []
+
+        idx_vertex = []
+        idx_texture = []
+        idx_normal = []
+
+        lines = open(filename_in).readlines()
+
+        for line in lines:
+            values = line.split()
+            if not values: continue
+            values = numpy.array(values)
+            if values[0] == 'v': coord_vert.append([float(v) for v in values[1:4]])
+            if values[0] == 'vt': coord_texture.append([float(v) for v in values[1:3]])
+            if values[0] == 'vn': coord_norm.append([float(v) for v in values[1:4]])
+
+        coord_vert = numpy.array(coord_vert)
+        coord_texture = numpy.array(coord_texture)
+        coord_norm = numpy.array(coord_norm)
+
+        for line in lines:
+            values = line.split()
+            if not values: continue
+            values = numpy.array(values)
+            if values[0] == 'f':
+                X = []
+                Iv,It,In = [],[],[]
+                for face in values[1:]:
+                    Iv.append(int(face.split('/')[0]) - 1)
+                    It.append(int(face.split('/')[1]) - 1)
+                    In.append(int(face.split('/')[2]) - 1)
+                    X.append(coord_vert[Iv[-1]])
+                X = numpy.array(X)
+                Iv = numpy.array(Iv)
+                if len(Iv) == 3:
+                    idx_vertex.append(Iv)
+                    idx_texture.append(It)
+                    idx_normal.append(In)
+
+                else:
+                    triangles, normals = self.get_trianges(X)
+                    for triangle in triangles:
+                        idx_vertex.append(I[triangle])
+
+        max_size = 1 if max_size is None else max_size
+
+        for c in [0,1,2]:
+            coord_vert[:, c] -= coord_vert[:,c].mean()
+            coord_vert[:, c]/= (coord_vert[:,c].max()/max_size)
+
+        if center is not None:
+            coord_vert+=center
+
+        idx_vertex = numpy.array(idx_vertex)+bias_vertex
+        idx_texture = numpy.array(idx_texture)+bias_texture
+        idx_normal = numpy.array(idx_normal)+bias_normal
+
+        self.export_mesh(filename_out, coord_vert, coord_texture=coord_texture,coord_norm=coord_norm,idx_vertex=idx_vertex,idx_texture=idx_texture,idx_normal=idx_normal,filename_material=filename_material)
+
+        return
 # ----------------------------------------------------------------------------------------------------------------------
     def convert(self, filename_in, filename_out):
 
@@ -279,22 +303,31 @@ class ObjLoader:
 
         fmt = '%1.3f'
 
-        with open(filename_out, mode) as f_handle:
-            f_handle.write("# Obj file\n")
-            f_handle.write("o %s\n" % (material_name if material_name is not None else 'Object'))
-            if filename_material is not None:f_handle.write('mtllib %s\n' % filename_material.split('/')[-1])
-            if material_name     is not None:f_handle.write('usemtl %s\n' % material_name)
-            for x in X: f_handle.write(f'v {fmt} {fmt} {fmt}\n' % (x[0], x[1], x[2]))
+        if isinstance(filename_out, (str, os.PathLike)):
+            f_handle = open(filename_out, mode, newline='\n')  # writing to a real file
+            need_close = True
+        else:
+            f_handle = filename_out
+            need_close = False
 
-            if coord_texture is None:
-                f_handle.write("vt 0 0\n")
-            else:
-                for t in coord_texture: f_handle.write("vt %1.2f %1.2f\n" % (t[0], t[1]))
+        f_handle.write("# Obj file\n")
+        f_handle.write("o %s\n" % (material_name if material_name is not None else 'Object'))
+        if filename_material is not None:f_handle.write('mtllib %s\n' % filename_material.split('/')[-1])
+        if material_name     is not None:f_handle.write('usemtl %s\n' % material_name)
+        for x in X: f_handle.write(f'v {fmt} {fmt} {fmt}\n' % (x[0], x[1], x[2]))
 
-            for n in coord_norm:f_handle.write("vn %1.2f %1.2f %1.2f\n" % (n[0], n[1], n[2]))
+        if coord_texture is None:
+            f_handle.write("vt 0 0\n")
+        else:
+            for t in coord_texture: f_handle.write("vt %1.2f %1.2f\n" % (t[0], t[1]))
 
-            for iv,it,inr in zip(idx_vertex,idx_texture,idx_normal):
-                f_handle.write("f %d/%d/%d %d/%d/%d %d/%d/%d\n" % (iv[0] + 1, it[0]+1, inr[0] + 1, iv[1] + 1, it[1]+1, inr[1] + 1, iv[2] + 1, it[2]+1, inr[2] + 1))
+        for n in coord_norm:f_handle.write("vn %1.2f %1.2f %1.2f\n" % (n[0], n[1], n[2]))
+
+        for iv,it,inr in zip(idx_vertex,idx_texture,idx_normal):
+            f_handle.write("f %d/%d/%d %d/%d/%d %d/%d/%d\n" % (iv[0] + 1, it[0]+1, inr[0] + 1, iv[1] + 1, it[1]+1, inr[1] + 1, iv[2] + 1, it[2]+1, inr[2] + 1))
+
+        if need_close:
+            f_handle.close()
 
         return
 # ----------------------------------------------------------------------------------------------------------------------

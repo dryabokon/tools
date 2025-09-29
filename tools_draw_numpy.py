@@ -284,7 +284,7 @@ def draw_mat(M, posx, posy, image,color=(128, 128, 0),text=None):
     string1 = '\n'.join(string1)
 
 
-    image_res = draw_text(image,string1, (posx, posy), color_fg=color, font_size=16)
+    image_res = draw_text(image,string1, (posx, posy), color_fg=color, clr_bg = (128,128,128),font_size=16)
     return image_res
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_cuboid(image, points_2d, idx_mode = 1, color=(255, 255, 255), w=1,idx_face = [0,1,2,3]):

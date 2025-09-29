@@ -115,7 +115,7 @@ class tools_airsim:
         return
     # ---------------------------------------------------------------------------------------------------------------------
     def get_drone_position(self):
-        pos = self.airsim_client.simGetObjectPose(self.airsim_client.listVehicles()[0]).position
+        pos = self.airsim_client.simGetObjectPose(self.airsim_client.listVehicles()[0]).position_UE
         return numpy.array([pos.x_val, pos.y_val, pos.z_val])
     # ---------------------------------------------------------------------------------------------------------------------
     def update_position_camera_based(self,position,roll_pitch_yaw):

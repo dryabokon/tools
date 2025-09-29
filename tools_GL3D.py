@@ -496,7 +496,7 @@ class render_GL3D(object):
         return self.get_image(do_debug=do_debug)
 
     # ----------------------------------------------------------------------------------------------------------------------
-    def draw_debug_info(self, image,draw_points=False):
+    def draw_debug_info(self, image,draw_points=True):
 
         image_result = image.copy()
         if draw_points:
