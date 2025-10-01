@@ -16,6 +16,7 @@ class Tracker_SiamFC:
         self.is_initialized = False
         self.buffer_is_tracked = [False]*10
         self.ROI = None
+        self.cnt_lost = 0
 
         self.tracker = TrackerSiamFC(net_path=os.path.join(os.path.dirname(__file__), 'siamfc_pytorch/siamfc_alexnet_e50.pth'))
         self.colors80 = tools_draw_numpy.get_colors(80, colormap='nipy_spectral', shuffle=True)
@@ -36,6 +37,7 @@ class Tracker_SiamFC:
         self.tracker.init(image, [ROI[0], ROI[1], ROI[2] - ROI[0], ROI[3] - ROI[1]])
         self.is_initialized = True
         self.ROI = ROI
+        self.cnt_lost = 0
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def draw_tracks(self, image, rects, track_ids, labels=None):
@@ -46,7 +48,7 @@ class Tracker_SiamFC:
             col_left, row_up, col_right, row_down = rect.flatten()
             image = tools_draw_numpy.draw_rect_fast(image, col_left, row_up, col_right, row_down, color, w=2,label=None,alpha_transp=0)
 
-        return image
+            return image
 # ----------------------------------------------------------------------------------------------------------------------
     def track_detections(self,ROI,filename_in,frame_id):
         self.TP.tic('track_detections')

@@ -205,6 +205,12 @@ def draw_circles_aa(image, centers, colors, clr_bg=(0,0,0),labels=None, w=2, tra
 
     return image
 # ----------------------------------------------------------------------------------------------------------------------
+def draw_text_super_fast(image,label,xy, color_fg,clr_bg=None,font_size=16):
+    font = cv2.FONT_HERSHEY_DUPLEX
+    fontScale = (font_size / 32.0)
+    result = cv2.putText(image, label, (xy[0], xy[1]), font, fontScale,(int(color_fg[0]), int(color_fg[1]), int(color_fg[2])),thickness=1,lineType=cv2.LINE_AA)
+    return result
+# ----------------------------------------------------------------------------------------------------------------------
 def draw_text_fast(image,label,xy, color_fg,clr_bg=None,font_size=16,alpha_transp=0,hor_align='left',vert_align='top'):
     font = cv2.FONT_HERSHEY_DUPLEX
     fontScale = (font_size/32.0)
