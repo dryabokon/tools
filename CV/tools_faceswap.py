@@ -17,7 +17,7 @@ class Face_Swapper(object):
         self.device = device
         self.adjust_every_frame = adjust_every_frame
         self.do_narrow_face = do_narrow_face
-        self.folder_out = './images/output/'
+        self.folder_out = './scenes/output/'
         self.D = D
         self.image_clbrt = image_clbrt
         self.image_actor = image_actor
@@ -302,13 +302,13 @@ class Face_Swapper(object):
         self.R_c.update_texture(self.image_clbrt)
         return
 # ---------------------------------------------------------------------------------------------------------------------
-    def do_faceswap(self,folder_out='./images/output/', do_debug=False):
+    def do_faceswap(self,folder_out='./scenes/output/', do_debug=False):
         if self.device  == str('cpu'):
             return self.do_faceswap_cpu(folder_out,do_debug)
         else:
             return self.do_faceswap_gpu()
 #----------------------------------------------------------------------------------------------------------------------
-    def do_faceswap_cpu(self,folder_out='./images/output/', do_debug=True):
+    def do_faceswap_cpu(self,folder_out='./scenes/output/', do_debug=True):
 
         if do_debug and folder_out is not None:
             tools_IO.remove_files(folder_out, create=True)

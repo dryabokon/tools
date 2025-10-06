@@ -8,7 +8,7 @@ import tools_render_CV
 class Hough(object):
     def __init__(self):
         self.name = "Hough"
-        self.folder_out = './images/output/'
+        self.folder_out = './scenes/output/'
         return
 # ----------------------------------------------------------------------------------------------------------------
     def preprocess(self,image, min_length=100):

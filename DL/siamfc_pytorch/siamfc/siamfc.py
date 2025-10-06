@@ -156,7 +156,7 @@ class TrackerSiamFC(Tracker):
         # set to evaluation mode
         self.net.eval()
 
-        # search images
+        # search scenes
         x = [ops.crop_and_resize(
             img, self.center, self.x_sz * f,
             out_size=self.cfg.instance_sz,

@@ -527,7 +527,7 @@ def ssim(im1, im2, k=(0.01, 0.03), l=255):
     win = numpy.array([gaussian(11, 1.5)])
     window = win * (win.T)
     """See https://ece.uwaterloo.ca/~z70wang/research/ssim/"""
-    # Check if the window is smaller than the images.
+    # Check if the window is smaller than the scenes.
     for a, b in zip(window.shape, im1.shape):
         if a > b:
             return None, None

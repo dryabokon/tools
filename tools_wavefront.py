@@ -20,6 +20,7 @@ class ObjLoader:
         self.filename_texture = []
         self.filename_mat = None
         self.mat_name = None
+        self.dct_textures = {}
 
         self.coord_vert = []
         self.coord_texture = []
@@ -111,6 +112,7 @@ class ObjLoader:
                 self.mat_color[-1]=mat
                 if texture is not None:
                     self.filename_texture[-1]=texture
+                    self.dct_textures[self.mat_name] = texture
 
         if len(self.coord_texture) == 0: self.coord_texture.append([0,0])
 
@@ -138,6 +140,7 @@ class ObjLoader:
         for line in open(filename_mat, 'r'):
             values = line.split()
             if not values: continue
+            if ready_to_read and values[0] == 'newmtl':break
             if (mat_name is not None) and not ready_to_read:
                 if mat_name in values[1:]:
                     ready_to_read = True
@@ -299,7 +302,7 @@ class ObjLoader:
 
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def export_mesh(self, filename_out, X, coord_texture, coord_norm,idx_vertex,idx_texture,idx_normal,filename_material=None,material_name=None,mode='w+'):
+    def export_mesh(self, filename_out, X, coord_texture, coord_norm,idx_vertex,idx_texture,idx_normal,filename_material=None,material_name=None,shared_material=False,mode='w+'):
 
         fmt = '%1.3f'
 
@@ -312,7 +315,8 @@ class ObjLoader:
 
         f_handle.write("# Obj file\n")
         f_handle.write("o %s\n" % (material_name if material_name is not None else 'Object'))
-        if filename_material is not None:f_handle.write('mtllib %s\n' % filename_material.split('/')[-1])
+        if not shared_material:
+            if filename_material is not None:f_handle.write('mtllib %s\n' % filename_material.split('/')[-1])
         if material_name     is not None:f_handle.write('usemtl %s\n' % material_name)
         for x in X: f_handle.write(f'v {fmt} {fmt} {fmt}\n' % (x[0], x[1], x[2]))
 

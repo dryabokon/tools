@@ -100,7 +100,7 @@ class Semantic_proc:
     def tokenize_images(self, folder_images, mask='*.png,*.jpg,*.jpeg', batch_size=100):
 
         filenames_images = self.get_filenames(folder_images, mask)
-        print('%d images found' % len(filenames_images))
+        print('%d scenes found' % len(filenames_images))
 
         df = pd.DataFrame([])
         batch_iter = 0

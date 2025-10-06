@@ -404,7 +404,7 @@ class render_GL3D(object):
 
         im_screenshot = self.get_image(do_debug=do_debug)
         if annotation:
-            image_background = cv2.imread('./images/ex_GL/backgrounds/bg%02d.jpg'%numpy.random.randint(1,7))
+            image_background = cv2.imread('./scenes/ex_GL/backgrounds/bg%02d.jpg'%numpy.random.randint(1,7))
             image_background = tools_image.do_resize(image_background,(self.W, self.H))
             im_screenshot = tools_image.put_layer_on_image(image_background,im_screenshot,background_color=255*self.bg_color)
             points_2d = tools_render_GL.project_points_MVP_GL(self.object.coord_vert, self.W, self.H, self.mat_projection, self.mat_view,self.mat_model, self.mat_trns)

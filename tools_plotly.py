@@ -8,7 +8,7 @@ import dash_bootstrap_components as dbc
 import tools_draw_numpy
 import tools_DF
 # ---------------------------------------------------------------------------------------------------------------------
-folder_out = './images/output/'
+folder_out = './scenes/output/'
 # ----------------------------------------------------------------------------------------------------------------------
 class Plotly_builder:
     def __init__(self, dark_mode=False):

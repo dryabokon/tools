@@ -206,7 +206,7 @@ def get_best_pattern(images, weights, folder_debug=None):
         sum = numpy.zeros((acc_color.shape[0], acc_color.shape[1]), dtype=numpy.uint8)
 
         for j in range(i+1, images.shape[0]):
-            #im1,im2,q = tools_calibrate.align_two_images_translation(images[j],images[i],detector='SIFT',matchtype='xxx')
+            #im1,im2,q = tools_calibrate.align_two_images_translation(scenes[j],scenes[i],detector='SIFT',matchtype='xxx')
             im1,im2,q = tools_calibrate.align_two_images_translation(images[j],images[i],detector='SIFT',matchtype='xxx',borderMode=cv2.BORDER_CONSTANT, background_color=(0, 255, 255))
             Q[i,j] = q
             Q[j,i] = q

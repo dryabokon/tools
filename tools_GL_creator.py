@@ -1,6 +1,7 @@
 import shutil
 import base64
 import numpy
+import tools_IO
 import tools_wavefront
 from CV import tools_pr_geom
 # ----------------------------------------------------------------------------------------------------------------------
@@ -427,21 +428,43 @@ class OBJ_Utils:
         idx = text.rfind(substring)
         return text[:idx] + replacement + text[idx + len(substring):]
     # ----------------------------------------------------------------------------------------------------------------------
-    def obj_2_html(self,filename_obj, filename_mat, filename_img):
-        with open('./images/ex_GL/renderer_self_contained.html') as f:
-            txt_html = f.read()
+    def patch_materials(self,folder_in):
 
-        with open(filename_obj) as f:
-            placeholder_objText = f.read()
+        filenames = tools_IO.get_filenames(folder_in, '*.mtl')
+        with open(folder_in + 'scene.mtl', "w") as out:
+            for filename in filenames:
+                with open(folder_in+filename, "r") as f:
+                    for line in f.readlines():out.write(line)
+                    out.write('\n#--------------------------------------\n')
+                tools_IO.remove_file(folder_in+filename)
 
-        with open(filename_mat) as f:
-            placeholder_mtlText = f.read()
+        with open(folder_in + 'scene.obj') as f:
+            lines = f.readlines()
 
-        placeholder_base64Texture = f'data:image/png;base64,{self.get_base64Obj(filename_img)[1:-1]}'
+        tools_IO.remove_file(folder_in+'scene.obj')
+        with open(folder_in + 'scene.obj', "w") as out:
+            for line in lines:
+                split = line.split()
+                if split[0] == 'mtllib':
+                    line = 'mtllib scene.mtl\n'
+                out.write(line)
 
+        return
+    # ----------------------------------------------------------------------------------------------------------------------
+    def obj_to_html(self,filename_obj, filename_mat):
+
+        placeholder_objText = open(filename_obj).read()
+        placeholder_mtlText = open(filename_mat).read()
+
+        txt_html = open('./images/ex_GL/renderer_self_contained_multiobject.html').read()
         txt_html = self.replace_last_substring(txt_html, 'placeholder_objText', "`" + placeholder_objText + "`")
         txt_html = self.replace_last_substring(txt_html, 'placeholder_mtlText', "`" + placeholder_mtlText + "`")
-        txt_html = self.replace_last_substring(txt_html, 'placeholder_base64Texture',"`" + placeholder_base64Texture + "`")
+
+        Obj = tools_wavefront.ObjLoader(filename_obj)
+        filenames = numpy.unique([f.split('/')[-1] for f in Obj.filename_texture if f is not None])
+        items = [("\"" + filename_img + "\"" + ':'+ "\"" + f'data:image/png;base64,{self.get_base64Obj(self.folder_out+filename_img)[1:-1]}' + "\"") for filename_img in filenames]
+
+        txt_html = self.replace_last_substring(txt_html, 'const dataURLs = {"green.png": placeholder_texture1,"blue.png": placeholder_texture2};',"const dataURLs = {"+(',').join(items)+"}")
 
         return txt_html
     # ----------------------------------------------------------------------------------------------------------------------

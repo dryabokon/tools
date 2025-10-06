@@ -207,7 +207,7 @@ class VertexAI_Search(object):
 
         metadata_list_of_dict = []
 
-        for filename in tqdm(image_filenames,total=len(image_filenames),desc='Uploading images'):
+        for filename in tqdm(image_filenames,total=len(image_filenames),desc='Uploading scenes'):
             #self.upload_blob(self.bucket_name, folder_images+filename, filename)
             #os.system(f'gcloud cp {folder_images}{filename} gs://{self.bucket_name}')
             metadata_list_of_dict.append({'filename': filename,'url': 'gs://' + self.bucket_name + '/' + filename})

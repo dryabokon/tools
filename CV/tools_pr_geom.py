@@ -96,7 +96,7 @@ def fit_homography(X_source,X_target,method = cv2.RANSAC,do_debug=False):
     loss =  ((result-X_target)**2).mean()
     # if do_debug:
     #     image_debug = debug_projection(X_source, X_target, result)
-    #     cv2.imwrite('./images/output/image_dbug.png',image_debug)
+    #     cv2.imwrite('./scenes/output/image_dbug.png',image_debug)
 
     return H, result
 # ----------------------------------------------------------------------------------------------------------------------

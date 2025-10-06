@@ -1190,7 +1190,7 @@ class detector_VP:
             im = tools_draw_numpy.draw_points(tools_image.desaturate(image), src.astype(int), color=(0, 0, 200), w=4, put_text=True)
             im = tools_draw_numpy.draw_convex_hull(im, src.astype(int),color=(0, 0, 200),transperency=0.9)
             im = tools_draw_numpy.draw_lines(im,[upper_line,bottom_line,line_van_left,line_van_right],color=(0, 0, 200))
-            #cv2.imwrite('./images/output/ppp.png',im)
+            #cv2.imwrite('./scenes/output/ppp.png',im)
 
         min_delta = numpy.inf
         h_ipersp_best = None
@@ -1210,7 +1210,7 @@ class detector_VP:
             # ppp = numpy.array(((self.W / 2, self.H / 2))).reshape((-1, 1, 2))
             # print(ppp.flatten(), cv2.perspectiveTransform(ppp, h_ipersp).flatten())
 
-            #cv2.imwrite('./images/output/hh_%03d.png'%target_W, cv2.warpPerspective(image, h_ipersp, (target_W, target_H), borderValue=(32, 32, 32)))
+            #cv2.imwrite('./scenes/output/hh_%03d.png'%target_W, cv2.warpPerspective(image, h_ipersp, (target_W, target_H), borderValue=(32, 32, 32)))
 
             p5_new = cv2.perspectiveTransform(p5.reshape((-1,1,2)),h_ipersp).flatten()
             p6_new = cv2.perspectiveTransform(p6.reshape((-1,1,2)),h_ipersp).flatten()
@@ -1250,7 +1250,7 @@ class detector_VP:
                 # if do_debug:
                 #     image_BEV = cv2.warpPerspective(image, h_ipersp_best, (best_target_W, best_target_H), borderValue=(32, 32, 32))
                 #     image_BEV = tools_draw_numpy.draw_lines(image_BEV,[(p_dn[0],p_dn[1],p_up[0],p_up[1])],w=1,color=(128,0,255))
-                #     cv2.imwrite('./images/output/xx_%03d.png'%target_W, image_BEV)
+                #     cv2.imwrite('./scenes/output/xx_%03d.png'%target_W, image_BEV)
             else:
                 break
 

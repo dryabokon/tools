@@ -16,6 +16,7 @@ class Tracker_SiamFC:
         self.is_initialized = False
         self.buffer_is_tracked = [False]*10
         self.ROI = None
+        self.ROI_cnt = 0
         self.cnt_lost = 0
 
         self.tracker = TrackerSiamFC(net_path=os.path.join(os.path.dirname(__file__), 'siamfc_pytorch/siamfc_alexnet_e50.pth'))
@@ -38,6 +39,8 @@ class Tracker_SiamFC:
         self.is_initialized = True
         self.ROI = ROI
         self.cnt_lost = 0
+        self.ROI_cnt += 1
+
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def draw_tracks(self, image, rects, track_ids, labels=None):

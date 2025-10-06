@@ -320,7 +320,7 @@ class Face_filter(object):
                     x_fake_list.append(self.G(x_real, c_trg))
 
                 x_concat = torch.cat(x_fake_list, dim=3)
-                result_path = os.path.join(self.result_dir, '{}-images.jpg'.format(i+1))
+                result_path = os.path.join(self.result_dir, '{}-scenes.jpg'.format(i+1))
                 save_image(self.denorm(x_concat.data.cpu()), result_path, nrow=1, padding=0)
 
         return
@@ -397,7 +397,7 @@ class Face_filter(object):
             c_trg = label_trg.clone()
 
 
-            x_real = x_real.to(self.device)  # Input images.
+            x_real = x_real.to(self.device)  # Input scenes.
             c_org = c_org.to(self.device)  # Original domain labels.
             c_trg = c_trg.to(self.device)  # Target domain labels.
             label_org = label_org.to(self.device)  # Labels for computing classification loss.
@@ -406,12 +406,12 @@ class Face_filter(object):
 
             #2.Train the discriminator
 
-            # Compute loss with real images.
+            # Compute loss with real scenes.
             out_src, out_cls = self.D(x_real)
             d_loss_real = - torch.mean(out_src)
             d_loss_cls = self.classification_loss(out_cls, label_org)
 
-            # Compute loss with fake images.
+            # Compute loss with fake scenes.
             x_fake = self.G(x_real, c_trg)
             out_src, out_cls = self.D(x_fake.detach())
             d_loss_fake = torch.mean(out_src)
@@ -450,16 +450,16 @@ class Face_filter(object):
 
 
             #4. Miscellaneous                                    #
-            # Translate fixed images for debugging.
+            # Translate fixed scenes for debugging.
             if (i + 1) % self.sample_step == 0:
                 with torch.no_grad():
                     x_fake_list = [x_fixed]
                     for c_fixed in c_fixed_list:
                         x_fake_list.append(self.G(x_fixed, c_fixed))
                     x_concat = torch.cat(x_fake_list, dim=3)
-                    sample_path = os.path.join(self.sample_dir, '{}-images.jpg'.format(i + 1))
+                    sample_path = os.path.join(self.sample_dir, '{}-scenes.jpg'.format(i + 1))
                     save_image(self.denorm(x_concat.data.cpu()), sample_path, nrow=1, padding=0)
-                    print('Saved real and fake images into {}...'.format(sample_path))
+                    print('Saved real and fake scenes into {}...'.format(sample_path))
 
             # Save model checkpoints.
             if (i + 1) % self.model_save_step == 0:

@@ -292,7 +292,7 @@ def check_projection_ortho(L3D, points_2d, rvec, tvec, fx,fy,scale_factor,do_deb
         image = numpy.full((fy, fx, 3), 255)
         for x in points_2d: cv2.circle(image, (int(x[0]), int(x[1])), 4, (0, 128, 255), -1)
         for x in points_2d_check:cv2.circle(image, (int(x[0]), int(x[1])), 4, (0, 32, 190), -1)
-        cv2.imwrite('./images/output/fit_check_RT.png', image)
+        cv2.imwrite('./scenes/output/fit_check_RT.png', image)
     return loss
 # ----------------------------------------------------------------------------------------------------------------------
 def check_projection_ortho_modelview(L3D, points_2d, modelview, fx,fy,scale_factor, do_debug=False):
@@ -305,7 +305,7 @@ def check_projection_ortho_modelview(L3D, points_2d, modelview, fx,fy,scale_fact
         image = numpy.full(( fy, fx, 3), 255)
         for x in points_2d: cv2.circle(image, (int(x[0]), int(x[1])), 4, (0, 128, 255), -1)
         for x in points_2d_check:cv2.circle(image, (int(x[0]), int(x[1])), 4, (0, 32, 190), -1)
-        cv2.imwrite('./images/output/fit_check_modelview.png', image)
+        cv2.imwrite('./scenes/output/fit_check_modelview.png', image)
     return loss
 # ----------------------------------------------------------------------------------------------------------------------
 def inverce_project(point_2d,image,mat_projection, mat_view, mat_model, mat_trns,distance=None):
@@ -627,7 +627,7 @@ def find_ortho_fit(X3D, X_target, fx, fy,do_debug = False):
         image = numpy.full((int(fy), int(fx), 3), 255)
         for x in X_target   : cv2.circle(image, (int(x[0]), int(x[1])), 4, (0, 128, 255), -1)
         for x in best_result: cv2.circle(image, (int(x[0]), int(x[1])), 4, (0, 32, 190), -1)
-        cv2.imwrite('./images/output/fit.png', image)
+        cv2.imwrite('./scenes/output/fit.png', image)
 
     return best_rvec, best_tvec, best_scale, best_modelview
 # ----------------------------------------------------------------------------------------------------------------------
@@ -802,7 +802,7 @@ def distance_extract_to_line(extract, line, do_debug=False):
         image = numpy.full((1000,1000,3),64,dtype=numpy.uint8)
         cv2.line(image,(int(line[0]),int(line[1])),(int(line[2]),int(line[3])),color=color_red)
         cv2.line(image, (int(extract[0]), int(extract[1])), (int(extract[2]), int(extract[3])), color=color_blue)
-        cv2.imwrite('./images/output/inter.png',image)
+        cv2.imwrite('./scenes/output/inter.png',image)
 
     return result
 # ----------------------------------------------------------------------------------------------------------------------
@@ -883,7 +883,7 @@ def circle_line_intersection(center, R, pt1, pt2, full_line=True, tangent_tol=1e
             for point in intersections:
                 cv2.circle(image_debug,(int(point[0]),int(point[1])),4,(255,255,255),thickness=-1)
 
-            cv2.imwrite('./images/output/image_debug.png', image_debug)
+            cv2.imwrite('./scenes/output/image_debug.png', image_debug)
 
     return result
 # ----------------------------------------------------------------------------------------------------------------
@@ -926,7 +926,7 @@ def ellipse_line_intersection(ellipse, line, full_line=True,do_debug=False):
         cv2.line(image_original, tuple(line[:2]), tuple(line[2:]), color=(255, 128, 0), thickness=4)
         for point in intersections:
             cv2.circle(image_original, (int(point[0]), int(point[1])), 4, (255, 255, 255), thickness=-1)
-        cv2.imwrite('./images/output/original.png', image_original)
+        cv2.imwrite('./scenes/output/original.png', image_original)
 
         image_trans = numpy.full((int(Rxy[0] * 4), int(Rxy[0] * 4), 3), 32, dtype=numpy.uint8)
         shift = numpy.array((200, 200))
@@ -934,7 +934,7 @@ def ellipse_line_intersection(ellipse, line, full_line=True,do_debug=False):
         cv2.line(image_trans,(int(pt1.flatten()[0])+shift[0], int(pt1.flatten()[1])+shift[1]), (int(pt2.flatten()[0])+shift[0], int(pt2.flatten()[1])+shift[1]), color = (255, 128, 0), thickness=4)
         for point in intersections_trans:
             cv2.circle(image_trans, (shift[0]+int(point[0]), shift[1]+int(point[1])), 4, (255, 255, 255), thickness=-1)
-        cv2.imwrite('./images/output/transformed.png', image_trans)
+        cv2.imwrite('./scenes/output/transformed.png', image_trans)
 
 
     return intersections
@@ -993,13 +993,13 @@ def distance_point_ellipse(point,ellipse,do_debug=False):
         image_original = numpy.full((H, W, 3), 32, dtype=numpy.uint8)
         cv2.ellipse(image_original, center, Rxy, rotation_angle_deg, startAngle=0, endAngle=360, color=(0, 0, 190),thickness=4)
         cv2.circle(image_original,point,4,(255,255,255),thickness=-1)
-        cv2.imwrite('./images/output/original.png',image_original)
+        cv2.imwrite('./scenes/output/original.png',image_original)
 
         image_trans = numpy.full((int(Rxy[1]*4), int(Rxy[0]*4), 3), 32, dtype=numpy.uint8)
         shift = numpy.array((200, 200))
         cv2.ellipse(image_trans, (shift[0],shift[1]), Rxy, 0, startAngle=0, endAngle=360, color=(0, 0, 190), thickness=4)
         cv2.circle(image_trans, (new_point.flatten()[0]+shift[0],new_point.flatten()[1]+shift[1]), 4, (255, 255, 255), thickness=-1)
-        cv2.imwrite('./images/output/transformed.png', image_trans)
+        cv2.imwrite('./scenes/output/transformed.png', image_trans)
 
     return distance_point_centredEllipse(Rxy[0], Rxy[1], new_point)
 # ----------------------------------------------------------------------------------------------------------------
@@ -1078,7 +1078,7 @@ def get_ratio_4_lines(vert1, horz1,vert2, horz2,do_debug=False):
         cv2.line(image, (int(horz2[0]), int(horz2[1])), (int(horz2[2]), int(horz2[3])), color_blue, thickness=4)
 
         image = tools_draw_numpy.draw_convex_hull(image, rect, color=color_gray, transperency=0.25)
-        cv2.imwrite('./images/output/06_ratio.png', image)
+        cv2.imwrite('./scenes/output/06_ratio.png', image)
 
 
     return ratio_xy
@@ -1143,7 +1143,7 @@ def regularize_rect(point_2d, inlined = True, do_debug=False):
     losses,results = [],[]
 
     if do_debug:
-        tools_IO.remove_files('./images/output/','*.png')
+        tools_IO.remove_files('./scenes/output/','*.png')
 
     for a in a_range:
         R = numpy.array([[math.cos(a * numpy.pi / 180), -math.sin(a * numpy.pi / 180)],[math.sin(a * numpy.pi / 180), math.cos(a * numpy.pi / 180)]])
@@ -1187,7 +1187,7 @@ def regularize_rect(point_2d, inlined = True, do_debug=False):
 
             image = tools_draw_numpy.draw_lines(image, [50*line1+500], (64,64,64),w=1)
             image = tools_draw_numpy.draw_lines(image, [50*line2+500], (64,64,64),w=1)
-            cv2.imwrite('./images/output/xxx_%05d.png'%int(10*loss),image)
+            cv2.imwrite('./scenes/output/xxx_%05d.png'%int(10*loss),image)
 
 
     result = numpy.mean(point_2d, axis=0) + numpy.array(results)[numpy.argmin(numpy.array(losses))]

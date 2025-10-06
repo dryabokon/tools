@@ -584,7 +584,7 @@ def blend_multi_band(left, rght, background_color=(255, 255, 255),do_debug=False
 
     if do_debug:
         for i,image in enumerate(LPA):
-            cv2.imwrite('./images/output/%02d.jpg'%i,255*image)
+            cv2.imwrite('./scenes/output/%02d.jpg'%i,255*image)
 
     result = reconstruct_from_pyramid(blended)
     result[result > 255] = 255
@@ -620,17 +620,17 @@ def blend_multi_band_large_small0(large, small, background_color=(0, 0, 0), adju
     mask = mask_original.copy()
     mask = numpy.array(numpy.min(mask,axis=2),dtype=numpy.float32)
 
-    if do_debug: cv2.imwrite('./images/output/mask0.png', 255 * mask)
+    if do_debug: cv2.imwrite('./scenes/output/mask0.png', 255 * mask)
 
     if n_clips>0:
         mask = ndimage.uniform_filter(mask, size=(filter_size,filter_size), mode='nearest')
         #mask = cv2.GaussianBlur(mask, (int(filter_size), int(filter_size)), 0)
 
-    if do_debug: cv2.imwrite('./images/output/mask1.png', 255 * mask)
+    if do_debug: cv2.imwrite('./scenes/output/mask1.png', 255 * mask)
 
     for c in range(n_clips):
         mask = numpy.clip(2 * mask, 0, 1.0)
-        if do_debug == 1: cv2.imwrite('./images/output/mask2.png', 255 * mask)
+        if do_debug == 1: cv2.imwrite('./scenes/output/mask2.png', 255 * mask)
 
     if adjust_colors is not None:
         large = large.astype(numpy.float32)
@@ -649,7 +649,7 @@ def blend_multi_band_large_small0(large, small, background_color=(0, 0, 0), adju
                 if adjust_colors=='small':
                     small[:,:,c]=small[:,:,c]/scale
 
-    if do_debug: cv2.imwrite('./images/output/small_corrected.png', small)
+    if do_debug: cv2.imwrite('./scenes/output/small_corrected.png', small)
 
     mask = numpy.stack((mask,mask,mask),axis=2)
 
@@ -664,15 +664,15 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
     mask_bin = numpy.array(numpy.min(mask_bin,axis=2),dtype=int)
 
     if do_debug:
-        cv2.imwrite('./images/output/mask0.png', 255 * mask_bin)
+        cv2.imwrite('./scenes/output/mask0.png', 255 * mask_bin)
 
     mask = sliding_2d(mask_bin,-filter_size//2,filter_size//2,-filter_size//2,filter_size//2,stat='avg',mode='reflect')
     if do_debug:
-        cv2.imwrite('./images/output/mask1.png', 255 * mask)
+        cv2.imwrite('./scenes/output/mask1.png', 255 * mask)
 
     mask = numpy.clip(2 * mask, 0, 1.0)
     if do_debug:
-        cv2.imwrite('./images/output/mask2.png', 255 * mask)
+        cv2.imwrite('./scenes/output/mask2.png', 255 * mask)
 
     if adjust_colors is not None:
         large = large.astype(float)
@@ -691,7 +691,7 @@ def blend_multi_band_large_small(large, small, background_color=(255, 255, 255),
                 if adjust_colors=='small':
                     small[:,:,c]=small[:,:,c]/scale
 
-    if do_debug: cv2.imwrite('./images/output/small_corrected.png', small)
+    if do_debug: cv2.imwrite('./scenes/output/small_corrected.png', small)
 
     mask = numpy.stack((mask,mask,mask),axis=2)
 
