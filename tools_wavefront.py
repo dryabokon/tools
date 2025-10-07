@@ -5,12 +5,12 @@ import numpy
 #import pyvista
 #----------------------------------------------------------------------------------------------------------------------
 class ObjLoader:
-    def __init__(self,filename_obj=None,do_autoscale=False):
+    def __init__(self,filename_obj=None,do_autoscale=False,target_object_name=None):
         if filename_obj is not None:
-            self.load_mesh(filename_obj,do_autoscale=do_autoscale)
+            self.load_mesh(filename_obj,do_autoscale=do_autoscale,target_object_name=target_object_name)
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def load_mesh(self, filename_obj, do_autoscale=False):
+    def load_mesh(self, filename_obj, do_autoscale=False,target_object_name=None):
 
         folder_name=''
         split = filename_obj.split('/')
@@ -32,6 +32,9 @@ class ObjLoader:
 
         object_id=-1
         self.dct_obj_id = {}
+        flag_target = False
+        self.idx_target_start = None
+        self.idx_target_end = None
 
         for line in open(filename_obj, 'r'):
             if line.startswith('#'): continue
@@ -40,12 +43,21 @@ class ObjLoader:
             values = numpy.array(values)
 
             if values[0] == 'o':
+                if target_object_name is not None:
+                    flag_target = (values[1]==target_object_name)
+
                 object_id+=1
                 self.mat_color.append(None)
                 self.filename_texture.append(None)
 
 
-            if values[0] == 'v':  self.coord_vert.append([float(v) for v in values[1:4]])
+            if values[0] == 'v':
+                self.coord_vert.append([float(v) for v in values[1:4]])
+                if flag_target:
+                    if self.idx_target_start is None:
+                        self.idx_target_start = len(self.coord_vert)-1
+                    self.idx_target_end = len(self.coord_vert) - 1
+
             if values[0] == 'vt': self.coord_texture.append([float(v) for v in values[1:3]])
             if values[0] == 'vn': self.coord_norm.append([float(v) for v in values[1:4]])
 

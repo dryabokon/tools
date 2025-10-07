@@ -77,8 +77,11 @@ class OBJ_Utils:
         mesh.idx_vertex = self.construct_circle_index()
         mesh.coord_norm = self.construct_circle_normals(rvec, tvec)
         mesh.idx_normal = self.construct_circle_idx_normals()
-        mesh.coord_texture = numpy.array([(0, 0)])
-        mesh.idx_texture = numpy.array([(0, 0, 0) for i in range(len(mesh.idx_vertex))])
+        # mesh.coord_texture = numpy.array([(0, 0)])
+        # mesh.idx_texture = numpy.array([(0, 0, 0) for i in range(len(mesh.idx_vertex))])
+
+        mesh.coord_texture = self.construct_circle_texture_coord()
+        mesh.idx_texture = self.construct_circle_texture_index()
 
         return mesh
 # ----------------------------------------------------------------------------------------------------------------------
@@ -162,7 +165,6 @@ class OBJ_Utils:
 # ----------------------------------------------------------------------------------------------------------------------
     def construct_circle_RT(self,dim, rvec, tvec):
 
-        #N = 16*2
         N = 8*2
         X = numpy.zeros((N, 3), dtype=numpy.float32)
         for i in range(N):
@@ -226,6 +228,27 @@ class OBJ_Utils:
 
         return Xt
 # ----------------------------------------------------------------------------------------------------------------------
+    def construct_circle_texture_coord(self):
+        N = 8 * 2
+        coord_texture = numpy.zeros((N + 1, 2), dtype=numpy.float32)
+        coord_texture[0] = [0.5, 0.5]  # Center point
+
+        for i in range(N):
+            angle = 2 * numpy.pi * i / N
+            coord_texture[i + 1] = [0.5 + 0.5 * numpy.cos(angle), 0.5 + 0.5 * numpy.sin(angle)]
+
+        return coord_texture
+
+    # ----------------------------------------------------------------------------------------------------------------------
+    def construct_circle_texture_index(self):
+        N = 8 * 2
+        idx = numpy.zeros((N, 3), dtype=numpy.int32)
+        for i in range(N):
+            idx[i, 0] = 0
+            idx[i, 1] = i + 1
+            idx[i, 2] = i + 2 if i < N - 1 else 1
+        return idx
+        # ----------------------------------------------------------------------------------------------------------------------
     def construct_cuboid_index(self):
         idx = -1+numpy.array([[1, 2, 3], [3, 4, 1], [5, 7, 6], [7, 5, 8], [1, 6, 2], [5, 6, 1], [3, 7, 4], [7, 8, 4], [1, 4, 5],[8, 5, 4], [2, 6, 3], [7, 3, 6]])
         return idx
@@ -304,7 +327,6 @@ class OBJ_Utils:
         filename_mat = filename_out.split('/')[-1].replace('.obj', '.mtl')
         sign = 1 if do_Y_flip else -1
 
-        mat_plane = self.construct_material('plane', (197, 196, 192))
         mat_white = self.construct_material('white', (255, 255, 255))
         mat_yellow = self.construct_material('yellow', (237, 224, 100))
         mat_green = self.construct_material('green', (197, 237, 125))
@@ -315,8 +337,8 @@ class OBJ_Utils:
         mat_black = self.construct_material('black', (0, 0, 0))
         mat_purple = self.construct_material('purple', (128, 0, 128))
 
-        self.export_material(filename_mat, mat_plane)
-        self.append_material(filename_mat, mat_white)
+
+        self.export_material(filename_mat, mat_white)
         self.append_material(filename_mat, mat_yellow)
         self.append_material(filename_mat, mat_green)
         self.append_material(filename_mat, mat_blue)
@@ -326,9 +348,8 @@ class OBJ_Utils:
         self.append_material(filename_mat, mat_black)
         self.append_material(filename_mat, mat_purple)
 
-        mesh_circle = self.construct_circle((200, 200, 1), (0, 0, 0), (0, 0 * sign, 0), mat_plane)
-        mesh_cube_white = self.construct_cube((1, 1, 0.01), (0, 0, 0), (0, 0 * sign, 0), mat_white)
 
+        mesh_cube_white = self.construct_cube((1, 1, 0.01), (0, 0, 0), (0, 0 * sign, 0), mat_white)
         mesh_cube_red = self.construct_cube((1, 1, 1), (0, 0, 0), (+10, -0 * sign, 0.5), mat_red)
         mesh_cube_orange = self.construct_cube((1, 1, 1), (0, 0, 0), (+10, +10 * sign, 0.5), mat_orange)
         mesh_cube_yellow = self.construct_cube((1, 1, 1), (0, 0, 0), (+5, +10 * sign, 0.5), mat_yellow)
@@ -337,8 +358,7 @@ class OBJ_Utils:
         mesh_cube_pink = self.construct_cube((1, 1, 1), (0, 0, 0), (-10, -10 * sign, 0.5), mat_pink)
         mesh_bube_purple = self.construct_cube((1, 1, 1), (0, 0, 0), (+10, -10 * sign, 0.5), mat_purple)
 
-        self.export_mesh(filename_out, filename_mat, mesh_circle)
-        self.append_mesh(filename_out, filename_mat, mesh_cube_white)
+        self.export_mesh(filename_out, filename_mat, mesh_cube_white)
         self.append_mesh(filename_out, filename_mat, mesh_cube_red)
         self.append_mesh(filename_out, filename_mat, mesh_cube_orange)
         self.append_mesh(filename_out, filename_mat, mesh_cube_yellow)
@@ -456,7 +476,7 @@ class OBJ_Utils:
         placeholder_objText = open(filename_obj).read()
         placeholder_mtlText = open(filename_mat).read()
 
-        txt_html = open('./images/ex_GL/renderer_self_contained_multiobject.html').read()
+        txt_html = open('./data/templates/renderer_self_contained_multiobject.html').read()
         txt_html = self.replace_last_substring(txt_html, 'placeholder_objText', "`" + placeholder_objText + "`")
         txt_html = self.replace_last_substring(txt_html, 'placeholder_mtlText', "`" + placeholder_mtlText + "`")
 

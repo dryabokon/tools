@@ -3,13 +3,14 @@ import cv2
 import time
 import numpy
 import pandas as pd
-from pytube import YouTube
 from PIL import Image
 from os import listdir
 import fnmatch
 from tqdm import tqdm
-import yt_dlp
-import av
+#from pytube import YouTube
+#import yt_dlp
+#import av
+# ----------------------------------------------------------------------------------------------------------------------
 import tools_IO
 # ----------------------------------------------------------------------------------------------------------------------
 def do_rescale(image,scale,anti_aliasing=True,multichannel=False):
@@ -82,22 +83,18 @@ def reconvert_video(filename_in,filename_out):
     vidcap.release()
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_sec=None,stride=1,scale=1):
+def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_sec=None,stride=1,scale=1,rect=None):
 
     if not os.path.exists(folder_out):
             os.mkdir(folder_out)
 
-    #tools_IO.remove_files(folder_out,create=True)
     vidcap = cv2.VideoCapture(filename_in)
     total_frames = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    fps = vidcap.get(cv2.CAP_PROP_FPS)
-    end_time = vidcap.get(cv2.CAP_PROP_POS_MSEC)
     vidcap.set(cv2.CAP_PROP_POS_MSEC, start_time_sec*1000)
 
     success, image = vidcap.read()
     if success and scale!=1:image = do_rescale(image,scale)
-
+    if rect is not None and image is not None:image = image[rect[1]:rect[3], rect[0]:rect[2]]
     count = 0
 
     with tqdm(total=total_frames) as pbar:
@@ -109,7 +106,8 @@ def extract_frames(filename_in,folder_out,prefix='',start_time_sec=0,end_time_se
             except:
                 pass
 
-            if success and scale != 1: image = do_rescale(image, scale)
+            if success and scale != 1:image = do_rescale(image, scale)
+            if rect is not None and image is not None:image = image[rect[1]:rect[3],rect[0]:rect[2]]
             if end_time_sec is not None and end_time_sec<1000000:
                 current_time = vidcap.get(cv2.CAP_PROP_POS_MSEC)
                 if current_time > 1000*end_time_sec: success = False
