@@ -26,7 +26,8 @@ class Tracker_SiamFC:
         self.colors80[2] = (0, 128, 0)
 
         self.TP = tools_time_profiler.Time_Profiler(verbose=False)
-        print('TrackerSiamFC@'+('GPU' if self.tracker.cuda else 'CPU') + ' is initialized')
+        device_colored = ('\033[92m' + 'cuda' + '\033[0m' if self.tracker.cuda else '\033[33m' + 'CPU' + '\033[0m')
+        print('[SOT trk] device:', device_colored, '-', 'SiamFC')
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def reset(self):

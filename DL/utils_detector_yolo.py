@@ -23,7 +23,7 @@ class Detector_yolo:
         self.folder_out = folder_out
 
         self.model_detect = YOLO(model_name)
-        self.model_detect.to(self.device)
+        #self.model_detect.to(self.device)
         self.colors80 = tools_draw_numpy.get_colors(80, colormap='nipy_spectral', shuffle=True)
         self.dct_class_names = None
         return
