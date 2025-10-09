@@ -138,7 +138,7 @@ class ObjLoader:
             shift = (max_value+min_value)/2.0
             self.coord_vert = self.coord_vert - shift
             S = numpy.max(numpy.abs(self.coord_vert))
-            self.coord_vert = self.coord_vert / S
+            self.coord_vert = self.coord_vert / (S+1e-6)
 
         return
 # ----------------------------------------------------------------------------------------------------------------------

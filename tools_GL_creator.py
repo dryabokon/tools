@@ -1,6 +1,10 @@
+import os
 import shutil
 import base64
 import numpy
+import math
+from scipy.ndimage import gaussian_filter
+# ----------------------------------------------------------------------------------------------------------------------
 import tools_IO
 import tools_wavefront
 from CV import tools_pr_geom
@@ -73,14 +77,16 @@ class OBJ_Utils:
     def construct_circle(self, dim,rvec, tvec, material):
         mesh = Mesh()
         mesh.material_name = material.name
-        mesh.X = self.construct_circle_RT(dim, rvec, tvec)
-        mesh.idx_vertex = self.construct_circle_index()
-        mesh.coord_norm = self.construct_circle_normals(rvec, tvec)
-        mesh.idx_normal = self.construct_circle_idx_normals()
+        N = 8*2
+
+        mesh.X = self.construct_circle_RT(dim, rvec, tvec,N)
+        mesh.idx_vertex = self.construct_circle_index(N)
+        mesh.coord_norm = self.construct_circle_normals(rvec, tvec,N)
+        mesh.idx_normal = self.construct_circle_idx_normals(N)
         # mesh.coord_texture = numpy.array([(0, 0)])
         # mesh.idx_texture = numpy.array([(0, 0, 0) for i in range(len(mesh.idx_vertex))])
 
-        mesh.coord_texture = self.construct_circle_texture_coord()
+        mesh.coord_texture = self.construct_circle_texture_coord(N)
         mesh.idx_texture = self.construct_circle_texture_index()
 
         return mesh
@@ -163,9 +169,8 @@ class OBJ_Utils:
         self.ObjLoader.export_material(self.folder_out + filename_material, material.name, material.color, transparency=material.transparency,mode='a+')
         return
 # ----------------------------------------------------------------------------------------------------------------------
-    def construct_circle_RT(self,dim, rvec, tvec):
+    def construct_circle_RT(self,dim, rvec, tvec,N=8*2):
 
-        N = 8*2
         X = numpy.zeros((N, 3), dtype=numpy.float32)
         for i in range(N):
             X[i, 0] = dim[0] * numpy.cos(2 * numpy.pi * i / N)
@@ -178,9 +183,9 @@ class OBJ_Utils:
         Xt = tools_pr_geom.apply_matrix_GL(RT, X)[:, :3]
         return Xt
 # ----------------------------------------------------------------------------------------------------------------------
-    def construct_circle_index(self):
-        # N = 16*2
-        N = 8 * 2
+    def construct_circle_index(self,N = 8 * 2):
+
+
         idx = numpy.zeros((N, 3), dtype=numpy.int32)
         for i in range(N):
             idx[i, 0] = 0
@@ -189,9 +194,8 @@ class OBJ_Utils:
 
         return idx
 # ----------------------------------------------------------------------------------------------------------------------
-    def construct_circle_normals(self,rvec,tvec):
-        # N = 16*2
-        N = 8 * 2
+    def construct_circle_normals(self,rvec,tvec,N = 8 * 2):
+
         normals = numpy.zeros((N, 3), dtype=numpy.float32)
         for i in range(N):
             normals[i, 0] = 0
@@ -202,9 +206,9 @@ class OBJ_Utils:
         normals = tools_pr_geom.apply_matrix_GL(RT, normals)[:, :3]
         return normals
 # ----------------------------------------------------------------------------------------------------------------------
-    def construct_circle_idx_normals(self):
-        # N = 16*2
-        N = 8 * 2
+    def construct_circle_idx_normals(self,N = 8 * 2):
+
+
         idx = numpy.zeros((N, 3), dtype=numpy.int32)
         for i in range(N):
             idx[i, 0] = 1
@@ -228,8 +232,8 @@ class OBJ_Utils:
 
         return Xt
 # ----------------------------------------------------------------------------------------------------------------------
-    def construct_circle_texture_coord(self):
-        N = 8 * 2
+    def construct_circle_texture_coord(self,N = 8 * 2):
+
         coord_texture = numpy.zeros((N + 1, 2), dtype=numpy.float32)
         coord_texture[0] = [0.5, 0.5]  # Center point
 
@@ -240,8 +244,7 @@ class OBJ_Utils:
         return coord_texture
 
     # ----------------------------------------------------------------------------------------------------------------------
-    def construct_circle_texture_index(self):
-        N = 8 * 2
+    def construct_circle_texture_index(self,N = 8 * 2):
         idx = numpy.zeros((N, 3), dtype=numpy.int32)
         for i in range(N):
             idx[i, 0] = 0
@@ -295,11 +298,127 @@ class OBJ_Utils:
         idx_normals = [[1, 1, 1],[2, 2, 2],[3, 3, 3],[4, 4, 4],[1, 1, 1],[5, 5, 5],[6, 6, 6],[2, 2, 2],[3, 3, 3],[7, 7, 7],[4, 4, 4],[5, 5, 5],[6, 6, 6],[8, 8, 8],[9, 9, 9],[3, 3, 3],[4, 4, 4],[9, 9, 9],[10, 10, 10],[5, 5, 5],[8, 8, 8],[7, 7, 7],[11, 11, 11],[9, 9, 9],[12, 12, 12],[10, 10, 10],[11, 11, 11],[2, 2, 2],[7, 7, 7],[12, 12, 12],[8, 8, 8],[10, 10, 10],[11, 11, 11],[1, 1, 1],[12, 12, 12],[6, 6, 6]]
         idx_normals = -1 + numpy.array(idx_normals, dtype=numpy.int32)
         return idx_normals
-# ----------------------------------------------------------------------------------------------------------------------
+    # ----------------------------------------------------------------------------------------------------------------------
+    def construct_hexagon(self, dim, rvec, tvec, material):
+        """
+        Construct a regular hexagon mesh (flat, filled, centered at tvec).
+        dim: (radius_x, radius_y, thickness_unused)
+        """
+
+        mesh = Mesh()
+        mesh.material_name = material.name
+
+        N = 6  # six sides
+        # ---- vertices (center + ring) ----
+        X = numpy.zeros((N + 1, 3), dtype=numpy.float32)
+        X[0] = [0.0, 0.0, 0.0]
+        for i in range(N):
+            angle = 2 * numpy.pi * i / N
+            X[i + 1, 0] = dim[0] * numpy.cos(angle)
+            X[i + 1, 1] = dim[1] * numpy.sin(angle)
+            X[i + 1, 2] = 0.0
+
+        # ---- transform ----
+        RT = tools_pr_geom.compose_RT_mat(rvec, tvec, do_rodriges=True, do_flip=False, GL_style=False)
+        Xt = tools_pr_geom.apply_matrix_GL(RT, X)[:, :3]
+        mesh.X = Xt
+
+        # ---- indices (triangle fan) ----
+        idx = numpy.zeros((N, 3), dtype=numpy.int32)
+        for i in range(N):
+            idx[i] = [0, i + 1, 1 if i == N - 1 else i + 2]
+        mesh.idx_vertex = idx
+
+        # ---- normals ----
+        normals = numpy.tile(numpy.array([[0, 0, -1]], dtype=numpy.float32), (N + 1, 1))
+        RTn = tools_pr_geom.compose_RT_mat(rvec, (0, 0, 0), do_rodriges=True, do_flip=False, GL_style=False)
+        normals = tools_pr_geom.apply_matrix_GL(RTn, normals)[:, :3]
+        mesh.coord_norm = normals
+
+        mesh.idx_normal = -1 + numpy.ones_like(mesh.idx_vertex, dtype=numpy.int32)
+
+        # ---- texture coords ----
+        coord_texture = numpy.zeros((N + 1, 2), dtype=numpy.float32)
+        coord_texture[0] = [0.5, 0.5]
+        for i in range(N):
+            angle = 2 * numpy.pi * i / N
+            coord_texture[i + 1] = [0.5 + 0.5 * numpy.cos(angle),
+                                    0.5 + 0.5 * numpy.sin(angle)]
+        mesh.coord_texture = coord_texture
+        mesh.idx_texture = mesh.idx_vertex.copy()
+
+        return mesh
+
+
+
+    # ----------------------------------------------------------------------------------------------------------------------
     def convert_triangulation(self,filename_in, filename_out):
         TW = tools_wavefront.ObjLoader()
         TW.convert(filename_in, self.folder_out + filename_out)
         return
+    # ----------------------------------------------------------------------------------------------------------------------
+    def apply_cell_bombing_uv(self,
+            uv,
+            positions,
+            cell_size=1.0,
+            offset_amp=0.25,
+            scale_range=(0.85, 1.15),
+            rotation_range=(0, 360),
+            blend_zone=0.05,
+            macro_amp=0.1,
+    ):
+        """
+        Offline 'cell bombing' UV randomization for OBJ meshes.
+        Breaks visible repetition in tiled ground textures.
+        """
+
+        uv = numpy.asarray(uv)
+        positions = numpy.asarray(positions)
+
+        # --- 1️⃣ Safe shape alignment ---
+        n = min(uv.shape[0], positions.shape[0])
+        uv = uv[:n]
+        pos_xy = positions[:n, :2]
+        new_uv = numpy.zeros_like(uv)
+
+        # --- 2️⃣ Assign each vertex to a world cell ---
+        cells = numpy.floor(pos_xy / cell_size).astype(int)
+        unique_cells = {tuple(c) for c in cells}
+
+        # --- 3️⃣ Random transform per cell ---
+        rng = numpy.random.default_rng(12345)
+        cell_params = {}
+        for c in unique_cells:
+            off = rng.uniform(-offset_amp, offset_amp, 2)
+            scale = rng.uniform(*scale_range)
+            rot = math.radians(rng.uniform(*rotation_range))
+            R = numpy.array([[math.cos(rot), -math.sin(rot)],
+                             [math.sin(rot), math.cos(rot)]])
+            cell_params[c] = dict(offset=off, scale=scale, R=R)
+
+        # --- 4️⃣ Apply transform for each vertex ---
+        for i in range(n):
+            c = tuple(cells[i])
+            prm = cell_params[c]
+
+            uv_local = ((uv[i] - 0.5) @ prm["R"].T) * prm["scale"] + prm["offset"] + 0.5
+
+            # Blend near cell borders
+            p = pos_xy[i]
+            dist_to_edge_x = min((p[0] % cell_size), cell_size - (p[0] % cell_size))
+            dist_to_edge_y = min((p[1] % cell_size), cell_size - (p[1] % cell_size))
+            edge_factor = min(dist_to_edge_x, dist_to_edge_y) / blend_zone
+            edge_factor = numpy.clip(edge_factor, 0.0, 1.0)
+
+            new_uv[i] = uv[i] * (1 - edge_factor) + uv_local * edge_factor
+
+        # --- 5️⃣ Add smooth macro world noise ---
+        macro = numpy.sin(pos_xy[:, 0] * 0.05) * numpy.cos(pos_xy[:, 1] * 0.05)
+        new_uv += (macro[:, None] * macro_amp)
+        new_uv = new_uv % 1.0
+
+        return numpy.clip(new_uv, 0.0, 1.0)
+
     # ----------------------------------------------------------------------------------------------------------------------
     def add_scenes(self,filename_obj1, filename_obj2, filename_out, M_obj1=None, M_obj2=None):
 
@@ -397,7 +516,8 @@ class OBJ_Utils:
         filename_obj = 'plane.obj'
         filename_mat = 'plane.mtl'
         mat_plane = self.construct_material('plane', (64, 64, 64))
-        mesh_plane = self.construct_circle((100, 100, 1), (0, 0, 0), (0, 0, -0), mat_plane)
+        #mesh_plane = self.construct_circle((100, 100, 1), (0, 0, 0), (0, 0, -0), mat_plane)
+        mesh_plane = self.construct_cube((100, 100, 1), (0, 0, 0), (0, 0, -0), mat_plane)
         self.export_mesh(filename_obj, filename_mat, mesh_plane)
         self.export_material(filename_mat, mat_plane)
 
@@ -436,7 +556,43 @@ class OBJ_Utils:
             self.append_material(filename_mat, mat_plane)
 
         return
-# ----------------------------------------------------------------------------------------------------------------------
+    # ----------------------------------------------------------------------------------------------------------------------
+    def test_06(self):
+
+        filename_obj = 'hexagon.obj'
+        filename_mat = 'hexagon.mtl'
+
+        mat = self.construct_material('hexagon', (120, 180, 255), 0.1)
+        mesh = self.construct_hexagon((1, 1, 1), (0, 0, 0), (0, 0, 0), mat)
+
+        self.export_mesh(filename_obj, filename_mat, mesh)
+        self.export_material(filename_mat, mat)
+        return
+    # ----------------------------------------------------------------------------------------------------------------------
+    def merge_objs(self,filenames_obj, Ms):
+
+        tools_IO.copy_folder(os.path.dirname(filenames_obj[0]) + '/', self.folder_out)
+        tools_IO.remove_file(self.folder_out + filenames_obj[0].split('/')[-1])
+
+        for i, (filename, M) in enumerate(zip(filenames_obj, Ms)):
+            result_filename = 'result%03d.obj' % i
+            self.add_scenes(self.folder_out + filename_agg if i > 0 else filenames_obj[0], filename, result_filename,None, M)
+            tools_IO.copy_folder(os.path.dirname(filename) + '/', self.folder_out)
+            tools_IO.remove_file(self.folder_out + filename.split('/')[-1])
+            filename_agg = result_filename
+
+        tools_IO.copyfile(self.folder_out + filename_agg, self.folder_out + 'scene.obj')
+
+        for i, filename in enumerate(filenames_obj):
+            result_filename = 'result%03d.obj' % i
+            tools_IO.remove_file(self.folder_out + result_filename)
+
+        self.patch_materials(self.folder_out)
+        open(self.folder_out + 'scene.html', 'w').write(
+            self.obj_to_html(self.folder_out + 'scene.obj', self.folder_out + 'scene.mtl'))
+        return
+
+    # ----------------------------------------------------------------------------------------------------------------------
     def get_base64Obj(self,filename_obj):
         with open(filename_obj, 'rb') as f:
             base64Obj = f.read()

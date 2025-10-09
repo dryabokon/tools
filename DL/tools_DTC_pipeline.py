@@ -850,7 +850,6 @@ class Pipeliner:
                     continue
 
                 name=  f"{('P_' if is_TP else 'N_')}"
-                name+= f"{self.config.exp_name}_"
                 name+= f"{track_id_true}_" if is_TP else f"{track_id}_"
                 name+= f"{frame_id:06d}.jpg"
 
