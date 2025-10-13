@@ -3,7 +3,7 @@ import shutil
 import base64
 import numpy
 import math
-from scipy.ndimage import gaussian_filter
+from tqdm import tqdm
 # ----------------------------------------------------------------------------------------------------------------------
 import tools_IO
 import tools_wavefront
@@ -574,7 +574,7 @@ class OBJ_Utils:
         tools_IO.copy_folder(os.path.dirname(filenames_obj[0]) + '/', self.folder_out)
         tools_IO.remove_file(self.folder_out + filenames_obj[0].split('/')[-1])
 
-        for i, (filename, M) in enumerate(zip(filenames_obj, Ms)):
+        for i, (filename, M) in tqdm(enumerate(zip(filenames_obj, Ms)), total=len(filenames_obj), desc="Merging objects"):
             result_filename = 'result%03d.obj' % i
             self.add_scenes(self.folder_out + filename_agg if i > 0 else filenames_obj[0], filename, result_filename,None, M)
             tools_IO.copy_folder(os.path.dirname(filename) + '/', self.folder_out)

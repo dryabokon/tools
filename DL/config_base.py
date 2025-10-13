@@ -95,3 +95,19 @@ class cnfg_base(object):
         return path_patched
 
     # ----------------------------------------------------------------------------------------------------------------------
+    def save_as_python_script(self,filename_out):
+        KV = [(k, v) for k, v in zip(*self.get_keys_values()) if k != 'parser']
+        with open(filename_out, 'w') as f:
+            f.write('from DL import config_base\n')
+            f.write('class cnfg_experiment(config_base.cnfg_base):\n')
+            for k, v in KV:
+                if isinstance(v, (bool, type(None))):
+                    v = str(v)
+                elif isinstance(v, (int, float)):
+                    v = str(v)
+                else:
+                    v = f"'{v}'"
+                f.write(f'\t{k} = {v}\n')
+
+        return
+    # ----------------------------------------------------------------------------------------------------------------------
