@@ -23,7 +23,8 @@ class Detector_yolo:
         self.folder_out = folder_out
 
         self.model_detect = YOLO(model_name,task="detect")
-        #self.model_detect.to(self.device)
+        self.model_detect.to(self.device)
+        self.imgsz = self.config.imgsz
         self.colors80 = tools_draw_numpy.get_colors(80, colormap='nipy_spectral', shuffle=True)
         self.dct_class_names = None
         return
@@ -46,9 +47,10 @@ class Detector_yolo:
         if image is None:return df_pred
 
         if self.confidence_th is None:
-            res = self.model_detect.predict(source=image, verbose=False, device=self.device)
+            res = self.model_detect.predict(source=image, verbose=False, device=self.device,imgsz=self.imgsz)
+
         else:
-            res = self.model_detect.predict(source=image, verbose=False, device=self.device, conf=self.confidence_th)
+            res = self.model_detect.predict(source=image, verbose=False, device=self.device, imgsz=self.imgsz,conf=self.confidence_th)
 
         if res[0].boxes is not None:
             confs = res[0].boxes.conf.cpu().numpy()
