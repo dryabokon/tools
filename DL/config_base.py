@@ -88,8 +88,9 @@ class cnfg_base(object):
 
 
             elif path[:1] != '.':
-                path_patched = '..' + path
-                if not os.path.isfile(path_patched):
+                if os.path.isfile('..' + path):
+                    path_patched = '..' + path
+                elif os.path.isfile('../' + path_patched):
                     path_patched = '../' + path_patched
 
         return path_patched

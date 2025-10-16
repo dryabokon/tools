@@ -146,7 +146,7 @@ class ObjLoader:
         mat_color,filename_texture = None,None
         ready_to_read = mat_name is None
 
-        if not os.path.exists(filename_mat):
+        if filename_mat is None or not os.path.exists(filename_mat):
             return mat_color, filename_texture
 
         for line in open(filename_mat, 'r'):
