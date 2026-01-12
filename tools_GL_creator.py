@@ -632,7 +632,8 @@ class OBJ_Utils:
         placeholder_objText = open(filename_obj).read()
         placeholder_mtlText = open(filename_mat).read()
 
-        txt_html = open('./data/templates/renderer_self_contained_multiobject.html').read()
+        #txt_html = open('./data/templates/renderer_self_contained_multiobject.html').read()
+        txt_html = open('./data/templates/renderer_self_contained_multiobject_with_ground3.html').read()
         txt_html = self.replace_last_substring(txt_html, 'placeholder_objText', "`" + placeholder_objText + "`")
         txt_html = self.replace_last_substring(txt_html, 'placeholder_mtlText', "`" + placeholder_mtlText + "`")
 
@@ -640,7 +641,7 @@ class OBJ_Utils:
         filenames = numpy.unique([f.split('/')[-1] for f in Obj.filename_texture if f is not None])
         items = [("\"" + filename_img + "\"" + ':'+ "\"" + f'data:image/png;base64,{self.get_base64Obj(self.folder_out+filename_img)[1:-1]}' + "\"") for filename_img in filenames]
 
-        txt_html = self.replace_last_substring(txt_html, 'const dataURLs = {"green.png": placeholder_texture1,"blue.png": placeholder_texture2};',"const dataURLs = {"+(',').join(items)+"}")
+        txt_html = self.replace_last_substring(txt_html, 'const dataURLs = {"green.png": placeholder_texture1, "blue.png": placeholder_texture2};',"const dataURLs = {"+(',').join(items)+"}")
 
         return txt_html
     # ----------------------------------------------------------------------------------------------------------------------

@@ -1,43 +1,61 @@
+import sys
+import io
 import os
 import pandas as pd
 import requests
 from requests.auth import HTTPBasicAuth
+import mlflow
+from mlflow.tracking import MlflowClient
+
+os.environ['MLFLOW_SUPPRESS_EMOJIS'] = '1'
+import logging
+logging.getLogger('mlflow').setLevel(logging.ERROR)
 # ----------------------------------------------------------------------------------------------------------------------
 class MLFlower(object):
-    def __init__(self,host,port,username_mlflow=None,password_mlflow=None,remote_storage_folder=None,username_ssh=None,ppk_key_path=None,password_ssh=None):
+    def __init__(self, host, port, username_mlflow=None, password_mlflow=None,remote_storage_folder=None, username_ssh=None, ppk_key_path=None,password_ssh=None, local_storage_folder=None):
 
-        if not self.check_is_available(host,port,username_mlflow,password_mlflow):
+        if not self.check_is_available(host, port, username_mlflow, password_mlflow):
             self.is_available = False
             return
 
         if remote_storage_folder is not None:
             self.host_ssh = self.construct_host_ssh(host)
 
-            if not self.check_ssh(self.host_ssh,username_ssh,password_ssh):
-                self.is_available = False
-                return
+        if local_storage_folder is None:
+            local_storage_folder = os.path.abspath('./mlflow_artifacts')
+        else:
+            local_storage_folder = os.path.abspath(local_storage_folder)
 
-
-        print(f'ML FLow server available at {host}:{port} OK')
+        os.makedirs(local_storage_folder, exist_ok=True)
+        artifact_root = f"file:///{local_storage_folder.replace(chr(92), '/')}"
+        os.environ['MLFLOW_ARTIFACT_ROOT'] = artifact_root
+        os.environ['MLFLOW_DEFAULT_ARTIFACT_ROOT'] = artifact_root
+        mlflow.set_tracking_uri(f'{host}:{port}')
         self.is_available = True
 
         if username_mlflow is not None and password_mlflow is not None:
             os.environ['MLFLOW_TRACKING_USERNAME'] = username_mlflow
             os.environ['MLFLOW_TRACKING_PASSWORD'] = password_mlflow
 
-        import mlflow
-        from mlflow.tracking import MlflowClient
-        mlflow.set_tracking_uri(f'{host}:{port}')
-
+        self.host = host  # ✓ Add this
         self.remote_host = host
         self.remote_port = port
+        self.local_storage_folder = local_storage_folder  # ✓ Add this
 
         self.username_ssh = username_ssh
         self.ppk_key_path = ppk_key_path
         self.password_ssh = password_ssh
         self.remote_storage_folder = remote_storage_folder
+
+        # print(f"Artifact storage configured: {local_storage_folder}")
+        # print(f'ML Flow server available at {host}:{port} OK')
+        # print(f'Tracking URI: {host}:{port}')
+        # print(f'Local Storage: {local_storage_folder}')
+        # if remote_storage_folder:
+        #     print(f'  Remote Storage: {remote_storage_folder}')
         return
-# ---------------------------------------------------------------------------------------------------------------------
+
+    # ---------------------------------------------------------------------------------------------------------------------
     def construct_host_ssh(self,host):
         host_ssh = host
         if host_ssh.startswith('http://'):host_ssh = host_ssh[7:]
@@ -50,7 +68,8 @@ class MLFlower(object):
             return False
 
         try:
-            response = requests.get(f'{host}:{port}', auth=HTTPBasicAuth(username, password), timeout=5)
+            auth = HTTPBasicAuth(username, password) if username is not None and password is not None else None
+            response = requests.get(f'{host}:{port}', auth=auth, timeout=5)
             if response.status_code == 200:
                 result = True
             else:
@@ -159,12 +178,18 @@ class MLFlower(object):
 
         return artifact_uri
     # ---------------------------------------------------------------------------------------------------------------------
-    def save_experiment(self,experiment_name,params,metrics,artifacts):
-        mlflow.end_run()
+    def save_experiment(self, experiment_name, params={}, metrics={}, artifacts=[]):
+        old_stdout = sys.stdout
+        sys.stdout = io.StringIO()
+        try:
+            mlflow.end_run()
+        finally:
+            sys.stdout = old_stdout
 
-        with mlflow.start_run(experiment_id=self.get_experiment_id(experiment_name, create=True), run_name=pd.Timestamp.now().strftime('%Y-%b-%d %H:%M:%S')) as run:
+        with mlflow.start_run(experiment_id=self.get_experiment_id(experiment_name, create=True),run_name=pd.Timestamp.now().strftime('%Y-%b-%d %H:%M:%S')) as run:
             params['run_id'] = run.info.run_id
-            for k,v in  params.items():mlflow.log_param(k, v)
+
+            for k, v in params.items():mlflow.log_param(k, v)
             for k, v in metrics.items():mlflow.log_metric(k, v)
             for local_file_path in artifacts:
                 if self.remote_storage_folder is not None:
@@ -172,6 +197,14 @@ class MLFlower(object):
                     self.scp_file_to_remote(local_file_path, remote_folder)
                 else:
                     mlflow.log_artifact(local_file_path)
-            mlflow.end_run()
+
+            old_stdout = sys.stdout
+            sys.stdout = io.StringIO()
+            try:
+                mlflow.end_run()
+            finally:
+                sys.stdout = old_stdout
+
+        print(f"Run saved: {params['run_id']}")
         return params['run_id']
     # ---------------------------------------------------------------------------------------------------------------------

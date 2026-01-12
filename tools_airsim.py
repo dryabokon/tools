@@ -11,6 +11,7 @@ import airsim
 import tools_render_GL
 import tools_draw_numpy
 import tools_GL3D_light
+import tools_image
 # ---------------------------------------------------------------------------------------------------------------------
 class tools_airsim:
     def __init__(self,ip_airsim,camera_rad_yaw_pitch_roll,fov,height_abs_BEV=100):
@@ -22,7 +23,7 @@ class tools_airsim:
             return
 
         if not self.check_is_available(ip_airsim, 41451):
-            print(f'AirSim not available at {ip_airsim}')
+            print(f'[Air Sim] plugin: not available at {ip_airsim}')
             self.is_available = False
             self.W, self.H = 640, 480
             return
@@ -214,7 +215,7 @@ class tools_airsim:
         image = self.R.get_image(do_debug=True)
         return image
 # ---------------------------------------------------------------------------------------------------------------------
-    def draw_camera_on_BEV(self,image,ground_points3d,shift,color):
+    def draw_camera_on_BEV_old(self,image,ground_points3d,yaw,shift,color):
         H, W = image.shape[:2]
         transperency = 0.8
 
@@ -230,6 +231,31 @@ class tools_airsim:
 
         return image
 # ---------------------------------------------------------------------------------------------------------------------
+    def draw_camera_on_BEV(self,image,origin,yaw,fov_deg,shift,color):
+        if yaw is None:
+            return image
+
+        if origin is None: return image
+        origin = numpy.array(origin).reshape((-1, 3))
+        if shift is not None:
+            origin -= numpy.array(shift).reshape((1, 3))
+
+        H, W = image.shape[:2]
+        origin[:,1] *= -1
+        origin[:,2] = 0
+
+        point_3d = numpy.array(origin).reshape((-1, 3))
+        if shift is not None:
+            point_3d -= numpy.array(shift).reshape((1, 3))
+
+        origin_2d = tools_render_GL.project_points_MVP_GL(point_3d, W, H, self.mat_projection_BEV, self.mat_view_BEV, self.mat_model_BEV, self.mat_trns_BEV).reshape((-1, 2))[0]
+        origin_2d_up = origin_2d + numpy.array((0,image.shape[0]//10))
+        origin_2d_side1 = tools_image.rotate_point(origin_2d_up,origin_2d,numpy.rad2deg(yaw)+fov_deg/2)
+        origin_2d_side2 = tools_image.rotate_point(origin_2d_up,origin_2d,numpy.rad2deg(yaw)-fov_deg/2)
+        image = tools_draw_numpy.draw_contours_cv(image, numpy.concatenate([origin_2d,origin_2d_side1,origin_2d_side2]).reshape((-1,2)), color=color,w=-1,transperency=0.3)
+
+        return image
+    # ---------------------------------------------------------------------------------------------------------------------
     def find_ray_intersection(self,i1, j1, i2, j2, W, H):
         def line_intersection(x1, y1, x2, y2, x3, y3, x4, y4):
             denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)

@@ -350,7 +350,8 @@ def inverce_project(point_2d,image,mat_projection, mat_view, mat_model, mat_trns
 def get_ray(point_2d,image,mat_projection, mat_view, mat_model, mat_trns,d = None):
     H, W = image.shape[:2]
     tg_half_fovx = 1.0 / mat_projection[0][0]
-    far_plane_distance = 0.5 * W / tg_half_fovx if d is None else d
+    #far_plane_distance = 0.5 * W / tg_half_fovx if d is None else d
+    far_plane_distance = 0.01
     ray_start = inverce_project(point_2d, image, mat_projection, mat_view, mat_model, mat_trns,far_plane_distance+1)
     ray_end   = inverce_project(point_2d, image, mat_projection, mat_view, mat_model, mat_trns,far_plane_distance)
 

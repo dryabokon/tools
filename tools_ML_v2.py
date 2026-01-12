@@ -121,7 +121,9 @@ class ML(object):
 
             self.P.plot_tp_fp(tpr, fpr, auc, caption=caption_auc, filename_out=description+caption_auc + '.png')
             self.P.plot_PR(precisions,recalls, mAP, caption=caption_map,filename_out=description+caption_map + '.png')
-            colors = [self.P.get_color(t)[[2, 1, 0]] / 255.0 for t in numpy.unique(Y)]
+            colors = [self.P.get_color(t)[[0, 1, 2]] / 255.0 for t in numpy.unique(Y)]
+
+            scores = ((100 * (scores - scores.min())) / (scores.max() - scores.min())).astype(int)
             self.P.plot_1D_features_pos_neg(scores, Y, labels=True,colors=colors, bins=numpy.linspace(0,100,100),xlim=xlim,filename_out=description+'scores_'+suffix+'.png')
 
             #self.P.plot_TP_FP_PCA_scatter(scores, X,Y,filename_out=description + 'TP_FP_PCA_' + suffix + '.png')
@@ -358,7 +360,7 @@ class ML(object):
             self.plot_density_2d(df_test , idx_target, x_range=x_range,y_range=y_range,filename_out = description+'density_test.png')
 
         if do_pca and df_train.shape[1]>3:
-            self.P.plot_PCA(df_train, idx_target,filename_out=description+'PCA.png')
+            self.P.plot_PCA(df_train, idx_target,method='tSNE',filename_out=description+'PCA.png')
 
         return df_metrics
 # ----------------------------------------------------------------------------------------------------------------------

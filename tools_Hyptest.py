@@ -231,11 +231,15 @@ class HypTest(object):
             df = pd.concat([df0, df1])
             df = tools_DF.hash_categoricals(df)
             X, Y = df.values, numpy.array([0] * df0.shape[0] + [1] * df1.shape[0])
-            model = LogisticRegression().fit(X,Y)
-            precisions, recalls, thresholds = metrics.precision_recall_curve(Y, model.predict_proba(X)[:,1])
-            idx_th = numpy.argmax([p * r / (p + r + 1e-4) for p, r in zip(precisions, recalls)])
-            P,R = precisions[idx_th],recalls[idx_th]
-            f1 = P * R * 2 / (P + R + 1e-4)
+
+            if len(numpy.unique(Y)) == 1:
+                f1 = 1.0
+            else:
+                model = LogisticRegression().fit(X, Y)
+                precisions, recalls, thresholds = metrics.precision_recall_curve(Y, model.predict_proba(X)[:,1])
+                idx_th = numpy.argmax([p * r / (p + r + 1e-4) for p, r in zip(precisions, recalls)])
+                P,R = precisions[idx_th],recalls[idx_th]
+                f1 = P * R * 2 / (P + R + 1e-4)
 
         return f1
 # ---------------------------------------------------------------------------------------------------------------------

@@ -1,13 +1,12 @@
 import os
-
-import cv2
 import numpy
-#import pyvista
 #----------------------------------------------------------------------------------------------------------------------
 class ObjLoader:
     def __init__(self,filename_obj=None,do_autoscale=False,target_object_name=None):
         if filename_obj is not None:
+
             self.load_mesh(filename_obj,do_autoscale=do_autoscale,target_object_name=target_object_name)
+
         return
 # ----------------------------------------------------------------------------------------------------------------------
     def load_mesh(self, filename_obj, do_autoscale=False,target_object_name=None):
@@ -35,6 +34,7 @@ class ObjLoader:
         flag_target = False
         self.idx_target_start = None
         self.idx_target_end = None
+
 
         for line in open(filename_obj, 'r'):
             if line.startswith('#'): continue
@@ -126,6 +126,7 @@ class ObjLoader:
                     self.filename_texture[-1]=texture
                     self.dct_textures[self.mat_name] = texture
 
+
         if len(self.coord_texture) == 0: self.coord_texture.append([0,0])
 
         self.coord_texture = numpy.array(self.coord_texture)
@@ -165,9 +166,9 @@ class ObjLoader:
 
         if filename_texture is not None:
             filename_texture = os.path.dirname(filename_mat) + '/' + filename_texture
-            if os.path.exists(filename_texture):
-                im = cv2.imread(filename_texture)
-                mat_color = im[:,:,[2,1,0]].mean(axis=(0, 1))/255.0
+            # if os.path.exists(filename_texture):
+            #     im = cv2.imread(filename_texture)
+            #     mat_color = im[:,:,[2,1,0]].mean(axis=(0, 1))/255.0
 
         return mat_color, filename_texture
 # ----------------------------------------------------------------------------------------------------------------------

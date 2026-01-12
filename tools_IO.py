@@ -6,8 +6,6 @@ import json
 from shutil import copyfile,move
 import shutil
 import random
-from sklearn import metrics, datasets
-from sklearn.metrics import confusion_matrix, auc
 import cv2
 import math
 import pickle
@@ -630,43 +628,6 @@ def list_to_chararray(input_list):
     bufer = ''.join(bufer)
     return bufer
 
-# ---------------------------------------------------------------------------------------------------------------------
-def get_roc_data_from_scores_file(path_scores,has_header=False):
-
-    X = load_mat(path_scores, numpy.chararray, '\t')
-
-    if has_header:
-        header = numpy.array(X[0,:],dtype=numpy.str)
-        X  = X[1:,:]
-    else:
-        header = None
-        X = X[:,:]
-
-    labels = (X[:, 0]).astype('float32')
-    scores = X[:, 1:].astype('float32')
-
-    fpr, tpr, thresholds = metrics.roc_curve(labels, scores)
-    roc_auc = auc(fpr, tpr)
-
-    return tpr,fpr,roc_auc
-# ----------------------------------------------------------------------------------------------------------------------
-def get_roc_data_from_scores_file_v2(path_scores_pos,path_scores_neg,delim='\t'):
-
-    data = load_mat(path_scores_pos, numpy.chararray, delim)
-    s1= data[1:, 1:].astype('float32')
-    l1 = numpy.full(len(s1),1)
-
-    data = load_mat(path_scores_neg, numpy.chararray, delim)
-    s0= data[1:, 1:].astype('float32')
-    l0 = numpy.full(len(s0), 0)
-
-    labels = numpy.hstack((l0, l1))
-    scores = numpy.vstack((s0, s1))
-
-    fpr, tpr, thresholds = metrics.roc_curve(labels, scores)
-    roc_auc = auc(fpr, tpr)
-
-    return tpr,fpr,roc_auc
 # ----------------------------------------------------------------------------------------------------------------------
 def from_categorical(Y_2d):
     u = numpy.unique(Y_2d)

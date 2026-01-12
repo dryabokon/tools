@@ -5,7 +5,7 @@ from sklearn import preprocessing
 from collections import Counter
 from tabulate import tabulate
 import struct
-from textwrap import fill
+#from textwrap import fill
 # ----------------------------------------------------------------------------------------------------------------------
 def fix_ecoding(filename_in):
     with open(filename_in) as f:
@@ -428,14 +428,31 @@ def fetch(df1,col_name1,df2,col_name2,col_value,col_new_name=None):
         df_res[(col_value if col_new_name is None else col_new_name)] = [v for v in V.values]
 
 
-
-
     return df_res
 # ---------------------------------------------------------------------------------------------------------------------
 def fetch_multi_col(df1,cols1,df2,cols2,col_value,col_new_name=None):
     V = pd.merge(df1, df2, how='left', left_on=cols1, right_on=cols2)
     df_res = V[[c for c in df1.columns] + [col_value]].drop_duplicates(subset=cols1)
     df_res = df_res.rename(columns=dict(zip([col_value],[col_new_name])))
+
+    return df_res
+# ---------------------------------------------------------------------------------------------------------------------
+def fetch_by_time(df1, col_time1, df2, col_time2, list_col_values):
+    df1_copy = df1.copy()
+    df2_copy = df2.copy()
+    df2_copy = df2_copy[[col_time2]+list_col_values]
+    df1_copy['time_sec'] = (df1_copy[col_time1].astype('int64') // 10 ** 9) % 86400
+    df2_copy['time_sec'] = (df2_copy[col_time2].astype('int64') // 10 ** 9) % 86400
+    df1_copy = df1_copy.sort_values('time_sec')
+    df2_copy = df2_copy.sort_values('time_sec')
+
+    df_res = pd.merge_asof(
+        df1_copy,
+        df2_copy,
+        on='time_sec',
+        direction='nearest')
+
+    df_res = df_res.drop('time_sec', axis=1)
 
     return df_res
 # ---------------------------------------------------------------------------------------------------------------------

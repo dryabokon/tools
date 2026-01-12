@@ -104,9 +104,9 @@ def coco_to_flat(filaname_coco_annnotation,filename_flat,list_attributes=None):
 
     return
 # ----------------------------------------------------------------------------------------------------------------------
-def extract_supercategories(folder_images,filaname_coco_annnotation,folder_out):
+def extract_supercategories(folder_images,filename_coco_annnotation,folder_out):
     tools_IO.remove_files(folder_out, '*.jpg')
-    coco = COCO(filaname_coco_annnotation)
+    coco = COCO(filename_coco_annnotation)
 
     dct_class_names = dict(zip(coco.cats.keys(),[coco.cats[k]['name'] for k in coco.cats.keys()]))
     dct_super_categories = dict(zip(coco.cats.keys(),[coco.cats[k]['supercategory'] for k in coco.cats.keys()]))
