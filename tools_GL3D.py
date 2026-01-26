@@ -770,6 +770,14 @@ class render_GL3D(object):
         return
 
     # ----------------------------------------------------------------------------------------------------------------------
+    # def move_experimental(self):
+    #     data = self.my_VBO.data[0:9].copy()
+    #     data[0:3] += numpy.array((0, 0, 0.1))
+    #     data[3:6] += numpy.array((0, 0, 0.1))
+    #     self.my_VBO.data[0:9] = data
+    #     self.bind_VBO()
+    #     return
+    # ----------------------------------------------------------------------------------------------------------------------
     def resize_window(self, W, H):
         self.W = W
         self.H = H

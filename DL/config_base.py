@@ -9,7 +9,6 @@ class cnfg_base(object):
             self.parser = argparse.ArgumentParser()
             self.init(filename_in)
         return
-
     # ----------------------------------------------------------------------------------------------------------------------
     def init(self, filename_in):
         if filename_in is not None:
