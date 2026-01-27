@@ -5,5 +5,5 @@ def is_wsl():
     return (platform.system() == 'Linux' and os.path.isfile('/proc/version') and 'microsoft' in open('/proc/version','r').read().lower())
 # ----------------------------------------------------------------------------------------------------------------------
 def is_arm():
-    return 'arm' in platform.machine().lower()
+    return 'aarch64' in platform.machine().lower()
 # ----------------------------------------------------------------------------------------------------------------------
