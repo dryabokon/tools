@@ -1,7 +1,7 @@
 import os
 import cv2
 import io
-from mpl_toolkits.mplot3d import Axes3D
+#from mpl_toolkits.mplot3d import Axes3D
 import numpy
 import seaborn
 import pandas as pd
@@ -44,6 +44,7 @@ class Plotter(object):
         self.color_light_gray = numpy.array((180, 180, 180))
 
         self.color_bright_red = numpy.array((0, 32, 255))
+        self.color_dark_red = numpy.array((0, 0, 90))
         self.color_red = numpy.array((22, 74, 223))
         self.color_amber = numpy.array((0, 128, 255))
         self.color_coral = numpy.array((0, 90, 255))
@@ -904,8 +905,8 @@ class Plotter(object):
         hue = df.columns[idx_hue] if idx_hue is not None else None
 
         for i,idx_target in enumerate(idxs_target):
-            if   mode == 'pointplot'  :g = seaborn.pointplot(data=df, x=X, y=df.columns[idx_target], color=colors[i],markers='', label=df.columns[idx_target],errwidth=4)
-            elif mode == 'scatterplot':g = seaborn.scatterplot(data=df, x=X, y=df.columns[idx_target],size=numpy.full(df.shape[0],2.25),color=colors[i],alpha=1-transparency,edgecolor=None,markers='0',label=df.columns[idx_target])
+            if   mode == 'pointplot'  :g = seaborn.pointplot(data=df, x=X, y=df.columns[idx_target], color=colors[i],markers='', label=df.columns[idx_target],err_kws={'linewidth': 4})
+            elif mode == 'scatterplot':g = seaborn.scatterplot(data=df, x=X, y=df.columns[idx_target],size=numpy.full(df.shape[0],2),color=colors[i],alpha=1-transparency,edgecolor=None,markers='0')
             elif mode == 'barplot'    :g = seaborn.barplot(data=df,x=X, y=df.columns[idx_target],hue=hue,color=colors[i])
             else:                      g = seaborn.lineplot(data=df, x=X, y=df.columns[idx_target],color=colors[i],label=df.columns[idx_target])
             g.set_xlabel('')
@@ -1218,6 +1219,28 @@ class Plotter(object):
 
         return
 # ---------------------------------------------------------------------------------------------------------------------
+    def scatter_2d(self,X,Y,labelX=None,labelY=None,figsize=(6,6),filename_out=None):
+
+        fig = plt.figure(figsize=figsize)
+        fig = self.turn_light_mode(fig)
+        color = seaborn.color_palette(palette='tab10', n_colors=1)
+        if labelX is not None: plt.xlabel(labelX)
+        if labelY is not None: plt.ylabel(labelY)
+        plt.grid(which='major', color=self.clr_grid, linestyle='--')
+        plt.scatter(X,Y, color=color,marker='o')
+        legend = plt.legend(loc='lower right')
+
+        self.recolor_legend_plt(legend)
+
+        if filename_out is not None:
+            plt.savefig(self.folder_out+filename_out)
+
+        plt.clf()
+        plt.close(fig)
+
+        return
+
+    # ---------------------------------------------------------------------------------------------------------------------
     def scatter_3d(self,df1, df2=None,figsize=(8,8),filename_out=None):
         col0, col1, col2 = df1.columns[:3]
         fig = plt.figure(figsize=(8, 8))

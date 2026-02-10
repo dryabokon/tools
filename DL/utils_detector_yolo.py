@@ -23,7 +23,7 @@ class Detector_yolo:
         self.folder_out = folder_out
 
         self.model_detect = YOLO(model_name,task="detect")
-        self.imgsz = config.imgsz
+        self.imgsz = (384, 640)
         self.colors80 = tools_draw_numpy.get_colors(80, colormap='nipy_spectral', shuffle=True)
         self.dct_class_names = None
         return

@@ -14,7 +14,7 @@ import tools_GL3D_light
 import tools_image
 # ---------------------------------------------------------------------------------------------------------------------
 class tools_airsim:
-    def __init__(self,ip_airsim,camera_rad_yaw_pitch_roll,fov,height_abs_BEV=100):
+    def __init__(self,ip_airsim,camera_pitch_deg,fov,height_abs_BEV=100):
         self.fov = fov
 
         if ip_airsim is None:
@@ -46,8 +46,7 @@ class tools_airsim:
         self.height_abs_BEV = height_abs_BEV
         self.init_mat(90, self.height_abs_BEV)
 
-        self.camera_rad_yaw_pitch_roll = camera_rad_yaw_pitch_roll
-        self.new_setup(camera_rad_yaw_pitch_roll)
+        self.new_setup(camera_pitch_deg)
 
         return
     # ---------------------------------------------------------------------------------------------------------------------
@@ -60,12 +59,9 @@ class tools_airsim:
             return False
         return
     # ---------------------------------------------------------------------------------------------------------------------
-    def new_setup(self,camera_rad_yaw_pitch_roll):
+    def new_setup(self,camera_pitch):
 
-        yaw, pitch,roll = camera_rad_yaw_pitch_roll
-
-        self.airsim_client.simSetCameraPose("0", airsim.Pose(airsim.Vector3r(+0.30, 0.0, -0.35),airsim.to_quaternion(pitch, 0.0, 0.0)))
-        #self.airsim_client.simSetCameraPose("0", airsim.Pose(airsim.Vector3r(+0.0, 0.0, -0.0),airsim.to_quaternion(pitch, 0.0, 0.0)))
+        self.airsim_client.simSetCameraPose("0", airsim.Pose(airsim.Vector3r(+0.30, 0.0, -0.35),airsim.to_quaternion(camera_pitch, 0.0, 0.0)))
         self.airsim_client.simSetCameraPose("1", airsim.Pose(airsim.Vector3r(0.0, 0.0, -2.5),airsim.to_quaternion(+numpy.pi / 8, 0.0, 0)),vehicle_name=self.virtual_camera_name)
         self.airsim_client.simSetCameraPose("2", airsim.Pose(airsim.Vector3r(0.0, 0.0, -self.height_abs_BEV),airsim.to_quaternion(-numpy.pi / 2, 0, 0.0)))
 
@@ -252,7 +248,9 @@ class tools_airsim:
         origin_2d_up = origin_2d + numpy.array((0,image.shape[0]//10))
         origin_2d_side1 = tools_image.rotate_point(origin_2d_up,origin_2d,numpy.rad2deg(yaw)+fov_deg/2)
         origin_2d_side2 = tools_image.rotate_point(origin_2d_up,origin_2d,numpy.rad2deg(yaw)-fov_deg/2)
-        image = tools_draw_numpy.draw_contours_cv(image, numpy.concatenate([origin_2d,origin_2d_side1,origin_2d_side2]).reshape((-1,2)), color=color,w=-1,transperency=0.3)
+        image = tools_draw_numpy.draw_line_fast(image, origin_2d[1], origin_2d[0], origin_2d_side1[1],origin_2d_side1[0], color)
+        image = tools_draw_numpy.draw_line_fast(image, origin_2d[1], origin_2d[0], origin_2d_side2[1],origin_2d_side2[0], color)
+        image = tools_draw_numpy.draw_line_fast(image, origin_2d_side1[1], origin_2d_side1[0], origin_2d_side2[1],origin_2d_side2[0], color)
 
         return image
     # ---------------------------------------------------------------------------------------------------------------------
@@ -374,7 +372,7 @@ class tools_airsim:
 
         return image
 # ---------------------------------------------------------------------------------------------------------------------
-    def draw_circles_on_BEV(self, image, origin, shift=None, color=(64, 64, 64)):
+    def draw_circles_on_BEV(self, image, origin, shift=None, color=(192, 192, 192)):
 
 
         Pos = [1,5,10,50,100,500,1000]

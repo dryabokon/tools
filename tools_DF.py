@@ -437,24 +437,28 @@ def fetch_multi_col(df1,cols1,df2,cols2,col_value,col_new_name=None):
 
     return df_res
 # ---------------------------------------------------------------------------------------------------------------------
-def fetch_by_time(df1, col_time1, df2, col_time2, list_col_values):
+def fetch_by_time(df1, col_time1, df2, col_time2, col_value, tolerance_ms=100):
     df1_copy = df1.copy()
-    df2_copy = df2.copy()
-    df2_copy = df2_copy[[col_time2]+list_col_values]
-    df1_copy['time_sec'] = (df1_copy[col_time1].astype('int64') // 10 ** 9) % 86400
-    df2_copy['time_sec'] = (df2_copy[col_time2].astype('int64') // 10 ** 9) % 86400
-    df1_copy = df1_copy.sort_values('time_sec')
-    df2_copy = df2_copy.sort_values('time_sec')
+    df1_copy[col_value] = numpy.nan
+    idx2 = 0
 
-    df_res = pd.merge_asof(
-        df1_copy,
-        df2_copy,
-        on='time_sec',
-        direction='nearest')
+    for idx1 in range(len(df1_copy)):
+        t1 = df1_copy[col_time1].iloc[idx1]
 
-    df_res = df_res.drop('time_sec', axis=1)
+        while idx2 < len(df2) - 1:
+            diff_curr = abs((t1 - df2[col_time2].iloc[idx2    ]).total_seconds() * 1000)
+            diff_next = abs((t1 - df2[col_time2].iloc[idx2 + 1]).total_seconds() * 1000)
+            if diff_next < diff_curr:
+                idx2 += 1
+            else:
+                break
 
-    return df_res
+        diff_best = abs((t1 - df2[col_time2].iloc[idx2]).total_seconds() * 1000)
+
+        if diff_best <= tolerance_ms:
+            df1_copy.loc[df1_copy.index[idx1], col_value] = df2[col_value].iloc[idx2]
+
+    return df1_copy
 # ---------------------------------------------------------------------------------------------------------------------
 def is_categorical(df,col_name):
 
