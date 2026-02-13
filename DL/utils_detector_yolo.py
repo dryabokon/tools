@@ -24,6 +24,9 @@ class Detector_yolo:
 
         self.model_detect = YOLO(model_name,task="detect")
         self.imgsz = (384, 640)
+        if hasattr(config, 'imgsz') and config.imgsz is not None:
+            self.imgsz = config.imgsz
+        
         self.colors80 = tools_draw_numpy.get_colors(80, colormap='nipy_spectral', shuffle=True)
         self.dct_class_names = None
         return
