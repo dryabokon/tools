@@ -16,8 +16,9 @@ import tools_draw_numpy
 import tools_IO
 # ---------------------------------------------------------------------------------------------------------------------
 class Grabber:
-    def __init__(self, source,looped=True,width=None,height=None,cred_config_yaml=None):
+    def __init__(self, source,looped=True,width=None,height=None,cred_config_yaml=None,limit=None):
         self.name = 'Grabber cv2'
+        self.limit = limit
         self.looped = looped
         self.source = source
         self.width = width
@@ -132,7 +133,7 @@ class Grabber:
         return
     # ---------------------------------------------------------------------------------------------------------------------
     def capture_empty(self):
-        print('capture_empty')
+        #print('capture_empty')
         
         self.mode = 'empty'
         self.max_frame_id = 1
@@ -156,7 +157,7 @@ class Grabber:
 
     # ---------------------------------------------------------------------------------------------------------------------
     def capture_filenames(self):
-        print('capture_filenames')
+        #print('capture_filenames')
         self.mode = 'filenames'
         filenames = tools_IO.get_filenames(self.source, '*.jpg,*.png')
 
@@ -171,7 +172,7 @@ class Grabber:
         return
     # ---------------------------------------------------------------------------------------------------------------------
     def capture_finite(self):
-        print('capture_finite')
+        #print('capture_finite')
         self.mode = 'finite'
         self.cap = cv2.VideoCapture(self.source)
         if not self.cap.isOpened():
@@ -186,7 +187,7 @@ class Grabber:
         return
     # ---------------------------------------------------------------------------------------------------------------------
     def capture_endless_argus(self):
-        print('capture_endless_argus')
+        #print('capture_endless_argus')
 
         self.mode = 'endless'
         source = self.source
@@ -447,6 +448,12 @@ class Grabber:
         self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_id)
         success, image = self.cap.read()
 
+        if frame_id >= self.max_frame_id or (self.limit is not None and frame_id >= self.limit):
+            self.exhausted = True
+
+        # if not success:
+        #     self.exhausted = True
+
         return image
     # ---------------------------------------------------------------------------------------------------------------------
     def get_frame_endless(self,frame_id=None):
@@ -478,5 +485,12 @@ class Grabber:
     # ---------------------------------------------------------------------------------------------------------------------
     def stop_processing(self):
         self.should_be_closed = True
+        return
+    # ---------------------------------------------------------------------------------------------------------------------
+    def is_finished(self):
+        return self.exhausted
+    # ---------------------------------------------------------------------------------------------------------------------
+    def stop(self):
+
         return
     # ---------------------------------------------------------------------------------------------------------------------
