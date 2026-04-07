@@ -26,7 +26,7 @@ class Grabber:
         self.cred_config_yaml = cred_config_yaml
         self.should_be_closed = False
         self.HB = tools_heartbeat.tools_HB()
-
+        self.exhausted = False
         self.cap = None
         self.mode = None
         self.max_frame_id = None
