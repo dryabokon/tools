@@ -91,7 +91,7 @@ def draw_points(image, points,color=(0,0,200),w=4,transperency=0,put_text=False,
     return result
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_line_fast(image, row1, col1, row2, col2, color_bgr,w=1):
-    image = cv2.line(image, (int(col1), int(row1)), (int(col2), int(row2)), (int(color_bgr[0]),int(color_bgr[1]),int(color_bgr[2])), thickness=w)
+    image = cv2.line(image, (int(float(col1)), int(float(row1))), (int(float(col2)), int(float(row2))), (int(color_bgr[0]),int(color_bgr[1]),int(color_bgr[2])), thickness=w)
     return image
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_line(array_bgr, row1, col1, row2, col2, color_bgr, alpha_transp=0.0,antialiasing=True):
