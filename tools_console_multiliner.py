@@ -14,12 +14,19 @@ class MultiLineUpdater:
         return
     # ----------------------------------------------------------------------------------------------------------------------
     def update(self, row: int, text: str):
-        self.lines[row] = text
-        rows_up = self.num_rows - 1 - row
-        sys.stdout.write(f"\033[{rows_up}A\r" if rows_up > 0 else "\r")
-        sys.stdout.write(f"\033[2K{text}")
-        if rows_up > 0:
-            sys.stdout.write(f"\033[{rows_up}B")
+        self.lines[row] = text if text is not None else ''
+    # ----------------------------------------------------------------------------------------------------------------------
+    def redraw(self):
+        sys.stdout.write(f"\033[{self.num_rows - 1}A\r")
+        for i, line in enumerate(self.lines):
+            sys.stdout.write(f"\033[2K{line}")
+            if i < self.num_rows - 1:
+                sys.stdout.write("\n")
+        sys.stdout.flush()
+    # ----------------------------------------------------------------------------------------------------------------------
+    def reset(self):
+        """Re-anchor the block at the current cursor position after stray prints."""
+        print("\n" * (self.num_rows - 1), end="")
         sys.stdout.flush()
     # ----------------------------------------------------------------------------------------------------------------------
     def close(self):
