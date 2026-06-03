@@ -632,8 +632,8 @@ class OBJ_Utils:
         placeholder_objText = open(filename_obj).read()
         placeholder_mtlText = open(filename_mat).read()
 
-        #txt_html = open('./data/templates/renderer_self_contained_multiobject.html').read()
-        txt_html = open('./data/templates/renderer_self_contained_multiobject_with_ground3.html').read()
+        txt_html = open('./data/templates/renderer_self_contained_multiobject.html').read()
+        #txt_html = open('./data/templates/renderer_self_contained_multiobject_with_ground3.html').read()
         txt_html = self.replace_last_substring(txt_html, 'placeholder_objText', "`" + placeholder_objText + "`")
         txt_html = self.replace_last_substring(txt_html, 'placeholder_mtlText', "`" + placeholder_mtlText + "`")
 
