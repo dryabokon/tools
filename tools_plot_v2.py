@@ -1258,7 +1258,48 @@ class Plotter(object):
             plt.savefig(self.folder_out+filename_out,facecolor=fig.get_facecolor())
 
         return
-# ---------------------------------------------------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------------------------------------------
+    def bubble_chart(self,df,W,H):
+        def normed_urgency(urgency, min_value=1, max_value=10, W=1280, margin=20):return (urgency - min_value) / (max_value - min_value) * (W - 2 * margin) + margin
+        def normed_impact(impact, min_value=1, max_value=10, H=720, margin=20):return H - ((impact - min_value) / (max_value - min_value) * (H - 2 * margin) + margin)
+        def normed_complexity(complexity, min_value=1, max_value=10, W=128, margin=20):return (complexity - min_value) / (max_value - min_value) * (W - 2 * margin) + margin
+
+        col_bg = numpy.array([250, 250, 240])
+        color_axis = (180, 180, 180)
+        colors_edge = tools_draw_numpy.get_colors(10, colormap='jet', shuffle=True, interpolate=False)
+
+        colors_fill = ((colors_edge.astype(float) * 3 + col_bg.astype(float) * 7) / 10).astype(numpy.uint8)
+        font_size_axis = 12
+        font_size_label = 30
+        margin = 20
+
+        image = numpy.full((H, W, 3), col_bg, numpy.uint8)
+        cv2.line(image, (W // 2, 0), (W // 2, H), color_axis, thickness=1)
+        cv2.line(image, (0, H // 2), (W, H // 2), color_axis, thickness=1)
+
+        image = tools_draw_numpy.draw_text(image, "Low Urgency", (margin, H // 2 + 10), color_axis, hor_align='left',font_size=font_size_axis)
+        image = tools_draw_numpy.draw_text(image, "High Urgency", (W - margin, H // 2 - font_size_axis - 5), color_axis,hor_align='right', font_size=font_size_axis)
+        image = tools_draw_numpy.draw_text(image, "High Impact", (W // 2 + 20, margin), color_axis, vert_align='top',font_size=font_size_axis)
+        image = tools_draw_numpy.draw_text(image, "Low Impact", (W // 2 - 20, H - margin - font_size_axis - 10),color_axis, hor_align='right', vert_align='bottom', font_size=font_size_axis)
+        image = tools_draw_numpy.draw_text(image, "Strategic", (margin, margin), color_axis, hor_align='left',vert_align='top', font_size=font_size_axis)
+        image = tools_draw_numpy.draw_text(image, "Critical", (W - margin, margin), color_axis, hor_align='right',vert_align='top', font_size=font_size_axis)
+        image = tools_draw_numpy.draw_text(image, "Backlog", (margin, H - margin), color_axis, hor_align='left',vert_align='bottom', font_size=font_size_axis)
+        image = tools_draw_numpy.draw_text(image, "Tactical", (W - margin, H - margin), color_axis, hor_align='right',vert_align='bottom', font_size=font_size_axis)
+
+        for r in range(df.shape[0]):
+            urgency, impact, complexity, desc = df.iloc[r, :]
+            urgency = normed_urgency(urgency)
+            impact = normed_impact(impact)
+            complexity = normed_complexity(complexity)
+            p = (urgency - complexity, impact - complexity, urgency + complexity, impact + complexity)
+            image = tools_draw_numpy.draw_simple_ellipse(image,p,color=colors_fill[r],col_edge=colors_edge[r],transperency=0.0)
+            #shift_x, shift_y, sx, sy = tools_draw_numpy.get_position_sign(desc, W, H, font_size_label,(urgency, impact))
+            hor_align, pos_x = ('left', urgency) if urgency < W // 2 else ('right', urgency)
+            image = tools_draw_numpy.draw_text(image,desc,(pos_x, impact),(0, 0, 0),hor_align=hor_align,vert_align='center',font_size=font_size_label)
+
+
+        return image
+    # ---------------------------------------------------------------------------------------------------------------------
     def inplace_image(self, image, str_start, str_stop, major_step_days=7, out_format_x=None,figsize=(10, 4),filename_out=None):
 
         H, W = image.shape[:2]

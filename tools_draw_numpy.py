@@ -400,20 +400,94 @@ def draw_simple_ellipse(image,p,color=(255, 0, 0),col_edge=(200, 0, 0),transpere
     if p is None or len(p)==0 or numpy.any(numpy.isnan(p)):
         return image
 
-    pImage = Image.fromarray(image)
+    x1, y1, x2, y2 = int(p[0]), int(p[1]), int(p[2]), int(p[3])
+    w = x2 - x1
+    h = y2 - y1
+    if w <= 0 or h <= 0:
+        return image
 
-    if len((image.shape))==3:
-        draw = ImageDraw.Draw(pImage, 'RGBA')
+    # 4x Supersampling for ultra-high-quality antialiasing (SSAA)
+    scale = 4
+    margin = 5
+    crop_x1 = x1 - margin
+    crop_y1 = y1 - margin
+    crop_x2 = x2 + margin
+    crop_y2 = y2 + margin
+
+    crop_w = crop_x2 - crop_x1
+    crop_h = crop_y2 - crop_y1
+
+    large_w = crop_w * scale
+    large_h = crop_h * scale
+
+    lx1 = margin * scale
+    ly1 = margin * scale
+    lx2 = (margin + w) * scale
+    ly2 = (margin + h) * scale
+
+    if len(image.shape) == 3:
+        large_patch = Image.new("RGBA", (large_w, large_h), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(large_patch)
+
         clr_fill = (int(color[0]), int(color[1]), int(color[2]), int(255-transperency*255)) if color is not None else None
-        clr_edge = (col_edge[0], col_edge[1], col_edge[2],255) if col_edge is not None else None
-        draw.ellipse((int(p[0]),int(p[1]),int(p[2]),int(p[3])), fill=clr_fill,outline= clr_edge,width=3)
-    else:
-        draw = ImageDraw.Draw(pImage)
-        draw.ellipse((int(p[0]), int(p[1]), int(p[2]), int(p[3])),fill=color,outline=color)
+        clr_edge = (int(col_edge[0]), int(col_edge[1]), int(col_edge[2]), 255) if col_edge is not None else None
 
-    result = numpy.array(pImage)
-    del draw
-    return result
+        draw.ellipse((lx1, ly1, lx2, ly2), fill=clr_fill, outline=clr_edge, width=3 * scale)
+
+        patch_1x = large_patch.resize((crop_w, crop_h), Image.Resampling.LANCZOS)
+        patch_np = numpy.array(patch_1x)
+
+        H_img, W_img = image.shape[:2]
+        img_x1 = max(0, crop_x1)
+        img_y1 = max(0, crop_y1)
+        img_x2 = min(W_img, crop_x2)
+        img_y2 = min(H_img, crop_y2)
+
+        p_x1 = img_x1 - crop_x1
+        p_y1 = img_y1 - crop_y1
+        p_x2 = p_x1 + (img_x2 - img_x1)
+        p_y2 = p_y1 + (img_y2 - img_y1)
+
+        if img_x2 > img_x1 and img_y2 > img_y1:
+            sub_img = image[img_y1:img_y2, img_x1:img_x2].astype(float)
+            sub_patch = patch_np[p_y1:p_y2, p_x1:p_x2].astype(float)
+
+            alpha = sub_patch[:, :, 3:4] / 255.0
+            blended = sub_patch[:, :, :3] * alpha + sub_img * (1 - alpha)
+            image[img_y1:img_y2, img_x1:img_x2] = blended.astype(numpy.uint8)
+    else:
+        large_patch = Image.new("L", (large_w, large_h), 0)
+        draw = ImageDraw.Draw(large_patch)
+
+        fill_val = int(color) if color is not None else None
+        edge_val = int(col_edge) if col_edge is not None else None
+
+        draw.ellipse((lx1, ly1, lx2, ly2), fill=fill_val, outline=edge_val, width=3 * scale)
+
+        patch_1x = large_patch.resize((crop_w, crop_h), Image.Resampling.LANCZOS)
+        patch_np = numpy.array(patch_1x)
+
+        H_img, W_img = image.shape[:2]
+        img_x1 = max(0, crop_x1)
+        img_y1 = max(0, crop_y1)
+        img_x2 = min(W_img, crop_x2)
+        img_y2 = min(H_img, crop_y2)
+
+        p_x1 = img_x1 - crop_x1
+        p_y1 = img_y1 - crop_y1
+        p_x2 = p_x1 + (img_x2 - img_x1)
+        p_y2 = p_y1 + (img_y2 - img_y1)
+
+        if img_x2 > img_x1 and img_y2 > img_y1:
+            sub_img = image[img_y1:img_y2, img_x1:img_x2].astype(float)
+            sub_patch = patch_np[p_y1:p_y2, p_x1:p_x2].astype(float)
+
+            mask = sub_patch / 255.0
+            val_fill = fill_val if fill_val is not None else 255
+            blended = val_fill * mask + sub_img * (1 - mask)
+            image[img_y1:img_y2, img_x1:img_x2] = blended.astype(numpy.uint8)
+
+    return image
 # ----------------------------------------------------------------------------------------------------------------------
 def draw_ellipses(image, ellipses,color=(0,0,200),w=1,draw_axes=False,labels=None,transperency=0.0):
     image_ellipses = image.copy()
